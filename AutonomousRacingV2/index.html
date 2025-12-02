@@ -19,7 +19,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // 🌟 수정: getDoc을 firebase-firestore.js에서 가져오도록 수정
+        import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         
         // setLogLevel('Debug'); // 디버깅 시 주석 해제
@@ -41,6 +42,7 @@
             window.doc = doc;      
             window.setDoc = setDoc;    
             window.onSnapshot = onSnapshot;  
+            window.getDoc = getDoc; // getDoc은 이제 window.getDoc으로 내보내집니다.
             
             window.firebaseInitialized = false;
 
@@ -308,23 +310,30 @@
         };
 
         // 🌟 AI 난이도 데이터 로딩
-        const loadAIDifficultyData = (setAIDifficultyStats) => {
+        const loadAIDifficultyData = (setAIDifficultyStats, setAIReady) => {
             const db = getFirestoreDB();
             const auth = window.firebaseAuth;
             if (!db || !auth || !auth.currentUser) return;
             const userId = auth.currentUser.uid;
             const docRef = window.doc(db, AI_DIFFICULTY_PATH(userId)); 
 
-            const unsubscribe = window.onSnapshot(docRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    // winStreakMap: { 'trackId': winStreakCount }
-                    setAIDifficultyStats(docSnap.data().winStreakMap || {});
-                } else {
-                    window.setDoc(docRef, { winStreakMap: {} }); 
-                    setAIDifficultyStats({});
+            const unsubscribe = window.onSnapshot(docRef, async (docSnap) => { // async 추가
+                try {
+                    if (docSnap.exists()) {
+                        // winStreakMap: { 'trackId': winStreakCount }
+                        setAIDifficultyStats(docSnap.data().winStreakMap || {});
+                    } else {
+                        await window.setDoc(docRef, { winStreakMap: {} }); // await 추가
+                        setAIDifficultyStats({});
+                    }
+                    setAIReady(true); // 🌟 로딩 완료 신호 전송
+                } catch (error) {
+                    console.error("Error listening to AI Difficulty:", error);
+                    setAIReady(true); // 오류가 나더라도 로딩 완료 신호 전송 (멈춤 방지)
                 }
             }, (error) => {
-                console.error("Error listening to AI Difficulty:", error);
+                console.error("Error setting up AI Difficulty listener:", error);
+                setAIReady(true);
             });
             return unsubscribe;
         };
@@ -481,6 +490,7 @@
             
             // 🌟 AI 난이도 상태
             const [aiDifficultyStats, setAIDifficultyStats] = useState({});
+            const [aiReady, setAIReady] = useState(false); // 🌟 AI 로딩 상태 추가
 
             // 🌟 캐릭터 선택 상태
             const [currentVehicleId, setCurrentVehicleId] = useState(VEHICLE_TYPES[0].id);
@@ -589,7 +599,7 @@
                     const volFactor = 0.1 + speedRatio * 0.9;
                     const volume = baseVol * volFactor;
 
-                    engineGainRef.current.gain.setTargetAtTime(volume, audioCtxRef.current.currentTime, 0.05);
+                    engineGainRef.current.gain.setTargetAtTime(volume, audioCtxCtx.current.currentTime, 0.05);
                 }
             }, [isMuted, physics.maxSpeed]);
 
@@ -1460,10 +1470,17 @@
             // Initial Game/Auth Setup (Load User Data)
             useEffect(() => {
                 const handleFirebaseReady = () => {
-                    const unsubscribeUser = loadUserData(setUserData, setAuthReady);
-                    const unsubscribeAI = loadAIDifficultyData(setAIDifficultyStats); // 🌟 AI 난이도 로드
+                    // loadUserData는 authReady를 설정합니다.
+                    const unsubscribeUser = loadUserData(setUserData, setAuthReady); 
+                    
+                    // authReady가 설정된 후 Logic과 AI 데이터를 로드합니다.
+                    // 이 useEffect는 authReady가 설정되자마자 실행되어야 합니다.
+                    const unsubscribeLogic = loadLogicData(setLogicSlots, setActiveSlotIndex, setLogicReady);
+                    const unsubscribeAI = loadAIDifficultyData(setAIDifficultyStats, setAIReady);
+                    
                     return () => { 
                         if (unsubscribeUser) unsubscribeUser(); 
+                        if (unsubscribeLogic) unsubscribeLogic();
                         if (unsubscribeAI) unsubscribeAI();
                     };
                 };
@@ -1476,17 +1493,6 @@
                 }
             }, []);
             
-            // Load Logic Data when Auth is ready
-            useEffect(() => {
-                if (!authReady) return;
-
-                const unsubscribeLogic = loadLogicData(setLogicSlots, setActiveSlotIndex, setLogicReady);
-                
-                return () => { 
-                    if (unsubscribeLogic) unsubscribeLogic(); 
-                };
-            }, [authReady]);
-
             // Sync blocks with loaded logic slots on initial load or active slot change
             useEffect(() => {
                 if (logicReady) {
@@ -1501,19 +1507,31 @@
             }, [logicReady, activeSlotIndex]);
 
 
-            // Initial reset when Auth & Logic are ready
+            // Initial reset when Auth & Logic & AI are ready
             useEffect(() => {
-                if (authReady && logicReady) {
+                if (authReady && logicReady && aiReady) { // 🌟 aiReady 추가
                     resetGame(); 
                 }
-            }, [authReady, logicReady]);
+            }, [authReady, logicReady, aiReady]); // 🌟 aiReady 추가
 
             // Reset when track or chassis changes (if game is idle)
             useEffect(() => {
-                if (authReady && logicReady && gameState === 'idle') { 
+                if (authReady && logicReady && aiReady && gameState === 'idle') { // 🌟 aiReady 추가
                     resetGame();
                 }
             }, [currentTrackIdx, userData.currentChassis, currentVehicleId]);
+            
+            // 🌟 [추가된 useEffect] 화면 전환 시 초기화 처리
+            useEffect(() => {
+                // 모든 데이터 로딩이 완료되고 (authReady, logicReady, aiReady),
+                // 현재 화면이 'race'로 설정되었을 때만 실행
+                if (authReady && logicReady && aiReady && currentScreen === 'race') {
+                    // 게임 상태가 'running'이 아닐 때 (즉, 새로 시작하거나 멈췄을 때)
+                    if (gameState === 'idle' || gameState === 'finished') {
+                        resetGame();
+                    }
+                }
+            }, [currentScreen, authReady, logicReady, aiReady]); // currentScreen 변경을 의존성으로 추가
 
 
             // Update physics constants when user data or parts change
@@ -1720,7 +1738,7 @@
 
             // --- Main App Render ---
             
-            if (!authReady || !logicReady) {
+            if (!authReady || !logicReady || !aiReady) { // 🌟 aiReady 조건 추가
                 return <div className="flex h-screen items-center justify-center text-xl text-blue-400">데이터 로딩 중...</div>;
             }
 
