@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Melody Maker v12.1</title>
+    <title>Neon Melody Maker v12.2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -68,7 +68,7 @@
         }
         .inst-select { width: 75px; background: #222; color: var(--neon-blue); border: 1px solid #444; font-size: 11px; border-radius: 4px; height: 26px; padding-left: 4px; }
         
-        /* 계명 선택 박스 스타일 (조금 더 넓게) */
+        /* Note Select */
         .note-select { 
             width: 50px; background: #222; color: #fbbf24; border: 1px solid #444; 
             font-size: 11px; border-radius: 4px; height: 26px; text-align: center; 
@@ -93,8 +93,12 @@
         
         .cell.playing { filter: brightness(2.0); transform: scale(1.1); border-color: white; z-index: 5; }
 
-        /* Add Button */
-        .add-area { padding: 10px 0 10px 150px; border-top: 1px solid #222; background: #161616; position: sticky; left: 0; }
+        /* Add Button (Modified to flow with content) */
+        .add-area { 
+            padding: 10px 0 20px 150px; /* Bottom padding increased for easy touch */
+            margin-top: 5px;
+            /* removed sticky/fixed positioning */
+        }
         .btn-add { width: 100%; height: 32px; border: 1px dashed #444; color: #666; border-radius: 6px; font-size: 12px; cursor: pointer; background: transparent; transition: 0.2s; }
         .btn-add:hover { border-color: white; color: white; background: #222; }
 
@@ -155,10 +159,10 @@
 
     <div class="app-content">
         <div class="sequencer">
-            <div class="tracks-area" id="tracks-area"></div>
-            <div class="add-area">
-                <button class="btn-add" onclick="addTrack()" data-i18n="addTrack">+ ADD TRACK</button>
+            <div class="tracks-area" id="tracks-area">
+                <!-- Tracks will be rendered here -->
             </div>
+            <!-- Removed fixed .add-area from here, it will be appended inside tracks-area by JS -->
         </div>
     </div>
 
@@ -240,7 +244,6 @@ window.changeLanguage = function(lang) {
     currentLang = lang;
     if(window.StorageApp) window.StorageApp.saveLang(lang); 
     
-    // Update Static Text
     const t = TRANSLATIONS[lang] || TRANSLATIONS['en'];
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
@@ -248,15 +251,12 @@ window.changeLanguage = function(lang) {
     });
     
     if(t.ai_ph) document.getElementById('ai-prompt').placeholder = t.ai_ph;
-
-    // Re-render Grid to update Instrument/Note names
     renderGrid();
 }
 
 function getText(key) { return (TRANSLATIONS[currentLang] || TRANSLATIONS['en'])[key] || key; }
 
 function getNoteName(note) {
-    // note ex: C3, F#4 (Hash logic not implemented, simple scale)
     if (currentLang !== 'ko') return note;
     const key = note.charAt(0);
     const octave = note.slice(1);
@@ -319,8 +319,6 @@ function renderGrid() {
         if (!['Kick','Snare','HiHat','Clap','Crash','Tom'].includes(track.type)) {
             const selNote = document.createElement('select');
             selNote.className = 'note-select';
-            
-            // Expanded Octaves (2, 3, 4, 5)
             const octaves = [2, 3, 4, 5];
             octaves.forEach(oct => {
                 ['C','D','E','F','G','A','B'].forEach(n => {
@@ -332,7 +330,6 @@ function renderGrid() {
                     selNote.appendChild(opt);
                 });
             });
-
             selNote.onchange = (e) => track.note = e.target.value;
             controls.appendChild(selNote);
         }
@@ -351,14 +348,26 @@ function renderGrid() {
         row.appendChild(grid);
         container.appendChild(row);
     });
+
+    // === Dynamic Add Button (Appended at end of list) ===
+    const addBtnDiv = document.createElement('div');
+    addBtnDiv.className = 'add-area';
+    addBtnDiv.innerHTML = `<button class="btn-add" onclick="addTrack()">${getText('addTrack')}</button>`;
+    container.appendChild(addBtnDiv);
 }
 
 function addTrack() {
     tracks.push({ type: 'Piano', note: 'C4', pattern: Array(steps).fill(false) });
     renderGrid();
-    setTimeout(() => { const area = document.getElementById('tracks-area'); area.scrollTop = area.scrollHeight; }, 10);
+    // Scroll to bottom
+    setTimeout(() => { 
+        const area = document.getElementById('tracks-area');
+        area.scrollTop = area.scrollHeight; 
+    }, 10);
 }
+
 function clearAll() { tracks.forEach(t => t.pattern.fill(false)); renderGrid(); }
+
 function autoGenerate() {
     tracks.forEach(t => {
         t.pattern.fill(false);
