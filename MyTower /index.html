@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Canvas Tower Defense: Fixed Build</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #game-wrapper {
+            display: flex;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #1e1e1e;
+            position: relative;
+            align-items: flex-start; 
+        }
+
+        canvas {
+            background-color: #1a1a1a;
+            cursor: crosshair;
+            display: block;
+        }
+
+        #sidebar {
+            width: 340px;
+            height: 600px;
+            box-sizing: border-box;
+            background-color: #2d2d30;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid #3e3e42;
+        }
+
+        /* 1. 상단 정보창 (Grid) */
+        .stats-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px 10px;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #3e3e42;
+            flex-shrink: 0;
+            font-size: 0.95em;
+        }
+        .stat-item {
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .gold-text { color: #ffd700; }
+        .gem-text { color: #00ffff; }
+        .lives-text { color: #ff4d4d; }
+        .wave-text { color: #4da6ff; }
+        
+        /* 2. 컨트롤 패널 */
+        .control-row {
+            display: flex; gap: 5px; margin-bottom: 10px; flex-shrink: 0;
+        }
+        
+        .speed-control {
+            flex: 2; display: flex; background: #3e3e42; border-radius: 4px; padding: 2px;
+        }
+        .speed-btn {
+            flex: 1; background: transparent; border: none; color: #aaa; padding: 4px 0;
+            cursor: pointer; font-weight: bold; font-size: 0.9em; border-radius: 3px; transition: all 0.2s;
+        }
+        .speed-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+        .speed-btn.active { background: #4da6ff; color: white; }
+        
+        .skip-control { flex: 3; position: relative; }
+        #skip-btn {
+            width: 100%; height: 100%; background: #e67e22; color: white; border: none; 
+            border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.9em;
+            display: flex; justify-content: space-between; align-items: center; padding: 0 10px;
+        }
+        #skip-btn:hover { background: #d35400; filter: brightness(1.1); }
+        #timer-bar { position: absolute; bottom: 0; left: 0; height: 3px; background: rgba(0,0,0,0.3); width: 100%; }
+        #timer-fill { height: 100%; background: #fff; width: 100%; transition: width 0.1s linear; opacity: 0.7; }
+
+        /* 탭 메뉴 */
+        .tab-container {
+            display: flex; margin-bottom: 5px; border-bottom: 1px solid #3e3e42; flex-shrink: 0;
+        }
+        .tab-btn {
+            flex: 1; padding: 8px; background: transparent; border: none; color: #aaa; cursor: pointer; font-weight: bold; font-size: 0.95em;
+        }
+        .tab-btn.active { color: #fff; border-bottom: 2px solid #4da6ff; }
+        
+        /* 메인 패널 */
+        #action-panel, #tech-panel {
+            flex-grow: 1; overflow-y: auto; padding-right: 5px; padding-top: 5px;
+        }
+        #action-panel::-webkit-scrollbar, #tech-panel::-webkit-scrollbar { width: 6px; }
+        #action-panel::-webkit-scrollbar-thumb, #tech-panel::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+        #action-panel::-webkit-scrollbar-track, #tech-panel::-webkit-scrollbar-track { background: #2d2d30; }
+        #tech-panel { display: none; }
+
+        h3 { margin: 5px 0; color: #fff; font-size: 15px; text-transform: uppercase; letter-spacing: 1px; }
+        p.desc { font-size: 12px; color: #aaa; margin-bottom: 10px; line-height: 1.3; }
+
+        /* 버튼 스타일 */
+        .btn-action {
+            width: 100%; background: #3e3e42; border: 1px solid #555; color: white;
+            padding: 8px 10px; margin-bottom: 6px; border-radius: 4px; cursor: pointer;
+            text-align: left; transition: all 0.2s; position: relative;
+        }
+        .btn-action:hover:not(:disabled) { background: #505055; transform: translateX(2px); border-color: #777; }
+        .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .btn-title { display: flex; justify-content: space-between; font-weight: bold; font-size: 13px; margin-bottom: 2px; }
+        .btn-cost { font-size: 11px; background: rgba(0,0,0,0.4); padding: 1px 5px; border-radius: 8px;}
+        .cost-gold { color: #ffd700; }
+        .cost-gem { color: #00ffff; }
+        .btn-desc { display: block; font-size: 11px; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        .target-tag {
+            font-size: 10px; padding: 1px 3px; border-radius: 3px; margin-left: 5px; vertical-align: middle; display: inline-block;
+        }
+        .tag-ground { background: #8d6e63; color: #fff; }
+        .tag-air { background: #4fc3f7; color: #000; }
+        .tag-both { background: #9ccc65; color: #000; }
+
+        .sell-btn { margin-top: auto; background: #8b0000; border: none; color: white; padding: 8px; width: 100%; cursor: pointer; border-radius: 4px; font-size: 13px;}
+        
+        /* 스킬 버튼 */
+        .skill-section { margin-top: 20px; border-top: 1px solid #444; padding-top: 10px; }
+        .skill-btn {
+            background: #2c3e50; border: 1px solid #3498db; color: #fff;
+            padding: 8px; margin-bottom: 5px; width: 100%; cursor: pointer; border-radius: 4px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .skill-btn:hover:not(:disabled) { background: #34495e; }
+        .skill-btn:disabled { opacity: 0.5; border-color: #555; }
+        .skill-cooldown { font-size: 11px; color: #ffeb3b; }
+
+        #overlay, #notification-banner { position: absolute; pointer-events: none; z-index: 100; }
+        #overlay {
+            top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85);
+            display: none; flex-direction: column; justify-content: center; align-items: center; pointer-events: auto;
+        }
+        #restart-btn { padding: 15px 30px; font-size: 18px; background: #4da6ff; border: none; color: white; cursor: pointer; border-radius: 4px; }
+
+        #notification-banner {
+            top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85); border: 2px solid #ff4d4d;
+            padding: 10px 20px; border-radius: 8px; text-align: center;
+            opacity: 0; transition: opacity 0.5s; width: 70%;
+        }
+        
+        #pause-indicator {
+            position: absolute; top: 10px; right: 10px;
+            background: rgba(0,0,0,0.5); color: #fff; padding: 5px 10px; border-radius: 4px;
+            font-weight: bold; display: none; pointer-events: none;
+        }
+        
+        /* 커서 오버레이 (스킬용) */
+        #cursor-overlay {
+            position: absolute; pointer-events: none; border: 2px dashed #f00; border-radius: 50%;
+            display: none; transform: translate(-50%, -50%); width: 100px; height: 100px;
+            background: rgba(255, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-wrapper">
+        <div style="position: relative; cursor: none;" id="canvas-container">
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+            <div id="pause-indicator">⏸ PAUSED</div>
+            <div id="cursor-overlay"></div> <!-- 스킬 범위 표시 -->
+            
+            <div id="notification-banner">
+                <span id="notif-title" style="display:block; color:#ff4d4d; font-weight:bold; font-size:1.2em;">WARNING</span>
+                <span id="notif-desc" style="color:#eee; font-size:0.9em;"></span>
+            </div>
+
+            <div id="overlay">
+                <h1 style="font-size: 48px; color: #ff4d4d; margin-bottom: 10px;">GAME OVER</h1>
+                <p style="color:white; margin-bottom: 30px;">Final Wave: <span id="final-wave">0</span></p>
+                <button id="restart-btn" onclick="initGame()">RESTART</button>
+            </div>
+        </div>
+
+        <div id="sidebar">
+            <div class="stats-container">
+                <div class="stat-item"><span>Gold</span> <span class="gold-text" id="ui-gold">0</span></div>
+                <div class="stat-item"><span>Gem</span> <span class="gem-text" id="ui-gem">0</span></div>
+                <div class="stat-item"><span>Lives</span> <span class="lives-text" id="ui-lives">0</span></div>
+                <div class="stat-item"><span>Wave</span> <span class="wave-text" id="ui-wave">0</span></div>
+            </div>
+
+            <div class="control-row">
+                <div class="speed-control">
+                    <button class="speed-btn" onclick="setSpeed(0)" id="spd-0" title="Pause (Space)">⏸</button>
+                    <button class="speed-btn active" onclick="setSpeed(1)" id="spd-1" title="1x (Key 1)">▶</button>
+                    <button class="speed-btn" onclick="setSpeed(2)" id="spd-2" title="2x (Key 2)">⏩</button>
+                    <button class="speed-btn" onclick="setSpeed(3)" id="spd-3" title="3x (Key 3)">⏭</button>
+                </div>
+                <div class="skip-control">
+                    <button id="skip-btn" onclick="skipWave()" title="Skip Wave (S)">
+                        <span>⏩ SKIP</span>
+                        <span id="skip-bonus" class="cost-gold">+0G</span>
+                    </button>
+                    <div id="timer-bar"><div id="timer-fill"></div></div>
+                </div>
+            </div>
+
+            <div class="tab-container">
+                <button class="tab-btn active" onclick="switchTab('build')" id="tab-build">건설/유닛</button>
+                <button class="tab-btn" onclick="switchTab('tech')" id="tab-tech">연구소</button>
+            </div>
+
+            <div id="action-panel"></div>
+            <div id="tech-panel"></div>
+        </div>
+    </div>
+
+<script>
+/** 0. 시스템 상수 */
+const GRID_SIZE = 40; 
+const WAVE_INTERVAL = 1200; 
+
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const Sound = {
+    playTone: (freq, type, dur, vol=0.1) => {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime+dur);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime+dur);
+    },
+    shoot: () => Sound.playTone(400, 'square', 0.05, 0.05),
+    heavy: () => Sound.playTone(150, 'sawtooth', 0.2, 0.08),
+    laser: () => Sound.playTone(800, 'sine', 0.15, 0.05),
+    hit: () => Sound.playTone(100, 'triangle', 0.05, 0.05),
+    build: () => Sound.playTone(600, 'sine', 0.1, 0.1),
+    ui: () => Sound.playTone(800, 'triangle', 0.05, 0.05),
+    warning: () => { Sound.playTone(300,'square',0.2,0.1); setTimeout(()=>Sound.playTone(200,'square',0.2,0.1),250); },
+    upgrade: () => { Sound.playTone(500, 'sine', 0.1, 0.1); setTimeout(() => Sound.playTone(1000, 'sine', 0.2, 0.1), 100); },
+    boss: () => { Sound.playTone(100, 'sawtooth', 1.0, 0.2); },
+    skill: () => { Sound.playTone(200, 'square', 0.5, 0.2); }
+};
+
+/** 1. 데이터 정의 */
+const TOWER_TYPES = {
+    'GUNNER': { name: '거너', cost: 50, damage: 12, range: 100, rate: 40, color: '#e67e22', type: 'bullet', target: 'BOTH', desc: '기본적인 연사 타워.', upgrades: ['RAPID', 'SNIPER'] },
+    'BOMBER': { name: '밤버', cost: 70, damage: 20, range: 120, rate: 70, color: '#c0392b', type: 'explosive', target: 'GROUND', desc: '지상 범위 공격.', upgrades: ['CANNON'] },
+    'FREEZER': { name: '프리저', cost: 60, damage: 5, range: 90, rate: 30, color: '#3498db', type: 'ice', target: 'GROUND', desc: '지상 적 둔화.', upgrades: ['ICE_BLAST'] },
+    'MISSILE': { name: '미사일', cost: 80, damage: 25, range: 160, rate: 60, color: '#90caf9', type: 'missile', target: 'AIR', desc: '공중 유닛 추적.', upgrades: ['VULCAN'] },
+    'LASER': { name: '레이저', cost: 90, damage: 8, range: 130, rate: 20, color: '#76ff03', type: 'laser', target: 'BOTH', desc: '즉시 적중하는 광선.', upgrades: ['PRISM'] },
+    'PULSE': { name: '펄스', cost: 100, damage: 30, range: 80, rate: 90, color: '#e040fb', type: 'pulse', target: 'BOTH', desc: '주변 모든 적 충격파.', upgrades: ['SHOCKWAVE'] },
+
+    'RAPID': { name: '기관총', cost: 120, damage: 7, range: 100, rate: 6, color: '#f39c12', type: 'bullet', target: 'BOTH', desc: '초고속 연사.', upgrades: ['GATLING'] },
+    'SNIPER': { name: '스나이퍼', cost: 140, damage: 80, range: 280, rate: 100, color: '#9b59b6', type: 'bullet', target: 'BOTH', desc: '장거리 저격.', upgrades: ['RAILGUN'] },
+    'CANNON': { name: '대포', cost: 160, damage: 45, range: 140, rate: 80, color: '#d35400', type: 'explosive', target: 'GROUND', desc: '강력한 폭발.', upgrades: ['NUKE'] },
+    'ICE_BLAST': { name: '냉기 포', cost: 150, damage: 10, range: 110, rate: 25, color: '#2980b9', type: 'ice', target: 'GROUND', desc: '강력한 슬로우.', upgrades: ['ZERO'] },
+    'VULCAN': { name: '발칸포', cost: 180, damage: 15, range: 180, rate: 8, color: '#5c6bc0', type: 'bullet', target: 'AIR', desc: '대공 방어 특화.', upgrades: ['SAM'] },
+    'PRISM': { name: '프리즘', cost: 200, damage: 20, range: 150, rate: 15, color: '#64dd17', type: 'laser', target: 'BOTH', desc: '고출력 레이저.', upgrades: ['DEATH_RAY'] },
+    'SHOCKWAVE': { name: '충격파', cost: 220, damage: 60, range: 100, rate: 80, color: '#d500f9', type: 'pulse', target: 'BOTH', desc: '넓은 범위 충격.', upgrades: ['EMP'] },
+
+    'GATLING': { name: '개틀링', cost: 350, damage: 12, range: 120, rate: 3, color: '#e74c3c', type: 'bullet', target: 'BOTH', desc: '탄막 형성.', upgrades: [] },
+    'RAILGUN': { name: '레일건', cost: 450, damage: 400, range: 450, rate: 120, color: '#8e44ad', type: 'laser', target: 'BOTH', desc: '관통 파괴.', upgrades: [] },
+    'NUKE': { name: '핵발사기', cost: 550, damage: 300, range: 200, rate: 150, color: '#c0392b', type: 'huge_explosive', target: 'GROUND', desc: '지상 초토화.', upgrades: [] },
+    'ZERO': { name: '절대영도', cost: 450, damage: 30, range: 150, rate: 10, color: '#3498db', type: 'aoe_freeze', target: 'GROUND', desc: '영구 동결.', upgrades: [] },
+    'SAM': { name: 'SAM 포대', cost: 500, damage: 120, range: 350, rate: 30, color: '#3949ab', type: 'missile', target: 'AIR', desc: '최강 대공 미사일.', upgrades: [] },
+    'DEATH_RAY': { name: '데스레이', cost: 600, damage: 1000, range: 200, rate: 60, color: '#00c853', type: 'laser', target: 'BOTH', desc: '단일 대상 소멸.', upgrades: [] },
+    'EMP': { name: 'E.M.P.', cost: 550, damage: 150, range: 180, rate: 100, color: '#aa00ff', type: 'pulse', target: 'BOTH', desc: '화면을 뒤덮는 파동.', upgrades: [] }
+};
+
+const TECH_UPGRADES = [
+    { id: 'dmg', name: '화력 증강', desc: '공격력 +10%', cost: 3, max: 10, val: 0.1, type: 'mult' },
+    { id: 'rng', name: '광학 렌즈', desc: '사거리 +10%', cost: 2, max: 5, val: 0.1, type: 'mult' },
+    { id: 'cost', name: '공정 최적화', desc: '건설 비용 -5%', cost: 5, max: 5, val: 0.05, type: 'discount' },
+    { id: 'crit', name: '정밀 타격', desc: '치명타 확률 +5%', cost: 4, max: 10, val: 0.05, type: 'chance' },
+    { id: 'bounty', name: '현상금 사냥', desc: '처치 골드 +1', cost: 6, max: 5, val: 1, type: 'flat' }
+];
+
+const SKILLS = {
+    'BOMB': { name: '궤도 폭격', cost: 100, cooldown: 1800, range: 100, desc: '지정 위치에 강력한 폭발 (500 Dmg)' }, // 30초
+    'TIME': { name: '시간 왜곡', cost: 150, cooldown: 3600, range: 0, desc: '모든 적 5초간 정지' } // 60초
+};
+
+const PATH = [
+    {x: 0, y: 3*GRID_SIZE}, {x: 5*GRID_SIZE, y: 3*GRID_SIZE}, {x: 5*GRID_SIZE, y: 12*GRID_SIZE},
+    {x: 15*GRID_SIZE, y: 12*GRID_SIZE}, {x: 15*GRID_SIZE, y: 5*GRID_SIZE}, {x: 10*GRID_SIZE, y: 5*GRID_SIZE},
+    {x: 10*GRID_SIZE, y: 8*GRID_SIZE}, {x: 20*GRID_SIZE, y: 8*GRID_SIZE}
+]; 
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let game = {
+    gold: 400, gem: 0, lives: 30, wave: 0, frame: 0,
+    enemies: [], towers: [], projectiles: [], particles: [], floats: [],
+    spawners: [], selectedCell: null, gameOver: false, waveTimer: WAVE_INTERVAL,
+    tech: { dmg: 1.0, rng: 1.0, discount: 0.0, crit: 0.0, bounty: 0 }, 
+    techLevels: { dmg: 0, rng: 0, cost: 0, crit: 0, bounty: 0 },
+    speed: 1, paused: false,
+    skillState: { BOMB: 0, TIME: 0 }, // 쿨타임 타이머
+    targetingMode: null // 스킬 타겟팅 중인지
+};
+
+const MOUSE = { x: 0, y: 0, col: 0, row: 0 };
+
+/** 2. 클래스 정의 */
+class Tower {
+    constructor(col, row, typeKey) {
+        this.col = col; this.row = row;
+        this.x = col * GRID_SIZE + GRID_SIZE/2;
+        this.y = row * GRID_SIZE + GRID_SIZE/2;
+        this.setType(typeKey);
+        this.angle = 0; this.recoil = 0;
+    }
+    setType(key) {
+        this.typeKey = key;
+        this.data = TOWER_TYPES[key];
+        this.baseRange = this.data.range;
+        this.baseDamage = this.data.damage;
+        this.rate = this.data.rate;
+        this.cooldown = 0;
+        Sound.build();
+        createExplosion(this.x, this.y, '#fff', 10);
+    }
+    getRange() { return this.baseRange * game.tech.rng; }
+    getDamage() { 
+        let d = this.baseDamage * game.tech.dmg;
+        if (Math.random() < game.tech.crit) {
+            d *= 2; createFloat("CRIT!", this.x, this.y - 20, '#ff00ff');
+        }
+        return d;
+    }
+    
+    canTarget(enemy) {
+        if (this.data.target === 'BOTH') return true;
+        if (this.data.target === 'AIR') return enemy.isFlying;
+        if (this.data.target === 'GROUND') return !enemy.isFlying;
+        return false;
+    }
+
+    update() {
+        if(this.cooldown > 0) this.cooldown--;
+        if(this.recoil > 0) this.recoil--;
+
+        if (this.data.type === 'pulse') {
+            if (this.cooldown <= 0) {
+                let hitAny = false;
+                const range = this.getRange();
+                const dmg = this.getDamage();
+                
+                game.enemies.forEach(e => {
+                    if (this.canTarget(e) && Math.hypot(e.x - this.x, e.y - this.y) <= range) {
+                        e.hit(dmg);
+                        hitAny = true;
+                    }
+                });
+                
+                if (hitAny) {
+                    createExplosion(this.x, this.y, this.data.color, range);
+                    this.cooldown = this.rate;
+                    Sound.heavy();
+                }
+            }
+            return;
+        }
+
+        let target = null, minDist = Infinity;
+        const range = this.getRange();
+        
+        for(let e of game.enemies) {
+            if (!this.canTarget(e)) continue;
+            const d = Math.hypot(e.x - this.x, e.y - this.y);
+            if(d <= range && d < minDist) { minDist = d; target = e; }
+        }
+
+        if(target) {
+            this.angle = Math.atan2(target.y - this.y, target.x - this.x);
+            if (this.data.type !== 'pulse') { // 펄스 타워는 회전 안함 (이미 그리기에서 처리하지만 혹시 모르니)
+                 // 회전 로직은 draw에서 처리하거나 여기서 처리
+            }
+            if(this.cooldown <= 0) {
+                this.shoot(target);
+                this.cooldown = this.rate;
+                this.recoil = 4;
+            }
+        }
+    }
+    shoot(t) {
+        const type = this.data.type;
+        const dmg = this.getDamage();
+        if(type.includes('explosive')) Sound.heavy();
+        else if(type === 'laser') Sound.laser();
+        else Sound.shoot();
+
+        if(type === 'laser') {
+            createLaser(this.x, this.y, t.x, t.y, this.data.color);
+            t.hit(dmg);
+        } else {
+            game.projectiles.push(new Projectile(this.x, this.y, t, dmg, type, this.data.color));
+        }
+    }
+    draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        
+        if(game.selectedCell && game.selectedCell.col === this.col && game.selectedCell.row === this.row) {
+            ctx.beginPath(); ctx.arc(0,0,this.getRange(),0,Math.PI*2);
+            ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fill();
+            ctx.strokeStyle = this.data.target === 'AIR' ? '#4fc3f7' : (this.data.target === 'GROUND' ? '#8d6e63' : '#9ccc65');
+            ctx.lineWidth = 1; ctx.stroke();
+        }
+
+        ctx.fillStyle = '#333'; ctx.fillRect(-12,-12,24,24); 
+        ctx.fillStyle = this.data.target === 'AIR' ? '#00f' : (this.data.target === 'GROUND' ? '#654321' : '#0f0');
+        ctx.fillRect(-10, -10, 6, 6); 
+
+        if (this.data.type !== 'pulse') ctx.rotate(this.angle);
+        
+        const off = this.recoil;
+        ctx.fillStyle = this.data.color;
+        
+        if(this.data.type === 'pulse') {
+            ctx.beginPath(); ctx.arc(0,0,10,0,Math.PI*2); ctx.fill();
+            ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke();
+        } else if(this.data.target === 'AIR') {
+            ctx.fillRect(-off, -6, 16, 4); ctx.fillRect(-off, 2, 16, 4);
+            ctx.fillStyle = '#eee'; ctx.fillRect(-off+2, -6, 4, 4); ctx.fillRect(-off+2, 2, 4, 4); 
+        } else if(this.typeKey.includes('SNIPER') || this.typeKey === 'RAILGUN') {
+            ctx.fillRect(-off, -3, 32, 6); ctx.beginPath(); ctx.arc(0,0,9,0,Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#000'; ctx.fillRect(10-off, -3, 5, 6);
+        } else if(this.typeKey === 'CANNON' || this.typeKey === 'NUKE') {
+            ctx.fillRect(-off, -8, 24, 16); ctx.fillStyle='#222'; ctx.fillRect(0,-5,10,10);
+        } else {
+            ctx.fillRect(-off, -5, 18, 10); ctx.beginPath(); ctx.arc(0,0,10,0,Math.PI*2); ctx.fill();
+        }
+        ctx.restore();
+    }
+}
+
+class Enemy {
+    constructor(wave, typeOverride) {
+        this.pathIdx = 0;
+        this.x = PATH[0].x; this.y = PATH[0].y;
+        this.angle = 0; // 회전 각도 추가
+        this.freeze = 0;
+        this.isFlying = false; 
+        
+        let hpMultiplier = Math.pow(1.15, wave); 
+        const r = Math.random();
+        this.type = typeOverride || 'normal';
+        
+        if (!typeOverride) {
+            if (wave % 10 === 0) this.type = 'boss';
+            else if (wave >= 4 && r < 0.25) this.type = 'jet';
+            else if (wave >= 3 && r < 0.2) this.type = 'tank';
+            else if (wave >= 2 && r > 0.7) this.type = 'fast';
+        }
+
+        if (this.type === 'normal') {
+            this.hp = 25 * hpMultiplier; this.speed = 1.5; this.col = '#e74c3c'; this.r = 12; this.reward = 5;
+        } else if (this.type === 'fast') {
+            this.hp = 15 * hpMultiplier; this.speed = 2.5; this.col = '#f1c40f'; this.r = 10; this.reward = 7;
+        } else if (this.type === 'tank') {
+            this.hp = 60 * hpMultiplier; this.speed = 0.8; this.col = '#34495e'; this.r = 16; this.reward = 12;
+        } else if (this.type === 'jet') {
+            this.hp = 20 * hpMultiplier; this.speed = 2.0; this.col = '#03a9f4'; this.r = 12; this.reward = 10;
+            this.isFlying = true; 
+        } else if (this.type === 'boss') {
+            this.hp = 500 * hpMultiplier; this.speed = 0.5; this.col = '#8e44ad'; this.r = 28; this.reward = 200;
+            this.isFlying = (Math.random() > 0.5); 
+            showNotif(`BOSS (Lv.${wave})`, this.isFlying ? "공중 보스 출현!" : "지상 보스 출현!");
+            Sound.boss();
+        }
+
+        this.maxHp = this.hp;
+    }
+
+    update() {
+        let spd = this.speed;
+        if(this.freeze > 0) { spd = 0; this.freeze--; } 
+        
+        const target = PATH[this.pathIdx+1];
+        if(!target) return;
+        
+        const dx = target.x - this.x, dy = target.y - this.y;
+        const d = Math.hypot(dx, dy);
+        
+        // 방향 계산
+        this.angle = Math.atan2(dy, dx);
+        
+        if(d < spd) {
+            this.x = target.x; this.y = target.y;
+            this.pathIdx++;
+            if(this.pathIdx >= PATH.length-1) {
+                this.hp = 0; 
+                game.lives -= (this.type === 'boss' ? 5 : 1); 
+                Sound.warning(); updateUI();
+                if(game.lives<=0) endGame();
+            }
+        } else {
+            this.x += (dx/d)*spd; this.y += (dy/d)*spd;
+        }
+    }
+
+    draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+
+        // 그림자 (회전 적용)
+        ctx.save();
+        if (this.isFlying) {
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.translate(5, 5); 
+            ctx.rotate(this.angle);
+            // 그림자는 단순화
+            ctx.beginPath(); ctx.ellipse(0, 0, this.r, this.r*0.6, 0, 0, Math.PI*2); ctx.fill();
+        } else {
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.translate(2, 2);
+            ctx.rotate(this.angle);
+            ctx.beginPath(); ctx.ellipse(0, 0, this.r, this.r, 0, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.restore();
+
+        // 본체 회전
+        ctx.rotate(this.angle);
+
+        // 기본 색상 설정 (동결 시 색상 변경)
+        const baseColor = (this.freeze > 0) ? '#aaa' : this.col;
+        ctx.fillStyle = baseColor;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+
+        // 유닛별 상세 드로잉
+        if (this.type === 'normal') {
+            // 보병: 원형 + 헬멧
+            ctx.beginPath(); ctx.arc(0, 0, this.r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = 'rgba(0,0,0,0.3)'; // 헬멧 바이저
+            ctx.beginPath(); ctx.arc(4, 0, this.r*0.6, 0, Math.PI*2); ctx.fill();
+        } 
+        else if (this.type === 'fast') {
+            // 스카우트: 화살촉
+            ctx.beginPath();
+            ctx.moveTo(this.r, 0);
+            ctx.lineTo(-this.r, this.r*0.8);
+            ctx.lineTo(-this.r*0.4, 0);
+            ctx.lineTo(-this.r, -this.r*0.8);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            // 엔진
+            ctx.fillStyle = '#ff9800';
+            ctx.beginPath(); ctx.arc(-this.r, 0, 2, 0, Math.PI*2); ctx.fill();
+        } 
+        else if (this.type === 'tank') {
+            // 탱크: 직사각형 + 포탑
+            ctx.fillRect(-this.r, -this.r*0.8, this.r*2, this.r*1.6);
+            ctx.strokeRect(-this.r, -this.r*0.8, this.r*2, this.r*1.6);
+            // 트랙
+            ctx.fillStyle = '#111';
+            ctx.fillRect(-this.r, -this.r, this.r*2, 4);
+            ctx.fillRect(-this.r, this.r-4, this.r*2, 4);
+            // 포탑
+            ctx.fillStyle = (this.freeze > 0) ? '#aaa' : '#546e7a';
+            ctx.beginPath(); ctx.arc(-2, 0, this.r*0.5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+            ctx.fillRect(0, -3, this.r+2, 6);
+        } 
+        else if (this.type === 'jet') {
+            // 제트기: 델타익
+            ctx.beginPath();
+            ctx.moveTo(this.r+2, 0);
+            ctx.lineTo(-this.r, this.r);
+            ctx.lineTo(-this.r+4, 0);
+            ctx.lineTo(-this.r, -this.r);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            // 콕핏
+            ctx.fillStyle = '#81d4fa';
+            ctx.beginPath(); ctx.ellipse(-2, 0, 4, 2, 0, 0, Math.PI*2); ctx.fill();
+            // 날개 디테일
+            ctx.fillStyle = '#eee';
+            ctx.fillRect(-this.r, -this.r+2, 4, 2); ctx.fillRect(-this.r, this.r-4, 4, 2);
+        } 
+        else if (this.type === 'boss') {
+            // 보스: 톱니바퀴 + 코어
+            ctx.beginPath();
+            const sides = 8;
+            for(let i=0; i<sides*2; i++){
+                const r = (i%2===0) ? this.r : this.r*0.7;
+                const a = (i/(sides*2))*Math.PI*2;
+                ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+            }
+            ctx.closePath();
+            ctx.fill(); 
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+            
+            // 중앙 코어
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath(); ctx.arc(0, 0, this.r*0.4, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.font = '10px Arial'; ctx.textAlign='center'; ctx.fillText("BOSS", 0, 4);
+        }
+
+        ctx.restore();
+        
+        // 체력바 (회전 안함 - restore 후 그림)
+        if (this.hp < this.maxHp) {
+            const pct = Math.max(0, this.hp/this.maxHp);
+            const barW = this.type === 'boss' ? 40 : 24;
+            const barY = this.y - this.r - 8;
+            
+            ctx.fillStyle = '#000'; // 배경 (가시성 확보)
+            ctx.fillRect(this.x - barW/2 - 1, barY - 1, barW + 2, 6);
+            
+            ctx.fillStyle = '#e74c3c'; // 베이스 (빨강)
+            ctx.fillRect(this.x - barW/2, barY, barW, 4);
+            
+            ctx.fillStyle = '#2ecc71'; // 현재 체력 (초록)
+            ctx.fillRect(this.x - barW/2, barY, barW * pct, 4);
+        }
+    }
+    
+    hit(dmg) {
+        this.hp -= dmg;
+        if(this.hp <= 0 && this.reward > 0) {
+            game.gold += this.reward + game.tech.bounty; 
+            this.reward = 0;
+            updateUI();
+        }
+    }
+}
+
+class Projectile {
+    constructor(x, y, t, dmg, type, col) {
+        this.x=x; this.y=y; this.t=t; this.dmg=dmg; this.type=type; this.col=col;
+        this.spd = (type==='missile') ? 5 : 8; 
+        this.active = true;
+    }
+    update() {
+        if(!this.active) return;
+        const tx = this.t ? this.t.x : this.x;
+        const ty = this.t ? this.t.y : this.y;
+        const d = Math.hypot(tx-this.x, ty-this.y);
+        
+        if(d < this.spd || (this.t && this.t.hp<=0 && d<20)) {
+            this.active = false; Sound.hit();
+            if(this.type.includes('explosive')) {
+                const rng = (this.type==='huge_explosive')?100:60;
+                createExplosion(this.x, this.y, 'orange', rng);
+                game.enemies.forEach(e => { 
+                    if(!e.isFlying && Math.hypot(e.x-this.x, e.y-this.y)<rng) e.hit(this.dmg); 
+                });
+            } else if(this.type.includes('ice')) {
+                 if(this.type==='aoe_freeze') {
+                     createExplosion(this.x, this.y, '#3498db', 80);
+                     game.enemies.forEach(e => { if(!e.isFlying && Math.hypot(e.x-this.x,e.y-this.y)<80){ e.freeze=180; e.hit(this.dmg); }});
+                 } else if(this.t) { this.t.freeze=60; this.t.hit(this.dmg); }
+            } else if(this.t) {
+                this.t.hit(this.dmg); createExplosion(this.x, this.y, this.col, 5);
+            }
+        } else {
+            this.x += (tx-this.x)/d * this.spd;
+            this.y += (ty-this.y)/d * this.spd;
+            if (this.type === 'missile') {
+                createParticle(this.x, this.y, '#eee', 2); 
+            }
+        }
+    }
+    draw() {
+        ctx.fillStyle = this.col; ctx.beginPath(); 
+        if(this.type === 'missile') {
+            ctx.fillRect(this.x-2, this.y-2, 4, 4);
+        } else {
+            ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
+        }
+    }
+}
+
+/** 3. 게임 로직 */
+function initGame() {
+    game = {
+        gold: 400, gem: 0, lives: 30, wave: 0, frame: 0,
+        enemies: [], towers: [], projectiles: [], particles: [], floats: [],
+        spawners: [],
+        selectedCell: null, gameOver: false, waveTimer: WAVE_INTERVAL,
+        tech: { dmg: 1.0, rng: 1.0, discount: 0.0, crit: 0.0, bounty: 0 }, 
+        techLevels: { dmg: 0, rng: 0, cost: 0, crit: 0, bounty: 0 },
+        speed: 1, paused: false,
+        skillState: { BOMB: 0, TIME: 0 }, 
+        targetingMode: null 
+    };
+    document.getElementById('overlay').style.display = 'none';
+    if(audioCtx.state === 'suspended') document.body.addEventListener('click', ()=>audioCtx.resume(), {once:true});
+    setSpeed(1); 
+    nextWave();
+    updateUI(); renderTechPanel(); loop();
+}
+
+function setSpeed(s) {
+    game.speed = s;
+    game.paused = (s === 0);
+    for(let i=0; i<=3; i++) {
+        document.getElementById(`spd-${i}`).className = (i===s) ? 'speed-btn active' : 'speed-btn';
+    }
+    document.getElementById('pause-indicator').style.display = game.paused ? 'block' : 'none';
+}
+
+function updateGameLogic() {
+    game.frame++;
+    game.waveTimer--;
+    if(game.waveTimer <= 0) nextWave();
+    
+    // Skill Cooldowns
+    if (game.skillState.BOMB > 0) game.skillState.BOMB--;
+    if (game.skillState.TIME > 0) game.skillState.TIME--;
+    
+    // Spawners Update
+    for(let i = game.spawners.length - 1; i >= 0; i--) {
+        let s = game.spawners[i];
+        s.timer--;
+        if(s.timer <= 0) {
+            if(s.count > 0) {
+                game.enemies.push(new Enemy(s.waveLevel, s.fixedType));
+                s.count--;
+                s.timer = Math.max(10, 50 - (s.waveLevel)); 
+            } else {
+                game.spawners.splice(i, 1);
+            }
+        }
+    }
+    
+    game.towers.forEach(t => t.update());
+    for(let i=game.enemies.length-1; i>=0; i--) { let e=game.enemies[i]; e.update(); if(e.hp<=0) game.enemies.splice(i,1); }
+    for(let i=game.projectiles.length-1; i>=0; i--) { let p=game.projectiles[i]; p.update(); if(!p.active) game.projectiles.splice(i,1); }
+}
+
+function drawGame() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // Draw Grid
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 1; ctx.beginPath();
+    for(let x=0; x<=canvas.width; x+=GRID_SIZE) { ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); }
+    for(let y=0; y<=canvas.height; y+=GRID_SIZE) { ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); }
+    ctx.stroke();
+
+    // Draw Path
+    ctx.beginPath();
+    ctx.moveTo(PATH[0].x, PATH[0].y);
+    for(let i=1; i<PATH.length; i++) ctx.lineTo(PATH[i].x, PATH[i].y);
+    ctx.lineWidth = GRID_SIZE/2; ctx.strokeStyle = '#555'; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.stroke(); 
+
+    // Objects
+    game.towers.forEach(t => t.draw());
+    game.enemies.sort((a,b) => (a.isFlying === b.isFlying) ? 0 : a.isFlying ? 1 : -1); 
+    game.enemies.forEach(e => e.draw());
+    game.projectiles.forEach(p => p.draw());
+    
+    updateParticles(); 
+
+    if(MOUSE.x>=0 && MOUSE.x<canvas.width && MOUSE.y>=0 && MOUSE.y<canvas.height) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth=2;
+        ctx.strokeRect(MOUSE.col*GRID_SIZE, MOUSE.row*GRID_SIZE, GRID_SIZE, GRID_SIZE);
+    }
+    
+    if(game.selectedCell) {
+        ctx.strokeStyle = '#00ffff'; ctx.lineWidth=2;
+        ctx.strokeRect(game.selectedCell.col*GRID_SIZE, game.selectedCell.row*GRID_SIZE, GRID_SIZE, GRID_SIZE);
+    }
+}
+
+function loop() {
+    if(game.gameOver) return;
+    if(!game.paused) {
+        for(let i=0; i<game.speed; i++) updateGameLogic();
+    }
+    drawGame();
+    if(!game.paused && game.frame%5===0) updateUI(); 
+    requestAnimationFrame(loop);
+}
+
+function nextWave() {
+    game.wave++;
+    game.waveTimer = WAVE_INTERVAL;
+    
+    if(game.wave > 1) { 
+        const gemReward = 1 + Math.floor(game.wave/5);
+        game.gem += gemReward;
+        createFloat(`+${gemReward} Gem!`, 400, 300, '#00ffff');
+    }
+    
+    createFloat(`Wave ${game.wave}`, 400, 200, '#fff');
+
+    if (game.wave % 10 === 0) {
+        game.spawners.push({ count: 1, timer: 0, waveLevel: game.wave, fixedType: 'boss' });
+    } else {
+        const count = 5 + Math.floor(game.wave * 1.5);
+        game.spawners.push({ count: count, timer: 0, waveLevel: game.wave });
+    }
+
+    updateUI(); renderTechPanel();
+}
+
+function skipWave() {
+    if(game.paused) return; 
+    const bonus = Math.floor(game.waveTimer/20);
+    if(bonus>0) { game.gold+=bonus; createFloat(`+${bonus}G`, 400, 300, '#ffd700'); }
+    nextWave();
+}
+
+/** 4. UI & Interaction */
+canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    MOUSE.x = e.clientX - rect.left;
+    MOUSE.y = e.clientY - rect.top;
+    MOUSE.col = Math.floor(MOUSE.x / GRID_SIZE);
+    MOUSE.row = Math.floor(MOUSE.y / GRID_SIZE);
+    
+    // 스킬 타겟팅 오버레이 업데이트
+    const overlay = document.getElementById('cursor-overlay');
+    if (game.targetingMode === 'BOMB') {
+        overlay.style.display = 'block';
+        overlay.style.width = (SKILLS.BOMB.range*2) + 'px';
+        overlay.style.height = (SKILLS.BOMB.range*2) + 'px';
+        overlay.style.left = MOUSE.x + 'px';
+        overlay.style.top = MOUSE.y + 'px';
+    } else {
+        overlay.style.display = 'none';
+    }
+});
+
+// 키보드 단축키
+window.addEventListener('keydown', e => {
+    if(game.gameOver) return;
+    switch(e.key) {
+        case ' ': setSpeed(game.paused ? 1 : 0); break;
+        case 's': case 'S': skipWave(); break;
+        case 'Escape': 
+            game.selectedCell = null; 
+            game.targetingMode = null; 
+            renderActionPanel(); 
+            break;
+        case '1': setSpeed(1); break;
+        case '2': setSpeed(2); break;
+        case '3': setSpeed(3); break;
+    }
+});
+
+canvas.addEventListener('mousedown', e => {
+    if(game.gameOver) return;
+    
+    // 스킬 사용 로직
+    if (game.targetingMode === 'BOMB') {
+        if (game.gold >= SKILLS.BOMB.cost) {
+            game.gold -= SKILLS.BOMB.cost;
+            game.skillState.BOMB = SKILLS.BOMB.cooldown;
+            createExplosion(MOUSE.x, MOUSE.y, 'red', SKILLS.BOMB.range);
+            // 데미지
+            game.enemies.forEach(en => {
+                if(Math.hypot(en.x - MOUSE.x, en.y - MOUSE.y) <= SKILLS.BOMB.range) {
+                    en.hit(500);
+                }
+            });
+            Sound.skill();
+            createFloat("BOMB!", MOUSE.x, MOUSE.y, 'red');
+        }
+        game.targetingMode = null;
+        updateUI(); renderActionPanel();
+        return;
+    }
+
+    const col = MOUSE.col;
+    const row = MOUSE.row;
+    
+    Sound.ui();
+    game.selectedCell = {col, row};
+    switchTab('build'); 
+    renderActionPanel();
+});
+
+function useSkill(type) {
+    if (game.skillState[type] > 0) return; // 쿨타임 중
+    
+    const skill = SKILLS[type];
+    if (game.gold < skill.cost) { showNotif("부족함", "골드가 부족합니다."); return; }
+
+    if (type === 'BOMB') {
+        game.targetingMode = 'BOMB';
+        game.selectedCell = null; // 선택 해제
+        renderActionPanel();
+    } else if (type === 'TIME') {
+        game.gold -= skill.cost;
+        game.skillState.TIME = skill.cooldown;
+        game.enemies.forEach(e => e.freeze += 300); // 5초 (60fps * 5)
+        Sound.skill();
+        createFloat("TIME STOP!", 400, 300, '#00ffff');
+        updateUI(); renderActionPanel();
+    }
+}
+
+function getTargetTagHTML(target) {
+    let cls = 'tag-both';
+    let txt = '지상/공중';
+    if(target==='GROUND') { cls='tag-ground'; txt='지상'; }
+    if(target==='AIR') { cls='tag-air'; txt='공중'; }
+    return `<span class="target-tag ${cls}">${txt}</span>`;
+}
+
+function renderActionPanel() {
+    const panel = document.getElementById('action-panel');
+    panel.innerHTML = '';
+    
+    if (game.targetingMode === 'BOMB') {
+        panel.innerHTML = `<div style="text-align:center; padding:20px; color:#ff4d4d; font-weight:bold; border:2px dashed #ff4d4d;">
+            TARGETING...<br><br>폭격 지점을 클릭하세요.<br>(ESC 취소)
+        </div>`;
+        return;
+    }
+
+    if(!game.selectedCell) {
+        // 아무것도 선택하지 않았을 때 (안내 문구 + 스킬 버튼)
+        panel.innerHTML = `<div style="text-align:center; color:#777; margin-top:20px; margin-bottom:20px;">
+            <p style="font-size:13px;">맵의 격자를 클릭하여<br>타워를 건설하거나 업그레이드하세요.</p>
+        </div>`;
+        
+        // 스킬 버튼은 항상 표시 (접근성 위해)
+        const skillDiv = document.createElement('div');
+        skillDiv.className = 'skill-section';
+        skillDiv.innerHTML = '<h3>전술 스킬</h3>';
+        
+        Object.keys(SKILLS).forEach(key => {
+            const s = SKILLS[key];
+            const cd = game.skillState[key];
+            const btn = document.createElement('button');
+            btn.className = 'skill-btn';
+            btn.disabled = cd > 0 || game.gold < s.cost;
+            const status = cd > 0 ? `<span class="skill-cooldown">${Math.ceil(cd/60)}s</span>` : `<span class="cost-gold">${s.cost}G</span>`;
+            
+            btn.innerHTML = `<div>${s.name}</div>${status}`;
+            btn.title = s.desc;
+            btn.onclick = () => useSkill(key);
+            skillDiv.appendChild(btn);
+        });
+        panel.appendChild(skillDiv);
+        return;
+    }
+    
+    const {col, row} = game.selectedCell;
+    const tower = game.towers.find(t => t.col === col && t.row === row);
+    
+    if(tower) {
+        // [타워 선택됨] 업그레이드/판매 메뉴
+        const data = tower.data;
+        const h3 = document.createElement('h3'); 
+        h3.innerHTML = `${data.name} ${getTargetTagHTML(data.target)}`;
+        h3.style.color = data.color; panel.appendChild(h3);
+        
+        const p = document.createElement('p'); p.className='desc'; p.innerText = data.desc; panel.appendChild(p);
+        
+        if(data.upgrades.length > 0) {
+            const label = document.createElement('div'); label.innerText = '▼ 진화 선택';
+            label.style.fontSize='12px'; label.style.color='#777'; label.style.marginBottom='5px'; panel.appendChild(label);
+            data.upgrades.forEach(upKey => {
+                const upData = TOWER_TYPES[upKey];
+                const finalCost = Math.floor(upData.cost * (1 - game.tech.discount));
+                const btn = document.createElement('button');
+                btn.className = 'btn-action';
+                btn.disabled = game.gold < finalCost;
+                btn.onmouseenter = () => { /* 사거리 미리보기 기능 추가 가능 */ };
+                btn.innerHTML = `<div class="btn-title"><span style="color:${upData.color}">${upData.name}</span> <span class="btn-cost cost-gold">${finalCost}G</span></div>
+                                 <div class="btn-desc">${upData.desc}</div>`;
+                btn.onclick = () => {
+                    if(game.gold >= finalCost) {
+                        game.gold -= finalCost;
+                        tower.setType(upKey);
+                        renderActionPanel(); updateUI();
+                    }
+                };
+                panel.appendChild(btn);
+            });
+        } else {
+             panel.innerHTML += `<div style="text-align:center; color:#ffd700; margin:20px; font-size:13px;">⭐ MAX LEVEL</div>`;
+        }
+
+        const sellPrice = Math.floor(data.cost * 0.5);
+        const sBtn = document.createElement('button'); sBtn.className='sell-btn'; sBtn.innerText=`판매 (+${sellPrice}G)`;
+        sBtn.onclick = () => {
+            game.gold += sellPrice;
+            game.towers = game.towers.filter(t => t !== tower);
+            game.selectedCell = null;
+            renderActionPanel(); updateUI(); Sound.build();
+        };
+        panel.appendChild(sBtn);
+
+    } else {
+        // [빈 땅 선택됨] 건설 메뉴 (수정된 부분)
+        panel.innerHTML = `<h3>건설 (좌표 ${col},${row})</h3><p class="desc">건설할 타워를 선택하세요.</p>`;
+        
+        const starters = ['GUNNER', 'BOMBER', 'FREEZER', 'MISSILE', 'LASER', 'PULSE'];
+        starters.forEach(key => {
+            const tData = TOWER_TYPES[key];
+            const finalCost = Math.floor(tData.cost * (1 - game.tech.discount));
+            const btn = document.createElement('button');
+            btn.className = 'btn-action';
+            btn.disabled = game.gold < finalCost;
+            btn.innerHTML = `<div class="btn-title"><span style="color:${tData.color}">${tData.name}</span> <span class="btn-cost cost-gold">${finalCost}G</span></div>
+                             <div class="btn-desc">${tData.desc}</div>
+                             <div style="margin-top:2px;">${getTargetTagHTML(tData.target)}</div>`;
+            btn.onclick = () => {
+                if(game.towers.find(t => t.col===col && t.row===row)) return;
+                if(game.gold >= finalCost) {
+                    game.gold -= finalCost;
+                    game.towers.push(new Tower(col, row, key));
+                    game.selectedCell = null; // 건설 후 선택 해제
+                    renderActionPanel(); updateUI();
+                }
+            };
+            panel.appendChild(btn);
+        });
+
+        // 건설 중에도 스킬 사용 가능하도록 표시
+        const skillDiv = document.createElement('div');
+        skillDiv.className = 'skill-section';
+        skillDiv.innerHTML = '<h3>전술 스킬</h3>';
+        
+        Object.keys(SKILLS).forEach(key => {
+            const s = SKILLS[key];
+            const cd = game.skillState[key];
+            const btn = document.createElement('button');
+            btn.className = 'skill-btn';
+            btn.disabled = cd > 0 || game.gold < s.cost;
+            const status = cd > 0 ? `<span class="skill-cooldown">${Math.ceil(cd/60)}s</span>` : `<span class="cost-gold">${s.cost}G</span>`;
+            
+            btn.innerHTML = `<div>${s.name}</div>${status}`;
+            btn.title = s.desc;
+            btn.onclick = () => useSkill(key);
+            skillDiv.appendChild(btn);
+        });
+        panel.appendChild(skillDiv);
+    }
+}
+
+function renderTechPanel() {
+    const panel = document.getElementById('tech-panel');
+    panel.innerHTML = `<h3>연구소 (Tech Lab)</h3><p class="desc">젬(Gem)을 사용하여 영구 강화하세요.</p>`;
+    TECH_UPGRADES.forEach(tech => {
+        const lvl = game.techLevels[tech.id];
+        const isMax = lvl >= tech.max;
+        const currentCost = tech.cost + lvl * 2;
+        const btn = document.createElement('button');
+        btn.className = 'btn-action';
+        btn.disabled = isMax || game.gem < currentCost;
+        let status = isMax ? `<span style="color:#ffd700">MAX</span>` : `<span class="btn-cost cost-gem">${currentCost} Gem</span>`;
+        btn.innerHTML = `<div class="btn-title"><span>${tech.name} (Lv.${lvl})</span> ${status}</div><div class="btn-desc">${tech.desc}</div>`;
+        btn.onclick = () => {
+            if(!isMax && game.gem >= currentCost) {
+                game.gem -= currentCost;
+                game.techLevels[tech.id]++;
+                if(tech.type === 'mult') game.tech[tech.id] += tech.val;
+                if(tech.type === 'discount') game.tech.discount += tech.val;
+                if(tech.type === 'chance') game.tech.crit += tech.val;
+                if(tech.type === 'flat') game.tech.bounty += tech.val;
+                Sound.upgrade();
+                updateUI(); renderTechPanel();
+            }
+        };
+        panel.appendChild(btn);
+    });
+}
+
+function switchTab(tab) {
+    document.getElementById('action-panel').style.display = (tab==='build') ? 'block' : 'none';
+    document.getElementById('tech-panel').style.display = (tab==='tech') ? 'block' : 'none';
+    document.getElementById('tab-build').className = (tab==='build') ? 'tab-btn active' : 'tab-btn';
+    document.getElementById('tab-tech').className = (tab==='tech') ? 'tab-btn active' : 'tab-btn';
+    renderActionPanel(); // 탭 전환 시 패널 갱신
+}
+
+function updateUI() {
+    document.getElementById('ui-gold').innerText = Math.floor(game.gold);
+    document.getElementById('ui-gem').innerText = Math.floor(game.gem);
+    document.getElementById('ui-lives').innerText = game.lives;
+    document.getElementById('ui-wave').innerText = game.wave;
+    
+    const pct = Math.max(0, game.waveTimer/WAVE_INTERVAL);
+    document.getElementById('timer-fill').style.width = (pct*100)+'%';
+    document.getElementById('skip-bonus').innerText = `+${Math.floor(game.waveTimer/20)}G`;
+    
+    // 스킬 쿨타임 실시간 갱신 (1초마다 UI 갱신되므로 약간 딜레이 있을 수 있음)
+    // 현재 UI는 5프레임마다 갱신되므로 부드러움
+    if (!game.selectedCell && document.getElementById('action-panel').style.display !== 'none') {
+        renderActionPanel(); // 스킬 버튼 상태 갱신을 위해 재렌더링 (최적화 필요하지만 간단히 처리)
+    }
+}
+
+function showNotif(title, msg) {
+    const b = document.getElementById('notification-banner');
+    document.getElementById('notif-title').innerText = title;
+    document.getElementById('notif-desc').innerText = msg;
+    b.style.opacity = 1;
+    Sound.warning();
+    setTimeout(() => b.style.opacity = 0, 3000);
+}
+
+function createFloat(txt, x, y, col) {
+    game.floats.push({txt, x, y, col, life: 1.0});
+}
+function createExplosion(x, y, col, sz) {
+    for(let i=0; i<6; i++) game.particles.push({x, y, col, sz:Math.random()*sz, vx:(Math.random()-0.5)*5, vy:(Math.random()-0.5)*5, life:1});
+}
+function createParticle(x, y, col, sz) {
+    game.particles.push({x, y, col, sz:sz, vx:(Math.random()-0.5)*2, vy:(Math.random()-0.5)*2, life:0.5});
+}
+function createLaser(x1,y1,x2,y2,col) {
+    game.particles.push({type:'laser', x1,y1,x2,y2,col,life:5});
+}
+
+function updateParticles() {
+    for(let i=game.floats.length-1; i>=0; i--) {
+        let f = game.floats[i]; f.y-=1; f.life-=0.02;
+        ctx.globalAlpha=Math.max(0,f.life); ctx.fillStyle=f.col; ctx.font='bold 16px Arial'; ctx.fillText(f.txt,f.x,f.y); ctx.globalAlpha=1;
+        if(f.life<=0) game.floats.splice(i,1);
+    }
+    for(let i=game.particles.length-1; i>=0; i--) {
+        let p = game.particles[i];
+        if(p.type==='laser') {
+            ctx.beginPath(); ctx.moveTo(p.x1,p.y1); ctx.lineTo(p.x2,p.y2);
+            ctx.strokeStyle=p.col; ctx.lineWidth=3; ctx.globalAlpha=p.life/5; ctx.stroke(); ctx.globalAlpha=1;
+            p.life--; if(p.life<=0) game.particles.splice(i,1);
+        } else {
+            p.x+=p.vx; p.y+=p.vy; p.life-=0.05;
+            ctx.globalAlpha=Math.max(0,p.life); ctx.fillStyle=p.col; ctx.fillRect(p.x,p.y,p.sz,p.sz); ctx.globalAlpha=1;
+            if(p.life<=0) game.particles.splice(i,1);
+        }
+    }
+}
+function endGame() {
+    game.gameOver=true;
+    document.getElementById('final-wave').innerText=game.wave;
+    document.getElementById('overlay').style.display='flex';
+}
+
+initGame();
+</script>
+</body>
+</html>
