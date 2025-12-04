@@ -213,9 +213,8 @@
     const WEAPON_DB = {
         'MISSILE': { name: '유도 미사일', icon: '🚀', type: 'HOMING', baseDamage: 30, baseCooldown: 45, color: '#f59e0b', range: 600, projectileCount: 1, explosive: true, blastRadius: 15 },
         'BLASTER': { name: '광선 빔', icon: '🔫', type: 'BEAM', baseDamage: 120, baseCooldown: 200, color: '#10b981', range: 1000, thickness: 50, projectileCount: 1 },
-        // [수정] ORBITAL(실드) 삭제 -> BOOMERANG(부메랑) 추가
-        // 관통형, 돌아오는 특성
-        'BOOMERANG': { name: '플라즈마 부메랑', icon: '🪃', type: 'BOOMERANG', baseDamage: 45, baseCooldown: 70, color: '#8b5cf6', range: 400, projectileCount: 1, speed: 7, isPiercing: true },
+        // [수정] 부메랑 쿨타임 증가 (50 -> 120)
+        'BOOMERANG': { name: '플라즈마 부메랑', icon: '🪃', type: 'BOOMERANG', baseDamage: 45, baseCooldown: 120, color: '#8b5cf6', range: 600, projectileCount: 1, speed: 16, isPiercing: true },
         'SNIPER': { name: '레일건', icon: '⚡', type: 'PIERCING', baseDamage: 60, baseCooldown: 100, color: '#3b82f6', range: 800, projectileCount: 1, rearShot: false },
         'MICRO_SWARM': { name: '마이크로 미사일', icon: '🎆', type: 'SWARM', baseDamage: 12, baseCooldown: 45, color: '#22d3ee', range: 500, projectileCount: 6, spread: 0.5 },
         'INTERCEPTOR': { name: '요격 편대', icon: '🛸', type: 'UNIT', baseDamage: 18, baseCooldown: 30, color: '#e879f9', range: 300, unitCount: 1, projectileCount: 1 },
@@ -259,46 +258,55 @@
             this.x=x; this.y=y; this.vx=vx; this.vy=vy; this.damage=damage; this.color=color; this.isPiercing=isPiercing; 
             this.radius=isSmall?2:(isPiercing?4:3); this.life=isSmall?60:200; this.hitList=[];
             
-            // [수정] 부메랑 로직용 속성
             this.behavior = null; 
-            this.returnPhase = false;
-            this.speed = 0; // 부메랑용 스피드 저장
-            this.rotation = 0; // 회전각
+            this.phase = 'OUT'; 
+            this.hoverTimer = 0; 
+            this.speed = 0; 
+            this.rotation = 0; 
         }
         update(){
             if(this.behavior === 'BOOMERANG') {
-                // 부메랑: 나갔다가 플레이어에게 돌아옴
-                if(!this.returnPhase) {
-                    // 나가는 단계: 감속
+                // [수정] 회전 속도 감소 (0.8 -> 0.3) : 모양이 잘 보이도록 천천히 돌게 함
+                this.rotation += 0.3; 
+
+                if(this.phase === 'OUT') {
                     this.x += this.vx;
                     this.y += this.vy;
-                    this.speed *= 0.94; // 마찰로 속도 줄임
-                    // 속도 재계산
-                    this.vx *= 0.94;
-                    this.vy *= 0.94;
+                    // [수정] 마찰력 감소 (0.92 -> 0.96) : 감속이 덜 되어 더 멀리 날아감
+                    this.speed *= 0.96; 
+                    this.vx *= 0.96;
+                    this.vy *= 0.96;
                     
-                    if(this.speed < 0.5) {
-                        this.returnPhase = true;
+                    if(Math.abs(this.speed) < 1.0) {
+                        this.phase = 'HOVER';
+                        this.hoverTimer = 60; 
                     }
-                } else {
-                    // 돌아오는 단계: 플레이어 쪽으로 가속
+                } 
+                else if(this.phase === 'HOVER') {
+                    this.x += this.vx * 0.1;
+                    this.y += this.vy * 0.1;
+                    this.hoverTimer--;
+                    
+                    if(this.hoverTimer <= 0) {
+                        this.phase = 'RETURN';
+                        this.hitList = []; 
+                    }
+                } 
+                else if(this.phase === 'RETURN') {
                     const angle = Math.atan2(core.y - this.y, core.x - this.x);
-                    this.speed += 0.5; // 가속
-                    if(this.speed > 15) this.speed = 15; // 최대 속도 제한
+                    this.speed += 0.6; 
+                    if(this.speed > 18) this.speed = 18; 
                     
                     this.vx = Math.cos(angle) * this.speed;
                     this.vy = Math.sin(angle) * this.speed;
                     this.x += this.vx;
                     this.y += this.vy;
                     
-                    // 플레이어와 닿으면 제거
                     if(Math.hypot(core.x - this.x, core.y - this.y) < 20) {
                         this.life = 0;
                     }
                 }
-                this.rotation += 0.4; // 뱅글뱅글 회전
             } else {
-                // 일반 투사체
                 this.x+=this.vx; this.y+=this.vy; this.life--;
             }
         }
@@ -306,26 +314,25 @@
             ctx.save();
             ctx.translate(this.x, this.y);
             if(this.behavior === 'BOOMERANG') {
-                // 부메랑 그리기 (회전하는 낫 모양)
+                // [수정] 크기 추가 확대 (3.0 -> 3.8)
+                ctx.scale(3.8, 3.8);
                 ctx.rotate(this.rotation);
                 ctx.fillStyle = this.color;
+                
+                // [수정] 부메랑 모양 그리기 (V자 형태)
                 ctx.beginPath();
-                ctx.arc(0, 0, 4, 0, Math.PI*2);
+                // 중심점(0,0)을 기준으로 양 날개 그리기
+                // (좌표를 조정하여 V자 모양을 만듦)
+                ctx.moveTo(-6, -4); // 왼쪽 끝
+                ctx.quadraticCurveTo(0, 6, 6, -4); // 바깥쪽 둥근 부분 (아래로 볼록)
+                ctx.quadraticCurveTo(0, 0, -6, -4); // 안쪽 둥근 부분 (살짝 파임)
                 ctx.fill();
-                // 날개
-                ctx.beginPath();
-                ctx.moveTo(0, -8);
-                ctx.quadraticCurveTo(8, 0, 0, 8);
-                ctx.quadraticCurveTo(-3, 0, 0, -8);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.rotate(Math.PI/2);
-                ctx.moveTo(0, -8);
-                ctx.quadraticCurveTo(8, 0, 0, 8);
-                ctx.quadraticCurveTo(-3, 0, 0, -8);
-                ctx.fill();
+                
+                // 테두리 추가 (잘 보이게)
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 0.5;
+                ctx.stroke();
             } else {
-                // 일반 탄환
                 ctx.beginPath(); ctx.arc(0,0,this.radius,0,Math.PI*2); ctx.fillStyle=this.color; ctx.fill();
             }
             ctx.restore();
@@ -731,16 +738,17 @@
                 } else if(this.currentData.type==='CHAIN') {
                     this.castLightning(target,this.currentData.baseDamage,this.currentData.bounceCount||3); break;
                 } else if(this.currentData.type==='BOOMERANG') {
-                    // [수정] 부메랑 발사 로직
-                    // 타겟 방향으로 발사, 없으면 그냥 앞(마우스쪽? 없으니 랜덤)으로
-                    let aimAngle = this.angle;
-                    if(target) aimAngle = Math.atan2(target.y-wy, target.x-wx);
-                    const fa = aimAngle + angleOffset;
+                    // [수정] 부메랑 발사 로직: 각각 완전 랜덤한 방향으로 발사
+                    // 여러 개 발사 시 사방으로 퍼져나가도록 설정
+                    const fa = Math.random() * Math.PI * 2; 
+                    
                     const p = new Projectile(wx, wy, Math.cos(fa)*this.currentData.speed, Math.sin(fa)*this.currentData.speed, this.currentData.baseDamage, this.currentData.color, true, false);
-                    p.behavior = 'BOOMERANG'; // 동작 설정
-                    p.speed = this.currentData.speed; // 초기 속도
+                    p.behavior = 'BOOMERANG'; 
+                    p.speed = this.currentData.speed; 
+                    p.phase = 'OUT'; // 초기 상태 설정
+                    p.radius = 20;   // 범위 더 크게 (15 -> 20)
                     projectiles.push(p);
-                    audio.whoosh(); // 부메랑 소리
+                    audio.whoosh(); 
                 } else {
                     const ba=Math.atan2(target.y-wy, target.x-wx); const fa=ba+angleOffset; const ps=(this.currentData.type==='PIERCING')?25:8;
                     projectiles.push(new Projectile(wx,wy,Math.cos(fa)*ps,Math.sin(fa)*ps,this.currentData.baseDamage,this.currentData.color,this.currentData.type==='PIERCING',this.currentData.explosive));
@@ -885,3 +893,9 @@
 </script>
 </body>
 </html>
+
+
+
+
+
+
