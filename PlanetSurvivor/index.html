@@ -82,7 +82,7 @@
     };
 
     const WEAPON_DB = {
-        'MISSILE': { name: '유도 미사일', icon: '🚀', type: 'HOMING', baseDamage: 30, baseCooldown: 45, color: '#f59e0b', range: 600, projectileCount: 1, explosive: false, blastRadius: 150 },
+        'MISSILE': { name: '유도 미사일', icon: '🚀', type: 'HOMING', baseDamage: 30, baseCooldown: 45, color: '#f59e0b', range: 600, projectileCount: 1, explosive: false, blastRadius: 120 },
         'BLASTER': { name: '광선 빔', icon: '🔫', type: 'BEAM', baseDamage: 120, baseCooldown: 200, color: '#10b981', range: 1000, thickness: 50, projectileCount: 1 },
         'ORBITAL': { name: '플라즈마 쉴드', icon: '🛡️', type: 'ZONE', baseDamage: 8, baseCooldown: 0, color: '#8b5cf6', range: 170, hitRate: 12 },
         'SNIPER': { name: '레일건', icon: '⚡', type: 'PIERCING', baseDamage: 60, baseCooldown: 100, color: '#3b82f6', range: 800, projectileCount: 1, rearShot: false },
@@ -147,19 +147,39 @@
         }
     }
     class Explosion {
-        constructor(x,y,r,c){
+        constructor(x,y,r,c, showArea=false){
             this.x=x;this.y=y;this.maxR=r;this.r=10;this.c=c;this.life=20;
+            this.showArea = showArea; // 범위 표시 여부
+            
             // 충격파 추가
-            shockwaves.push(new Shockwave(x, y, r * 1.2, c));
+            shockwaves.push(new Shockwave(x, y, r * 1.0, c));
             // 파편 추가
-            for(let i=0; i<12; i++){
-                particles.push(new Particle(x, y, c, (Math.random()-0.5)*10, (Math.random()-0.5)*10));
+            const pCount = showArea ? 16 : 8;
+            for(let i=0; i<pCount; i++){
+                particles.push(new Particle(x, y, c, (Math.random()-0.5)*12, (Math.random()-0.5)*12));
             }
         }
         update(){this.r+=(this.maxR-this.r)*0.25; this.life--;}
         draw(){
             ctx.save();
-            ctx.globalAlpha=this.life/20; ctx.fillStyle=this.c; ctx.beginPath(); ctx.arc(this.x,this.y,this.r,0,Math.PI*2); ctx.fill(); 
+            ctx.globalAlpha=this.life/20; 
+            
+            // 1. 범위 공격 시 영역 표시 (반투명 원)
+            if(this.showArea) {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.maxR, 0, Math.PI*2);
+                ctx.fillStyle = this.c;
+                ctx.globalAlpha = (this.life/30) * 0.4; // 연하게
+                ctx.fill();
+                ctx.strokeStyle = this.c;
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = this.life/20;
+                ctx.stroke();
+            }
+
+            // 2. 중심 폭발
+            ctx.globalAlpha=this.life/20;
+            ctx.fillStyle=this.c; ctx.beginPath(); ctx.arc(this.x,this.y,this.r,0,Math.PI*2); ctx.fill(); 
             ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(this.x,this.y,this.r*0.7,0,Math.PI*2); ctx.fill();
             ctx.restore();
         }
@@ -167,7 +187,7 @@
     class HomingMissile {
         constructor(x, y, target, damage, explosive, blastRadius) {
             this.x=x; this.y=y; this.target=target; this.damage=damage; this.explosive=explosive; this.speed=4; this.angle=Math.random()*Math.PI*2; this.life=300; this.radius=4;
-            this.blastRadius = blastRadius || 100;
+            this.blastRadius = blastRadius || 120;
         }
         update() {
             if(!this.target || this.target.dead) this.target=this.findNewTarget();
@@ -179,39 +199,95 @@
                 this.angle+=d*turnRate;
             }
             this.x+=Math.cos(this.angle)*this.speed; this.y+=Math.sin(this.angle)*this.speed; this.life--;
-            if(Math.random()<0.5) particles.push(new Particle(this.x,this.y,'#555'));
+            // 미사일 꼬리 (금방 사라지도록 설정)
+            if(Math.random()<0.5) particles.push(new Particle(this.x,this.y,'#555', null, null, 1.0, 0.1, 0.9));
         }
         findNewTarget(){
             let n=null; let min=Infinity; if(boss && !boss.dead) return boss;
             enemies.forEach(e=>{ if(!e.dead){ const d=Math.hypot(e.x-this.x,e.y-this.y); if(d<min){min=d; n=e;} } }); return n;
         }
         draw(){ ctx.save(); ctx.translate(this.x,this.y); ctx.rotate(this.angle); ctx.fillStyle=this.explosive?'#ef4444':'#f59e0b'; ctx.beginPath(); ctx.moveTo(6,0); ctx.lineTo(-4,4); ctx.lineTo(-4,-4); ctx.fill(); ctx.restore(); }
+        
         explode(){
-            explosions.push(new Explosion(this.x,this.y,this.blastRadius,'#ef4444'));
-            if(boss && !boss.dead && Math.hypot(boss.x-this.x,boss.y-this.y)<this.blastRadius+boss.radius) boss.takeDamage(this.damage);
-            enemies.forEach(e=>{ if(!e.dead && Math.hypot(e.x-this.x,e.y-this.y)<this.blastRadius) e.takeDamage(this.damage); });
+            explosions.push(new Explosion(this.x, this.y, this.blastRadius, '#ef4444', true));
+            if(boss && !boss.dead) {
+                const dist = Math.hypot(this.x - boss.x, this.y - boss.y);
+                if (dist < this.blastRadius + boss.radius) {
+                    boss.takeDamage(this.damage);
+                }
+            }
+            enemies.forEach(e => { 
+                if(!e.dead) {
+                    const dist = Math.hypot(e.x - this.x, e.y - this.y);
+                    if (dist < this.blastRadius + e.radius) {
+                        e.takeDamage(this.damage);
+                    }
+                }
+            });
         }
     }
     class InterceptorUnit {
-        constructor(weaponData) {
-            this.data=weaponData; this.x=core.x; this.y=core.y; this.angle=Math.random()*Math.PI*2; this.speed=3; this.target=null; this.cooldown=0;
+        constructor(weaponData, index) {
+            this.data=weaponData; 
+            const startAngle = (Math.PI * 2 / 6) * index; 
+            this.x=core.x + Math.cos(startAngle) * 100; 
+            this.y=core.y + Math.sin(startAngle) * 100; 
+            this.angle=startAngle; 
+            this.speed=3.5; 
+            this.target=null; 
+            this.cooldown=0;
+            this.idleAngleOffset = (Math.PI * 2 / 8) * index; 
         }
         update() {
-            if(!this.target || this.target.dead) { this.target=this.findTarget(); if(!this.target) this.angle+=0.05; }
+            if(!this.target || this.target.dead) { 
+                this.target=this.findTarget(); 
+                if(!this.target) {
+                    const orbitRadius = 120;
+                    const orbitSpeed = 0.02;
+                    this.idleAngleOffset += orbitSpeed;
+                    
+                    const desiredX = core.x + Math.cos(this.idleAngleOffset) * orbitRadius;
+                    const desiredY = core.y + Math.sin(this.idleAngleOffset) * orbitRadius;
+                    
+                    this.x += (desiredX - this.x) * 0.1;
+                    this.y += (desiredY - this.y) * 0.1;
+                    
+                    this.angle = Math.atan2(core.y - this.y, core.x - this.x);
+                }
+            }
+            
             if(this.target && !this.target.dead) {
                 const dist=Math.hypot(this.target.x-this.x, this.target.y-this.y);
                 const a=Math.atan2(this.target.y-this.y, this.target.x-this.x);
                 this.angle = a;
-                if(dist>150){ this.x+=Math.cos(a)*this.speed; this.y+=Math.sin(a)*this.speed; }
-                else{ this.x-=Math.cos(a)*(this.speed*0.5); this.y-=Math.sin(a)*(this.speed*0.5); }
+                
+                if(dist>150){ 
+                    this.x+=Math.cos(a)*this.speed; 
+                    this.y+=Math.sin(a)*this.speed; 
+                } else { 
+                    this.x-=Math.cos(a)*(this.speed*0.5); 
+                    this.y-=Math.sin(a)*(this.speed*0.5); 
+                }
+                
                 if(this.cooldown<=0){
                     projectiles.push(new Projectile(this.x, this.y, Math.cos(a)*15, Math.sin(a)*15, this.data.baseDamage, this.data.color, false, false));
                     projectiles[projectiles.length-1].radius=5; this.cooldown=this.data.baseCooldown;
                 }
-            } else {
-                this.x+=Math.cos(this.angle)*this.speed; this.y+=Math.sin(this.angle)*this.speed;
-                if(Math.hypot(this.x-core.x, this.y-core.y)>600) this.angle=Math.atan2(core.y-this.y, core.x-this.x);
-            }
+            } 
+
+            drones.forEach(other => {
+                if (other === this) return;
+                const dist = Math.hypot(this.x - other.x, this.y - other.y);
+                const minSeparation = 40; 
+                
+                if (dist < minSeparation && dist > 0) {
+                    const pushFactor = 0.5; 
+                    const pushAngle = Math.atan2(this.y - other.y, this.x - other.x);
+                    this.x += Math.cos(pushAngle) * pushFactor;
+                    this.y += Math.sin(pushAngle) * pushFactor;
+                }
+            });
+
             if(this.cooldown>0) this.cooldown--;
         }
         findTarget(){ let n=null; let min=Infinity; if(boss && !boss.dead) return boss; enemies.forEach(e=>{ if(!e.dead){ const d=Math.hypot(e.x-this.x,e.y-this.y); if(d<min){min=d; n=e;} } }); return n; }
@@ -227,8 +303,9 @@
         takeDamage(d){ 
             if(this.dead)return false; 
             this.hp-=d; 
-            // 타격 이펙트 (스파크)
-            for(let i=0; i<3; i++) particles.push(new Particle(this.x, this.y, '#fff', (Math.random()-0.5)*5, (Math.random()-0.5)*5, 10));
+            // 타격 이펙트 (흰색 스파크 - 수정됨: 수명 단축 및 감속)
+            // 기존 10 (약 3초) -> 1.0 (약 0.2초) & decay 0.08
+            for(let i=0; i<3; i++) particles.push(new Particle(this.x, this.y, '#fff', (Math.random()-0.5)*5, (Math.random()-0.5)*5, 1.0, 0.08, 0.9));
             
             if(this.hp<=0){this.hp=0; this.dead=true; this.die(); return true;} 
             return false; 
@@ -246,10 +323,31 @@
         die(){ for(let i=0;i<50;i++)particles.push(new Particle(this.x+(Math.random()-0.5)*100, this.y+(Math.random()-0.5)*100, this.color)); explosions.push(new Explosion(this.x,this.y,300,'#fff')); addXp(500); score+=1000; boss=null; bossHud.classList.remove('active'); canvas.style.transform=`translate(${Math.random()*20-10}px, ${Math.random()*20-10}px)`; setTimeout(()=>canvas.style.transform='translate(0,0)', 200); }
         draw(){ const sx=(Math.random()-0.5)*this.shake; const sy=(Math.random()-0.5)*this.shake; ctx.save(); ctx.translate(this.x+sx, this.y+sy); ctx.beginPath(); ctx.arc(0,0,this.radius+10,0,Math.PI*2); ctx.fillStyle='rgba(239, 68, 68, 0.2)'; ctx.fill(); ctx.beginPath(); ctx.arc(0,0,this.radius,0,Math.PI*2); ctx.fillStyle=this.color; ctx.fill(); ctx.strokeStyle='#7f1d1d'; ctx.lineWidth=5; ctx.stroke(); ctx.fillStyle='yellow'; ctx.beginPath(); ctx.arc(-20,-10,8,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(20,-10,8,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.moveTo(-30,20); ctx.quadraticCurveTo(0,50,30,20); ctx.strokeStyle='black'; ctx.lineWidth=3; ctx.stroke(); ctx.restore(); }
     }
+    // [수정됨] 파편 클래스 Upgrade: decay(소멸속도)와 friction(마찰력) 추가
     class Particle { 
-        constructor(x,y,c,vx,vy,life){this.x=x;this.y=y;this.c=c;this.vx=vx||(Math.random()-0.5)*4;this.vy=vy||(Math.random()-0.5)*4;this.life=life||1;} 
-        update(){this.x+=this.vx;this.y+=this.vy;this.life-=0.05;} 
-        draw(){ctx.globalAlpha=Math.max(0,this.life);ctx.fillStyle=this.c;ctx.beginPath();ctx.arc(this.x,this.y,2,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;} 
+        constructor(x,y,c,vx,vy,life, decay, friction){
+            this.x=x;this.y=y;this.c=c;
+            this.vx=vx||(Math.random()-0.5)*4;
+            this.vy=vy||(Math.random()-0.5)*4;
+            this.life=life||1;
+            this.decay=decay||0.05; // 기본 소멸 속도
+            this.friction=friction||0.94; // 기본 마찰력 (속도 줄어듦)
+        } 
+        update(){
+            this.x+=this.vx;
+            this.y+=this.vy;
+            this.vx*=this.friction; // 마찰 적용
+            this.vy*=this.friction;
+            this.life-=this.decay; // 소멸 적용
+        } 
+        draw(){
+            ctx.globalAlpha=Math.max(0,this.life);
+            ctx.fillStyle=this.c;
+            ctx.beginPath();
+            ctx.arc(this.x,this.y,2,0,Math.PI*2);
+            ctx.fill();
+            ctx.globalAlpha=1;
+        } 
     }
     // 중력장 전용 파티클 (중심으로 빨려들어감)
     class GravityParticle {
@@ -286,7 +384,15 @@
             this.cooldownTimer=0; this.angle=Math.random()*Math.PI*2; this.orbitRadius=55+(Math.random()*10); this.orbitSpeed=0.02+(Math.random()*0.02); this.tickTimer=0;
             if(this.id==='INTERCEPTOR'){ this.units=[]; this.spawnUnits(); }
         }
-        spawnUnits(){ const count=this.currentData.unitCount||1; while(this.units.length<count){ const u=new InterceptorUnit(this.currentData); this.units.push(u); drones.push(u); } }
+        spawnUnits(){ 
+            const count=this.currentData.unitCount||1; 
+            const currentLen = this.units.length;
+            for(let i=0; i < count - currentLen; i++){ 
+                const u=new InterceptorUnit(this.currentData, this.units.length + i); 
+                this.units.push(u); 
+                drones.push(u); 
+            } 
+        }
         
         applyGeneralUpgrade(rarityMult, type) {
             this.level++;
@@ -529,8 +635,8 @@
         for(let i=projectiles.length-1;i>=0;i--){
             const p=projectiles[i]; p.update(); p.draw();
             if(p.life<=0||p.x<cx-vW/2-m||p.x>cx+vW/2+m||p.y<cy-vH/2-m||p.y>cy+vH/2+m){projectiles.splice(i,1);continue;}
-            if(boss&&!boss.dead&&Math.hypot(p.x-boss.x,p.y-boss.y)<boss.radius+p.radius){if(p.explosive){p.explode();projectiles.splice(i,1);continue;}boss.takeDamage(p.damage);particles.push(new Particle(p.x,p.y,p.color));if(!p.isPiercing){projectiles.splice(i,1);continue;}}
-            for(let j=enemies.length-1;j>=0;j--){const e=enemies[j];if(e.dead)continue;if(Math.hypot(p.x-e.x,p.y-e.y)<e.radius+p.radius){if(p.explosive){p.explode();projectiles.splice(i,1);break;}else{const died=e.takeDamage(p.damage);if(!died)particles.push(new Particle(e.x,e.y,'#fff'));if(!p.isPiercing){projectiles.splice(i,1);break;}else if(!p.hitList.includes(e))p.hitList.push(e);}}}
+            if(boss&&!boss.dead&&Math.hypot(p.x-boss.x,p.y-boss.y)<boss.radius+p.radius){if(p.explosive){p.explode();projectiles.splice(i,1);continue;}boss.takeDamage(p.damage);particles.push(new Particle(p.x,p.y,p.color,null,null,1.0,0.1));if(!p.isPiercing){projectiles.splice(i,1);continue;}}
+            for(let j=enemies.length-1;j>=0;j--){const e=enemies[j];if(e.dead)continue;if(Math.hypot(p.x-e.x,p.y-e.y)<e.radius+p.radius){if(p.explosive){p.explode();projectiles.splice(i,1);break;}else{const died=e.takeDamage(p.damage);if(!died)particles.push(new Particle(e.x,e.y,'#fff',null,null,1.0,0.1));if(!p.isPiercing){projectiles.splice(i,1);break;}else if(!p.hitList.includes(e))p.hitList.push(e);}}}
         }
         enemies=enemies.filter(e=>{if(e.dead)return false;e.update();e.draw();if(Math.hypot(e.x-core.x,e.y-core.y)<core.radius+e.radius){core.hp-=10;updateUi();canvas.style.transform=`translate(${Math.random()*10-5}px,${Math.random()*10-5}px)`;setTimeout(()=>canvas.style.transform='translate(0,0)',50);if(core.hp<=0)currentState=GAME_STATE.GAME_OVER;return false;}return true;});
         for(let i=particles.length-1;i>=0;i--){particles[i].update();particles[i].draw();if(particles[i].life<=0)particles.splice(i,1);}
