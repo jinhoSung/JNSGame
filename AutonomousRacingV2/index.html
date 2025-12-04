@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>자율주행 레이싱 (Shop & Firebase)</title>
+    <title>자율주행 레이싱 (Local Storage)</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -14,51 +14,6 @@
     
     <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <!-- Firebase -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        
-        // --- Firebase Globals Setup ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null; 
-
-        if (firebaseConfig) {
-            const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-
-            window.firebaseApp = app;
-            window.firebaseAuth = auth;
-            window.firestoreDB = db;
-            window.doc = doc;          
-            window.setDoc = setDoc;   
-            window.onSnapshot = onSnapshot; 
-            
-            window.firebaseInitialized = false;
-
-            onAuthStateChanged(auth, async (user) => {
-                if (!user) {
-                    try {
-                        if (initialAuthToken) {
-                            await signInWithCustomToken(auth, initialAuthToken);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (error) {
-                        console.error("Firebase Auth failed:", error);
-                    }
-                }
-                if (user && !window.firebaseInitialized) {
-                    window.firebaseInitialized = true;
-                    window.dispatchEvent(new CustomEvent('firebase-ready'));
-                }
-            });
-        }
-    </script>
 
     <style>
         body { margin: 0; overflow: hidden; background-color: #0f172a; color: #f1f5f9; font-family: sans-serif; }
@@ -97,6 +52,7 @@
         const MAP_SCALE = 0.85;
         const MAX_SKID_MARKS = 50; 
         const TOTAL_LAPS = 3;
+        const STORAGE_KEY = 'racing_game_v1_local_data'; // LocalStorage Key
 
         const CHECKPOINT_RADIUS_START = 220; 
         const CHECKPOINT_RADIUS_NORMAL = 120; 
@@ -105,8 +61,8 @@
             border: 90, curb: 80, asphalt: 70 
         };
 
-        const SENSOR_LABELS = { 0: '좌측', 1: '전방좌측', 2: '전방', 3: '전방우측', 4: '우측' }; // 축약
-        const SENSOR_SELECT_LABELS = { 0: '좌측 센서', 1: '전방 좌측', 2: '전방 센서', 3: '전방 우측', 4: '우측 센서' }; // 선택용 전체 이름
+        const SENSOR_LABELS = { 0: '좌측', 1: '전방좌측', 2: '전방', 3: '전방우측', 4: '우측' }; 
+        const SENSOR_SELECT_LABELS = { 0: '좌측 센서', 1: '전방 좌측', 2: '전방 센서', 3: '전방 우측', 4: '우측 센서' };
 
         const OPERATOR_OPTIONS = [
             { value: '<', label: '작다면 (<)' }, { value: '>', label: '크다면 (>)' }, 
@@ -175,53 +131,31 @@
             return baseStats;
         };
 
-        const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const USER_DATA_PATH = (userId) => `artifacts/${APP_ID}/users/${userId}/gameData/config`;
-
-        const getUserId = () => window.firebaseAuth?.currentUser?.uid || 'anonymous';
-        const getFirestoreDB = () => window.firestoreDB;
-
-        const getDefaultUserData = (userId) => ({
-            userId: userId,
+        const getDefaultUserData = () => ({
             dollars: 5000, 
             currentChassis: CAR_CHASSIS[0].id,
             parts: { engine: 0, gearbox: 0, tire: 0, steering: 0, downforce: 0, sensor: 0 },
             lapHistory: []
         });
 
-        const loadUserData = (setUserData, setAuthReady) => {
-            const db = getFirestoreDB();
-            const auth = window.firebaseAuth;
-            if (!db || !auth || !auth.currentUser) return;
-
-            const userId = auth.currentUser.uid;
-            const docRef = window.doc(db, USER_DATA_PATH(userId)); 
-            setAuthReady(true); 
-
-            const unsubscribe = window.onSnapshot(docRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    setUserData(docSnap.data());
-                } else {
-                    const defaultData = getDefaultUserData(userId);
-                    window.setDoc(docRef, defaultData); 
-                    setUserData(defaultData);
+        // --- Local Storage Functions ---
+        const loadLocalData = () => {
+            try {
+                const storedData = localStorage.getItem(STORAGE_KEY);
+                if (storedData) {
+                    return JSON.parse(storedData);
                 }
-            }, (error) => {
-                console.error("Error listening to Firestore:", error);
-                setAuthReady(true);
-            });
-            return unsubscribe;
+            } catch (e) {
+                console.error("Local storage load failed", e);
+            }
+            return getDefaultUserData();
         };
 
-        const saveUserData = async (newUserData) => {
-            const db = getFirestoreDB();
-            const userId = getUserId();
-            if (!db || userId === 'anonymous') return;
+        const saveLocalData = (data) => {
             try {
-                const docRef = window.doc(db, USER_DATA_PATH(userId));
-                await window.setDoc(docRef, newUserData, { merge: true });
-            } catch (error) {
-                console.error("Error saving user data:", error);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            } catch (e) {
+                console.error("Local storage save failed", e);
             }
         };
 
@@ -246,11 +180,10 @@
           const [sensorReadings, setSensorReadings] = useState([0, 0, 0, 0, 0]);
           const [currentTrackIdx, setCurrentTrackIdx] = useState(0);
           const [isMuted, setIsMuted] = useState(false);
-          const [authReady, setAuthReady] = useState(false);
           const [carsInitialized, setCarsInitialized] = useState(false);
           
-          const [userData, setUserData] = useState(getDefaultUserData('initial'));
-          const [physics, setPhysics] = useState(getPhysicsConstants(getDefaultUserData('initial').parts, CAR_CHASSIS[0].id));
+          const [userData, setUserData] = useState(getDefaultUserData());
+          const [physics, setPhysics] = useState(getPhysicsConstants(getDefaultUserData().parts, CAR_CHASSIS[0].id));
 
           const [userStats, setUserStats] = useState({ 
               laps: 0, currentLapTime: 0, lastLapTime: 0, totalTime: 0, lapHistory: []
@@ -269,25 +202,17 @@
           const skidGainRef = useRef(null);
           const skidFilterRef = useRef(null);
 
+          // Initialize Data from LocalStorage
           useEffect(() => {
-              const handleFirebaseReady = () => {
-                  const unsubscribe = loadUserData(setUserData, setAuthReady);
-                  return () => { if (unsubscribe) unsubscribe(); };
-              };
-              if (window.firebaseInitialized) {
-                  return handleFirebaseReady();
-              } else {
-                  window.addEventListener('firebase-ready', handleFirebaseReady);
-                  return () => window.removeEventListener('firebase-ready', handleFirebaseReady);
-              }
+              const data = loadLocalData();
+              setUserData(data);
           }, []);
 
+          // Update Physics when userData changes
           useEffect(() => {
-              if (authReady) {
-                  const newPhysics = getPhysicsConstants(userData.parts, userData.currentChassis);
-                  setPhysics(newPhysics);
-              }
-          }, [userData.parts, userData.currentChassis, authReady]);
+              const newPhysics = getPhysicsConstants(userData.parts, userData.currentChassis);
+              setPhysics(newPhysics);
+          }, [userData.parts, userData.currentChassis]);
 
           // --- AUDIO SYSTEM ---
           const initAudio = useCallback(() => {
@@ -506,7 +431,6 @@
 
             const aiBaseStats = PART_STATS['0'];
 
-            // FIX: Corrected keys to match lowerCamelCase property names used in logic below
             const carPhysics = car.isAI ? { 
                 acceleration: aiBaseStats.acceleration,
                 maxSpeed: aiBaseStats.maxSpeedMod,
@@ -526,7 +450,7 @@
             if (typeof car.currentSkidId === 'undefined') car.currentSkidId = 0;
             if (typeof car.isDrifting === 'undefined') car.isDrifting = false;
 
-            const speedRatio = Math.abs(car.speed) / (carPhysics.maxSpeed || 1); // Avoid div by zero
+            const speedRatio = Math.abs(car.speed) / (carPhysics.maxSpeed || 1); 
             const grip = carPhysics.gripFactor + (1.0 - speedRatio) * (1 - carPhysics.gripFactor); 
 
             let angleDiff = car.angle - car.moveAngle;
@@ -575,7 +499,6 @@
             car.x += Math.cos(car.moveAngle) * car.speed;
             car.y += Math.sin(car.moveAngle) * car.speed;
 
-            // FIX: NaN Safety Check
             if (isNaN(car.x) || isNaN(car.y)) {
                 car.x = 0; car.y = 0; car.speed = 0;
             }
@@ -654,7 +577,10 @@
                   reward = 500; 
               }
               const newDollars = userData.dollars + Math.round(reward);
-              saveUserData({...userData, dollars: newDollars});
+              
+              const updatedData = {...userData, dollars: newDollars};
+              setUserData(updatedData);
+              saveLocalData(updatedData);
           };
 
           const getAIInputs = (car) => {
@@ -927,7 +853,6 @@
             const userChassis = CAR_CHASSIS.find(c => c.id === userData.currentChassis) || CAR_CHASSIS[0]; 
             const aiChassis = CAR_CHASSIS[0]; 
 
-            // FIX: Always recreate the array fresh to avoid stale state bugs
             cars.current = [
                 { id: 'user', x: spawnX + px * 20, y: spawnY + py * 20, angle: startAngle, moveAngle: startAngle, speed: 0, color: userChassis.color, chassisId: userChassis.id, isAI: false, laps: 0, lastCP: 0, finished: false, lapStartTime: 0, lastLapTime: 0, finishTime: 0, lapHistory: [], skidMarks: [], isDrifting: false, currentSkidId: 0 },
                 { id: 'ai1', x: spawnX - px * 20, y: spawnY - py * 20, angle: startAngle, moveAngle: startAngle, speed: 0, color: '#ef4444', chassisId: aiChassis.id, isAI: true, laps: 0, lastCP: 0, finished: false, lapStartTime: 0, lastLapTime: 0, finishTime: 0, skidMarks: [], isDrifting: false, currentSkidId: 0 },
@@ -948,8 +873,6 @@
             setUserStats({ laps: 0, currentLapTime: 0, lastLapTime: 0, totalTime: 0, lapHistory: [] });
             currentSkidSegmentId.current = 0;
 
-            // FIX: Simply call initializeCars instead of manually resetting properties.
-            // This prevents desync issues where reset logic differs from init logic.
             initializeCars(); 
             
           }, [initializeCars, stopEngineSound, stopSkidSound]);
@@ -1001,16 +924,14 @@
           }, [isPlaying, blocks, gameState, physics]);
 
           useEffect(() => {
-              if (authReady) {
-                  initializeCars();
-              }
-          }, [authReady, initializeCars]);
+            initializeCars();
+          }, [initializeCars]);
 
           useEffect(() => {
-              if (carsInitialized && authReady) {
+              if (carsInitialized) {
                   resetGame(); 
               }
-          }, [currentTrackIdx, physics, carsInitialized, authReady]);
+          }, [currentTrackIdx, physics, carsInitialized]);
           
           useEffect(() => {
               if (currentScreen === 'race' && carsInitialized) {
@@ -1058,20 +979,27 @@
 
               const newDollars = userData.dollars - nextStats.price;
               const newParts = { ...userData.parts, [partId]: nextTier };
-              saveUserData({ ...userData, dollars: newDollars, parts: newParts });
+              const updatedData = { ...userData, dollars: newDollars, parts: newParts };
+              
+              setUserData(updatedData);
+              saveLocalData(updatedData);
               playClickSound();
           };
           
           const purchaseChassis = (chassisId, price) => {
               if (userData.currentChassis === chassisId) {
-                   saveUserData({ ...userData, currentChassis: chassisId });
+                   const updatedData = { ...userData, currentChassis: chassisId };
+                   setUserData(updatedData);
+                   saveLocalData(updatedData);
                    playClickSound();
                    return;
               }
               if (userData.dollars < price) return;
               
               const newDollars = userData.dollars - price;
-              saveUserData({ ...userData, dollars: newDollars, currentChassis: chassisId });
+              const updatedData = { ...userData, dollars: newDollars, currentChassis: chassisId };
+              setUserData(updatedData);
+              saveLocalData(updatedData);
               playClickSound();
           };
 
@@ -1166,10 +1094,6 @@
                   </div>
               );
           };
-
-          if (!authReady) {
-              return <div className="flex h-screen items-center justify-center text-xl text-blue-400">데이터 로딩 중...</div>;
-          }
 
           return (
             <div className="flex flex-col-reverse lg:flex-row h-screen bg-slate-900 text-slate-100 overflow-hidden font-sans">
