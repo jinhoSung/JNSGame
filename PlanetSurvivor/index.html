@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Planet Survivor: Full Arsenal</title>
+    <title>Planet Survivor: Railgun Buff</title>
     <style>
         body {
             margin: 0; overflow: hidden; background-color: #0d1117; color: white;
@@ -17,7 +17,6 @@
             width: 240px; max-width: 50%; z-index: 10;
         }
         
-        /* 보스 UI */
         #boss-hud {
             display: none; position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
             width: 60%; max-width: 600px; height: 30px; z-index: 20; pointer-events: none;
@@ -167,48 +166,45 @@
     };
 
     const WEAPON_DB = {
-        // [기존 무기]
+        'MISSILE': { // [기본 무기]
+            name: '유도 미사일', icon: '🚀', type: 'HOMING',
+            baseDamage: 30, baseCooldown: 45, color: '#f59e0b',
+            range: 600, projectileCount: 1, explosive: false
+        },
         'BLASTER': {
             name: '광선 빔', icon: '🔫', type: 'BEAM',
-            baseDamage: 80, baseCooldown: 120, color: '#10b981',
+            baseDamage: 120, baseCooldown: 200, color: '#10b981',
             range: 1000, thickness: 50, projectileCount: 1
         },
         'ORBITAL': {
             name: '플라즈마 쉴드', icon: '🛡️', type: 'ZONE',
-            baseDamage: 5, baseCooldown: 0, color: '#8b5cf6',
-            range: 170, hitRate: 10
-        },
-        'MISSILE': {
-            name: '유도 미사일', icon: '🚀', type: 'HOMING',
-            baseDamage: 25, baseCooldown: 60, color: '#f59e0b',
-            range: 600, projectileCount: 1, explosive: false
+            baseDamage: 8, baseCooldown: 0, color: '#8b5cf6',
+            range: 170, hitRate: 12
         },
         'SNIPER': {
             name: '레일건', icon: '⚡', type: 'PIERCING',
-            baseDamage: 40, baseCooldown: 90, color: '#3b82f6',
+            baseDamage: 60, baseCooldown: 100, color: '#3b82f6',
             range: 800, projectileCount: 1, rearShot: false
         },
-        
-        // [신규 무기 추가]
         'MICRO_SWARM': {
             name: '마이크로 미사일', icon: '🎆', type: 'SWARM',
-            baseDamage: 8, baseCooldown: 40, color: '#22d3ee', // Cyan
+            baseDamage: 12, baseCooldown: 45, color: '#22d3ee', 
             range: 500, projectileCount: 6, spread: 0.5 
         },
         'INTERCEPTOR': {
             name: '요격 편대', icon: '🛸', type: 'UNIT',
-            baseDamage: 15, baseCooldown: 30, color: '#e879f9', // Pink
+            baseDamage: 18, baseCooldown: 30, color: '#e879f9', 
             range: 300, unitCount: 1
         },
         'TESLA': {
             name: '체인 라이트닝', icon: '🌩️', type: 'CHAIN',
-            baseDamage: 30, baseCooldown: 70, color: '#facc15', // Yellow
+            baseDamage: 35, baseCooldown: 80, color: '#facc15', 
             range: 400, bounceCount: 3
         },
         'GRAVITY': {
             name: '중력장 생성기', icon: '⚫', type: 'SLOW_ZONE',
-            baseDamage: 2, baseCooldown: 0, color: '#111827', // Dark
-            range: 250, slowFactor: 0.5 // 50% 감속
+            baseDamage: 3, baseCooldown: 0, color: '#111827', 
+            range: 250, slowFactor: 0.5
         }
     };
 
@@ -227,7 +223,7 @@
     class BeamEffect {
         constructor(x1, y1, x2, y2, color, thickness) {
             this.x1=x1; this.y1=y1; this.x2=x2; this.y2=y2; this.color=color; this.thickness=thickness; 
-            this.life=20; this.maxLife=20;
+            this.life=30; this.maxLife=30;
         }
         update(){this.life--;}
         draw(){
@@ -242,29 +238,19 @@
 
     class LightningEffect {
         constructor(x1, y1, x2, y2, color) {
-            this.points = [];
-            this.color = color;
-            this.life = 15;
-            // 지그재그 생성
-            const steps = 10;
-            const dx = x2 - x1; const dy = y2 - y1;
+            this.points = []; this.color = color; this.life = 15;
+            const steps = 10; const dx = x2 - x1; const dy = y2 - y1;
             for(let i=0; i<=steps; i++) {
                 const t = i/steps;
-                let nx = x1 + dx*t;
-                let ny = y1 + dy*t;
-                if(i !== 0 && i !== steps) {
-                    nx += (Math.random()-0.5) * 30;
-                    ny += (Math.random()-0.5) * 30;
-                }
+                let nx = x1 + dx*t; let ny = y1 + dy*t;
+                if(i !== 0 && i !== steps) { nx += (Math.random()-0.5) * 30; ny += (Math.random()-0.5) * 30; }
                 this.points.push({x:nx, y:ny});
             }
         }
         update() { this.life--; }
         draw() {
-            ctx.save();
-            ctx.globalAlpha = this.life/15;
-            ctx.beginPath();
-            ctx.moveTo(this.points[0].x, this.points[0].y);
+            ctx.save(); ctx.globalAlpha = this.life/15;
+            ctx.beginPath(); ctx.moveTo(this.points[0].x, this.points[0].y);
             for(let i=1; i<this.points.length; i++) ctx.lineTo(this.points[i].x, this.points[i].y);
             ctx.strokeStyle = this.color; ctx.lineWidth = 3; ctx.shadowBlur=10; ctx.shadowColor=this.color; ctx.stroke();
             ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
@@ -276,7 +262,7 @@
         constructor(x, y, vx, vy, damage, color, isPiercing, isSmall=false) {
             this.x=x; this.y=y; this.vx=vx; this.vy=vy; this.damage=damage; this.color=color; this.isPiercing=isPiercing; 
             this.radius=isSmall?2:(isPiercing?4:3); 
-            this.life=isSmall?60:200; // 소형 미사일은 수명 짧음
+            this.life=isSmall?60:200; 
             this.hitList=[];
         }
         update(){this.x+=this.vx; this.y+=this.vy; this.life--;}
@@ -291,7 +277,9 @@
 
     class HomingMissile {
         constructor(x, y, target, damage, explosive) {
-            this.x=x; this.y=y; this.target=target; this.damage=damage; this.explosive=explosive; this.speed=4; this.angle=Math.random()*Math.PI*2; this.life=300;
+            this.x=x; this.y=y; this.target=target; this.damage=damage; this.explosive=explosive; 
+            this.speed=4; this.angle=Math.random()*Math.PI*2; this.life=300;
+            this.radius = 4; 
         }
         update() {
             if(!this.target || this.target.dead) this.target = this.findNewTarget(); 
@@ -324,7 +312,6 @@
         }
     }
 
-    // 자율 전투기 클래스
     class InterceptorUnit {
         constructor(weaponData) {
             this.data = weaponData;
@@ -335,21 +322,14 @@
             this.cooldown = 0;
         }
         update() {
-            // 타겟 찾기
             if(!this.target || this.target.dead) {
                 this.target = this.findTarget();
-                if(!this.target) { // 타겟 없으면 주변 배회
-                    this.angle += 0.05;
-                }
+                if(!this.target) this.angle += 0.05;
             }
-            
             if(this.target && !this.target.dead) {
-                // 타겟 주변으로 이동
                 const desiredDist = 150;
                 const dist = Math.hypot(this.target.x - this.x, this.target.y - this.y);
                 const angleToTarget = Math.atan2(this.target.y - this.y, this.target.x - this.x);
-                
-                // 타겟을 향해 이동하되 너무 가까우면 회피 (카이팅)
                 if(dist > desiredDist) {
                     this.x += Math.cos(angleToTarget) * this.speed;
                     this.y += Math.sin(angleToTarget) * this.speed;
@@ -357,8 +337,6 @@
                     this.x -= Math.cos(angleToTarget) * (this.speed * 0.5);
                     this.y -= Math.sin(angleToTarget) * (this.speed * 0.5);
                 }
-                
-                // 공격
                 if(this.cooldown <= 0) {
                     projectiles.push(new Projectile(
                         this.x, this.y,
@@ -368,15 +346,10 @@
                     this.cooldown = this.data.baseCooldown;
                 }
             } else {
-                // 배회 모드
                 this.x += Math.cos(this.angle) * this.speed;
                 this.y += Math.sin(this.angle) * this.speed;
-                
-                // 화면 밖으로 너무 멀리가지 않게
-                const distFromCore = Math.hypot(this.x - core.x, this.y - core.y);
-                if(distFromCore > 600) {
-                    const angleToCore = Math.atan2(core.y - this.y, core.x - this.x);
-                    this.angle = angleToCore;
+                if(Math.hypot(this.x - core.x, this.y - core.y) > 600) {
+                    this.angle = Math.atan2(core.y - this.y, core.x - this.x);
                 }
             }
             if(this.cooldown > 0) this.cooldown--;
@@ -388,17 +361,9 @@
             return n;
         }
         draw() {
-            ctx.save();
-            ctx.translate(this.x, this.y);
-            // 비행기 모양
-            ctx.rotate(this.angle); // 이동 방향보다는 타겟 방향을 봐야하지만 단순화
-            ctx.fillStyle = this.data.color;
-            ctx.beginPath();
-            ctx.moveTo(10, 0); ctx.lineTo(-5, 5); ctx.lineTo(-5, -5);
-            ctx.fill();
-            // 엔진 불꽃
-            ctx.fillStyle = 'orange';
-            ctx.beginPath(); ctx.arc(-8, 0, 3, 0, Math.PI*2); ctx.fill();
+            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle);
+            ctx.fillStyle = this.data.color; ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-5, 5); ctx.lineTo(-5, -5); ctx.fill();
+            ctx.fillStyle = 'orange'; ctx.beginPath(); ctx.arc(-8, 0, 3, 0, Math.PI*2); ctx.fill();
             ctx.restore();
         }
     }
@@ -417,17 +382,11 @@
              this.baseSpeed=0.5+Math.random()*0.5+(player.level*0.05);
              this.speed = this.baseSpeed;
              this.radius=12; this.color=`hsl(${Math.random()*60},70%,50%)`;
-             this.dead = false; 
-             this.slowed = false; // 슬로우 상태
+             this.dead = false; this.slowed = false;
         }
         update(){
-            // 슬로우 해제 (매 프레임 초기화하고 중력장이 다시 적용)
             this.speed = this.baseSpeed;
-            if (this.slowed) {
-                this.speed *= 0.5; // 감속
-                this.slowed = false; // 플래그 초기화
-            }
-
+            if (this.slowed) { this.speed *= 0.5; this.slowed = false; }
             const a=Math.atan2(core.y-this.y, core.x-this.x);
             this.x+=Math.cos(a)*this.speed; this.y+=Math.sin(a)*this.speed;
         }
@@ -510,21 +469,14 @@
             this.orbitRadius = 55 + (Math.random() * 10);
             this.orbitSpeed = 0.02 + (Math.random() * 0.02);
             this.tickTimer = 0;
-            
-            // 인터셉터용 유닛 관리
-            if(this.id === 'INTERCEPTOR') {
-                this.units = [];
-                this.spawnUnits();
-            }
+            if(this.id === 'INTERCEPTOR') { this.units = []; this.spawnUnits(); }
         }
 
         spawnUnits() {
-            // 현재 유닛 수와 목표 유닛 수(projectileCount 대신 unitCount 사용) 차이만큼 생성
             const count = this.currentData.unitCount || 1;
             while(this.units.length < count) {
                 const u = new InterceptorUnit(this.currentData);
-                this.units.push(u);
-                drones.push(u); // 전역 관리 배열에도 추가
+                this.units.push(u); drones.push(u);
             }
         }
 
@@ -541,27 +493,17 @@
 
         applySpecialUpgrade() {
             this.level++;
-            // 공통: 발사체 수 증가 (인터셉터는 유닛 수 증가)
             if (this.currentData.projectileCount !== undefined) this.currentData.projectileCount++;
-            if (this.currentData.unitCount !== undefined) {
-                this.currentData.unitCount++;
-                this.spawnUnits();
-            }
+            if (this.currentData.unitCount !== undefined) { this.currentData.unitCount++; this.spawnUnits(); }
 
-            // 고유 진화
             if (this.id === 'MISSILE') this.currentData.explosive = true;
             if (this.id === 'SNIPER') this.currentData.rearShot = true;
-            if (this.id === 'BLASTER') {
-                this.currentData.baseDamage = Math.floor(this.currentData.baseDamage * 2.5); 
-                this.currentData.thickness += 60; 
-            }
+            if (this.id === 'BLASTER') { this.currentData.baseDamage = Math.floor(this.currentData.baseDamage * 2.5); this.currentData.thickness += 60; }
             if (this.id === 'ORBITAL') this.currentData.hitRate = Math.max(2, Math.floor(this.currentData.hitRate * 0.6));
-            
-            // 신규 무기 진화
-            if (this.id === 'MICRO_SWARM') this.currentData.projectileCount += 4; // 폭우: 발사체 대폭 추가
-            if (this.id === 'INTERCEPTOR') { this.currentData.unitCount++; this.spawnUnits(); } // 편대 비행: 1기 더 추가
-            if (this.id === 'TESLA') this.currentData.bounceCount += 2; // 고전압: 튕김 횟수 증가
-            if (this.id === 'GRAVITY') this.currentData.range += 50; // 블랙홀: 범위 증가
+            if (this.id === 'MICRO_SWARM') this.currentData.projectileCount += 4; 
+            if (this.id === 'INTERCEPTOR') { this.currentData.unitCount++; this.spawnUnits(); } 
+            if (this.id === 'TESLA') this.currentData.bounceCount += 2; 
+            if (this.id === 'GRAVITY') this.currentData.range += 50; 
         }
 
         update() {
@@ -571,14 +513,14 @@
             if (this.currentData.type === 'ZONE' || this.currentData.type === 'SLOW_ZONE') {
                 this.updateZone();
             } else if (this.currentData.type === 'UNIT') {
-                // 유닛은 별도 업데이트 (drones 배열에서 처리)
+                // units update handled in global loop
             } else if (this.cooldownTimer <= 0) {
                 this.fire();
             }
         }
 
         draw() {
-            if(this.currentData.type === 'UNIT') return; // 유닛은 따로 그림
+            if(this.currentData.type === 'UNIT') return;
 
             const wx = core.x + Math.cos(this.angle) * this.orbitRadius;
             const wy = core.y + Math.sin(this.angle) * this.orbitRadius;
@@ -597,9 +539,8 @@
             }
             if (this.currentData.type === 'SLOW_ZONE') {
                 ctx.beginPath(); ctx.arc(core.x, core.y, this.currentData.range, 0, Math.PI*2);
-                ctx.fillStyle = `rgba(0, 0, 0, 0.3)`; ctx.fill(); // 어두운 영역
+                ctx.fillStyle = `rgba(0, 0, 0, 0.3)`; ctx.fill(); 
                 ctx.strokeStyle = `rgba(100, 100, 100, 0.5)`; ctx.lineWidth = 2; ctx.stroke();
-                // 중력장 이펙트 (안으로 빨려들어가는 느낌)
                 if(frame % 20 === 0) {
                     ctx.beginPath(); ctx.arc(core.x, core.y, this.currentData.range, 0, Math.PI*2);
                     ctx.strokeStyle = '#fff'; ctx.globalAlpha=0.1; ctx.stroke(); ctx.globalAlpha=1;
@@ -631,7 +572,6 @@
                 let angleOffset = (count > 1) ? (i - (count - 1) / 2) * spread : 0;
                 
                 if (this.currentData.type === 'BEAM') {
-                    // (기존 레이저 로직)
                     const baseAngle = Math.atan2(target.y - wy, target.x - wx);
                     const finalAngle = baseAngle + angleOffset;
                     const range = 2000;
@@ -655,23 +595,25 @@
                 else if (this.currentData.type === 'HOMING') {
                     projectiles.push(new HomingMissile(wx, wy, target, this.currentData.baseDamage, this.currentData.explosive));
                 }
-                else if (this.currentData.type === 'SWARM') { // 마이크로 미사일
+                else if (this.currentData.type === 'SWARM') { 
                     const baseAngle = Math.atan2(target.y - wy, target.x - wx);
-                    // 산탄처럼 퍼짐
                     const finalAngle = baseAngle + (Math.random() - 0.5) * spread * 2; 
                     projectiles.push(new Projectile(wx, wy, Math.cos(finalAngle)*6, Math.sin(finalAngle)*6, this.currentData.baseDamage, this.currentData.color, false, true));
                 }
-                else if (this.currentData.type === 'CHAIN') { // 체인 라이트닝
-                    // 즉발 데미지 + 체인 로직
+                else if (this.currentData.type === 'CHAIN') { 
                     this.castLightning(target, this.currentData.baseDamage, this.currentData.bounceCount || 3);
-                    break; // 체인은 한 번만 발사 (타겟 기준)
+                    break; 
                 }
-                else { // SNIPER (PIERCING)
+                else { 
                     const baseAngle = Math.atan2(target.y - wy, target.x - wx);
                     const finalAngle = baseAngle + angleOffset;
-                    projectiles.push(new Projectile(wx, wy, Math.cos(finalAngle)*8, Math.sin(finalAngle)*8, this.currentData.baseDamage, this.currentData.color, this.currentData.type==='PIERCING', this.currentData.explosive));
+                    
+                    // [수정] 레일건 투사체 속도 증가 (25)
+                    const projSpeed = (this.currentData.type === 'PIERCING') ? 25 : 8;
+                    
+                    projectiles.push(new Projectile(wx, wy, Math.cos(finalAngle)*projSpeed, Math.sin(finalAngle)*projSpeed, this.currentData.baseDamage, this.currentData.color, this.currentData.type==='PIERCING', this.currentData.explosive));
                     if(this.currentData.rearShot) {
-                        projectiles.push(new Projectile(wx, wy, Math.cos(finalAngle+Math.PI)*8, Math.sin(finalAngle+Math.PI)*8, this.currentData.baseDamage, this.currentData.color, this.currentData.type==='PIERCING', this.currentData.explosive));
+                        projectiles.push(new Projectile(wx, wy, Math.cos(finalAngle+Math.PI)*projSpeed, Math.sin(finalAngle+Math.PI)*projSpeed, this.currentData.baseDamage, this.currentData.color, this.currentData.type==='PIERCING', this.currentData.explosive));
                     }
                 }
             }
@@ -680,16 +622,14 @@
 
         castLightning(target, damage, bounces) {
             let current = target;
-            let visited = [current.id]; // ID가 없으므로 객체 참조로 해야하나 간단히 함
+            let visited = [current]; 
             
-            // 첫 타격
             current.takeDamage(damage);
             lightnings.push(new LightningEffect(core.x, core.y, current.x, current.y, this.currentData.color));
 
-            // 바운스
             for(let i=0; i<bounces; i++) {
                 let next = null;
-                let minDist = 300; // 튕기는 거리 제한
+                let minDist = 300; 
                 
                 enemies.forEach(e => {
                     if(e.dead || e === current || visited.includes(e)) return;
@@ -711,18 +651,15 @@
         updateZone() {
             this.tickTimer++;
             
-            // SLOW_ZONE (중력장)
             if(this.currentData.type === 'SLOW_ZONE') {
                 if(boss && !boss.dead && Math.hypot(boss.x - core.x, boss.y - core.y) < this.currentData.range + boss.radius) {
-                    // 보스는 덜 느려짐
-                    // boss.speed *= 0.8; // 보스 속도 제어는 복잡하므로 데미지만 줌
                     if(this.tickTimer % 10 === 0) boss.takeDamage(this.currentData.baseDamage);
                 }
                 enemies.forEach(e => {
                     if(e.dead) return;
                     const dist = Math.hypot(e.x - core.x, e.y - core.y);
                     if (dist < this.currentData.range + e.radius) {
-                        e.slowed = true; // 적에게 슬로우 플래그 설정
+                        e.slowed = true; 
                         if(this.tickTimer % 10 === 0) {
                             e.takeDamage(this.currentData.baseDamage);
                             particles.push(new Particle(e.x, e.y, '#000'));
@@ -732,7 +669,6 @@
                 return;
             }
 
-            // ZONE (플라즈마 쉴드)
             if (this.tickTimer % (this.currentData.hitRate || 10) !== 0) return;
             if(boss && !boss.dead && Math.hypot(boss.x - core.x, boss.y - core.y) < this.currentData.range + boss.radius) {
                 boss.takeDamage(this.currentData.baseDamage);
@@ -750,7 +686,7 @@
 
     /* ================= 로직 함수 ================= */
 
-    addWeapon('BLASTER');
+    addWeapon('MISSILE'); // 기본 무기 변경: 유도 미사일
 
     function pointToLineDistance(px, py, x1, y1, x2, y2) {
         const A=px-x1; const B=py-y1; const C=x2-x1; const D=y2-y1;
@@ -930,7 +866,7 @@
         ctx.fill(); ctx.shadowBlur = 0;
 
         player.weapons.forEach(w => { w.update(); w.draw(); });
-        drones.forEach(d => { d.update(); d.draw(); }); // 드론 업데이트
+        drones.forEach(d => { d.update(); d.draw(); }); 
 
         if(boss && !boss.dead) { 
             boss.update(); boss.draw(); 
@@ -959,7 +895,7 @@
 
             for (let j = enemies.length - 1; j >= 0; j--) {
                 const e = enemies[j];
-                if(e.dead) continue; // 죽은 적 스킵
+                if(e.dead) continue; 
                 if(Math.hypot(p.x-e.x, p.y-e.y) < e.radius+p.radius) {
                     if(p.explosive) { p.explode(); projectiles.splice(i,1); break; }
                     else {
@@ -973,7 +909,6 @@
             }
         }
 
-        // 죽은 적 제거 필터링
         enemies = enemies.filter(e => {
             if (e.dead) return false;
             e.update(); e.draw();
