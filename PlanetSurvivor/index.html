@@ -80,20 +80,23 @@
     const bossHpBar = document.getElementById('boss-hp-bar');
     const warningMsg = document.getElementById('warning-msg');
     
-    // [수정] 동적 해상도: 창 높이에 따라 줌 스케일 조정 (기본 900px 기준)
-    let ZOOM_SCALE = Math.max(0.6, window.innerHeight / 900);
+    // [수정] 동적 해상도 및 위치 보정: 리프레시 시 위치 어긋남 방지
+    let ZOOM_SCALE = 1.0;
+    const core = { x: 0, y: 0, radius: 35, maxHp: 100, hp: 100, color: '#3b82f6' };
     
     function resize() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-        // 화면 크기가 바뀔 때마다 스케일 재계산
+        // 창 높이 900px 기준으로 스케일 조정 (너무 작아지지 않게 최소값 0.6)
         ZOOM_SCALE = Math.max(0.6, window.innerHeight / 900);
+        
+        // [중요] 리사이즈 시 플레이어 위치를 항상 화면 중앙으로 갱신
         core.x = canvas.width / 2;
         core.y = canvas.height / 2;
     }
     window.addEventListener('resize', resize);
 
-    /* ================= Sound System (Web Audio API) ================= */
+    /* ================= Sound System (Improved Sci-Fi SFX) ================= */
     class SoundManager {
         constructor() {
             this.ctx = null;
@@ -111,13 +114,19 @@
             } catch (e) { console.error("Web Audio API not supported"); }
         }
 
-        playTone(freq, type, duration, volMult = 1.0) {
+        // [수정] 주파수 슬라이드(Pitch Slide) 기능 추가로 "피슝~" 효과 구현
+        playTone(freq, type, duration, volMult = 1.0, slideTo = null) {
             if (!this.ctx || this.muted) return;
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
             osc.type = type;
             osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
             
+            // 주파수 변조 (Slide)
+            if (slideTo) {
+                osc.frequency.exponentialRampToValueAtTime(slideTo, this.ctx.currentTime + duration);
+            }
+
             // 볼륨 감쇠 (Envelope)
             gain.gain.setValueAtTime(this.volume * volMult, this.ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
@@ -128,6 +137,7 @@
             osc.stop(this.ctx.currentTime + duration);
         }
 
+        // [수정] 폭발음 개선: 로우패스 필터 스윕으로 묵직한 "쿠광" 소리 구현
         playNoise(duration, volMult = 1.0) {
             if (!this.ctx || this.muted) return;
             const bufferSize = this.ctx.sampleRate * duration;
@@ -139,10 +149,11 @@
             noise.buffer = buffer;
             const gain = this.ctx.createGain();
             
-            // 필터 추가 (폭발음처럼)
+            // 필터 추가 (폭발음: 높은 주파수 차단하여 웅장하게)
             const filter = this.ctx.createBiquadFilter();
             filter.type = 'lowpass';
-            filter.frequency.value = 800;
+            filter.frequency.setValueAtTime(1000, this.ctx.currentTime);
+            filter.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + duration); // 주파수 하강
 
             gain.gain.setValueAtTime(this.volume * volMult, this.ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
@@ -153,21 +164,35 @@
             noise.start();
         }
 
-        shoot() { this.playTone(300 + Math.random()*200, 'square', 0.1, 0.3); }
-        laser() { this.playTone(600, 'sawtooth', 0.15, 0.2); }
-        hit() { this.playTone(100, 'square', 0.1, 0.4); }
-        explosion() { this.playNoise(0.4, 0.6); }
+        // [수정] 각 무기에 어울리는 Sci-Fi 사운드 적용
+        shoot() { 
+            // "피슝" (높은음 -> 낮은음)
+            this.playTone(800, 'sine', 0.15, 0.2, 100); 
+        }
+        laser() { 
+            // "지잉" (톱니파, 날카로운 소리)
+            this.playTone(400, 'sawtooth', 0.1, 0.15); 
+        }
+        hit() { 
+            // "틱" (짧은 타격음)
+            this.playTone(150, 'square', 0.05, 0.3, 50); 
+        }
+        explosion() { 
+            // "쿠광" (노이즈 + 필터 스윕)
+            this.playNoise(0.5, 0.7); 
+        }
         levelUp() { 
             if(!this.ctx || this.muted) return;
-            // 아르페지오 효과
-            [440, 554, 659, 880].forEach((f, i) => {
-                setTimeout(() => this.playTone(f, 'sine', 0.3, 0.5), i * 100);
+            // 긍정적인 화음 (아르페지오)
+            [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => { // C Major
+                setTimeout(() => this.playTone(f, 'sine', 0.4, 0.4), i * 80);
             });
         }
         warning() {
             if(!this.ctx || this.muted) return;
-            this.playTone(150, 'sawtooth', 0.5, 0.6);
-            setTimeout(() => this.playTone(150, 'sawtooth', 0.5, 0.6), 600);
+            // 사이렌 소리 (Wailing)
+            this.playTone(200, 'sawtooth', 1.0, 0.5, 600);
+            setTimeout(() => this.playTone(600, 'sawtooth', 1.0, 0.5, 200), 500);
         }
     }
 
@@ -222,7 +247,6 @@
     let projectiles=[], enemies=[], particles=[], beams=[], explosions=[], drones=[], lightnings=[], shockwaves=[];
     let boss = null; 
     const player = { level: 1, xp: 0, xpToNext: 150, weapons: [] };
-    const core = { x: canvas.width/2, y: canvas.height/2, radius: 35, maxHp: 100, hp: 100, color: '#3b82f6' };
 
     /* ================= Classes ================= */
     class BeamEffect {
@@ -793,7 +817,9 @@
         for(let i=particles.length-1;i>=0;i--){particles[i].update();particles[i].draw();if(particles[i].life<=0)particles.splice(i,1);}
         ctx.restore();
     }
-    window.addEventListener('resize', resize);
+    
+    // [중요] 게임 시작 전 resize를 호출하여 초기 위치와 스케일을 정확히 설정
+    resize();
     renderWeaponSlots(); updateUi(); animate();
 </script>
 </body>
