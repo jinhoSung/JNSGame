@@ -87,7 +87,7 @@
         }
         .pause-btn.danger { background: #ef4444; }
 
-        #boss-hud { display: none; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 60%; max-width: 600px; height: 30px; z-index: 20; pointer-events: none; }
+        #boss-hud { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 60%; max-width: 600px; height: 30px; z-index: 20; pointer-events: none; }
         #boss-hud.active { display: block; animation: slideDown 0.5s ease-out; }
         .boss-name { text-align: center; font-weight: bold; color: #ef4444; text-shadow: 0 0 5px black; margin-bottom: 5px; font-size: 18px; }
         .boss-bar-bg { width: 100%; height: 100%; background: #333; border: 2px solid #555; border-radius: 5px; overflow: hidden; }
@@ -300,7 +300,7 @@
         if (data) {
             const loaded = JSON.parse(data);
             // 기존 데이터와 저장 파일 병합 (새로운 업그레이드 키를 안전하게 추가)
-            saveFile = { ...saveFile, ...loaded, upgrades: { ...saveFile.upgrades, ...loaded.upgrades } };
+            saveFile = { ...saveFile, ...loaded, upgrades: { ...loaded.upgrades, ...saveFile.upgrades } }; // [수정] 최신 saveFile 구조 유지
         }
     }
     function saveGame() {
@@ -825,11 +825,12 @@
     class Enemy {
         constructor() {
              const vW=canvas.width/ZOOM_SCALE; const vH=canvas.height/ZOOM_SCALE; const m=100; const cx=canvas.width/2; const cy=canvas.height/2; const side=Math.floor(Math.random()*4);
+             // 적 생성 위치: 화면 밖에서 랜덤하게
              if(side===0){this.x=Math.random()*(vW+m*2)+(cx-vW/2-m); this.y=cy-vH/2-m;} else if(side===1){this.x=cx+vW/2+m; this.y=Math.random()*(vH+m*2)+(cy-vH/2-m);} else if(side===2){this.x=Math.random()*(vW+m*2)+(cx-vW/2-m); this.y=cy+vH/2+m;} else{this.x=cx-vW/2-m; this.y=Math.random()*(vH+m*2)+(cy-vH/2-m);}
              
              const diff = DIFFICULTY_SETTINGS[currentDifficulty];
-             // [수정] 적 HP 스케일링 강화: 60 + (player.level * 25) * diff.hpMult로 조정
-             this.hp = (60 + (player.level*25)) * diff.hpMult;
+             // [수정] 적 HP 스케일링 강화: 80 + (player.level * 30) * diff.hpMult로 조정
+             this.hp = (80 + (player.level*30)) * diff.hpMult;
              this.maxHp = this.hp;
              this.baseSpeed = (0.5+Math.random()*0.5+(player.level*0.05));
              this.speed = this.baseSpeed;
@@ -839,7 +840,8 @@
              // [수정] 85% 확률로 완만한 나선형 적(spiral) 또는 15% 확률로 빠른 직선형 적(direct) 생성
              if (Math.random() < 0.85) {
                  // 완만한 나선형 (체력 높음, 느린 회전)
-                 this.spiralDir = Math.random() < 0.5 ? 0.78 : -0.78; // 2바퀴 이상을 돌게 완화
+                 // [수정] 나선 각도를 0.78에서 0.15로 완화하여 2바퀴 이상 돌게 함
+                 this.spiralDir = Math.random() < 0.5 ? 0.15 : -0.15; 
                  this.hp *= 1.5; // 체력 보너스
                  this.maxHp *= 1.5;
              } else {
@@ -848,15 +850,42 @@
                  this.hp *= 0.7; // 체력 페널티
                  this.maxHp *= 0.7;
              }
+             
+             // [추가] 적이 행성 주변을 돌기 위한 현재 각도 저장
+             this.currentMoveAngle = Math.atan2(core.y - this.y, core.x - this.x);
         }
         update(){ 
             this.speed=this.baseSpeed; 
             if(this.slowed){this.speed*=0.5; this.slowed=false;} 
-            const a=Math.atan2(core.y-this.y, core.x-this.x); 
-            // [수정] 나선 이동 각도 적용
-            const ma=a + this.spiralDir; 
-            this.x += Math.cos(ma) * this.speed * GAME_SPEED; 
-            this.y += Math.sin(ma) * this.speed * GAME_SPEED; 
+            
+            const dx = core.x - this.x;
+            const dy = core.y - this.y;
+            const targetAngle = Math.atan2(dy, dx); // 행성 중심을 향하는 각도
+
+            let newAngle = targetAngle;
+            
+            if (this.spiralDir !== 0) {
+                 // [수정된 로직] 나선형 적은 현재 이동 각도(currentMoveAngle)를 유지하며, 목표 각도(targetAngle)를 향해 서서히 회전합니다.
+                 
+                 // 1. 목표 각도와 현재 이동 각도의 차이 계산
+                 let angleDiff = targetAngle - this.currentMoveAngle;
+                 while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                 while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+                 // 2. 현재 이동 각도를 목표 방향으로 미세하게 갱신 (끌려가는 힘)
+                 this.currentMoveAngle += angleDiff * 0.01 * GAME_SPEED; // 0.01은 매우 느리게 중심을 따라가게 함
+                 
+                 // 3. 나선형 회전력 추가 (접선 방향으로 미는 힘)
+                 this.currentMoveAngle += this.spiralDir * GAME_SPEED; 
+                 
+                 newAngle = this.currentMoveAngle;
+            } else {
+                 // 직선형 적: 목표 각도를 따라감
+                 newAngle = targetAngle;
+            }
+            
+            this.x += Math.cos(newAngle) * this.speed * GAME_SPEED; 
+            this.y += Math.sin(newAngle) * this.speed * GAME_SPEED; 
         }
         takeDamage(d, weaponId = 'CORE'){ 
             if(this.dead)return false; 
