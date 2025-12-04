@@ -19,12 +19,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        // 🌟 수정: getDoc을 firebase-firestore.js에서 가져오도록 수정
-        import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
-        // setLogLevel('Debug'); // 디버깅 시 주석 해제
-
         // --- Firebase Globals Setup ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
@@ -35,14 +31,12 @@
             const auth = getAuth(app);
             const db = getFirestore(app);
 
-            // Export Firestore functions to window for use in the Babel script
             window.firebaseApp = app;
             window.firebaseAuth = auth;
             window.firestoreDB = db;
-            window.doc = doc;      
-            window.setDoc = setDoc;    
-            window.onSnapshot = onSnapshot;  
-            window.getDoc = getDoc; // getDoc은 이제 window.getDoc으로 내보내집니다.
+            window.doc = doc;          
+            window.setDoc = setDoc;   
+            window.onSnapshot = onSnapshot; 
             
             window.firebaseInitialized = false;
 
@@ -60,7 +54,6 @@
                 }
                 if (user && !window.firebaseInitialized) {
                     window.firebaseInitialized = true;
-                    // Trigger custom event to notify React app that Firebase is ready
                     window.dispatchEvent(new CustomEvent('firebase-ready'));
                 }
             });
@@ -71,8 +64,6 @@
         body { margin: 0; overflow: hidden; background-color: #0f172a; color: #f1f5f9; font-family: sans-serif; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        /* 커스텀 Tailwind 클래스: w-[40%]를 정확히 맞춥니다. */
-        .lg-w-40-percent { width: 40%; }
     </style>
 </head>
 <body>
@@ -81,92 +72,58 @@
     <script type="text/babel">
         const { useState, useEffect, useRef, useCallback } = window.React; 
 
-        // --- Icon Components (Inline SVG) ---
+        // --- Icon Components ---
         const Play = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>);
         const Pause = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>);
         const RotateCcw = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>);
         const Plus = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>);
         const Trash2 = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>);
-        const Cpu = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x="9" y="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>);
+        const Cpu = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>);
         const Activity = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>);
         const Trophy = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M8 21h8m-4-9v9m-8-2.5a6 6 0 0 1 12 0v2.5"></path><path d="M16 3h-8"></path><path d="M7 3v7a5 5 0 0 0 10 0V3"></path><path d="M19 6h2a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2h-2"></path><path d="M5 6H3a2 2 0 0 0-2 2v1a2 2 0 0 0 2 2h2"></path></svg>);
         const Hash = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line><line x1="10" y1="3" x2="8" y2="21"></line><line x1="16" y1="3" x2="14" y2="21"></line></svg>);
         const Radar = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"></path><path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"></path><line x1="12" y1="2" x2="12" y2="4"></line><line x1="12" y1="20" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="6.34" y2="6.34"></line><line x1="17.66" y1="17.66" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="4" y2="12"></line><line x1="20" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="6.34" y2="17.66"></line><line x1="17.66" y1="6.34" x2="19.07" y2="4.93"></line></svg>);
-        const Timer = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="10" y1="2" x2="14" y2="2"></line><line x1="12" y1="14" x2="15" y2="11"></line><circle cx="12" cy="14" r="8"></circle></svg>);
-        const Flag = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>);
         const MapIcon = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line></svg>);
         const Volume2 = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>);
         const VolumeX = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>);
         const ShoppingCart = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>);
-        const Wrench = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-3.76 3.76a1 1 0 0 0-1.4 0l-1.6-1.6a1 1 0 0 0 0-1.4l3.77-3.77a6 6 0 0 1 7.94-7.94l-3.76-3.76z"></path><path d="M21.5 2L17 6.5"></path><path d="M19.4 12.6l-2.6 2.6"></path><path d="M12.6 19.4l-2.6 2.6"></path><path d="M16 16l-1.4 1.4"></path><path d="M14 10l-1.4 1.4"></path><path d="M6 6L2 2"></path></svg>);
+        const Wrench = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-3.76 3.76a1 1 0 0 0-1.4 0l-1.6-1.6a1 1 0 0 0 0-1.4l3.77-3.77a6 6 0 0 1 7.94-7.94l-3.76-3.76z"></path><path d="M21.5 2L17 6.5"></path><path d="M19.4 12.6l-2.6 2.6"></path><path d="M12.6 19.4l-2.6 2.6"></path><path d="M16 16l-1.4 1.4"></path><path d="M14 10l-1.4 1.4"></path><path d="M6 6L2 2"></path></svg>);
         const DollarSign = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>);
-        const Save = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>);
-        const Folder = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 8.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"></path></svg>);
-        const Car = ({size=24, className=""}) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19 17h2a1 1 0 0 0 0-2h-2"></path><path d="M5 17H3a1 1 0 0 1 0-2h2"></path><path d="M21 14V8a2 2 0 0 0-2-2h-1c-1 0-4 1-4 1s-3-1-4-1H5a2 2 0 0 0-2 2v6"></path><path d="M8 10h.01"></path><path d="M16 10h.01"></path><path d="M7 21h10"></path><path d="M12 14v7"></path><path d="M10 14h4"></path></svg>);
-
 
         // --- Constants & Config ---
         const TRACK_WIDTH = 800;
         const TRACK_HEIGHT = 600;
-        const FPS = 60;
         const CAR_SIZE = { width: 24, height: 14 };
-        const MAP_SCALE = 1.0; 
+        const MAP_SCALE = 0.85;
         const MAX_SKID_MARKS = 50; 
         const TOTAL_LAPS = 3;
 
-        // Detection Radius Config
+        const CHECKPOINT_RADIUS_START = 220; 
         const CHECKPOINT_RADIUS_NORMAL = 120; 
 
-        // Track Aesthetics
         const TRACK_AESTHETICS = {
-            border: 90, 
-            curb: 80,   
-            asphalt: 70 
+            border: 90, curb: 80, asphalt: 70 
         };
 
-        // 🌟 지형별 색상 및 물리 특성 정의 (Ice, Gravel, Water)
-        const TERRAIN_PROPERTIES = {
-            asphalt: { trackColor: '#334155', groundColor: '#4ade80', frictionFactor: 1.0, turnFactor: 1.0, skidColor: 'rgba(20, 20, 20, 0.3)' },
-            ice: { trackColor: '#80cedd', groundColor: '#f8fafc', frictionFactor: 0.3, turnFactor: 1.0, skidColor: 'rgba(173, 216, 230, 0.6)' }, // 매우 미끄러움
-            gravel: { trackColor: '#8b5e3c', groundColor: '#b4a595', frictionFactor: 0.85, turnFactor: 0.7, skidColor: 'rgba(139, 69, 19, 0.6)' }, // 조향 어려움, 마찰 감소
-            water: { trackColor: '#1e3a8a', groundColor: '#3b82f6', frictionFactor: 0.6, turnFactor: 0.8, skidColor: 'rgba(0, 191, 255, 0.6)' } // 감속 및 조향 어려움
-        };
-
-        const SENSOR_LABELS = {
-            0: '좌측 센서', 1: '전방 좌측', 2: '전방 센서', 3: '전방 우측', 4: '우측 센서'
-        };
-
+        const SENSOR_LABELS = { 0: '좌측 센서', 1: '전방 좌측', 2: '전방 센서', 3: '전방 우측', 4: '우측 센서' };
         const OPERATOR_OPTIONS = [
             { value: '<', label: '작다면 (<)' }, { value: '>', label: '크다면 (>)' }, 
             { value: '<=', label: '같거나 작다면 (<=)' }, { value: '>=', label: '같거나 크다면 (>=)' }, 
             { value: '==', label: '같다면 (==)' }, { value: '!=', label: '같지 않다면 (!=)' },
         ];
-        
         const FLOW_OPTIONS = [
             { value: 'IF', label: '만약 (IF)', color: 'border-blue-500' },
             { value: 'ELSE_IF', label: '아니면 만약 (ELSE IF)', color: 'border-indigo-500' },
             { value: 'ELSE', label: '아니면 (ELSE)', color: 'border-purple-500' },
         ];
 
-        // 🌟 기본 로직 블록 (사용자 초기 로직)
         const INITIAL_BLOCKS = [
-            { id: 1, flowType: 'IF', sensor: 2, operator: '<', valueType: 'number', value: 80, action: 'BRAKE_100' },
-            { id: 2, flowType: 'ELSE_IF', sensor: 0, operator: '>', valueType: 'sensor', value: 4, action: 'RIGHT' },
-            { id: 3, flowType: 'ELSE_IF', sensor: 4, operator: '>', valueType: 'sensor', value: 0, action: 'LEFT' },
-            { id: 4, flowType: 'ELSE', sensor: 2, operator: '>', valueType: 'number', value: 0, action: 'ACCEL_100' },
+          { id: 1, flowType: 'IF', sensor: 2, operator: '<', valueType: 'number', value: 80, action: 'BRAKE' },
+          { id: 2, flowType: 'ELSE_IF', sensor: 0, operator: '>', valueType: 'sensor', value: 4, action: 'RIGHT' },
+          { id: 3, flowType: 'ELSE_IF', sensor: 4, operator: '>', valueType: 'sensor', value: 0, action: 'LEFT' },
+          { id: 4, flowType: 'ELSE', sensor: 2, operator: '>', valueType: 'number', value: 0, action: 'ACCEL' },
         ];
 
-        // --- 🌟 캐릭터/차량 타입 정의 ---
-        const VEHICLE_TYPES = [
-            { id: 'car', name: '자율주행 자동차', emoji: '🚗', trailType: 'skid' },
-            { id: 'dragon', name: '불 뿜는 드래곤', emoji: '🐉', trailType: 'dust' },
-            { id: 'horse', name: '경주마', emoji: '🐎', trailType: 'dust' },
-            { id: 'rocket', name: '로켓 차량', emoji: '🚀', trailType: 'skid' },
-            { id: 'ufo', name: '미확인 비행물체', emoji: '🛸', trailType: 'none' }, 
-        ];
-
-
-        // --- 파츠 및 차량 데이터 (구매 시스템) ---
         const PART_TYPES = [
             { id: 'engine', name: '엔진', unit: '가속력 (Accel)' },
             { id: 'gearbox', name: '변속기', unit: '최고속도 (Max Speed)' },
@@ -176,32 +133,11 @@
             { id: 'sensor', name: '센서 모듈', unit: '센서 범위 (Range)' },
         ];
         
-        // 🌟 티어 확장: 0부터 5까지 총 6단계. 증가폭 감소.
         const PART_STATS = {
-            // Tier 0 (Base stats derived from C01)
-            '0': { 
-                acceleration: 0.70, maxSpeedMod: 9.0, friction: 0.930, turnSpeed: 0.080, gripFactor: 0.050, sensorRange: 150
-            },
-            // Tier 1
-            '1': {
-                acceleration: 0.78, maxSpeedMod: 10.0, friction: 0.935, turnSpeed: 0.090, gripFactor: 0.070, sensorRange: 175, price: 1000
-            },
-            // Tier 2
-            '2': {
-                acceleration: 0.86, maxSpeedMod: 11.0, friction: 0.940, turnSpeed: 0.100, gripFactor: 0.090, sensorRange: 200, price: 2000
-            },
-            // Tier 3
-            '3': {
-                acceleration: 0.95, maxSpeedMod: 12.5, friction: 0.945, turnSpeed: 0.115, gripFactor: 0.120, sensorRange: 230, price: 3500
-            },
-            // Tier 4
-            '4': {
-                acceleration: 1.05, maxSpeedMod: 14.0, friction: 0.950, turnSpeed: 0.130, gripFactor: 0.150, sensorRange: 270, price: 5500
-            },
-            // Tier 5 (MAX TIER)
-            '5': {
-                acceleration: 1.20, maxSpeedMod: 16.0, friction: 0.955, turnSpeed: 0.150, gripFactor: 0.200, sensorRange: 320, price: 8000
-            }
+            '0': { acceleration: 0.7, maxSpeedMod: 9, friction: 0.93, turnSpeed: 0.08, gripFactor: 0.05, sensorRange: 150 },
+            '1': { acceleration: 0.85, maxSpeedMod: 11, friction: 0.94, turnSpeed: 0.10, gripFactor: 0.10, sensorRange: 200, price: 1500 },
+            '2': { acceleration: 1.0, maxSpeedMod: 13, friction: 0.95, turnSpeed: 0.12, gripFactor: 0.15, sensorRange: 250, price: 3000 },
+            '3': { acceleration: 1.2, maxSpeedMod: 15, friction: 0.96, turnSpeed: 0.14, gripFactor: 0.20, sensorRange: 300, price: 5000 }
         };
 
         const CAR_CHASSIS = [
@@ -210,165 +146,46 @@
             { id: 'C03', name: '하이 그립 (Green)', price: 25000, color: '#10b981', baseAccel: 0.75, baseGrip: 0.12, maxSpeedBonus: 0 },
         ];
 
-        // --- 🌟 트랙 레이아웃 재설계 (30개, 지형 타입 통합 및 콘셉트 강화) ---
         const TRACK_LAYOUTS = [
-            // 초급 (1-10) - 아스팔트 기본
-            { id: 'simple_square', name: '1. 심플 스퀘어 (입문)', points: [{ x: 400, y: 50 }, { x: 750, y: 50 }, { x: 750, y: 550 }, { x: 50, y: 550 }, { x: 50, y: 50 }], terrainType: 'asphalt' },
-            { id: 'oval', name: '2. 스피드 오벌 (입문)', points: [{ x: 400, y: 50 }, { x: 700, y: 50 }, { x: 750, y: 300 }, { x: 700, y: 550 }, { x: 100, y: 550 }, { x: 50, y: 300 }, { x: 100, y: 50 }], terrainType: 'asphalt' },
-            { id: 'smooth_curve', name: '3. 스무스 코너 (초급)', points: [{ x: 400, y: 50 }, { x: 700, y: 100 }, { x: 750, y: 300 }, { x: 700, y: 500 }, { x: 400, y: 550 }, { x: 100, y: 500 }, { x: 50, y: 300 }, { x: 100, y: 100 }], terrainType: 'asphalt' },
-            { id: 'mini_technical', name: '4. 미니 테크니컬 (초급)', points: [{ x: 350, y: 50 }, { x: 500, y: 50 }, { x: 700, y: 100 }, { x: 750, y: 200 }, { x: 700, y: 400 }, { x: 500, y: 500 }, { x: 300, y: 450 }, { x: 50, y: 300 }, { x: 100, y: 100 }, { x: 200, y: 50 }], terrainType: 'asphalt' },
-            { id: 'long_straight', name: '5. 롱 스트레이트 (초급)', points: [{ x: 400, y: 50 }, { x: 750, y: 50 }, { x: 750, y: 550 }, { x: 50, y: 550 }, { x: 50, y: 50 }], terrainType: 'asphalt' },
-            { id: 'u_turn_basic', name: '6. 유턴 기본 (초급)', points: [{ x: 400, y: 50 }, { x: 700, y: 50 }, { x: 700, y: 300 }, { x: 500, y: 550 }, { x: 300, y: 550 }, { x: 100, y: 300 }, { x: 100, y: 50 }], terrainType: 'asphalt' },
-            { id: 'pentagon', name: '7. 펜타곤 챌린지 (중급)', points: [{ x: 400, y: 50 }, { x: 600, y: 80 }, { x: 750, y: 300 }, { x: 500, y: 550 }, { x: 150, y: 520 }, { x: 50, y: 300 }, { x: 200, y: 80 }], terrainType: 'asphalt' },
-            { id: 'hairpin_mix', name: '8. 헤어핀 믹스 (중급)', points: [{ x: 400, y: 50 }, { x: 750, y: 50 }, { x: 750, y: 350 }, { x: 600, y: 550 }, { x: 400, y: 400 }, { x: 200, y: 550 }, { x: 50, y: 350 }, { x: 50, y: 150 }], terrainType: 'asphalt' },
-            { id: 's_and_straights', name: '9. S자 및 직선 (중급)', points: [{ x: 400, y: 50 }, { x: 750, y: 100 }, { x: 550, y: 250 }, { x: 750, y: 400 }, { x: 400, y: 550 }, { x: 50, y: 400 }, { x: 250, y: 250 }, { x: 50, y: 100 }], terrainType: 'asphalt' },
-            { id: 'wide_curve_long', name: '10. 와이드 커브 롱 (중급)', points: [{ x: 400, y: 50 }, { x: 750, y: 100 }, { x: 700, y: 400 }, { x: 400, y: 550 }, { x: 100, y: 400 }, { x: 50, y: 100 }], terrainType: 'asphalt' },
-            
-            // 중상급 (11-15) - 지형 도입 (Ice, Gravel)
-            { id: 'ice_zigzag', name: '11. 아이스 지그재그 (얼음)', points: [{ x: 400, y: 50 }, { x: 700, y: 50 }, { x: 700, y: 250 }, { x: 250, y: 350 }, { x: 700, y: 450 }, { x: 700, y: 550 }, { x: 100, y: 550 }, { x: 100, y: 150 }], terrainType: 'ice' },
-            { id: 'gravel_reverse', name: '12. 거친 테크니컬 (자갈)', points: [{ x: 400, y: 50 }, { x: 600, y: 150 }, { x: 750, y: 300 }, { x: 600, y: 450 }, { x: 400, y: 550 }, { x: 200, y: 450 }, { x: 50, y: 300 }, { x: 200, y: 150 }], terrainType: 'gravel' },
-            { id: 'water_coastline', name: '13. 습지 해안선 (물)', points: [{ x: 400, y: 50 }, { x: 750, y: 50 }, { x: 700, y: 300 }, { x: 750, y: 500 }, { x: 500, y: 550 }, { x: 50, y: 500 }, { x: 50, y: 300 }, { x: 100, y: 100 }], terrainType: 'water' },
-            { id: 'ice_spiral', name: '14. C자 아이스 스파이럴 (얼음)', points: [{ x: 400, y: 50 }, { x: 700, y: 50 }, { x: 700, y: 450 }, { x: 400, y: 550 }, { x: 100, y: 450 }, { x: 100, y: 100 }, { x: 250, y: 150 }], terrainType: 'ice' },
-            { id: 'gravel_long_s', name: '15. 롱 S 커브 (자갈)', points: [{ x: 400, y: 50 }, { x: 750, y: 150 }, { x: 500, y: 250 }, { x: 750, y: 450 }, { x: 400, y: 550 }, { x: 50, y: 450 }, { x: 300, y: 250 }, { x: 50, y: 150 }], terrainType: 'gravel' },
-            
-            // 상급 (16-25) - 길이와 복잡성 증가
-            { id: 'water_slalom', name: '16. 워터 슬라롬 (물)', points: [{ x: 400, y: 50 }, { x: 750, y: 50 }, { x: 700, y: 200 }, { x: 750, y: 350 }, { x: 600, y: 500 }, { x: 400, y: 550 }, { x: 200, y: 500 }, { x: 50, y: 350 }, { x: 100, y: 200 }, { x: 50, y: 50 }], terrainType: 'water' },
-            { id: 'asphalt_grand', name: '17. 그랜드 투어 (아스팔트)', points: [{ x: 400, y: 50 }, { x: 750, y: 50 }, { x: 750, y: 200 }, { x: 650, y: 300 }, { x: 750, y: 450 }, { x: 750, y: 550 }, { x: 50, y: 550 }, { x: 50, y: 400 }, { x: 150, y: 300 }, { x: 50, y: 200 }, { x: 50, y: 50 }], terrainType: 'asphalt' },
-            { id: 'ice_oval_ext', name: '18. 익스텐디드 오벌 (얼음)', points: [{ x: 400, y: 50 }, { x: 750, y: 50 }, { x: 750, y: 300 }, { x: 700, y: 550 }, { x: 100, y: 550 }, { x: 50, y: 300 }, { x: 50, y: 50 }, { x: 250, y: 50 }], terrainType: 'ice' },
-            { id: 'gravel_triple', name: '19. 트리플 커브 (자갈)', points: [{ x: 400, y: 50 }, { x: 750, y: 150 }, { x: 600, y: 300 }, { x: 750, y: 450 }, { x: 400, y: 550 }, { x: 50, y: 450 }, { x: 200, y: 300 }, { x: 50, y: 150 }], terrainType: 'gravel' },
-            { id: 'water_wave', name: '20. 웨이브 트랙 (물)', points: [{ x: 400, y: 50 }, { x: 750, y: 50 }, { x: 650, y: 200 }, { x: 750, y: 350 }, { x: 600, y: 500 }, { x: 200, y: 550 }, { x: 150, y: 400 }, { x: 200, y: 200 }, { x: 50, y: 50 }], terrainType: 'water' },
-            { id: 'asphalt_snake', name: '21. 스네이크 중형 (아스팔트)', points: [{ x: 400, y: 50 }, { x: 700, y: 50 }, { x: 750, y: 250 }, { x: 600, y: 400 }, { x: 750, y: 550 }, { x: 250, y: 550 }, { x: 50, y: 400 }, { x: 150, y: 250 }, { x: 50, y: 50 }], terrainType: 'asphalt' },
-            { id: 'ice_complex', name: '22. 아이스 피겨 (얼음)', points: [{ x: 400, y: 50 }, { x: 700, y: 50 }, { x: 700, y: 250 }, { x: 500, y: 350 }, { x: 700, y: 450 }, { x: 500, y: 550 }, { x: 100, y: 500 }, { x: 300, y: 400 }, { x: 100, y: 250 }, { x: 300, y: 150 }], terrainType: 'ice' },
-            { id: 'gravel_tri', name: '23. 삼각 서킷 (자갈)', points: [{ x: 400, y: 50 }, { x: 750, y: 250 }, { x: 500, y: 550 }, { x: 50, y: 250 }, { x: 250, y: 150 }], terrainType: 'gravel' },
-            { id: 'water_coffin', name: '24. 코핀 레이스 (물)', points: [{ x: 400, y: 50 }, { x: 600, y: 50 }, { x: 750, y: 300 }, { x: 600, y: 550 }, { x: 200, y: 550 }, { x: 50, y: 300 }, { x: 200, y: 50 }], terrainType: 'water' },
-            { id: 'asphalt_spiral', name: '25. 스파이럴 아웃 (아스팔트)', points: [{ x: 400, y: 50 }, { x: 500, y: 100 }, { x: 700, y: 150 }, { x: 750, y: 300 }, { x: 500, y: 450 }, { x: 200, y: 550 }, { x: 50, y: 300 }, { x: 250, y: 150 }], terrainType: 'asphalt' },
-            
-            // 최상급 (26-30) - 극한의 난이도
-            { id: 'ice_mega', name: '26. 아이스 메가 챌린지 (얼음)', points: [{ x: 400, y: 50 }, { x: 750, y: 50 }, { x: 650, y: 200 }, { x: 750, y: 300 }, { x: 650, y: 400 }, { x: 750, y: 550 }, { x: 50, y: 550 }, { x: 50, y: 400 }, { x: 150, y: 300 }, { x: 50, y: 200 }, { x: 150, y: 100 }, { x: 400, y: 250 }], terrainType: 'ice' },
-            { id: 'gravel_long_tech', name: '27. 롱 테크니컬 (자갈)', points: [{ x: 400, y: 50 }, { x: 700, y: 50 }, { x: 750, y: 150 }, { x: 700, y: 300 }, { x: 750, y: 450 }, { x: 500, y: 550 }, { x: 250, y: 500 }, { x: 50, y: 400 }, { x: 150, y: 250 }, { x: 50, y: 100 }, { x: 250, y: 150 }, { x: 550, y: 150 }], terrainType: 'gravel' },
-            { id: 'water_quad', name: '28. 쿼드 헤어핀 (물)', points: [{ x: 400, y: 50 }, { x: 750, y: 50 }, { x: 750, y: 200 }, { x: 600, y: 300 }, { x: 750, y: 400 }, { x: 600, y: 550 }, { x: 400, y: 550 }, { x: 200, y: 550 }, { x: 50, y: 400 }, { x: 200, y: 300 }, { x: 50, y: 200 }, { x: 100, y: 50 }], terrainType: 'water' },
-            { id: 'asphalt_ultimate', name: '29. 얼티밋 스피드 (아스팔트)', points: [{ x: 400, y: 50 }, { x: 650, y: 50 }, { x: 750, y: 200 }, { x: 700, y: 400 }, { x: 750, y: 550 }, { x: 400, y: 550 }, { x: 50, y: 550 }, { x: 100, y: 400 }, { x: 50, y: 200 }, { x: 150, y: 50 }, { x: 400, y: 150 }], terrainType: 'asphalt' },
-            { id: 'gravel_marathon', name: '30. 마라톤 서킷 (자갈)', points: [{ x: 400, y: 50 }, { x: 700, y: 50 }, { x: 750, y: 150 }, { x: 650, y: 250 }, { x: 750, y: 350 }, { x: 700, y: 450 }, { x: 750, y: 550 }, { x: 400, y: 500 }, { x: 50, y: 550 }, { x: 150, y: 450 }, { x: 50, y: 350 }, { x: 150, y: 250 }, { x: 50, y: 150 }, { x: 200, y: 50 }, { x: 400, y: 150 }], terrainType: 'gravel' }
+            { id: 'technical', name: '1. 테크니컬 서킷 (초급)', points: [{ x: 350, y: 100 }, { x: 500, y: 50 }, { x: 700, y: 100 }, { x: 750, y: 200 }, { x: 700, y: 300 }, { x: 600, y: 350 }, { x: 700, y: 500 }, { x: 500, y: 550 }, { x: 300, y: 500 }, { x: 150, y: 450 }, { x: 50, y: 300 }, { x: 100, y: 100 }, { x: 200, y: 100 }] },
+            { id: 'oval', name: '2. 스피드 오벌 (입문)', points: [{ x: 400, y: 100 }, { x: 650, y: 100 }, { x: 750, y: 300 }, { x: 650, y: 500 }, { x: 150, y: 500 }, { x: 50, y: 300 }, { x: 150, y: 100 }] },
+            { id: 'pentagon', name: '3. 펜타곤 챌린지 (중급)', points: [{ x: 400, y: 100 }, { x: 500, y: 100 }, { x: 700, y: 300 }, { x: 550, y: 500 }, { x: 250, y: 500 }, { x: 100, y: 300 }, { x: 300, y: 100 }] },
+            { id: 'zigzag', name: '4. 지그재그 로드 (중급)', points: [{ x: 400, y: 100 }, { x: 700, y: 100 }, { x: 700, y: 200 }, { x: 200, y: 300 }, { x: 700, y: 400 }, { x: 700, y: 500 }, { x: 100, y: 500 }, { x: 100, y: 100 }] },
+            { id: 'hourglass', name: '5. 모래시계 (상급)', points: [{ x: 400, y: 100 }, { x: 700, y: 100 }, { x: 500, y: 300 }, { x: 700, y: 500 }, { x: 100, y: 500 }, { x: 300, y: 300 }, { x: 100, y: 100 }] },
+            { id: 'hardcore_long', name: '6. 하드코어 8자 (상급)', points: [{ x: 400, y: 100 }, { x: 750, y: 100 }, { x: 750, y: 250 }, { x: 600, y: 400 }, { x: 750, y: 550 }, { x: 400, y: 300 }, { x: 50, y: 550 }, { x: 200, y: 400 }, { x: 50, y: 250 }, { x: 50, y: 100 }] },
+            { id: 'slalom_long', name: '7. 슈퍼 슬라롬 (최상급)', points: [{ x: 400, y: 100 }, { x: 750, y: 100 }, { x: 750, y: 250 }, { x: 600, y: 350 }, { x: 750, y: 450 }, { x: 750, y: 500 }, { x: 400, y: 550 }, { x: 50, y: 500 }, { x: 50, y: 450 }, { x: 200, y: 350 }, { x: 50, y: 250 }, { x: 50, y: 100 }] },
+            { id: 'grand_long', name: '8. 그랜드 투어 (최상급)', points: [{ x: 400, y: 100 }, { x: 750, y: 100 }, { x: 750, y: 200 }, { x: 650, y: 300 }, { x: 750, y: 400 }, { x: 750, y: 550 }, { x: 50, y: 550 }, { x: 50, y: 400 }, { x: 150, y: 300 }, { x: 50, y: 200 }, { x: 50, y: 100 }] },
+            { id: 'star', name: '9. 별 모양 서킷 (이벤트)', points: [{ x: 400, y: 100 }, { x: 500, y: 100 }, { x: 700, y: 250 }, { x: 500, y: 400 }, { x: 600, y: 550 }, { x: 400, y: 450 }, { x: 200, y: 550 }, { x: 300, y: 400 }, { x: 100, y: 250 }, { x: 300, y: 100 }] },
+            { id: 'simple_square', name: '10. 심플 스퀘어 (입문)', points: [{ x: 400, y: 100 }, { x: 700, y: 100 }, { x: 700, y: 500 }, { x: 100, y: 500 }, { x: 100, y: 100 }] }
         ];
 
-
-        // --- Core Physics Calculation ---
         const getPhysicsConstants = (userParts, currentChassisId) => {
             const currentChassis = CAR_CHASSIS.find(c => c.id === currentChassisId);
-            
-            // Tier 0 is the base for all parts, so we merge it with the chassis base.
             const baseStats = {
-                // Max speed (Gearbox) includes chassis bonus
+                acceleration: currentChassis.baseAccel,
                 maxSpeed: PART_STATS[userParts.gearbox].maxSpeedMod + currentChassis.maxSpeedBonus, 
-                // Friction (Tire)
                 friction: PART_STATS[userParts.tire].friction,
-                // Turn Speed (Steering)
                 turnSpeed: PART_STATS[userParts.steering].turnSpeed,
-                // Grip (Downforce)
-                gripFactor: PART_STATS[userParts.downforce].gripFactor, 
-                // Sensor Range (Sensor)
+                gripFactor: PART_STATS[userParts.downforce].gripFactor,
                 sensorRange: PART_STATS[userParts.sensor].sensorRange,
-                // Acceleration (Engine)
-                acceleration: PART_STATS[userParts.engine].acceleration,
             };
-            
+            baseStats.acceleration = PART_STATS[userParts.engine].acceleration; 
             return baseStats;
         };
 
-
-        // --- Firestore Utilities ---
         const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const USER_DATA_PATH = (userId) => `artifacts/${APP_ID}/users/${userId}/gameData/config`;
-        // 로직 설정을 위한 새로운 경로
-        const LOGIC_CONFIG_PATH = (userId) => `artifacts/${APP_ID}/users/${userId}/logicConfigs/slots`;
-        // AI 난이도 적응 저장을 위한 경로
-        const AI_DIFFICULTY_PATH = (userId) => `artifacts/${APP_ID}/users/${userId}/aiDifficulty/stats`;
 
         const getUserId = () => window.firebaseAuth?.currentUser?.uid || 'anonymous';
         const getFirestoreDB = () => window.firestoreDB;
 
         const getDefaultUserData = (userId) => ({
             userId: userId,
-            dollars: 5000, // Initial cash for testing
+            dollars: 5000, 
             currentChassis: CAR_CHASSIS[0].id,
-            parts: {
-                engine: 0, gearbox: 0, tire: 0, steering: 0, downforce: 0, sensor: 0
-            },
+            parts: { engine: 0, gearbox: 0, tire: 0, steering: 0, downforce: 0, sensor: 0 },
             lapHistory: []
         });
-
-        const getDefaultLogicData = () => {
-            const defaultSlotName = (index) => `슬롯 ${index + 1} (기본)`;
-            const defaultSlots = [...Array(5)].map((_, index) => ({
-                name: defaultSlotName(index),
-                blocks: index === 0 ? INITIAL_BLOCKS : [],
-            }));
-            return {
-                slots: defaultSlots,
-                activeSlotIndex: 0,
-            };
-        };
-
-        // 🌟 AI 난이도 데이터 로딩
-        const loadAIDifficultyData = (setAIDifficultyStats, setAIReady) => {
-            const db = getFirestoreDB();
-            const auth = window.firebaseAuth;
-            if (!db || !auth || !auth.currentUser) return;
-            const userId = auth.currentUser.uid;
-            const docRef = window.doc(db, AI_DIFFICULTY_PATH(userId)); 
-
-            const unsubscribe = window.onSnapshot(docRef, async (docSnap) => { // async 추가
-                try {
-                    if (docSnap.exists()) {
-                        // winStreakMap: { 'trackId': winStreakCount }
-                        setAIDifficultyStats(docSnap.data().winStreakMap || {});
-                    } else {
-                        await window.setDoc(docRef, { winStreakMap: {} }); // await 추가
-                        setAIDifficultyStats({});
-                    }
-                    setAIReady(true); // 🌟 로딩 완료 신호 전송
-                } catch (error) {
-                    console.error("Error listening to AI Difficulty:", error);
-                    setAIReady(true); // 오류가 나더라도 로딩 완료 신호 전송 (멈춤 방지)
-                }
-            }, (error) => {
-                console.error("Error setting up AI Difficulty listener:", error);
-                setAIReady(true);
-            });
-            return unsubscribe;
-        };
-        
-        // 🌟 AI 난이도 적응 저장
-        const saveAIDifficultyData = async (trackId, didWin) => {
-            const db = getFirestoreDB();
-            const userId = getUserId();
-            if (!db || userId === 'anonymous') return;
-            
-            try {
-                const docRef = window.doc(db, AI_DIFFICULTY_PATH(userId));
-                
-                const docSnap = await window.getDoc(docRef);
-                const data = docSnap.exists() ? docSnap.data().winStreakMap || {} : {};
-                
-                const currentStreak = data[trackId] || 0;
-                let newStreak;
-
-                if (didWin) {
-                    newStreak = currentStreak + 1;
-                } else {
-                    newStreak = Math.max(0, currentStreak - 1); // 패배 시 감소 (최소 0)
-                }
-
-                data[trackId] = newStreak;
-
-                await window.setDoc(docRef, { winStreakMap: data }, { merge: true });
-                console.log(`AI Difficulty for ${trackId} updated. New Win Streak: ${newStreak}`);
-
-            } catch (error) {
-                console.error("Error saving AI Difficulty:", error);
-            }
-        };
-
 
         const loadUserData = (setUserData, setAuthReady) => {
             const db = getFirestoreDB();
@@ -388,38 +205,9 @@
                     setUserData(defaultData);
                 }
             }, (error) => {
-                console.error("Error listening to User Data:", error);
+                console.error("Error listening to Firestore:", error);
                 setAuthReady(true);
             });
-
-            return unsubscribe;
-        };
-        
-        const loadLogicData = (setLogicSlots, setActiveSlotIndex, setLogicReady) => {
-            const db = getFirestoreDB();
-            const auth = window.firebaseAuth;
-            if (!db || !auth || !auth.currentUser) return;
-
-            const userId = auth.currentUser.uid;
-            const docRef = window.doc(db, LOGIC_CONFIG_PATH(userId)); 
-
-            const unsubscribe = window.onSnapshot(docRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    setLogicSlots(data.slots || getDefaultLogicData().slots);
-                    setActiveSlotIndex(data.activeSlotIndex || 0);
-                } else {
-                    const defaultData = getDefaultLogicData();
-                    window.setDoc(docRef, defaultData); 
-                    setLogicSlots(defaultData.slots);
-                    setActiveSlotIndex(defaultData.activeSlotIndex);
-                }
-                setLogicReady(true);
-            }, (error) => {
-                console.error("Error listening to Logic Config:", error);
-                setLogicReady(true);
-            });
-
             return unsubscribe;
         };
 
@@ -427,7 +215,6 @@
             const db = getFirestoreDB();
             const userId = getUserId();
             if (!db || userId === 'anonymous') return;
-            
             try {
                 const docRef = window.doc(db, USER_DATA_PATH(userId));
                 await window.setDoc(docRef, newUserData, { merge: true });
@@ -436,21 +223,6 @@
             }
         };
 
-        const saveLogicData = async (logicData) => {
-            const db = getFirestoreDB();
-            const userId = getUserId();
-            if (!db || userId === 'anonymous') return;
-            
-            try {
-                const docRef = window.doc(db, LOGIC_CONFIG_PATH(userId));
-                await window.setDoc(docRef, logicData, { merge: true });
-            } catch (error) {
-                console.error("Error saving logic data:", error);
-            }
-        };
-
-
-        // --- Shop Helper Function ---
         const getPartStatKey = (partId) => {
             switch(partId) {
                 case 'engine': return 'acceleration';
@@ -463,1599 +235,1168 @@
             }
         };
 
-        // 🌟 최대 티어 확인 함수
-        const MAX_TIER = 5;
-
-
         const App = () => {
-            // --- App State ---
-            const [currentScreen, setCurrentScreen] = useState('race');
-            const [isPlaying, setIsPlaying] = useState(false);
-            const [blocks, setBlocks] = useState(INITIAL_BLOCKS);
-            const [gameState, setGameState] = useState('idle');
-            const [winner, setWinner] = useState(null);
-            const [sensorReadings, setSensorReadings] = useState([0, 0, 0, 0, 0]);
-            const [currentTrackIdx, setCurrentTrackIdx] = useState(0);
-            const [isMuted, setIsMuted] = useState(false);
-            const [authReady, setAuthReady] = useState(false);
+          const [currentScreen, setCurrentScreen] = useState('race'); 
+          const [isPlaying, setIsPlaying] = useState(false);
+          const [blocks, setBlocks] = useState(INITIAL_BLOCKS);
+          const [gameState, setGameState] = useState('idle');
+          const [winner, setWinner] = useState(null);
+          const [sensorReadings, setSensorReadings] = useState([0, 0, 0, 0, 0]);
+          const [currentTrackIdx, setCurrentTrackIdx] = useState(0);
+          const [isMuted, setIsMuted] = useState(false);
+          const [authReady, setAuthReady] = useState(false);
+          const [carsInitialized, setCarsInitialized] = useState(false);
+          
+          const [userData, setUserData] = useState(getDefaultUserData('initial'));
+          const [physics, setPhysics] = useState(getPhysicsConstants(getDefaultUserData('initial').parts, CAR_CHASSIS[0].id));
+
+          const [userStats, setUserStats] = useState({ 
+              laps: 0, currentLapTime: 0, lastLapTime: 0, totalTime: 0, lapHistory: []
+          });
+
+          const canvasRef = useRef(null);
+          const cars = useRef([]);
+          const requestRef = useRef();
+          const startTimeRef = useRef(0);
+          const currentSkidSegmentId = useRef(0); 
+
+          const audioCtxRef = useRef(null);
+          const engineOscRef = useRef(null);
+          const engineGainRef = useRef(null);
+          const skidOscRef = useRef(null);
+          const skidGainRef = useRef(null);
+          const skidFilterRef = useRef(null);
+
+          useEffect(() => {
+              const handleFirebaseReady = () => {
+                  const unsubscribe = loadUserData(setUserData, setAuthReady);
+                  return () => { if (unsubscribe) unsubscribe(); };
+              };
+              if (window.firebaseInitialized) {
+                  return handleFirebaseReady();
+              } else {
+                  window.addEventListener('firebase-ready', handleFirebaseReady);
+                  return () => window.removeEventListener('firebase-ready', handleFirebaseReady);
+              }
+          }, []);
+
+          useEffect(() => {
+              if (authReady) {
+                  const newPhysics = getPhysicsConstants(userData.parts, userData.currentChassis);
+                  setPhysics(newPhysics);
+              }
+          }, [userData.parts, userData.currentChassis, authReady]);
+
+          // --- AUDIO SYSTEM ---
+          const initAudio = useCallback(() => {
+              if (!audioCtxRef.current) {
+                  audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+              }
+              if (audioCtxRef.current.state === 'suspended') {
+                  audioCtxRef.current.resume();
+              }
+          }, []);
+
+          const playTone = useCallback((freq, type, duration, vol = 0.1) => {
+              if (isMuted || !audioCtxRef.current) return;
+              const osc = audioCtxRef.current.createOscillator();
+              const gain = audioCtxRef.current.createGain();
+              osc.type = type;
+              osc.frequency.setValueAtTime(freq, audioCtxRef.current.currentTime);
+              gain.gain.setValueAtTime(vol, audioCtxRef.current.currentTime);
+              gain.gain.exponentialRampToValueAtTime(0.01, audioCtxRef.current.currentTime + duration);
+              osc.connect(gain);
+              gain.connect(audioCtxRef.current.destination);
+              osc.start();
+              osc.stop(audioCtxRef.current.currentTime + duration);
+          }, [isMuted]);
+
+          const playClickSound = useCallback(() => {
+              initAudio(); 
+              playTone(600, 'sine', 0.1, 0.025);
+          }, [initAudio, playTone]);
+          
+          const playLapSound = useCallback(() => {
+              if (isMuted || !audioCtxRef.current) return;
+              playTone(880, 'sine', 0.1, 0.05);
+              setTimeout(() => playTone(1760, 'sine', 0.2, 0.05), 100);
+          }, [isMuted, playTone]);
+
+          const playWinSound = useCallback(() => {
+              if (isMuted || !audioCtxRef.current) return;
+              const notes = [523.25, 659.25, 783.99, 1046.50]; 
+              notes.forEach((note, i) => {
+                  setTimeout(() => playTone(note, 'square', 0.2, 0.05), i * 150);
+              });
+          }, [isMuted, playTone]);
+
+          const startEngineSound = useCallback(() => {
+              if (isMuted || !audioCtxRef.current || engineOscRef.current) return;
+              const osc = audioCtxRef.current.createOscillator();
+              const gain = audioCtxRef.current.createGain();
+              osc.type = 'sawtooth'; 
+              osc.frequency.value = 100; 
+              gain.gain.value = 0.001; 
+              osc.connect(gain);
+              gain.connect(audioCtxRef.current.destination);
+              osc.start();
+              engineOscRef.current = osc;
+              engineGainRef.current = gain;
+          }, [isMuted]);
+
+          const stopEngineSound = useCallback(() => {
+              if (engineOscRef.current) {
+                  try { engineOscRef.current.stop(); engineOscRef.current.disconnect(); } catch (e) {} 
+                  engineOscRef.current = null;
+              }
+              if (engineGainRef.current) {
+                  engineGainRef.current.disconnect();
+                  engineGainRef.current = null;
+              }
+          }, []);
+
+          const updateEnginePitch = useCallback((speed) => {
+              if (engineOscRef.current && engineGainRef.current && !isMuted && audioCtxRef.current) {
+                  const absSpeed = Math.abs(speed);
+                  const pitch = 100 + absSpeed * 30; 
+                  engineOscRef.current.frequency.setTargetAtTime(pitch, audioCtxRef.current.currentTime, 0.1);
+
+                  const baseVol = 0.05;
+                  const speedRatio = Math.min(absSpeed / physics.maxSpeed, 1.0);
+                  const volFactor = 0.1 + speedRatio * 0.9;
+                  const volume = baseVol * volFactor;
+
+                  engineGainRef.current.gain.setTargetAtTime(volume, audioCtxRef.current.currentTime, 0.05);
+              }
+          }, [isMuted, physics.maxSpeed]);
+
+          const updateSkidSound = useCallback((driftIntensity) => {
+              if (!audioCtxRef.current || isMuted) return;
+
+              if (driftIntensity > 0.15) { 
+                  if (!skidOscRef.current) {
+                      const bufferSize = audioCtxRef.current.sampleRate * 2;
+                      const buffer = audioCtxRef.current.createBuffer(1, bufferSize, audioCtxRef.current.sampleRate);
+                      const data = buffer.getChannelData(0);
+                      for (let i = 0; i < bufferSize; i++) {
+                          data[i] = Math.random() * 2 - 1;
+                      }
+
+                      const noise = audioCtxRef.current.createBufferSource();
+                      noise.buffer = buffer;
+                      noise.loop = true;
+                      
+                      const gain = audioCtxRef.current.createGain();
+                      const filter = audioCtxRef.current.createBiquadFilter();
+                      filter.type = 'bandpass';
+                      filter.frequency.value = 1200; 
+                      filter.Q.value = 5; 
+
+                      noise.connect(filter);
+                      filter.connect(gain);
+                      gain.connect(audioCtxRef.current.destination);
+                      
+                      noise.start();
+                      skidOscRef.current = noise;
+                      skidGainRef.current = gain;
+                      skidFilterRef.current = filter;
+                  }
+                  
+                  const vol = Math.min(driftIntensity * 0.8, 0.15); 
+                  skidGainRef.current.gain.setTargetAtTime(vol, audioCtxRef.current.currentTime, 0.1);
+                  
+                  const minPitch = 1000;
+                  const maxPitch = 2500;
+                  const randomFactor = (Math.random() * 0.2 + 0.9); 
+                  const targetPitch = Math.min(minPitch + driftIntensity * (maxPitch - minPitch) * 2 * randomFactor, maxPitch); 
+                  skidFilterRef.current.frequency.setTargetAtTime(targetPitch, audioCtxRef.current.currentTime, 0.05);
+
+              } else {
+                  if (skidGainRef.current) {
+                      skidGainRef.current.gain.setTargetAtTime(0, audioCtxRef.current.currentTime, 0.1);
+                  }
+              }
+          }, [isMuted]);
+
+          const stopSkidSound = useCallback(() => {
+              if (skidOscRef.current) {
+                  try { skidOscRef.current.stop(); skidOscRef.current.disconnect(); } catch (e) {}
+                  skidOscRef.current = null;
+              }
+              if (skidGainRef.current) {
+                  skidGainRef.current.disconnect();
+                  skidGainRef.current = null;
+              }
+          }, []);
+
+          // --- Helpers ---
+          const dist = (x1, y1, x2, y2) => Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+
+          const scalePoint = (p) => ({
+              x: (p.x - TRACK_WIDTH / 2) * MAP_SCALE + TRACK_WIDTH / 2,
+              y: (p.y - TRACK_HEIGHT / 2) * MAP_SCALE + TRACK_HEIGHT / 2
+          });
+
+          const getCurrentTrackPoints = useCallback(() => TRACK_LAYOUTS[currentTrackIdx].points.map(scalePoint), [currentTrackIdx]);
+
+          const getStartAngle = useCallback(() => {
+              const points = getCurrentTrackPoints();
+              const p1 = points[0];
+              const p2 = points[1];
+              return Math.atan2(p2.y - p1.y, p2.x - p1.x);
+          }, [getCurrentTrackPoints]);
+
+          const isOffTrack = (x, y) => {
+            const points = getCurrentTrackPoints();
+            let minDist = Infinity;
+            for (let i = 0; i < points.length; i++) {
+              const p1 = points[i];
+              const p2 = points[(i + 1) % points.length];
+              const d = distToSegment(x, y, p1.x, p1.y, p2.x, p2.y);
+              if (d < minDist) minDist = d;
+            }
+            return minDist > (TRACK_AESTHETICS.curb / 2) + 3; 
+          };
+
+          const distToSegment = (x, y, x1, y1, x2, y2) => {
+            const A = x - x1;
+            const B = y - y1;
+            const C = x2 - x1;
+            const D = y2 - y1;
+            const dot = A * C + B * D;
+            const lenSq = C * C + D * D;
+            let param = -1;
+            if (lenSq !== 0) param = dot / lenSq;
+            let xx, yy;
+            if (param < 0) { xx = x1; yy = y1; }
+            else if (param > 1) { xx = x2; yy = y2; }
+            else { xx = x1 + param * C; yy = y1 + param * D; }
+            return dist(x, y, xx, yy);
+          };
+
+          const castRays = (car, range) => {
+            const readings = [];
+            const angles = [-60, -30, 0, 30, 60]; 
             
-            // --- User Data State ---
-            const [userData, setUserData] = useState(getDefaultUserData('initial'));
-            const [physics, setPhysics] = useState(getPhysicsConstants(getDefaultUserData('initial').parts, CAR_CHASSIS[0].id));
+            angles.forEach(offset => {
+              const rayAngle = car.angle + (offset * Math.PI / 180);
+              let distance = 0;
+              let step = 2;
+              let maxDist = range;
+              let rx = car.x;
+              let ry = car.y;
 
-            // --- Logic Slot State ---
-            const [logicSlots, setLogicSlots] = useState(getDefaultLogicData().slots);
-            const [activeSlotIndex, setActiveSlotIndex] = useState(getDefaultLogicData().activeSlotIndex);
-            const [logicReady, setLogicReady] = useState(false);
-            
-            // 🌟 AI 난이도 상태
-            const [aiDifficultyStats, setAIDifficultyStats] = useState({});
-            const [aiReady, setAIReady] = useState(false); // 🌟 AI 로딩 상태 추가
-
-            // 🌟 캐릭터 선택 상태
-            const [currentVehicleId, setCurrentVehicleId] = useState(VEHICLE_TYPES[0].id);
-
-            const [userStats, setUserStats] = useState({ 
-                laps: 0, 
-                currentLapTime: 0, 
-                lastLapTime: 0,
-                totalTime: 0,
-                lapHistory: []
+              while (distance < maxDist) {
+                rx += Math.cos(rayAngle) * step;
+                ry += Math.sin(rayAngle) * step;
+                distance += step;
+                if (isOffTrack(rx, ry)) break;
+              }
+              readings.push(Math.min(distance, maxDist));
             });
+            return readings;
+          };
 
-            // --- Time/Game Refs ---
-            const canvasRef = useRef(null);
-            const cars = useRef([]);
-            const requestRef = useRef();
-            const startTimeRef = useRef(0);
-            const currentSkidSegmentId = useRef(0); 
+          // --- Game Loop Logic ---
 
-            // --- Audio Refs (Simplified for brevity) ---
-            const audioCtxRef = useRef(null);
-            const engineOscRef = useRef(null);
-            const engineGainRef = useRef(null);
-            const skidOscRef = useRef(null);
-            const skidGainRef = useRef(null);
-            const skidFilterRef = useRef(null);
+          const updateCarPhysics = (car, inputs, timestamp) => {
+            if (car.finished) return;
+
+            const aiBaseStats = PART_STATS['0'];
+
+            // FIX: Corrected keys to match lowerCamelCase property names used in logic below
+            const carPhysics = car.isAI ? { 
+                acceleration: aiBaseStats.acceleration,
+                maxSpeed: aiBaseStats.maxSpeedMod,
+                friction: aiBaseStats.friction,
+                turnSpeed: aiBaseStats.turnSpeed,
+                gripFactor: aiBaseStats.gripFactor,
+                sensorRange: aiBaseStats.sensorRange
+            } : physics;
             
-            // Helper to get current vehicle info
-            const currentVehicle = VEHICLE_TYPES.find(v => v.id === currentVehicleId) || VEHICLE_TYPES[0];
+            // Steering
+            if (Math.abs(car.speed) > 0.5) {
+                car.angle += inputs.steer * carPhysics.turnSpeed * (car.speed > 0 ? 1 : -1);
+            }
 
-            const initAudio = useCallback(() => {
-                if (!audioCtxRef.current) {
-                    audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
-                }
-                if (audioCtxRef.current.state === 'suspended') {
-                    audioCtxRef.current.resume();
-                }
-            }, []);
+            if (typeof car.moveAngle === 'undefined') car.moveAngle = car.angle;
+            if (typeof car.skidMarks === 'undefined') car.skidMarks = [];
+            if (typeof car.currentSkidId === 'undefined') car.currentSkidId = 0;
+            if (typeof car.isDrifting === 'undefined') car.isDrifting = false;
 
-            const playTone = useCallback((freq, type, duration, vol = 0.1) => {
-                if (isMuted || !audioCtxRef.current) return;
-                const osc = audioCtxRef.current.createOscillator();
-                const gain = audioCtxRef.current.createGain();
-                osc.type = type;
-                osc.frequency.setValueAtTime(freq, audioCtxRef.current.currentTime);
-                gain.gain.setValueAtTime(vol, audioCtxRef.current.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioCtxRef.current.currentTime + duration);
-                osc.connect(gain);
-                gain.connect(audioCtxRef.current.destination);
-                osc.start();
-                osc.stop(audioCtxRef.current.currentTime + duration);
-            }, [isMuted]);
+            const speedRatio = Math.abs(car.speed) / (carPhysics.maxSpeed || 1); // Avoid div by zero
+            const grip = carPhysics.gripFactor + (1.0 - speedRatio) * (1 - carPhysics.gripFactor); 
 
-            const playClickSound = useCallback(() => {
-                initAudio(); 
-                playTone(600, 'sine', 0.1, 0.025);
-            }, [initAudio, playTone]);
+            let angleDiff = car.angle - car.moveAngle;
+            while (angleDiff <= -Math.PI) angleDiff += Math.PI * 2;
+            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+
+            car.moveAngle += angleDiff * grip;
+
+            car.speed += inputs.throttle * carPhysics.acceleration;
+            car.speed *= carPhysics.friction;
+
+            const driftIntensity = Math.abs(angleDiff);
+            const driftThreshold = 0.15; 
             
-            const playLapSound = useCallback(() => {
-                if (isMuted || !audioCtxRef.current) return;
-                playTone(880, 'sine', 0.1, 0.05);
-                setTimeout(() => playTone(1760, 'sine', 0.2, 0.05), 100);
-            }, [isMuted, playTone]);
-
-            const playWinSound = useCallback(() => {
-                if (isMuted || !audioCtxRef.current) return;
-                const notes = [523.25, 659.25, 783.99, 1046.50]; 
-                notes.forEach((note, i) => {
-                    setTimeout(() => playTone(note, 'square', 0.2, 0.05), i * 150);
-                });
-            }, [isMuted, playTone]);
-
-            const startEngineSound = useCallback(() => {
-                if (isMuted || !audioCtxRef.current || engineOscRef.current) return;
-                const osc = audioCtxRef.current.createOscillator();
-                const gain = audioCtxRef.current.createGain();
-                osc.type = 'sawtooth'; 
-                osc.frequency.value = 100; 
-                gain.gain.value = 0.001; 
-                osc.connect(gain);
-                gain.connect(audioCtxRef.current.destination);
-                osc.start();
-                engineOscRef.current = osc;
-                engineGainRef.current = gain;
-            }, [isMuted]);
-
-            const stopEngineSound = useCallback(() => {
-                if (engineOscRef.current) {
-                    try { engineOscRef.current.stop(); engineOscRef.current.disconnect(); } catch (e) {} 
-                    engineOscRef.current = null;
+            const nowDrifting = driftIntensity > driftThreshold && Math.abs(car.speed) > 3;
+            
+            if (nowDrifting) {
+                if (!car.isDrifting) {
+                    currentSkidSegmentId.current += 1;
+                    car.currentSkidId = currentSkidSegmentId.current;
+                    car.isDrifting = true;
                 }
-                if (engineGainRef.current) {
-                    engineGainRef.current.disconnect();
-                    engineGainRef.current = null;
-                }
-            }, []);
-
-            const updateEnginePitch = useCallback((speed) => {
-                if (engineOscRef.current && engineGainRef.current && !isMuted && audioCtxRef.current) {
-                    const absSpeed = Math.abs(speed);
-                    const pitch = 100 + absSpeed * 30; 
-                    engineOscRef.current.frequency.setTargetAtTime(pitch, audioCtxRef.current.currentTime, 0.1);
-
-                    const baseVol = 0.05;
-                    const speedRatio = Math.min(absSpeed / physics.maxSpeed, 1.0);
-                    const volFactor = 0.1 + speedRatio * 0.9;
-                    const volume = baseVol * volFactor;
-
-                    engineGainRef.current.gain.setTargetAtTime(volume, audioCtxCtx.current.currentTime, 0.05);
-                }
-            }, [isMuted, physics.maxSpeed]);
-
-            const updateSkidSound = useCallback((driftIntensity) => {
-                if (!audioCtxRef.current || isMuted || currentVehicle.trailType !== 'skid') return;
-
-                if (driftIntensity > 0.15) { 
-                    if (!skidOscRef.current) {
-                        const bufferSize = audioCtxRef.current.sampleRate * 2;
-                        const buffer = audioCtxRef.current.createBuffer(1, bufferSize, audioCtxRef.current.sampleRate);
-                        const data = buffer.getChannelData(0);
-                        for (let i = 0; i < bufferSize; i++) {
-                            data[i] = Math.random() * 2 - 1;
-                        }
-
-                        const noise = audioCtxRef.current.createBufferSource();
-                        noise.buffer = buffer;
-                        noise.loop = true;
-                        
-                        const gain = audioCtxRef.current.createGain();
-                        const filter = audioCtxRef.current.createBiquadFilter();
-                        filter.type = 'bandpass';
-                        filter.frequency.value = 1200; 
-                        filter.Q.value = 5; 
-
-                        noise.connect(filter);
-                        filter.connect(gain);
-                        gain.connect(audioCtxRef.current.destination);
-                        
-                        noise.start();
-                        skidOscRef.current = noise;
-                        skidGainRef.current = gain;
-                        skidFilterRef.current = filter;
-                    }
-                    
-                    const vol = Math.min(driftIntensity * 0.8, 0.15); 
-                    skidGainRef.current.gain.setTargetAtTime(vol, audioCtxRef.current.currentTime, 0.1);
-                    
-                    const minPitch = 1000;
-                    const maxPitch = 2500;
-                    const randomFactor = (Math.random() * 0.2 + 0.9); 
-                    const targetPitch = Math.min(minPitch + driftIntensity * (maxPitch - minPitch) * 2 * randomFactor, maxPitch); 
-                    skidFilterRef.current.frequency.setTargetAtTime(targetPitch, audioCtxRef.current.currentTime, 0.05);
-
-                } else {
-                    if (skidGainRef.current) {
-                        skidGainRef.current.gain.setTargetAtTime(0, audioCtxRef.current.currentTime, 0.1);
-                    }
-                }
-            }, [isMuted, currentVehicle.trailType]);
-
-            const stopSkidSound = useCallback(() => {
-                if (skidOscRef.current) {
-                    try { skidOscRef.current.stop(); skidOscRef.current.disconnect(); } catch (e) {} 
-                    skidOscRef.current = null;
-                }
-                if (skidGainRef.current) {
-                    skidGainRef.current.disconnect();
-                    skidGainRef.current = null;
-                }
-            }, []);
-
-
-            // --- Helpers ---
-            const dist = (x1, y1, x2, y2) => Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-
-            const scalePoint = (p) => ({
-                // 🌟 MAP_SCALE이 1.0이므로 스케일링은 발생하지 않습니다.
-                x: (p.x - TRACK_WIDTH / 2) * MAP_SCALE + TRACK_WIDTH / 2,
-                y: (p.y - TRACK_HEIGHT / 2) * MAP_SCALE + TRACK_HEIGHT / 2
-            });
-
-            const getCurrentTrackPoints = useCallback(() => TRACK_LAYOUTS[currentTrackIdx].points.map(scalePoint), [currentTrackIdx]);
-
-            const getStartAngle = useCallback(() => {
-                const points = getCurrentTrackPoints();
-                const p1 = points[0];
-                const p2 = points[1];
-                return Math.atan2(p2.y - p1.y, p2.x - p1.x);
-            }, [getCurrentTrackPoints]);
-
-            const distToSegment = (x, y, x1, y1, x2, y2) => {
-                const A = x - x1;
-                const B = y - y1;
-                const C = x2 - x1;
-                const D = y2 - y1;
-                const dot = A * C + B * D;
-                const lenSq = C * C + D * D;
-                let param = -1;
-                if (lenSq !== 0) param = dot / lenSq;
-                let xx, yy;
-                if (param < 0) { xx = x1; yy = y1; }
-                else if (param > 1) { xx = x2; yy = y2; }
-                else { xx = x1 + param * C; yy = y1 + param * D; }
-                return dist(x, y, xx, yy);
-            };
-
-            const isOffTrack = (x, y) => {
-                const points = getCurrentTrackPoints();
-                let minDist = Infinity;
-                for (let i = 0; i < points.length; i++) {
-                    const p1 = points[i];
-                    const p2 = points[(i + 1) % points.length];
-                    const d = distToSegment(x, y, p1.x, p1.y, p2.x, p2.y);
-                    if (d < minDist) minDist = d;
-                }
-                return minDist > (TRACK_AESTHETICS.curb / 2) + 3; 
-            };
-
-            // 🌟 트랙의 지형 속성을 기반으로 물리 팩터 계산
-            const getTrackPhysicsFactors = (currentTrackIdx) => {
-                const currentTrack = TRACK_LAYOUTS[currentTrackIdx];
-                const type = currentTrack.terrainType || 'asphalt';
-                const props = TERRAIN_PROPERTIES[type];
+                car.speed *= (1 - driftIntensity * 0.02); 
                 
-                return { 
-                    friction: props.frictionFactor, 
-                    turnSpeed: props.turnFactor,
-                    trackColor: props.trackColor,
-                    groundColor: props.groundColor,
-                    skidColor: props.skidColor
-                };
-            };
+                const rearX = car.x - Math.cos(car.angle) * 10;
+                const rearY = car.y - Math.sin(car.angle) * 10;
+                const perp = car.angle + Math.PI/2;
+                const lx = rearX + Math.cos(perp) * 6;
+                const ly = rearY + Math.sin(perp) * 6;
+                const rx = rearX - Math.cos(perp) * 6;
+                const ry = rearY - Math.sin(perp) * 6;
 
+                car.skidMarks.push({ lx, ly, rx, ry, alpha: 0.3, segmentId: car.currentSkidId });
+                if (car.skidMarks.length > MAX_SKID_MARKS) car.skidMarks.shift(); 
+            } else {
+                car.isDrifting = false;
+            }
 
-            const castRays = (car, range) => {
-                const readings = [];
-                const angles = [-60, -30, 0, 30, 60]; 
+            if (car.id === 'user' && !isMuted) {
+                updateSkidSound(nowDrifting ? driftIntensity : 0);
+            }
+
+            if (car.speed > carPhysics.maxSpeed) car.speed = carPhysics.maxSpeed;
+            if (car.speed < -carPhysics.maxSpeed / 2) car.speed = -carPhysics.maxSpeed / 2;
+
+            car.x += Math.cos(car.moveAngle) * car.speed;
+            car.y += Math.sin(car.moveAngle) * car.speed;
+
+            // FIX: NaN Safety Check
+            if (isNaN(car.x) || isNaN(car.y)) {
+                car.x = 0; car.y = 0; car.speed = 0;
+            }
+
+            if (isOffTrack(car.x, car.y)) {
+                car.speed *= 0.5; 
+            }
+
+            // Checkpoint
+            const points = getCurrentTrackPoints();
+            const nextCpIdx = (car.lastCP + 1) % points.length;
+            const nextCp = points[nextCpIdx];
+            
+            let isCheckpointReached = false;
+
+            if (nextCpIdx === 0) {
+                const p0 = points[0];
+                const p1 = points[1]; 
+                const trackAngle = Math.atan2(p1.y - p0.y, p1.x - p0.x);
+                const dx = car.x - p0.x;
+                const dy = car.y - p0.y;
+                const localX = dx * Math.cos(-trackAngle) - dy * Math.sin(-trackAngle);
+                const localY = dx * Math.sin(-trackAngle) + dy * Math.cos(-trackAngle);
                 
-                angles.forEach(offset => {
-                    const rayAngle = car.angle + (offset * Math.PI / 180);
-                    let distance = 0;
-                    let step = 2;
-                    let maxDist = range;
-                    let rx = car.x;
-                    let ry = car.y;
-
-                    while (distance < maxDist) {
-                        rx += Math.cos(rayAngle) * step;
-                        ry += Math.sin(rayAngle) * step;
-                        distance += step;
-                        if (isOffTrack(rx, ry)) break;
-                    }
-                    readings.push(Math.min(distance, maxDist));
-                });
-                return readings;
-            };
-
-            // --- Game Loop Logic ---
-
-            const updateCarPhysics = (car, inputs, timestamp) => {
-                if (car.finished) return;
-
-                // 🌟 트랙 지형 물리 팩터 로드
-                const trackFactors = getTrackPhysicsFactors(currentTrackIdx);
-
-                // Use current user's physics or default AI physics
-                const aiBaseStats = PART_STATS['0'];
-
-                const carPhysics = car.isAI ? { 
-                    acceleration: aiBaseStats.acceleration,
-                    maxSpeed: aiBaseStats.maxSpeedMod,
-                    friction: aiBaseStats.friction,
-                    turnSpeed: aiBaseStats.turnSpeed,
-                    gripFactor: aiBaseStats.gripFactor,
-                    sensorRange: aiBaseStats.sensorRange
-                } : physics;
-
-                // 🌟 트랙 지형 팩터 적용 (물리 보정)
-                carPhysics.friction *= trackFactors.friction;
-                carPhysics.turnSpeed *= trackFactors.turnSpeed;
-                carPhysics.gripFactor *= trackFactors.friction; // 마찰이 줄면 그립도 줄어 미끄러짐 증가
-                
-                // Steering
-                if (Math.abs(car.speed) > 0.5) {
-                    car.angle += inputs.steer * carPhysics.turnSpeed * (car.speed > 0 ? 1 : -1);
+                if (Math.abs(localX) < 20 && Math.abs(localY) < (TRACK_AESTHETICS.asphalt / 2 + 5)) { 
+                    isCheckpointReached = true;
                 }
-
-                if (typeof car.moveAngle === 'undefined') car.moveAngle = car.angle;
-                if (typeof car.skidMarks === 'undefined') car.skidMarks = [];
-                if (typeof car.currentSkidId === 'undefined') car.currentSkidId = 0;
-                if (typeof car.isDrifting === 'undefined') car.isDrifting = false;
-
-                // Physics: Drift 
-                const speedRatio = Math.abs(car.speed) / carPhysics.maxSpeed;
-                const grip = carPhysics.gripFactor + (1.0 - speedRatio) * (1 - carPhysics.gripFactor); 
-
-                let angleDiff = car.angle - car.moveAngle;
-                while (angleDiff <= -Math.PI) angleDiff += Math.PI * 2;
-                while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-
-                car.moveAngle += angleDiff * grip;
-
-                // Acceleration & Friction
-                car.speed += inputs.throttle * carPhysics.acceleration;
-                car.speed *= carPhysics.friction;
-
-                // Tire Scrub & Skid Logic
-                const driftIntensity = Math.abs(angleDiff);
-                const driftThreshold = 0.15; 
-                
-                const nowDrifting = driftIntensity > driftThreshold && Math.abs(car.speed) > 3;
-                
-                if (nowDrifting) {
-                    if (!car.isDrifting) {
-                        currentSkidSegmentId.current += 1;
-                        car.currentSkidId = currentSkidSegmentId.current;
-                        car.isDrifting = true;
-                    }
-
-                    // Scrub speed
-                    car.speed *= (1 - driftIntensity * 0.02); 
-                    
-                    // Add Skid Marks/Dust Trail
-                    if (car.trailType !== 'none') {
-                        const rearX = car.x - Math.cos(car.angle) * 10;
-                        const rearY = car.y - Math.sin(car.angle) * 10;
-                        const perp = car.angle + Math.PI/2;
-                        const lx = rearX + Math.cos(perp) * 6;
-                        const ly = rearY + Math.sin(perp) * 6;
-                        const rx = rearX - Math.cos(perp) * 6;
-                        const ry = rearY - Math.sin(perp) * 6;
-
-                        // 🌟 스키드 마크 색상을 트랙 지형에 맞게 사용
-                        car.skidMarks.push({ lx, ly, rx, ry, alpha: 0.3, segmentId: car.currentSkidId, trailType: car.trailType, skidColor: trackFactors.skidColor });
-                        
-                        if (car.skidMarks.length > MAX_SKID_MARKS) car.skidMarks.shift(); 
-                    }
-                } else {
-                    car.isDrifting = false;
+            } else {
+                if (dist(car.x, car.y, nextCp.x, nextCp.y) < CHECKPOINT_RADIUS_NORMAL) {
+                    isCheckpointReached = true;
                 }
+            }
 
-                if (car.id === 'user' && !isMuted) {
-                    updateSkidSound(nowDrifting ? driftIntensity : 0);
-                }
-
-                if (car.speed > carPhysics.maxSpeed) car.speed = carPhysics.maxSpeed;
-                if (car.speed < -carPhysics.maxSpeed / 2) car.speed = -carPhysics.maxSpeed / 2;
-
-                // Move
-                car.x += Math.cos(car.moveAngle) * car.speed;
-                car.y += Math.sin(car.moveAngle) * car.speed;
-
-                if (isOffTrack(car.x, car.y)) {
-                    car.speed *= 0.5; 
-                }
-                
-                // 🌟 사용자 차량 180도 방향 보정 로직
-                if (car.id === 'user' && Math.abs(car.speed) > 1.0) {
-                    const points = getCurrentTrackPoints();
-                    const nextCp = points[(car.lastCP + 1) % points.length];
-                    
-                    const directionToCp = Math.atan2(nextCp.y - car.y, nextCp.x - car.x);
-                    let angleDiffToTarget = directionToCp - car.moveAngle;
-                    while (angleDiffToTarget <= -Math.PI) angleDiffToTarget += Math.PI * 2;
-                    while (angleDiffToTarget > Math.PI) angleDiffToTarget -= Math.PI * 2;
-                    
-                    // 135도 (3*PI/4) 이상 반대 방향으로 주행하는지 확인
-                    if (Math.abs(angleDiffToTarget) > (3 * Math.PI / 4)) {
-                        car.wrongDirectionFrames = (car.wrongDirectionFrames || 0) + 1;
-                    } else {
-                        car.wrongDirectionFrames = 0;
-                    }
-
-                    // 120 프레임 (2초) 이상 잘못 주행했을 경우 보정
-                    if (car.wrongDirectionFrames > 120) {
-                        const resetCp = points[car.lastCP];
-                        const resetNextCp = points[(car.lastCP + 1) % points.length];
-
-                        // 올바른 방향 계산
-                        const correctAngle = Math.atan2(resetNextCp.y - resetCp.y, resetNextCp.x - resetCp.x);
-                        
-                        // 마지막 체크포인트 위치로 리셋
-                        car.x = resetCp.x;
-                        car.y = resetCp.y;
-                        car.angle = correctAngle;
-                        car.moveAngle = correctAngle;
-                        car.speed = 0;
-                        car.wrongDirectionFrames = 0;
-                        
-                        console.log("Auto-correction: Wrong direction detected. User car reset.");
-                        // 사용자에게 알림을 주는 UI 피드백을 추가할 수 있지만, 현재는 콘솔 로그로 대체
-                    }
-                }
-
-
-                // Checkpoint
-                const points = getCurrentTrackPoints();
-                const nextCpIdx = (car.lastCP + 1) % points.length;
-                const nextCp = points[nextCpIdx];
-                
-                let isCheckpointReached = false;
-
+            if (isCheckpointReached) {
+                car.lastCP = nextCpIdx;
                 if (nextCpIdx === 0) {
-                    // Rectangular detection for Start Line
-                    const p0 = points[0];
-                    const p1 = points[1]; 
-                    const trackAngle = Math.atan2(p1.y - p0.y, p1.x - p0.x);
-                    const dx = car.x - p0.x;
-                    const dy = car.y - p0.y;
-                    const localX = dx * Math.cos(-trackAngle) - dy * Math.sin(-trackAngle);
-                    const localY = dx * Math.sin(-trackAngle) + dy * Math.cos(-trackAngle);
+                    car.laps++;
+                    if (!car.isAI) playLapSound();
+
+                    const now = timestamp;
+                    const lapTime = (now - car.lapStartTime) / 1000;
+                    car.lastLapTime = lapTime;
+                    car.lapStartTime = now; 
                     
-                    if (Math.abs(localX) < 20 && Math.abs(localY) < (TRACK_AESTHETICS.asphalt / 2 + 5)) { 
-                        isCheckpointReached = true;
+                    if (car.id === 'user') {
+                        if (!car.lapHistory) car.lapHistory = [];
+                        car.lapHistory.push(lapTime);
                     }
-                } else {
-                    if (dist(car.x, car.y, nextCp.x, nextCp.y) < CHECKPOINT_RADIUS_NORMAL) {
-                        isCheckpointReached = true;
-                    }
-                }
 
-                if (isCheckpointReached) {
-                    car.lastCP = nextCpIdx;
-                    
-                    if (nextCpIdx === 0) {
-                        car.laps++;
-                        if (!car.isAI) playLapSound();
-
-                        const now = timestamp;
-                        const lapTime = (now - car.lapStartTime) / 1000;
-                        car.lastLapTime = lapTime;
-                        car.lapStartTime = now; 
-                        
-                        if (car.id === 'user') {
-                            if (!car.lapHistory) car.lapHistory.push(0); // 첫 랩타임은 0 (무시됨)
-                            car.lapHistory.push(lapTime);
-                        }
-
-                        if (car.laps >= TOTAL_LAPS) {
-                            car.finished = true;
-                            car.finishTime = (now - startTimeRef.current) / 1000;
-                            
-                            if (!winner) {
-                                setWinner(car.id);
-                                setGameState('finished');
-                                setIsPlaying(false);
-                                
-                                // 💰 보상 계산 및 지급 로직 수정
-                                if (car.id === 'user') {
-                                    playWinSound();
-                                    giveReward(car.finishTime, true, currentTrackIdx); // User wins
-                                    saveAIDifficultyData(TRACK_LAYOUTS[currentTrackIdx].id, true); // 🌟 AI 난이도 상승
-                                } else {
-                                    const userCar = cars.current.find(c => c.id === 'user');
-                                    giveReward(userCar ? userCar.finishTime : 0, false, currentTrackIdx); // User lost (participation)
-                                    saveAIDifficultyData(TRACK_LAYOUTS[currentTrackIdx].id, false); // 🌟 AI 난이도 하락
-                                }
-                                
-                                stopEngineSound();
-                                stopSkidSound();
+                    if (car.laps >= TOTAL_LAPS) {
+                        car.finished = true;
+                        car.finishTime = (now - startTimeRef.current) / 1000;
+                        if (!winner) {
+                            setWinner(car.id);
+                            setGameState('finished');
+                            setIsPlaying(false);
+                            if (car.id === 'user') {
+                                playWinSound();
+                                giveReward(car.finishTime);
                             }
+                            stopEngineSound();
+                            stopSkidSound();
                         }
                     }
                 }
-            };
-            
-            // 💰 보상 계산 로직 수정 (난이도 및 기본 상금 조정)
-            const giveReward = (finishTime, didWin, trackIndex) => {
-                const totalTracks = TRACK_LAYOUTS.length;
-                // 난이도에 따른 기본 상금 (최대 3000)
-                const trackDifficultyRatio = trackIndex / (totalTracks - 1);
-                const baseReward = Math.round(500 + trackDifficultyRatio * 2500); 
-                const bonusPerSecond = 8; // 시간 보너스 팩터 조정
-                let reward = 0;
-                
-                if (didWin) {
-                    const timeBonus = Math.max(0, 500 - finishTime * bonusPerSecond); // 최대 시간 보너스 조정
-                    reward = baseReward + timeBonus; 
-                } else {
-                    reward = 300; // 참여 상금 조정
-                }
-
-                const actualReward = Math.max(0, Math.round(reward)); 
-
-                const newDollars = userData.dollars + actualReward;
-                saveUserData({...userData, dollars: newDollars});
-                console.log(`Reward awarded: ${actualReward} dollars. New balance: ${newDollars}`);
-                alert(`결과: ${didWin ? '우승' : '패배'}! 획득 상금: $${actualReward.toLocaleString()}`); // UI 피드백 추가
-            };
-
-            const evaluateCondition = (block, currentReadings) => {
-                if (block.flowType === 'ELSE') return false; 
-                
-                const leftValue = currentReadings[block.sensor];
-                let rightValue = block.valueType === 'sensor' ? currentReadings[block.value] : block.value;
-
-                if (block.operator === '<') return leftValue < rightValue;
-                if (block.operator === '>') return leftValue > rightValue;
-                if (block.operator === '<=') return leftValue <= rightValue;
-                if (block.operator === '>=') return leftValue >= rightValue;
-                if (block.operator === '==') return leftValue === rightValue;
-                if (block.operator === '!=') return leftValue !== rightValue;
-                
-                return false;
             }
-            
-            // 💡 applyAction 로직 업데이트
-            const applyAction = (block, steerOutputs) => {
-                    switch(block.action) {
-                        case 'LEFT': steerOutputs.turnLeft = true; break;
-                        case 'RIGHT': steerOutputs.turnRight = true; break;
-                        
-                        // 가속 단계별 설정
-                        case 'ACCEL_100': steerOutputs.gas = 1.0; break;
-                        case 'ACCEL_75': steerOutputs.gas = 0.75; break;
-                        case 'ACCEL_50': steerOutputs.gas = 0.5; break;
+          };
 
-                        // 감속 단계별 설정
-                        case 'BRAKE_100': steerOutputs.brake = 1.0; break;
-                        case 'BRAKE_75': steerOutputs.brake = 0.75; break;
-                        case 'BRAKE_50': steerOutputs.brake = 0.5; break;
-                        
-                        default: 
-                            if (block.action.startsWith('ACCEL')) steerOutputs.gas = 1.0;
-                            if (block.action.startsWith('BRAKE')) steerOutputs.brake = 1.0;
-                            break;
+          const giveReward = (finishTime) => {
+              const baseReward = 2000;
+              const bonusPerSecond = 10;
+              let reward = 0;
+              if (winner === 'user') {
+                  reward = baseReward + Math.max(0, 1000 - finishTime * bonusPerSecond); 
+              } else {
+                  reward = 500; 
+              }
+              const newDollars = userData.dollars + Math.round(reward);
+              saveUserData({...userData, dollars: newDollars});
+          };
+
+          const getAIInputs = (car) => {
+            const points = getCurrentTrackPoints();
+            const targetIdx = (car.lastCP + 1) % points.length;
+            const target = points[targetIdx];
+            const desiredAngle = Math.atan2(target.y - car.y, target.x - car.x);
+            let diff = desiredAngle - car.angle;
+            while (diff <= -Math.PI) diff += Math.PI * 2;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+
+            let steer = 0;
+            if (diff > 0.1) steer = 1;
+            if (diff < -0.1) steer = -1;
+
+            let throttle = 1;
+            if (Math.abs(diff) > 0.5) throttle = 0.5;
+            const variance = (parseInt(car.id.slice(-1)) || 0) * 0.05;
+
+            return { steer, throttle: throttle - variance };
+          };
+
+          const evaluateCondition = (block, currentReadings) => {
+              if (block.flowType === 'ELSE') return false; 
+              const leftValue = currentReadings[block.sensor];
+              let rightValue = block.valueType === 'sensor' ? currentReadings[block.value] : block.value;
+
+              if (block.operator === '<') return leftValue < rightValue;
+              if (block.operator === '>') return leftValue > rightValue;
+              if (block.operator === '<=') return leftValue <= rightValue;
+              if (block.operator === '>=') return leftValue >= rightValue;
+              if (block.operator === '==') return leftValue === rightValue;
+              if (block.operator === '!=') return leftValue !== rightValue;
+              return false;
+          }
+          
+          const applyAction = (block, steerOutputs) => {
+                switch(block.action) {
+                    case 'LEFT': steerOutputs.turnLeft = true; break;
+                    case 'RIGHT': steerOutputs.turnRight = true; break;
+                    case 'ACCEL': steerOutputs.gas = true; break;
+                    case 'BRAKE': steerOutputs.brake = true; break;
+                    default: break;
+                }
+          }
+
+          const getUserInputs = (car, currentReadings) => {
+            const steerOutputs = { turnLeft: false, turnRight: false, gas: false, brake: false };
+            let steer = 0;
+            let throttle = 0;
+            let matchedInChain = false; 
+
+            for (let i = 0; i < blocks.length; i++) {
+                const block = blocks[i];
+                const conditionMet = evaluateCondition(block, currentReadings);
+                const isStartOfChain = block.flowType === 'IF';
+                const isElseIf = block.flowType === 'ELSE_IF';
+                const isElse = block.flowType === 'ELSE';
+
+                if (isStartOfChain) {
+                    matchedInChain = false;
+                    if (conditionMet) {
+                        applyAction(block, steerOutputs);
+                        matchedInChain = true; 
                     }
+                } else if (isElseIf) {
+                    if (!matchedInChain && conditionMet) {
+                        applyAction(block, steerOutputs);
+                        matchedInChain = true; 
+                    }
+                } else if (isElse) {
+                    if (!matchedInChain) {
+                        applyAction(block, steerOutputs);
+                    }
+                } 
+            }
+            if (steerOutputs.turnLeft) steer -= 1;
+            if (steerOutputs.turnRight) steer += 1;
+            if (steerOutputs.gas) throttle += 1;
+            if (steerOutputs.brake) throttle -= 1;
+
+            return { steer, throttle };
+          };
+
+          const update = (timestamp) => {
+            if (gameState === 'finished') return;
+            if (startTimeRef.current === 0) {
+                startTimeRef.current = timestamp;
+                cars.current.forEach(c => c.lapStartTime = timestamp);
+            }
+            const currentTotalTime = (timestamp - startTimeRef.current) / 1000;
+            const userCar = cars.current[0];
+            
+            if (!userCar || cars.current.length === 0) return;
+
+            const readings = castRays(userCar, physics.sensorRange);
+            setSensorReadings(readings);
+            const userInputs = getUserInputs(userCar, readings);
+            updateCarPhysics(userCar, userInputs, timestamp);
+            
+            if (!isMuted && gameState === 'running') {
+                updateEnginePitch(userCar.speed);
             }
 
-            // 💡 로직 블록 배열을 인수로 받는 공통 입력 계산 함수
-            const getCarInputs = (carLogicBlocks, currentReadings) => {
-                const steerOutputs = { turnLeft: false, turnRight: false, gas: 0, brake: 0 };
-                let steer = 0;
-                let throttle = 0;
-                let matchedInChain = false; 
+            cars.current.slice(1).forEach(car => {
+                const aiInputs = getAIInputs(car);
+                updateCarPhysics(car, aiInputs, timestamp);
+            });
 
-                for (let i = 0; i < carLogicBlocks.length; i++) {
-                    const block = carLogicBlocks[i];
-                    
-                    let conditionMet = evaluateCondition(block, currentReadings);
-                    
-                    const isStartOfChain = block.flowType === 'IF';
-                    const isElseIf = block.flowType === 'ELSE_IF';
-                    const isElse = block.flowType === 'ELSE';
+            setUserStats(prev => {
+                const userCar = cars.current[0] || {}; 
+                return ({
+                    ...prev,
+                    laps: userCar.laps || 0,
+                    currentLapTime: (timestamp - userCar.lapStartTime) / 1000 || 0,
+                    lastLapTime: userCar.lastLapTime || 0,
+                    totalTime: userCar.finished ? userCar.finishTime : currentTotalTime,
+                    lapHistory: userCar.lapHistory || [] 
+                });
+            });
 
-                    if (isStartOfChain) {
-                        matchedInChain = false;
-                        if (conditionMet) {
-                            applyAction(block, steerOutputs);
-                            matchedInChain = true; 
-                        }
-                    } else if (isElseIf) {
-                        if (!matchedInChain && conditionMet) {
-                            applyAction(block, steerOutputs);
-                            matchedInChain = true; 
-                        }
-                    } else if (isElse) {
-                        if (!matchedInChain) {
-                            applyAction(block, steerOutputs);
-                        }
-                    } 
-                }
-                
-                if (steerOutputs.turnLeft) steer -= 1;
-                if (steerOutputs.turnRight) steer += 1;
-                
-                // 가속/감속 값을 최종 throttle에 반영
-                throttle += steerOutputs.gas;
-                throttle -= steerOutputs.brake;
+            draw();
+            if (isPlaying) {
+                requestRef.current = requestAnimationFrame(update);
+            }
+          };
 
-                // throttle 값은 -1.0에서 1.0 사이가 됩니다.
-                return { steer, throttle: Math.max(-1.0, Math.min(1.0, throttle)) };
-            };
+          const draw = () => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
             
-            // 🌟 AI 경로 기반 입력 (난이도 및 적응 편차 적용)
-            const getAIPathInputs = (car, currentTrackIdx) => {
-                const trackId = TRACK_LAYOUTS[currentTrackIdx].id;
-                const winStreak = aiDifficultyStats[trackId] || 0;
-
-                const totalTracks = TRACK_LAYOUTS.length;
-                // 트랙 난이도 팩터: 0.1 (쉬움) ~ 1.0 (어려움)
-                const baseDifficultyFactor = totalTracks > 1 ? (0.1 + (0.9 * (currentTrackIdx / (totalTracks - 1)))) : 1.0;
-                
-                // 🌟 적응 난이도 팩터: 0 ~ 0.2까지 추가 난이도 부여 (최대 10연승 시 0.2)
-                const adaptationFactor = Math.min(winStreak * 0.02, 0.2); 
-                
-                // 최종 난이도 팩터 (1.0 초과 가능)
-                const finalDifficultyFactor = baseDifficultyFactor + adaptationFactor;
-
-                // 1. 목표 체크포인트 계산
-                const points = getCurrentTrackPoints();
-                const targetIdx = (car.lastCP + 1) % points.length;
-                const target = points[targetIdx];
-                
-                const desiredAngle = Math.atan2(target.y - car.y, target.x - car.x);
-                let diff = desiredAngle - car.angle;
-                while (diff <= -Math.PI) diff += Math.PI * 2;
-                while (diff > Math.PI) diff -= Math.PI * 2;
-
-                // 2. 조향 계산 (난이도와 랜덤성 적용)
-                let steer = 0;
-                
-                // 난이도가 높을수록 더 공격적이고 정확하게 조향
-                const AGGRESSION_FACTOR = 0.5 + 0.5 * finalDifficultyFactor; 
-                
-                // AI 부정확성 (난이도가 높을수록 노이즈 감소)
-                const noiseRange = 0.05 * (1.0 - Math.min(finalDifficultyFactor, 1.0)); // 노이즈는 1.0까지만 감소
-                const noise = (Math.random() - 0.5) * noiseRange; 
-
-                // 조향 민감도 (난이도가 높을수록 중앙으로 더 빠르게 복귀)
-                const steeringThreshold = 0.1 * (1.0 - AGGRESSION_FACTOR); 
-
-                if (diff > steeringThreshold) steer = 1;
-                if (diff < -steeringThreshold) steer = -1;
-                
-                steer *= AGGRESSION_FACTOR;
-                steer += noise;
-
-                // 3. 가속/감속 계산
-                let throttle = 1.0;
-                // AI 최대 속도 제한 (난이도가 높을수록 빠르게)
-                const MAX_SPEED_CAP = 0.7 + 0.3 * finalDifficultyFactor; 
-                
-                // 코너 감속: 각도 차이가 크면 감속
-                if (Math.abs(diff) > 0.3) throttle = 0.5; 
-                
-                // 현재 속도가 최대 속도에 가까우면 가속도를 줄임
-                if (Math.abs(car.speed) > car.maxSpeed * MAX_SPEED_CAP) throttle = 0.5; 
-                
-                // AI 개별 편차 (AI마다 약간씩 다름)
-                const variance = (parseInt(car.id.slice(-1)) || 0) * 0.03;
-
-                return { steer: Math.max(-1, Math.min(1, steer)), throttle: Math.max(0.1, throttle - variance) };
-            };
-
-
-            const update = (timestamp) => {
-                if (gameState === 'finished') return;
-                
-                if (startTimeRef.current === 0) {
-                    startTimeRef.current = timestamp;
-                    cars.current.forEach(c => c.lapStartTime = timestamp);
-                }
-
-                const currentTotalTime = (timestamp - startTimeRef.current) / 1000;
-                
-                const userCar = cars.current[0];
-                
-                // DRAWING GUARD: Only run physics if cars are initialized
-                if (!userCar || cars.current.length === 0) {
-                     if (!isPlaying) draw(); 
-                     return;
-                }
-
-                // 1. 사용자 차량 업데이트
-                const readings = castRays(userCar, physics.sensorRange);
-                setSensorReadings(readings);
-                
-                // 사용자가 현재 편집 중인 blocks 상태를 사용합니다.
-                const userInputs = getCarInputs(blocks, readings); 
-                updateCarPhysics(userCar, userInputs, timestamp);
-                
-                if (!isMuted && gameState === 'running') {
-                    updateEnginePitch(userCar.speed);
-                }
-
-                // 2. AI 차량 업데이트 (경로 기반 AI)
-                
-                cars.current.slice(1).forEach(car => {
-                    const aiInputs = getAIPathInputs(car, currentTrackIdx); 
-                    
-                    // AI의 물리 업데이트 (내부적으로 car.isAI를 보고 기본 스탯 사용)
-                    updateCarPhysics(car, aiInputs, timestamp);
-                });
-
-                setUserStats(prev => {
-                    const userCar = cars.current[0] || {}; 
-                    return ({
-                        ...prev,
-                        laps: userCar.laps || 0,
-                        currentLapTime: (timestamp - userCar.lapStartTime) / 1000 || 0,
-                        lastLapTime: userCar.lastLapTime || 0,
-                        totalTime: userCar.finished ? userCar.finishTime : currentTotalTime,
-                        lapHistory: userCar.lapHistory || [] 
-                    });
-                });
-
-                draw();
-                if (isPlaying) {
-                    requestRef.current = requestAnimationFrame(update);
-                }
-            };
-
-            const draw = () => {
-                const canvas = canvasRef.current;
-                if (!canvas) return;
-                const ctx = canvas.getContext('2d');
-
-                // 🌟 현재 트랙의 지형 속성을 가져옵니다.
-                const trackFactors = getTrackPhysicsFactors(currentTrackIdx);
-                
-                // Clear (잔디 색상)
-                ctx.fillStyle = trackFactors.groundColor;
+            if (cars.current.length === 0) { 
+                ctx.fillStyle = '#4ade80';
                 ctx.fillRect(0, 0, TRACK_WIDTH, TRACK_HEIGHT);
+                return;
+            }
 
-                const points = getCurrentTrackPoints();
-                
-                // DRAWING GUARD: Draw only background if cars are not yet initialized (should be temporary)
-                if (cars.current.length === 0) {
-                    return;
+            const points = getCurrentTrackPoints();
+            
+            ctx.fillStyle = '#4ade80';
+            ctx.fillRect(0, 0, TRACK_WIDTH, TRACK_HEIGHT);
+
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            ctx.strokeStyle = '#dc2626';
+            ctx.lineWidth = TRACK_AESTHETICS.border;
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            points.forEach(p => ctx.lineTo(p.x, p.y));
+            ctx.closePath();
+            ctx.stroke();
+
+            ctx.strokeStyle = '#f8fafc';
+            ctx.lineWidth = TRACK_AESTHETICS.curb;
+            ctx.stroke();
+
+            ctx.strokeStyle = '#334155'; 
+            ctx.lineWidth = TRACK_AESTHETICS.asphalt;
+            ctx.stroke();
+
+            cars.current.forEach(car => {
+                if (car.skidMarks && car.skidMarks.length > 1) {
+                    ctx.lineWidth = 4;
+                    ctx.strokeStyle = `rgba(20, 20, 20, 0.3)`; 
+                    for(let i=0; i<car.skidMarks.length-1; i++) {
+                        const p1 = car.skidMarks[i];
+                        const p2 = car.skidMarks[i+1];
+                        if (p1.segmentId === p2.segmentId) {
+                            ctx.beginPath(); ctx.moveTo(p1.lx, p1.ly); ctx.lineTo(p2.lx, p2.ly); ctx.stroke();
+                            ctx.beginPath(); ctx.moveTo(p1.rx, p1.ry); ctx.lineTo(p2.rx, p2.ry); ctx.stroke();
+                        }
+                    }
                 }
-                
-                // Draw Track
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-                
-                // Outer Border (레드 라인)
-                ctx.strokeStyle = '#dc2626';
-                ctx.lineWidth = TRACK_AESTHETICS.border;
-                ctx.beginPath();
-                ctx.moveTo(points[0].x, points[0].y);
-                points.forEach(p => ctx.lineTo(p.x, p.y));
-                ctx.closePath();
-                ctx.stroke();
+            });
 
-                // Curb (흰색 라인)
-                ctx.strokeStyle = '#f8fafc';
-                ctx.lineWidth = TRACK_AESTHETICS.curb;
-                ctx.stroke();
+            ctx.strokeStyle = '#64748b';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([10, 10]);
+            ctx.stroke();
+            ctx.setLineDash([]);
 
-                // Asphalt (트랙 지형 색상)
-                ctx.strokeStyle = trackFactors.trackColor; 
-                ctx.lineWidth = TRACK_AESTHETICS.asphalt;
-                ctx.stroke();
+            const startAngle = getStartAngle();
+            ctx.save();
+            ctx.translate(points[0].x, points[0].y);
+            ctx.rotate(startAngle); 
+            
+            const lineHalfHeight = TRACK_AESTHETICS.asphalt / 2 + 10;
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(-10, -lineHalfHeight, 20, lineHalfHeight * 2); 
+            
+            ctx.fillStyle = '#000';
+            for(let i=0; i<8; i++) {
+                for(let j=0; j<2; j++) {
+                    if((i+j)%2===0) ctx.fillRect(-10 + j*10, -lineHalfHeight + i*(lineHalfHeight*2/8), 10, lineHalfHeight*2/8);
+                }
+            }
+            ctx.restore();
 
-                // Draw Skid Marks / Trails
-                cars.current.forEach(car => {
-                    if (car.skidMarks && car.skidMarks.length > 1 && car.trailType !== 'none') {
-                        ctx.lineWidth = 4;
-                        
-                        let trailColor = car.skidMarks[0].skidColor; // 🌟 트랙 지형 색상 사용
-                        if (car.trailType === 'dust') {
-                            trailColor = `rgba(200, 180, 100, 0.5)`; // Sand/Dust color
-                        }
-                        
-                        ctx.strokeStyle = trailColor; 
-                        
-                        for(let i=0; i<car.skidMarks.length-1; i++) {
-                            const p1 = car.skidMarks[i];
-                            const p2 = car.skidMarks[i+1];
-                            if (p1.segmentId === p2.segmentId) {
-                                ctx.beginPath(); ctx.moveTo(p1.lx, p1.ly); ctx.lineTo(p2.lx, p2.ly); ctx.stroke();
-                                ctx.beginPath(); ctx.moveTo(p1.rx, p1.ry); ctx.lineTo(p2.rx, p2.ry); ctx.stroke();
-                            }
-                        }
-                    }
-                });
+            cars.current.forEach(car => {
+                // FIX: Guard against missing or NaN coordinates in drawing
+                if (!car || isNaN(car.x) || isNaN(car.y)) return;
 
-                // Center Line (Dashed)
-                ctx.strokeStyle = '#64748b';
-                ctx.lineWidth = 2;
-                ctx.setLineDash([10, 10]);
-                ctx.stroke();
-                ctx.setLineDash([]);
-
-                // Start Line (Checkered)
-                const startAngle = getStartAngle();
+                const carInfo = CAR_CHASSIS.find(c => c.id === car.chassisId) || CAR_CHASSIS[0];
                 ctx.save();
-                ctx.translate(points[0].x, points[0].y);
-                ctx.rotate(startAngle); 
+                ctx.translate(car.x, car.y);
+                ctx.rotate(car.angle);
+
+                ctx.fillStyle = car.color; 
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                ctx.shadowBlur = 5;
+                ctx.fillRect(-CAR_SIZE.width/2, -CAR_SIZE.height/2, CAR_SIZE.width, CAR_SIZE.height);
                 
-                const lineHalfHeight = TRACK_AESTHETICS.asphalt / 2 + 10;
-                ctx.fillStyle = '#fff';
-                ctx.fillRect(-10, -lineHalfHeight, 20, lineHalfHeight * 2); 
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(2, -5, 6, 10);
                 
-                ctx.fillStyle = '#000';
-                for(let i=0; i<8; i++) {
-                    for(let j=0; j<2; j++) {
-                        if((i+j)%2===0) ctx.fillRect(-10 + j*10, -lineHalfHeight + i*(lineHalfHeight*2/8), 10, lineHalfHeight*2/8);
-                    }
+                if (car.chassisId === 'C01' || car.chassisId === 'C02') {
+                    ctx.fillStyle = '#334155';
+                    ctx.fillRect(-CAR_SIZE.width/2 - 2, -5, 3, 10); 
                 }
                 ctx.restore();
 
-                // Draw Cars
-                cars.current.forEach(car => {
-                    const carInfo = CAR_CHASSIS.find(c => c.id === car.chassisId) || CAR_CHASSIS[0];
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 12px sans-serif'; 
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 3;
+                ctx.strokeText(Math.abs(car.speed).toFixed(1), car.x, car.y - 12);
+                ctx.fillText(Math.abs(car.speed).toFixed(1), car.x, car.y - 12);
 
-                    // 1. Draw Body / Character (Rotated context)
-                    ctx.save();
-                    ctx.translate(car.x, car.y);
-                    ctx.rotate(car.angle);
+                if (!car.isAI) {
+                    const readings = castRays(car, physics.sensorRange);
+                    const angles = [-60, -30, 0, 30, 60];
+                    readings.forEach((r, i) => {
+                       ctx.save();
+                       ctx.translate(car.x, car.y);
+                       ctx.rotate(car.angle + (angles[i] * Math.PI / 180));
+                       const grad = ctx.createLinearGradient(0, 0, r, 0);
+                       grad.addColorStop(0, 'rgba(255, 255, 0, 0.5)');
+                       grad.addColorStop(1, 'rgba(255, 0, 0, 0.8)');
+                       ctx.fillStyle = grad;
+                       ctx.fillRect(0, -1, r, 2);
+                       ctx.fillStyle = 'red';
+                       ctx.beginPath();
+                       ctx.arc(r, 0, 3, 0, Math.PI * 2);
+                       ctx.fill();
+                       ctx.restore();
+                    });
+                }
+            });
+          };
 
-                    if (car.vehicleType === 'car' || car.vehicleType === 'rocket') {
-                        // Draw Car (Existing Logic)
-                        ctx.fillStyle = car.color;
-                        ctx.shadowColor = 'rgba(0,0,0,0.5)';
-                        ctx.shadowBlur = 5;
-                        ctx.fillRect(-CAR_SIZE.width/2, -CAR_SIZE.height/2, CAR_SIZE.width, CAR_SIZE.height);
-                        
-                        // Windshield/Cabin (Design detail)
-                        ctx.fillStyle = '#1e293b';
-                        ctx.fillRect(2, -5, 6, 10);
-                        
-                        // Simple Wing (for Downforce visual)
-                        ctx.fillStyle = '#334155';
-                        ctx.fillRect(-CAR_SIZE.width/2 - 2, -5, 3, 10); 
-                    } else {
-                        // Draw Character (Emoji)
-                        ctx.font = '24px sans-serif'; 
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        ctx.fillText(car.emoji, 0, 0); 
-                    }
-                    
-                    ctx.restore();
+          // --- Game Control Functions ---
+          
+          const initializeCars = useCallback(() => {
+            const points = getCurrentTrackPoints();
+            const startPoint = points[0];
+            const startAngle = Math.atan2(points[1].y - points[0].y, points[1].x - points[0].x);
+            
+            const px = Math.cos(startAngle + Math.PI/2);
+            const py = Math.sin(startAngle + Math.PI/2);
+            const dx = Math.cos(startAngle);
+            const dy = Math.sin(startAngle);
 
-                    // 2. Draw Speed Text (Global coords)
-                    ctx.fillStyle = 'white';
-                    ctx.font = 'bold 12px sans-serif'; 
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'bottom';
-                    ctx.strokeStyle = 'black';
-                    ctx.lineWidth = 3;
-                    ctx.strokeText(Math.abs(car.speed).toFixed(1), car.x, car.y - 12);
-                    ctx.fillText(Math.abs(car.speed).toFixed(1), car.x, car.y - 12);
+            const spawnX = startPoint.x - dx * 40;
+            const spawnY = startPoint.y - dy * 40;
+            
+            const userChassis = CAR_CHASSIS.find(c => c.id === userData.currentChassis) || CAR_CHASSIS[0]; 
+            const aiChassis = CAR_CHASSIS[0]; 
 
-                    if (!car.isAI) {
-                        const readings = castRays(car, physics.sensorRange);
-                        const angles = [-60, -30, 0, 30, 60];
-                        readings.forEach((r, i) => {
-                           ctx.save();
-                           ctx.translate(car.x, car.y);
-                           ctx.rotate(car.angle + (angles[i] * Math.PI / 180));
-                           const grad = ctx.createLinearGradient(0, 0, r, 0);
-                           grad.addColorStop(0, 'rgba(255, 255, 0, 0.5)');
-                           grad.addColorStop(1, 'rgba(255, 0, 0, 0.8)');
-                           ctx.fillStyle = grad;
-                           ctx.fillRect(0, -1, r, 2);
-                           ctx.fillStyle = 'red';
-                           ctx.beginPath();
-                           ctx.arc(r, 0, 3, 0, Math.PI * 2);
-                           ctx.fill();
-                           ctx.restore();
-                        });
-                    }
-                });
-            };
+            // FIX: Always recreate the array fresh to avoid stale state bugs
+            cars.current = [
+                { id: 'user', x: spawnX + px * 20, y: spawnY + py * 20, angle: startAngle, moveAngle: startAngle, speed: 0, color: userChassis.color, chassisId: userChassis.id, isAI: false, laps: 0, lastCP: 0, finished: false, lapStartTime: 0, lastLapTime: 0, finishTime: 0, lapHistory: [], skidMarks: [], isDrifting: false, currentSkidId: 0 },
+                { id: 'ai1', x: spawnX - px * 20, y: spawnY - py * 20, angle: startAngle, moveAngle: startAngle, speed: 0, color: '#ef4444', chassisId: aiChassis.id, isAI: true, laps: 0, lastCP: 0, finished: false, lapStartTime: 0, lastLapTime: 0, finishTime: 0, skidMarks: [], isDrifting: false, currentSkidId: 0 },
+                { id: 'ai2', x: spawnX - dx * 40 - px * 10, y: spawnY - dy * 40 + py * 10, angle: startAngle, moveAngle: startAngle, speed: 0, color: '#f59e0b', chassisId: aiChassis.id, isAI: true, laps: 0, lastCP: 0, finished: false, lapStartTime: 0, lastLapTime: 0, finishTime: 0, skidMarks: [], isDrifting: false, currentSkidId: 0 },
+                { id: 'ai3', x: spawnX - dx * 40 + px * 10, y: spawnY - dy * 40 - py * 10, angle: startAngle, moveAngle: startAngle, speed: 0, color: '#8b5cf6', chassisId: aiChassis.id, isAI: true, laps: 0, lastCP: 0, finished: false, lapStartTime: 0, lastLapTime: 0, finishTime: 0, skidMarks: [], isDrifting: false, currentSkidId: 0 },
+            ];
+            setCarsInitialized(true);
+            draw(); 
+          }, [getCurrentTrackPoints, userData]);
 
-            // --- Game Control Functions ---
+          const resetGame = useCallback(() => {
+            setIsPlaying(false);
+            setGameState('idle');
+            setWinner(null);
+            stopEngineSound();
+            stopSkidSound();
+            startTimeRef.current = 0;
+            setUserStats({ laps: 0, currentLapTime: 0, lastLapTime: 0, totalTime: 0, lapHistory: [] });
+            currentSkidSegmentId.current = 0;
 
-            const resetGame = useCallback(() => {
-                setIsPlaying(false);
+            // FIX: Simply call initializeCars instead of manually resetting properties.
+            // This prevents desync issues where reset logic differs from init logic.
+            initializeCars(); 
+            
+          }, [initializeCars, stopEngineSound, stopSkidSound]);
+          
+          const togglePlay = async () => {
+            initAudio(); 
+            if (currentScreen !== 'race') return;
+
+            if (!carsInitialized) {
+                 initializeCars();
+            }
+            
+            if (gameState === 'finished' || gameState === 'idle') { 
+                 resetGame(); 
+            }
+            
+            const nextIsPlaying = !isPlaying;
+            if (nextIsPlaying) {
+                setGameState('running');
+                if (startTimeRef.current === 0) {
+                    startTimeRef.current = performance.now();
+                    cars.current.forEach(c => c.lapStartTime = startTimeRef.current);
+                }
+                if (!isMuted) startEngineSound();
+            } else {
                 setGameState('idle');
-                setWinner(null);
                 stopEngineSound();
                 stopSkidSound();
-                startTimeRef.current = 0;
-                setUserStats({ laps: 0, currentLapTime: 0, lastLapTime: 0, totalTime: 0, lapHistory: [] });
-                currentSkidSegmentId.current = 0;
-
-                const points = getCurrentTrackPoints();
-                const startPoint = points[0];
-                const startAngle = Math.atan2(points[1].y - points[0].y, points[1].x - points[0].x);
-                
-                const px = Math.cos(startAngle + Math.PI/2);
-                const py = Math.sin(startAngle + Math.PI/2);
-                const dx = Math.cos(startAngle);
-                const dy = Math.sin(startAngle);
-
-                const spawnX = startPoint.x - dx * 40;
-                const spawnY = startPoint.y - dy * 40;
-                
-                const userChassis = CAR_CHASSIS.find(c => c.id === userData.currentChassis) || CAR_CHASSIS[0]; 
-                const aiChassis = CAR_CHASSIS[0]; // AI always uses base chassis (C01)
-                const userLogicBlocks = logicSlots[activeSlotIndex].blocks; 
-                
-                const userVehicle = VEHICLE_TYPES.find(v => v.id === currentVehicleId) || VEHICLE_TYPES[0]; // 🌟 사용자 선택 캐릭터
-
-                // AI 캐릭터는 고정 (시각적 일관성을 위해 AI는 기본 차량으로 유지)
-                const aiVehicle = VEHICLE_TYPES[0]; 
-
-                // 🌟 cars.current에 차량 객체를 명시적으로 설정합니다.
-                cars.current = [
-                    // Player Car
-                    { id: 'user', x: spawnX + px * 20, y: spawnY + py * 20, angle: startAngle, moveAngle: startAngle, speed: 0, color: userChassis.color, chassisId: userChassis.id, isAI: false, laps: 0, lastCP: 0, finished: false, lapStartTime: 0, lastLapTime: 0, finishTime: 0, lapHistory: [], skidMarks: [], isDrifting: false, currentSkidId: 0, logicBlocks: userLogicBlocks, vehicleType: userVehicle.id, emoji: userVehicle.emoji, trailType: userVehicle.trailType },
-                    // AI Cars (경로 기반 AI, 모두 C01 섀시, 기본 차량 타입)
-                    { id: 'ai1', x: spawnX - px * 20, y: spawnY - py * 20, angle: startAngle, moveAngle: startAngle, speed: 0, color: '#ef4444', chassisId: aiChassis.id, isAI: true, laps: 0, lastCP: 0, finished: false, lapStartTime: 0, lastLapTime: 0, finishTime: 0, skidMarks: [], isDrifting: false, currentSkidId: 0, vehicleType: aiVehicle.id, emoji: aiVehicle.emoji, trailType: aiVehicle.trailType },
-                    { id: 'ai2', x: spawnX - dx * 40 - px * 10, y: spawnY - dy * 40 + py * 10, angle: startAngle, moveAngle: startAngle, speed: 0, color: '#f59e0b', chassisId: aiChassis.id, isAI: true, laps: 0, lastCP: 0, finished: false, lapStartTime: 0, lastLapTime: 0, finishTime: 0, skidMarks: [], isDrifting: false, currentSkidId: 0, vehicleType: aiVehicle.id, emoji: aiVehicle.emoji, trailType: aiVehicle.trailType },
-                    { id: 'ai3', x: spawnX - dx * 40 + px * 10, y: spawnY - dy * 40 - py * 10, angle: startAngle, moveAngle: startAngle, speed: 0, color: '#8b5cf6', chassisId: aiChassis.id, isAI: true, laps: 0, lastCP: 0, finished: false, lapStartTime: 0, lastLapTime: 0, finishTime: 0, skidMarks: [], isDrifting: false, currentSkidId: 0, vehicleType: aiVehicle.id, emoji: aiVehicle.emoji, trailType: aiVehicle.trailType },
-                ];
-                draw(); // 초기화 후 즉시 그리기
-            }, [currentTrackIdx, getCurrentTrackPoints, userData, stopEngineSound, stopSkidSound, logicSlots, activeSlotIndex, currentVehicleId]);
-            
-            const togglePlay = async () => {
-                initAudio(); 
-                if (currentScreen !== 'race') return;
-
-                if (gameState === 'finished' || gameState === 'idle') { 
-                    resetGame(); // 게임 시작 전 차량 초기화 및 그리기
-                }
-                
-                const nextIsPlaying = !isPlaying;
-                
-                if (nextIsPlaying) {
-                    setGameState('running');
-                    
-                    if (startTimeRef.current === 0) {
-                        startTimeRef.current = performance.now();
-                        cars.current.forEach(c => c.lapStartTime = startTimeRef.current);
-                    }
-                    if (!isMuted) startEngineSound();
-                } else {
-                    setGameState('idle');
-                    stopEngineSound();
-                    stopSkidSound();
-                }
-                
-                setIsPlaying(nextIsPlaying);
-                playClickSound();
-            };
-            
-            // --- Logic Slot Handlers ---
-
-            // **주의: window.confirm 대신 alert 사용**
-            const handleSaveSlot = (index) => {
-                const newSlots = logicSlots.map((slot, i) => 
-                    i === index ? { ...slot, blocks: blocks } : slot
-                );
-                setLogicSlots(newSlots);
-                saveLogicData({ slots: newSlots, activeSlotIndex: index });
-                playClickSound();
-                alert(`슬롯 ${index + 1} (${newSlots[index].name})에 현재 로직을 저장했습니다!`);
-                setActiveSlotIndex(index);
-            };
-
-            const handleLoadSlot = (index) => {
-                if (index === activeSlotIndex) return; // 이미 로드됨
-                
-                const slotToLoad = logicSlots[index];
-                if (slotToLoad) {
-                    setBlocks(slotToLoad.blocks || []);
-                    setActiveSlotIndex(index);
-                    saveLogicData({ slots: logicSlots, activeSlotIndex: index }); // Save active index
-                    playClickSound();
-                    resetGame(); // Reset game to apply new blocks immediately
-                }
-            };
-
-            const handleUpdateSlotName = (index, newName) => {
-                const safeName = newName.trim().substring(0, 15) || `슬롯 ${index + 1}`; // 15자 제한
-                const newSlots = logicSlots.map((slot, i) => 
-                    i === index ? { ...slot, name: safeName } : slot
-                );
-                setLogicSlots(newSlots);
-                saveLogicData({ slots: newSlots, activeSlotIndex });
-                playClickSound();
-            };
-
-            // --- React Hooks ---
-
-            useEffect(() => {
-                if (isPlaying) {
-                    requestRef.current = requestAnimationFrame(update);
-                } else {
-                    cancelAnimationFrame(requestRef.current);
-                    draw();
-                    stopEngineSound(); 
-                    stopSkidSound();
-                }
-                return () => {
-                    cancelAnimationFrame(requestRef.current);
-                    stopEngineSound();
-                    stopSkidSound();
-                };
-            }, [isPlaying, blocks, gameState, physics]);
-
-            // Initial Game/Auth Setup (Load User Data)
-            useEffect(() => {
-                const handleFirebaseReady = () => {
-                    // loadUserData는 authReady를 설정합니다.
-                    const unsubscribeUser = loadUserData(setUserData, setAuthReady); 
-                    
-                    // authReady가 설정된 후 Logic과 AI 데이터를 로드합니다.
-                    // 이 useEffect는 authReady가 설정되자마자 실행되어야 합니다.
-                    const unsubscribeLogic = loadLogicData(setLogicSlots, setActiveSlotIndex, setLogicReady);
-                    const unsubscribeAI = loadAIDifficultyData(setAIDifficultyStats, setAIReady);
-                    
-                    return () => { 
-                        if (unsubscribeUser) unsubscribeUser(); 
-                        if (unsubscribeLogic) unsubscribeLogic();
-                        if (unsubscribeAI) unsubscribeAI();
-                    };
-                };
-
-                if (window.firebaseInitialized) {
-                    return handleFirebaseReady();
-                } else {
-                    window.addEventListener('firebase-ready', handleFirebaseReady);
-                    return () => window.removeEventListener('firebase-ready', handleFirebaseReady);
-                }
-            }, []);
-            
-            // Sync blocks with loaded logic slots on initial load or active slot change
-            useEffect(() => {
-                if (logicReady) {
-                    const activeSlot = logicSlots[activeSlotIndex];
-                    if (activeSlot) {
-                         // blocks가 현재 활성 슬롯의 내용과 다를 경우만 업데이트 (무한 루프 방지)
-                         if (JSON.stringify(blocks) !== JSON.stringify(activeSlot.blocks)) {
-                             setBlocks(activeSlot.blocks || []);
-                         }
-                    }
-                }
-            }, [logicReady, activeSlotIndex]);
-
-
-            // Initial reset when Auth & Logic & AI are ready
-            useEffect(() => {
-                if (authReady && logicReady && aiReady) { // 🌟 aiReady 추가
-                    resetGame(); 
-                }
-            }, [authReady, logicReady, aiReady]); // 🌟 aiReady 추가
-
-            // Reset when track or chassis changes (if game is idle)
-            useEffect(() => {
-                if (authReady && logicReady && aiReady && gameState === 'idle') { // 🌟 aiReady 추가
-                    resetGame();
-                }
-            }, [currentTrackIdx, userData.currentChassis, currentVehicleId]);
-            
-            // 🌟 [추가된 useEffect] 화면 전환 시 초기화 처리
-            useEffect(() => {
-                // 모든 데이터 로딩이 완료되고 (authReady, logicReady, aiReady),
-                // 현재 화면이 'race'로 설정되었을 때만 실행
-                if (authReady && logicReady && aiReady && currentScreen === 'race') {
-                    // 게임 상태가 'running'이 아닐 때 (즉, 새로 시작하거나 멈췄을 때)
-                    if (gameState === 'idle' || gameState === 'finished') {
-                        resetGame();
-                    }
-                }
-            }, [currentScreen, authReady, logicReady, aiReady]); // currentScreen 변경을 의존성으로 추가
-
-
-            // Update physics constants when user data or parts change
-            useEffect(() => {
-                if (authReady) {
-                    const newPhysics = getPhysicsConstants(userData.parts, userData.currentChassis);
-                    setPhysics(newPhysics);
-                    // 🌟 부품 변경 후 캔버스에 즉시 반영되도록 재설정
-                    if(gameState === 'idle') {
-                        resetGame();
-                    }
-                }
-            }, [userData.parts, userData.currentChassis, authReady]);
-
-
-            // --- Block Logic Handlers (Unchanged) ---
-            const addBlock = () => {
-                const newBlock = { id: Date.now(), flowType: 'IF', sensor: 2, operator: '<', valueType: 'number', value: 50, action: 'BRAKE_100' };
-                setBlocks([...blocks, newBlock]);
-                playClickSound();
-            };
-
-            const updateBlock = (id, field, value) => {
-                // 블록 수정 시 active slot의 blocks와 다르면 active index를 -1로 설정하여 '수정됨' 상태를 표시할 수도 있지만,
-                // 여기서는 복잡성을 줄이기 위해 현재 blocks 상태만 업데이트합니다.
-                setBlocks(blocks.map(b => b.id === id ? { ...b, [field]: value } : b));
-            };
-
-            const removeBlock = (id) => {
-                setBlocks(blocks.filter(b => b.id !== id));
-                playClickSound();
-            };
-
-            const toggleValueType = (id) => {
-                setBlocks(blocks.map(b => {
-                    if (b.id === id) {
-                        const newType = b.valueType === 'number' ? 'sensor' : 'number';
-                        const newValue = newType === 'number' ? 50 : 0; 
-                        return { ...b, valueType: newType, value: newValue };
-                    }
-                    return b;
-                }));
-                playClickSound();
-            };
-
-            const toggleMute = () => {
-                setIsMuted(!isMuted);
-                playClickSound();
             }
+            setIsPlaying(nextIsPlaying);
+            playClickSound();
+          };
 
-            const fmtTime = (s) => s.toFixed(2) + 's';
-            
-            // --- Shop/Garage Logic (Upgraded Tiers) ---
-            const purchasePart = (partId, currentTier) => {
-                const nextTier = currentTier + 1;
-                
-                // 🌟 최대 티어 체크 로직 수정
-                if (currentTier >= MAX_TIER) {
-                   console.error("최고 등급입니다!");
+          // --- React Hooks ---
+          useEffect(() => {
+            if (isPlaying) {
+              requestRef.current = requestAnimationFrame(update);
+            } else {
+              cancelAnimationFrame(requestRef.current);
+              draw();
+              stopEngineSound(); 
+              stopSkidSound();
+            }
+            return () => {
+                cancelAnimationFrame(requestRef.current);
+                stopEngineSound();
+                stopSkidSound();
+            };
+          }, [isPlaying, blocks, gameState, physics]);
+
+          useEffect(() => {
+              if (authReady) {
+                  initializeCars();
+              }
+          }, [authReady, initializeCars]);
+
+          useEffect(() => {
+              if (carsInitialized && authReady) {
+                  resetGame(); 
+              }
+          }, [currentTrackIdx, physics, carsInitialized, authReady]);
+          
+          useEffect(() => {
+              if (currentScreen === 'race' && carsInitialized) {
+                  draw();
+              }
+          }, [currentScreen, carsInitialized, draw]);
+
+
+          // --- Block Logic Handlers ---
+          const addBlock = () => {
+            const newBlock = { id: Date.now(), flowType: 'IF', sensor: 2, operator: '<', valueType: 'number', value: 50, action: 'BRAKE' };
+            setBlocks([...blocks, newBlock]);
+            playClickSound();
+          };
+          const updateBlock = (id, field, value) => {
+            setBlocks(blocks.map(b => b.id === id ? { ...b, [field]: value } : b));
+          };
+          const removeBlock = (id) => {
+            setBlocks(blocks.filter(b => b.id !== id));
+            playClickSound();
+          };
+          const toggleValueType = (id) => {
+            setBlocks(blocks.map(b => {
+                if (b.id === id) {
+                    const newType = b.valueType === 'number' ? 'sensor' : 'number';
+                    const newValue = newType === 'number' ? 50 : 0; 
+                    return { ...b, valueType: newType, value: newValue };
+                }
+                return b;
+            }));
+            playClickSound();
+          };
+          const toggleMute = () => {
+              setIsMuted(!isMuted);
+              playClickSound();
+          }
+
+          const fmtTime = (s) => s.toFixed(2) + 's';
+          
+          // --- Shop/Garage Logic ---
+          const purchasePart = (partId, currentTier) => {
+              const nextTier = currentTier + 1;
+              const nextStats = PART_STATS[nextTier];
+              if (!nextStats || userData.dollars < nextStats.price) return;
+
+              const newDollars = userData.dollars - nextStats.price;
+              const newParts = { ...userData.parts, [partId]: nextTier };
+              saveUserData({ ...userData, dollars: newDollars, parts: newParts });
+              playClickSound();
+          };
+          
+          const purchaseChassis = (chassisId, price) => {
+              if (userData.currentChassis === chassisId) {
+                   saveUserData({ ...userData, currentChassis: chassisId });
+                   playClickSound();
                    return;
-                } 
-                
-                const nextStats = PART_STATS[nextTier];
-                
-                if (userData.dollars < nextStats.price) {
-                    console.error("달러가 부족합니다!"); 
-                    return;
-                }
+              }
+              if (userData.dollars < price) return;
+              
+              const newDollars = userData.dollars - price;
+              saveUserData({ ...userData, dollars: newDollars, currentChassis: chassisId });
+              playClickSound();
+          };
 
-                const newDollars = userData.dollars - nextStats.price;
-                const newParts = { ...userData.parts, [partId]: nextTier };
-                saveUserData({ ...userData, dollars: newDollars, parts: newParts });
-                playClickSound();
-                alert(`${PART_TYPES.find(p=>p.id===partId).name} Tier ${nextTier} 구매 완료!`);
-            };
-            
-            const purchaseChassis = (chassisId, price) => {
-                if (userData.currentChassis === chassisId) {
-                    saveUserData({ ...userData, currentChassis: chassisId });
-                    playClickSound();
-                    console.log(`${CAR_CHASSIS.find(c=>c.id===chassisId).name}으로 교체 완료!`);
-                    return;
-                }
-                if (userData.dollars < price) {
-                    console.error("달러가 부족합니다!");
-                    return;
-                }
-                
-                const chassis = CAR_CHASSIS.find(c => c.id === chassisId);
-                const newDollars = userData.dollars - price;
-                saveUserData({ ...userData, dollars: newDollars, currentChassis: chassisId });
-                playClickSound();
-                console.log(`${chassis.name} 구매 및 장착 완료!`);
-            };
+          // --- UI Components ---
+          const ShopScreen = () => {
+              const currentChassis = CAR_CHASSIS.find(c => c.id === userData.currentChassis) || CAR_CHASSIS[0];
+              return (
+                  <div className="p-4 lg:p-8 overflow-y-auto no-scrollbar max-w-4xl mx-auto h-full text-slate-200">
+                      <h1 className="text-3xl font-extrabold text-yellow-400 mb-6 flex items-center gap-3 border-b border-slate-700 pb-2">
+                          <ShoppingCart size={30} /> 상점 (Shop)
+                      </h1>
+                      <div className="flex justify-between items-center mb-6 p-3 bg-slate-700 rounded-lg shadow-inner">
+                          <span className="text-lg font-semibold flex items-center gap-2"><DollarSign size={20} /> 현재 잔액:</span>
+                          <span className="text-3xl font-mono text-green-400">${userData.dollars.toLocaleString()}</span>
+                      </div>
+                      <h2 className="text-2xl font-bold text-blue-400 mt-8 mb-4">파츠 업그레이드 (Parts Upgrade)</h2>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {PART_TYPES.map(part => {
+                              const currentTier = userData.parts[part.id];
+                              const nextTier = currentTier + 1;
+                              const currentStats = PART_STATS[currentTier];
+                              const nextStats = PART_STATS[nextTier];
+                              const statKey = getPartStatKey(part.id);
+                              const currentVal = currentStats ? currentStats[statKey] : 0; 
+                              const nextVal = nextStats ? nextStats[statKey] : null;
+                              const isMaxTier = !nextStats;
+                              const precision = (part.id === 'tire' || part.id === 'downforce' || part.id === 'steering') ? 3 : 2;
 
-            // --- UI Components ---
-            
-            const ShopScreen = () => {
-                const currentChassis = CAR_CHASSIS.find(c => c.id === userData.currentChassis) || CAR_CHASSIS[0];
+                              return (
+                                  <div key={part.id} className="bg-slate-700 p-4 rounded-lg shadow-lg border-l-4 border-slate-600 hover:border-blue-500 transition">
+                                      <h3 className="text-xl font-bold mb-2 uppercase">{part.name}</h3>
+                                      <div className="text-sm text-slate-400 mb-3">{part.unit} 향상</div>
+                                      <div className="flex justify-between items-center mb-2">
+                                          <span className="text-sm">현재 등급:</span>
+                                          <span className={`font-bold text-lg ${currentTier === 3 ? 'text-yellow-500' : 'text-slate-200'}`}>Tier {currentTier}</span>
+                                      </div>
+                                      <div className="flex justify-between items-center mb-4">
+                                          <span className="text-sm">현재 성능:</span>
+                                          <span className="font-mono text-base text-blue-300">{currentVal.toFixed(precision)}</span>
+                                      </div>
+                                      <div className="border-t border-slate-600 pt-3">
+                                          {isMaxTier ? (
+                                              <span className="text-lg font-bold text-green-500">MAX TIER 달성</span>
+                                          ) : (
+                                              <div className="flex flex-col gap-2">
+                                                  <div className="flex justify-between text-sm text-slate-400">
+                                                      <span>다음 등급 (T{nextTier}):</span>
+                                                      <span className="font-mono text-yellow-300">+{nextVal !== null ? (nextVal - currentVal).toFixed(precision) : 'N/A'}</span>
+                                                  </div>
+                                                  <button
+                                                      onClick={() => purchasePart(part.id, currentTier)}
+                                                      className="w-full py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-500 transition disabled:bg-slate-500"
+                                                      disabled={userData.dollars < nextStats.price}
+                                                  >
+                                                      ${nextStats.price.toLocaleString()} 구매
+                                                  </button>
+                                              </div>
+                                          )}
+                                      </div>
+                                  </div>
+                              );
+                          })}
+                      </div>
+                      <h2 className="text-2xl font-bold text-blue-400 mt-10 mb-4">차량 섀시 (Chassis)</h2>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {CAR_CHASSIS.map(chassis => {
+                              const isOwned = userData.currentChassis === chassis.id;
+                              const isPurchased = chassis.id !== 'C01' && userData.dollars >= chassis.price;
+                              return (
+                                  <div key={chassis.id} className={`bg-slate-700 p-4 rounded-lg shadow-lg border-l-4 ${isOwned ? 'border-yellow-500' : 'border-slate-600'} hover:border-yellow-500 transition`}>
+                                      <div className="w-full h-10 flex justify-center items-center mb-2">
+                                          <div className="w-16 h-8 rounded-md shadow-xl" style={{ backgroundColor: chassis.color }}></div>
+                                      </div>
+                                      <h3 className="text-xl font-bold mb-1 text-center">{chassis.name}</h3>
+                                      <div className="text-xs text-slate-400 text-center mb-3">{chassis.id}</div>
+                                      <ul className="text-sm space-y-1 mb-4 border-t border-slate-600 pt-2">
+                                          <li className="flex justify-between">가속 기반: <span>{chassis.baseAccel}</span></li>
+                                          <li className="flex justify-between">접지 기반: <span>{chassis.baseGrip}</span></li>
+                                          <li className="flex justify-between">최고 속도 보너스: <span>+{chassis.maxSpeedBonus}</span></li>
+                                      </ul>
+                                      <button
+                                          onClick={() => purchaseChassis(chassis.id, chassis.price)}
+                                          className={`w-full py-2 font-bold rounded-lg transition disabled:bg-slate-500 ${isOwned ? 'bg-yellow-500 text-slate-900' : (chassis.id === 'C01' || isPurchased ? 'bg-green-600 text-white' : 'bg-slate-600 text-slate-300')}`}
+                                          disabled={!isOwned && chassis.id !== 'C01' && userData.dollars < chassis.price}
+                                      >
+                                          {isOwned ? '현재 장착됨' : (chassis.id === 'C01' ? '기본 장착' : (userData.dollars >= chassis.price ? `구매 및 장착 ($${chassis.price.toLocaleString()})` : '잔액 부족'))}
+                                      </button>
+                                  </div>
+                              );
+                          })}
+                      </div>
+                  </div>
+              );
+          };
 
-                return (
-                    <div className="p-4 lg:p-8 overflow-y-auto no-scrollbar max-w-4xl mx-auto h-full text-slate-200">
-                        <h1 className="text-3xl font-extrabold text-yellow-400 mb-6 flex items-center gap-3 border-b border-slate-700 pb-2">
-                            <ShoppingCart size={30} /> 상점 (Shop)
-                        </h1>
-                        <div className="flex justify-between items-center mb-6 p-3 bg-slate-700 rounded-lg shadow-inner">
-                            <span className="text-lg font-semibold flex items-center gap-2"><DollarSign size={20} /> 현재 잔액:</span>
-                            <span className="text-3xl font-mono text-green-400">${userData.dollars.toLocaleString()}</span>
-                        </div>
+          if (!authReady) {
+              return <div className="flex h-screen items-center justify-center text-xl text-blue-400">데이터 로딩 중...</div>;
+          }
 
-                        {/* --- 파츠 업그레이드 섹션 --- */}
-                        <h2 className="text-2xl font-bold text-blue-400 mt-8 mb-4">파츠 업그레이드 (Parts Upgrade)</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {PART_TYPES.map(part => {
-                                const currentTier = userData.parts[part.id];
-                                const nextTier = currentTier + 1;
-                                const currentStats = PART_STATS[currentTier];
-                                const nextStats = PART_STATS[nextTier];
-                                
-                                const statKey = getPartStatKey(part.id);
-
-                                const currentVal = currentStats ? currentStats[statKey] : 0; 
-                                const nextVal = nextStats ? nextStats[statKey] : null;
-                                
-                                // 🌟 MAX TIER 로직 수정
-                                const isMaxTier = currentTier >= MAX_TIER;
-                                const precision = (part.id === 'tire' || part.id === 'downforce' || part.id === 'steering') ? 3 : 2;
-
-                                return (
-                                    <div key={part.id} className="bg-slate-700 p-4 rounded-lg shadow-lg border-l-4 border-slate-600 hover:border-blue-500 transition">
-                                        <h3 className="text-xl font-bold mb-2 uppercase">{part.name}</h3>
-                                        <div className="text-sm text-slate-400 mb-3">{part.unit} 향상</div>
-                                        
-                                        <div className="flex justify-between items-center mb-2">
-                                            <span className="text-sm">현재 등급:</span>
-                                            <span className={`font-bold text-lg ${currentTier === MAX_TIER ? 'text-yellow-500' : 'text-slate-200'}`}>Tier {currentTier} / {MAX_TIER}</span>
-                                        </div>
-
-                                        <div className="flex justify-between items-center mb-4">
-                                            <span className="text-sm">현재 성능:</span>
-                                            <span className="font-mono text-base text-blue-300">{currentVal.toFixed(precision)}</span>
-                                        </div>
-
-                                        <div className="border-t border-slate-600 pt-3">
-                                            {isMaxTier ? (
-                                                <span className="text-lg font-bold text-green-500">MAX TIER 달성</span>
-                                            ) : (
-                                                <div className="flex flex-col gap-2">
-                                                    <div className="flex justify-between text-sm text-slate-400">
-                                                        <span>다음 등급 (T{nextTier}):</span>
-                                                        <span className="font-mono text-yellow-300">+{nextVal !== null ? (nextVal - currentVal).toFixed(precision) : 'N/A'}</span>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => purchasePart(part.id, currentTier)}
-                                                        className="w-full py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-500 transition disabled:bg-slate-500"
-                                                        disabled={userData.dollars < nextStats.price}
-                                                    >
-                                                        ${nextStats.price.toLocaleString()} 구매
-                                                    </button>
-                                                    {userData.dollars < nextStats.price && <span className="text-red-400 text-xs text-center">잔액 부족</span>}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        {/* --- 차량 섀시 섹션 --- */}
-                        <h2 className="text-2xl font-bold text-blue-400 mt-10 mb-4">차량 섀시 (Chassis)</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {CAR_CHASSIS.map(chassis => {
-                                const isOwned = userData.currentChassis === chassis.id;
-                                const isPurchased = chassis.id !== 'C01' && userData.dollars >= chassis.price;
-
-                                return (
-                                    <div key={chassis.id} className={`bg-slate-700 p-4 rounded-lg shadow-lg border-l-4 ${isOwned ? 'border-yellow-500' : 'border-slate-600'} hover:border-yellow-500 transition`}>
-                                        <div className="w-full h-10 flex justify-center items-center mb-2">
-                                            <div className="w-16 h-8 rounded-md shadow-xl" style={{ backgroundColor: chassis.color }}></div>
-                                        </div>
-                                        <h3 className="text-xl font-bold mb-1 text-center">{chassis.name}</h3>
-                                        <div className="text-xs text-slate-400 text-center mb-3">{chassis.id}</div>
-                                        
-                                        <ul className="text-sm space-y-1 mb-4 border-t border-slate-600 pt-2">
-                                            <li className="flex justify-between">가속 기반: <span>{chassis.baseAccel}</span></li>
-                                            <li className="flex justify-between">접지 기반: <span>{chassis.baseGrip}</span></li>
-                                            <li className="flex justify-between">최고 속도 보너스: <span>+{chassis.maxSpeedBonus}</span></li>
-                                        </ul>
-
-                                        <button
-                                            onClick={() => purchaseChassis(chassis.id, chassis.price)}
-                                            className={`w-full py-2 font-bold rounded-lg transition disabled:bg-slate-500 ${isOwned ? 'bg-yellow-500 text-slate-900' : (chassis.id === 'C01' || isPurchased ? 'bg-green-600 text-white' : 'bg-slate-600 text-slate-300')}`}
-                                            disabled={!isOwned && chassis.id !== 'C01' && userData.dollars < chassis.price}
-                                        >
-                                            {isOwned ? '현재 장착됨' : (chassis.id === 'C01' ? '기본 장착' : (userData.dollars >= chassis.price ? `구매 및 장착 ($${chassis.price.toLocaleString()})` : '잔액 부족'))}
-                                        </button>
-                                    </div>
-                                );
-                            })}
-                        </div>
+          return (
+            <div className="flex flex-col-reverse lg:flex-row h-screen bg-slate-900 text-slate-100 overflow-hidden font-sans">
+              <div className="w-full lg:w-1/3 h-[55%] lg:h-full flex flex-col border-t lg:border-t-0 lg:border-r border-slate-700 bg-slate-800 shadow-xl z-20">
+                <div className="flex justify-between items-center p-2 bg-slate-900 border-b border-slate-700">
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => { setCurrentScreen('race'); playClickSound(); }} 
+                            className={`px-3 py-1.5 rounded-t-lg font-bold text-sm lg:text-base transition ${currentScreen === 'race' ? 'bg-slate-800 text-blue-400' : 'text-slate-400 hover:bg-slate-700'}`}>
+                            <Cpu size={18} className="inline-block mr-1" /> 로직 에디터
+                        </button>
+                        <button 
+                            onClick={() => { setCurrentScreen('shop'); playClickSound(); }} 
+                            className={`px-3 py-1.5 rounded-t-lg font-bold text-sm lg:text-base transition ${currentScreen === 'shop' ? 'bg-slate-800 text-yellow-400' : 'text-slate-400 hover:bg-slate-700'}`}>
+                            <ShoppingCart size={18} className="inline-block mr-1" /> 상점
+                        </button>
                     </div>
-                );
-            };
-
-            // --- Main App Render ---
-            
-            if (!authReady || !logicReady || !aiReady) { // 🌟 aiReady 조건 추가
-                return <div className="flex h-screen items-center justify-center text-xl text-blue-400">데이터 로딩 중...</div>;
-            }
-
-            return (
-                <div className="flex flex-col-reverse lg:flex-row h-screen bg-slate-900 text-slate-100 overflow-hidden font-sans">
-                    
-                    {/* --- Sidebar: Coding Area / Shop / Garage (Width: 40% on LG, Height: 70% on mobile) --- */}
-                    <div className="w-full lg:w-[40%] h-[70%] lg:h-full flex flex-col border-t lg:border-t-0 lg:border-r border-slate-700 bg-slate-800 shadow-xl z-20">
-                        
-                        {/* Tab Navigation */}
-                        <div className="flex justify-between items-center p-2 bg-slate-900 border-b border-slate-700">
-                            <div className="flex gap-2">
-                                <button 
-                                    onClick={() => { setCurrentScreen('race'); playClickSound(); }} 
-                                    className={`px-3 py-1.5 rounded-t-lg font-bold text-sm lg:text-base transition ${currentScreen === 'race' ? 'bg-slate-800 text-blue-400' : 'text-slate-400 hover:bg-slate-700'}`}>
-                                    <Cpu size={18} className="inline-block mr-1" /> 로직 에디터
-                                </button>
-                                <button 
-                                    onClick={() => { setCurrentScreen('shop'); playClickSound(); }} 
-                                    className={`px-3 py-1.5 rounded-t-lg font-bold text-sm lg:text-base transition ${currentScreen === 'shop' ? 'bg-slate-800 text-yellow-400' : 'text-slate-400 hover:bg-slate-700'}`}>
-                                    <ShoppingCart size={18} className="inline-block mr-1" /> 상점
-                                </button>
-                            </div>
-                            {currentScreen === 'shop' && (
-                                    <div className="flex items-center gap-2 text-sm lg:text-base font-semibold text-green-400">
-                                        <DollarSign size={16} /> ${userData.dollars.toLocaleString()}
-                                    </div>
-                            )}
-                        </div>
-
-                        {/* --- Logic Editor Screen --- */}
-                        {currentScreen === 'race' && (
-                            <React.Fragment>
-                                {/* 로직 슬롯 관리 UI (Padding Reduced, Text Smaller) */}
-                                <div className="p-2 lg:p-3 bg-slate-900 border-b border-slate-700 space-y-2 lg:space-y-3">
-                                    <h3 className="text-xs lg:text-sm font-bold text-slate-400 flex items-center gap-2">
-                                        <Folder size={14} /> 로직 슬롯 (5개)
-                                    </h3>
-                                    <div className="grid grid-cols-5 gap-1 lg:gap-2">
-                                        {logicSlots.map((slot, index) => (
-                                            <div key={index} className="flex flex-col gap-1 items-stretch">
-                                                <input 
-                                                    type="text"
-                                                    value={slot.name}
-                                                    onChange={(e) => handleUpdateSlotName(index, e.target.value)}
-                                                    className={`bg-slate-700 text-[10px] lg:text-xs text-center px-1 py-0.5 rounded-t-lg border-b-2 outline-none transition ${index === activeSlotIndex ? 'border-yellow-500 text-yellow-300 font-bold' : 'border-slate-600 text-slate-300'}`}
-                                                    placeholder={`슬롯 ${index + 1}`}
-                                                    maxLength={15}
-                                                />
-                                                <div className="flex gap-1 justify-stretch">
-                                                    <button
-                                                        onClick={() => handleLoadSlot(index)}
-                                                        className={`flex-1 text-[9px] lg:text-[10px] py-0.5 rounded-b-lg font-bold transition disabled:opacity-50 ${index === activeSlotIndex ? 'bg-yellow-500 text-slate-900' : 'bg-slate-600 hover:bg-blue-500'}`}
-                                                        disabled={index === activeSlotIndex}
-                                                    >
-                                                        {index === activeSlotIndex ? '활성' : '로드'}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleSaveSlot(index)}
-                                                        className={`text-[9px] lg:text-[10px] py-0.5 px-1 rounded-b-lg font-bold bg-green-600 text-white hover:bg-green-500 transition flex items-center justify-center`}
-                                                        title={`${index === activeSlotIndex ? '현재 활성 슬롯에 덮어쓰기' : '현재 로직을 저장'}`}
-                                                    >
-                                                        <Save size={12} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                                {/* // 로직 슬롯 관리 UI 끝 */}
-
-
-                                {/* 게임 컨트롤 및 파츠 성능 (Padding Reduced, Controls consolidated) */}
-                                <div className="p-2 lg:p-3 bg-slate-900 border-b border-slate-700 space-y-1 lg:space-y-2">
-                                    <div className="flex justify-between items-center">
-                                        <h2 className="text-sm lg:text-base font-bold flex items-center gap-1 text-blue-400">
-                                            <Wrench size={16} /> 파츠 성능: {physics.acceleration.toFixed(2)} / {physics.maxSpeed.toFixed(1)}
-                                        </h2>
-                                        <div className="flex gap-1 lg:gap-2">
-                                            <button onClick={() => { resetGame(); playClickSound(); }} className="p-1 lg:p-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg transition" title="초기화">
-                                                <RotateCcw size={16} />
-                                            </button>
-                                            <button onClick={togglePlay} className={`p-1 lg:p-1.5 rounded-lg transition flex items-center gap-1 lg:gap-2 font-bold px-2 lg:px-3 text-sm lg:text-base ${isPlaying ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-green-600 hover:bg-green-500'}`}>
-                                                {isPlaying ? <Pause size={16} /> : <Play size={16} />}
-                                                {isPlaying ? '일시정지' : '시작'}
-                                            </button>
-                                        </div>
-                                    </div>
-                                    
-                                    {/* 🌟 캐릭터 선택 (New UI element) */}
-                                    <div className="flex items-center gap-2 bg-slate-800 p-1 lg:p-1.5 rounded-lg border border-slate-700">
-                                        <Car size={14} className="text-slate-400" />
-                                        <select 
-                                            className="bg-transparent text-sm lg:text-base w-full outline-none text-slate-200"
-                                            value={currentVehicleId}
-                                            onChange={(e) => { 
-                                                setCurrentVehicleId(e.target.value); 
-                                                playClickSound(); 
-                                                resetGame(); 
-                                            }}
-                                        >
-                                            {VEHICLE_TYPES.map((v) => (
-                                                <option key={v.id} value={v.id}>{v.emoji} {v.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    
-                                    {/* 트랙 선택 (크기 유지) */}
-                                    <div className="flex items-center gap-2 bg-slate-800 p-1 lg:p-1.5 rounded-lg border border-slate-700">
-                                        <MapIcon size={14} className="text-slate-400" />
-                                        <select 
-                                            className="bg-transparent text-sm lg:text-base w-full outline-none text-slate-200"
-                                            value={currentTrackIdx}
-                                            onChange={(e) => { setCurrentTrackIdx(Number(e.target.value)); playClickSound(); }}
-                                        >
-                                            {TRACK_LAYOUTS.map((track, idx) => (
-                                                <option key={track.id} value={idx}>{track.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-
-
-                                {/* 로직 블록 편집 영역 (Main focus area) */}
-                                <div className="flex-1 overflow-y-auto p-2 lg:p-4 space-y-2 lg:space-y-3 no-scrollbar">
-                                    {blocks.length === 0 && (<div className="text-slate-500 text-center py-10 italic text-sm">로직 블록이 없습니다.</div>)}
-                                    
-                                    {blocks.map((block) => {
-                                        const flow = FLOW_OPTIONS.find(f => f.value === block.flowType);
-                                        const isElse = block.flowType === 'ELSE';
-                                        const isIfElseIf = block.flowType === 'IF' || block.flowType === 'ELSE_IF';
-                                        const borderClass = flow ? flow.color : 'border-slate-500';
-
-                                        // 액션 이름 및 색상 매핑
-                                        let actionClass = 'bg-slate-900 text-slate-200';
-                                        if (block.action.startsWith('LEFT') || block.action.startsWith('RIGHT')) {
-                                            actionClass = 'bg-indigo-900 text-indigo-200';
-                                        } else if (block.action.startsWith('ACCEL')) {
-                                            actionClass = 'bg-green-900 text-green-200';
-                                        } else if (block.action.startsWith('BRAKE')) {
-                                            actionClass = 'bg-red-900 text-red-200';
-                                        }
-
-                                        return (
-                                            <div key={block.id} className={`bg-slate-700 p-2 lg:p-3 rounded-lg border-l-4 ${borderClass} shadow-sm flex items-center gap-1.5 lg:gap-2 flex-wrap text-xs lg:text-sm group`}>
-                                                
-                                                <select className={`bg-slate-900 border border-slate-600 rounded px-1 lg:px-2 py-1 text-slate-200 focus:border-blue-500 outline-none font-bold max-w-[100px] lg:max-w-[120px] 
-                                                     ${block.flowType === 'ELSE' ? 'w-full' : ''}`}
-                                                    value={block.flowType} onChange={(e) => updateBlock(block.id, 'flowType', e.target.value)}>
-                                                    {FLOW_OPTIONS.map(opt => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
-                                                </select>
-
-                                                {isIfElseIf && (
-                                                    <React.Fragment>
-                                                        <select className="bg-slate-900 border border-slate-600 rounded px-1 lg:px-2 py-1 text-slate-200 focus:border-blue-500 outline-none max-w-[80px] lg:max-w-none"
-                                                            value={block.sensor} onChange={(e) => updateBlock(block.id, 'sensor', parseInt(e.target.value))}>
-                                                            {Object.entries(SENSOR_LABELS).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
-                                                        </select>
-                                                        
-                                                        <select className="bg-slate-900 border border-slate-600 rounded px-1 lg:px-2 py-1 text-slate-200 focus:border-blue-500 outline-none"
-                                                            value={block.operator} onChange={(e) => updateBlock(block.id, 'operator', e.target.value)}>
-                                                            {OPERATOR_OPTIONS.map(opt => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
-                                                        </select>
-
-                                                        <button onClick={() => toggleValueType(block.id)}
-                                                            className="p-1 rounded bg-slate-600 hover:bg-slate-500 text-slate-200 transition"
-                                                            title={block.valueType === 'number' ? "숫자와 비교하기" : "다른 센서와 비교하기"}>
-                                                            {block.valueType === 'number' ? <Hash size={12} /> : <Radar size={12} />}
-                                                        </button>
-                                                        
-                                                        {block.valueType === 'number' ? (
-                                                            <input type="number" className="bg-slate-900 border border-slate-600 rounded w-12 lg:w-16 px-1 lg:px-2 py-1 text-slate-200 focus:border-blue-500 outline-none"
-                                                                value={block.value} 
-                                                                onChange={(e) => {
-                                                                    const val = parseInt(e.target.value);
-                                                                    updateBlock(block.id, 'value', isNaN(val) ? 0 : val);
-                                                                }} 
-                                                            />
-                                                        ) : (
-                                                            <select className="bg-slate-900 border border-slate-600 rounded px-1 lg:px-2 py-1 text-slate-200 focus:border-blue-500 outline-none w-20 lg:w-24"
-                                                                value={block.value} onChange={(e) => updateBlock(block.id, 'value', parseInt(e.target.value))}>
-                                                                {Object.entries(SENSOR_LABELS).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
-                                                            </select>
-                                                        )}
-                                                    </React.Fragment>
-                                                )}
-
-                                                <span className="font-bold text-blue-300">→</span>
-                                                
-                                                {/* 🌟 확장된 액션 드롭다운 */}
-                                                <select className={`border border-slate-600 rounded px-1 lg:px-2 py-1 font-bold outline-none flex-grow ${actionClass}
-                                                     ${isElse ? 'w-full' : ''}`}
-                                                    value={block.action} onChange={(e) => updateBlock(block.id, 'action', e.target.value)}>
-                                                    <option value="LEFT">좌회전</option>
-                                                    <option value="RIGHT">우회전</option>
-                                                    <option value="ACCEL_100">가속 (100%)</option>
-                                                    <option value="ACCEL_75">가속 (75%)</option>
-                                                    <option value="ACCEL_50">가속 (50%)</option>
-                                                    <option value="BRAKE_100">감속 (100%)</option>
-                                                    <option value="BRAKE_75">감속 (75%)</option>
-                                                    <option value="BRAKE_50">감속 (50%)</option>
-                                                </select>
-                                                <button onClick={() => removeBlock(block.id)} className="text-slate-500 hover:text-red-400 ml-auto opacity-100 lg:opacity-0 group-hover:opacity-100 transition"><Trash2 size={14} /></button>
-                                            </div>
-                                        );
-                                    })}
-
-                                    <button onClick={addBlock} className="w-full py-2 lg:py-3 border-2 border-dashed border-slate-600 text-slate-400 rounded-lg hover:border-blue-500 hover:text-blue-400 transition flex justify-center items-center gap-2 text-sm lg:text-base">
-                                        <Plus size={16} /> 로직 블록 추가
-                                    </button>
-                                </div>
-                            </React.Fragment>
-                        )}
-
-                        {/* --- Shop Screen --- */}
-                        {currentScreen === 'shop' && <ShopScreen />}
-
-                    </div>
-
-                    {/* --- Main View: Canvas (Width: 60% on LG, Height: 30% on mobile) --- */}
-                    <div className="w-full lg:flex-1 h-[30%] lg:h-full relative bg-neutral-800 flex justify-center items-center p-2 lg:p-4 overflow-hidden">
-                        {currentScreen === 'race' ? (
-                            <canvas ref={canvasRef} width={TRACK_WIDTH} height={TRACK_HEIGHT}
-                                className="bg-green-500 rounded-xl shadow-2xl max-w-full max-h-full object-contain cursor-crosshair" />
-                        ) : (
-                            <div className="text-slate-400 text-center text-xl">상점에서 파츠를 확인해 보세요!</div>
-                        )}
-                        
-                        {/* Top Left: Lap Time History Panel (Visible on race screen only) */}
-                        {currentScreen === 'race' && (
-                            <div className="absolute top-2 left-2 lg:top-6 lg:left-6 pointer-events-none scale-75 lg:scale-100 origin-top-left">
-                                <div className="bg-slate-900/90 backdrop-blur p-3 rounded-xl border border-slate-700 shadow-xl space-y-2 min-w-[140px]">
-                                    <div className="text-[10px] uppercase tracking-widest text-slate-400 border-b border-slate-700 pb-1 mb-1">Lap History</div>
-                                    {[...Array(TOTAL_LAPS)].map((_, i) => {
-                                        const lapTime = userStats.lapHistory[i];
-                                        const isCurrent = userStats.laps === i;
-                                        return (
-                                            <div key={i} className="flex justify-between items-center text-xs font-mono">
-                                                <span className={isCurrent ? 'text-yellow-400 font-bold' : 'text-slate-500'}>LAP {i + 1}</span>
-                                                <span className={isCurrent ? 'text-white' : (lapTime ? 'text-green-400' : 'text-slate-600')}>
-                                                    {lapTime ? fmtTime(lapTime) : (isCurrent ? fmtTime(userStats.currentLapTime) : '--:--')}
-                                                </span>
-                                            </div>
-                                        )
-                                    })}
-                                    <div className="border-t border-slate-700 pt-1 flex justify-between items-center text-xs font-mono text-blue-300 mt-1">
-                                        <span>TOTAL</span>
-                                        <span>{fmtTime(userStats.totalTime)}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Top Right State Badge & Mute (Visible on race screen only) */}
-                        {currentScreen === 'race' && (
-                            <React.Fragment>
-                                <div className="absolute top-2 right-2 lg:top-6 lg:right-6 pointer-events-auto flex gap-2">
-                                    <button onClick={toggleMute} className="bg-slate-900/80 backdrop-blur p-2 rounded-full border border-slate-700 shadow-lg text-slate-300 hover:bg-slate-800 transition scale-90 lg:scale-100">
-                                        {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-                                    </button>
-                                    <div className="bg-slate-900/80 backdrop-blur px-3 py-1 lg:px-6 lg:py-2 rounded-full border border-slate-700 shadow-lg flex items-center gap-2 lg:gap-4 scale-90 lg:scale-100 origin-top-right">
-                                        <div className="text-slate-400 text-[10px] lg:text-xs uppercase tracking-widest">상태</div>
-                                        <div className={`text-base lg:text-xl font-black italic ${gameState === 'running' ? 'text-green-400' : 'text-slate-200'}`}>
-                                            {gameState === 'idle' && 'READY'}
-                                            {gameState === 'running' && 'RUN'}
-                                            {gameState === 'finished' && 'FINISH'}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Winner Badge */}
-                                {gameState === 'finished' && (
-                                    <div className="absolute top-12 lg:top-6 left-0 right-0 flex justify-center gap-4 px-4 pointer-events-none">
-                                        {/* 🌟 UI 보상 금액 수정 반영 */}
-                                        <div className={`bg-slate-900/90 backdrop-blur px-4 py-2 lg:px-6 lg:py-3 rounded-full border border-slate-700 shadow-2xl flex items-center gap-2 font-bold animate-bounce ${winner === 'user' ? 'text-yellow-400' : 'text-red-400'} text-sm lg:text-base`}>
-                                            <Trophy size={16} />
-                                            {winner === 'user' ? `우승! ($1000+ 획득)` : '패배! ($300 획득)'}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* 🌟 이동된 실시간 센서 거리 (Bottom Right) 🌟 */}
-                                <div className="absolute bottom-2 right-2 lg:bottom-4 lg:right-4 pointer-events-none scale-75 lg:scale-100 origin-bottom-right">
-                                    <div className="bg-slate-900/90 backdrop-blur p-2 lg:p-3 rounded-xl border border-slate-700 shadow-xl space-y-1">
-                                        <div className="flex items-center gap-2 mb-1 text-[9px] lg:text-[10px] uppercase tracking-wider text-slate-400">
-                                            <Activity size={10} /> 실시간 센서 거리
-                                        </div>
-                                        <div className="grid grid-cols-5 gap-1 text-center">
-                                            {sensorReadings.map((val, idx) => {
-                                                const labels = ['좌측', '전방좌측', '전방', '전방우측', '우측'];
-                                                const color = val < 50 ? 'text-red-400' : 'text-green-400';
-                                                return (
-                                                    <div key={idx} className="bg-slate-800 p-0.5 lg:p-1 rounded border border-slate-700">
-                                                        <div className="text-[7px] lg:text-[9px] text-slate-500">{labels[idx]}</div>
-                                                        <div className={`font-mono text-[9px] lg:text-xs font-bold ${color}`}>{Math.round(val)}</div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                {/* AI Lap Counters (Bottom Left) */}
-                                <div className="absolute bottom-2 left-2 lg:bottom-4 lg:left-4 flex gap-2 lg:gap-4 scale-75 lg:scale-100 origin-bottom-left">
-                                    {cars.current.slice(1).map(c => (
-                                        <div key={c.id} className="bg-slate-900/80 backdrop-blur p-1.5 lg:p-2 rounded border border-slate-700 flex flex-col items-center min-w-[50px] lg:min-w-[60px]">
-                                            <div className="w-2.5 h-2.5 lg:w-3 lg:h-3 rounded-full mb-1" style={{backgroundColor: c.color}}></div>
-                                            <div className="text-[9px] lg:text-xs text-slate-400">{c.id.toUpperCase()}</div>
-                                            <div className="font-mono font-bold text-xs lg:text-sm">{c.laps}/{TOTAL_LAPS}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </React.Fragment>
-                        )}
-                    </div>
+                    {currentScreen === 'shop' && (
+                         <div className="flex items-center gap-2 text-sm lg:text-base font-semibold text-green-400">
+                             <DollarSign size={16} /> ${userData.dollars.toLocaleString()}
+                         </div>
+                    )}
                 </div>
-            );
+
+                {currentScreen === 'race' && (
+                    <React.Fragment>
+                        <div className="p-2 lg:p-4 bg-slate-900 border-b border-slate-700 space-y-2 lg:space-y-4">
+                          <div className="flex justify-between items-center">
+                            <h2 className="text-lg lg:text-xl font-bold flex items-center gap-2 text-blue-400">
+                                <Wrench size={20} /> 파츠 성능: {physics.acceleration.toFixed(2)} / {physics.maxSpeed.toFixed(1)}
+                            </h2>
+                            <div className="flex gap-1 lg:gap-2">
+                                <button onClick={() => { resetGame(); playClickSound(); }} className="p-1.5 lg:p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition" title="초기화">
+                                    <RotateCcw size={18} />
+                                </button>
+                                <button onClick={togglePlay} className={`p-1.5 lg:p-2 rounded-lg transition flex items-center gap-1 lg:gap-2 font-bold px-3 lg:px-4 text-sm lg:text-base ${isPlaying ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-green-600 hover:bg-green-500'}`}>
+                                    {isPlaying ? <Pause size={18} /> : <Play size={18} />}
+                                    {isPlaying ? '일시정지' : '시작'}
+                                </button>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 bg-slate-800 p-1.5 lg:p-2 rounded-lg border border-slate-700">
+                            <MapIcon size={16} className="text-slate-400" />
+                            <select 
+                                className="bg-transparent text-sm lg:text-base w-full outline-none text-slate-200"
+                                value={currentTrackIdx}
+                                onChange={(e) => { setCurrentTrackIdx(Number(e.target.value)); playClickSound(); }}
+                            >
+                                {TRACK_LAYOUTS.map((track, idx) => (
+                                    <option key={track.id} value={idx}>{track.name}</option>
+                                ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="p-2 lg:p-4 bg-slate-800/50 border-b border-slate-700">
+                            <div className="flex items-center gap-2 mb-1 lg:mb-2 text-[10px] lg:text-xs uppercase tracking-wider text-slate-400">
+                                <Activity size={12} /> 실시간 센서 거리
+                            </div>
+                            <div className="grid grid-cols-5 gap-1 text-center">
+                                {sensorReadings.map((val, idx) => {
+                                    const labels = ['좌측', '전방좌측', '전방', '전방우측', '우측'];
+                                    const color = val < 50 ? 'text-red-400' : 'text-green-400';
+                                    return (
+                                        <div key={idx} className="bg-slate-900 p-1 lg:p-2 rounded border border-slate-700">
+                                            <div className="text-[9px] lg:text-[10px] text-slate-500">{labels[idx]}</div>
+                                            <div className={`font-mono text-xs lg:text-sm font-bold ${color}`}>{Math.round(val)}</div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-2 lg:p-4 space-y-2 lg:space-y-3 no-scrollbar">
+                          {blocks.length === 0 && (<div className="text-slate-500 text-center py-10 italic text-sm">로직 블록이 없습니다.</div>)}
+                          
+                          {blocks.map((block) => {
+                              const flow = FLOW_OPTIONS.find(f => f.value === block.flowType);
+                              const isElse = block.flowType === 'ELSE';
+                              const isIfElseIf = block.flowType === 'IF' || block.flowType === 'ELSE_IF';
+                              const borderClass = flow ? flow.color : 'border-slate-500';
+
+                              return (
+                                <div key={block.id} className={`bg-slate-700 p-2 lg:p-3 rounded-lg border-l-4 ${borderClass} shadow-sm flex items-center gap-1.5 lg:gap-2 flex-wrap text-xs lg:text-sm group`}>
+                                  
+                                  <select className={`bg-slate-900 border border-slate-600 rounded px-1 lg:px-2 py-1 text-slate-200 focus:border-blue-500 outline-none font-bold max-w-[80px] lg:max-w-[120px] 
+                                        ${block.flowType === 'ELSE' ? 'w-full' : ''}`}
+                                    value={block.flowType} onChange={(e) => updateBlock(block.id, 'flowType', e.target.value)}>
+                                    {FLOW_OPTIONS.map(opt => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
+                                  </select>
+
+                                  {isIfElseIf && (
+                                      <React.Fragment>
+                                          <select className="bg-slate-900 border border-slate-600 rounded px-1 lg:px-2 py-1 text-slate-200 focus:border-blue-500 outline-none max-w-[80px] lg:max-w-none"
+                                            value={block.sensor} onChange={(e) => updateBlock(block.id, 'sensor', parseInt(e.target.value))}>
+                                            {Object.entries(SENSOR_LABELS).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
+                                          </select>
+                                          
+                                          <select className="bg-slate-900 border border-slate-600 rounded px-1 lg:px-2 py-1 text-slate-200 focus:border-blue-500 outline-none max-w-[70px] lg:max-w-none"
+                                            value={block.operator} onChange={(e) => updateBlock(block.id, 'operator', e.target.value)}>
+                                            {OPERATOR_OPTIONS.map(opt => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
+                                          </select>
+
+                                          <button onClick={() => toggleValueType(block.id)}
+                                            className="p-1 rounded bg-slate-600 hover:bg-slate-500 text-slate-200 transition"
+                                            title={block.valueType === 'number' ? "숫자와 비교하기" : "다른 센서와 비교하기"}>
+                                            {block.valueType === 'number' ? <Hash size={12} /> : <Radar size={12} />}
+                                          </button>
+                                          
+                                          {block.valueType === 'number' ? (
+                                              <input type="number" className="bg-slate-900 border border-slate-600 rounded w-10 lg:w-16 px-1 lg:px-2 py-1 text-slate-200 focus:border-blue-500 outline-none"
+                                                value={block.value} 
+                                                onChange={(e) => {
+                                                    const val = parseInt(e.target.value);
+                                                    updateBlock(block.id, 'value', isNaN(val) ? 0 : val);
+                                                }} 
+                                              />
+                                          ) : (
+                                              <select className="bg-slate-900 border border-slate-600 rounded px-1 lg:px-2 py-1 text-slate-200 focus:border-blue-500 outline-none w-16 lg:w-24"
+                                                value={block.value} onChange={(e) => updateBlock(block.id, 'value', parseInt(e.target.value))}>
+                                                {Object.entries(SENSOR_LABELS).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
+                                              </select>
+                                          )}
+                                      </React.Fragment>
+                                  )}
+
+                                  <span className="font-bold text-blue-300">→</span>
+                                  
+                                  <select className={`border border-slate-600 rounded px-1 lg:px-2 py-1 font-bold outline-none flex-grow
+                                        ${block.action === 'LEFT' || block.action === 'RIGHT' ? 'bg-indigo-900 text-indigo-200' : ''}
+                                        ${block.action === 'ACCEL' ? 'bg-green-900 text-green-200' : ''}
+                                        ${block.action === 'BRAKE' ? 'bg-red-900 text-red-200' : ''}
+                                        ${isElse ? 'w-full' : ''}`}
+                                    value={block.action} onChange={(e) => updateBlock(block.id, 'action', e.target.value)}>
+                                    <option value="LEFT">좌회전</option>
+                                    <option value="RIGHT">우회전</option>
+                                    <option value="ACCEL">가속</option>
+                                    <option value="BRAKE">감속</option>
+                                  </select>
+                                  <button onClick={() => removeBlock(block.id)} className="text-slate-500 hover:text-red-400 ml-auto opacity-100 lg:opacity-0 group-hover:opacity-100 transition"><Trash2 size={14} /></button>
+                                </div>
+                              );
+                          })}
+                        </div>
+                        
+                        <div className="p-2 lg:p-4 bg-slate-800 border-t border-slate-700">
+                            <button onClick={addBlock} className="w-full py-2 lg:py-3 border-2 border-dashed border-slate-600 text-slate-400 rounded-lg hover:border-blue-500 hover:text-blue-400 transition flex justify-center items-center gap-2 text-sm lg:text-base">
+                                <Plus size={16} /> 로직 블록 추가
+                            </button>
+                        </div>
+                    </React.Fragment>
+                )}
+
+                {currentScreen === 'shop' && <ShopScreen />}
+
+              </div>
+
+              <div className="w-full lg:flex-1 h-[45%] lg:h-full relative bg-neutral-800 flex justify-center items-center p-2 lg:p-4 overflow-hidden">
+                {currentScreen === 'race' ? (
+                    <canvas ref={canvasRef} width={TRACK_WIDTH} height={TRACK_HEIGHT}
+                        className="bg-green-500 rounded-xl shadow-2xl max-w-full max-h-full object-contain cursor-crosshair" />
+                ) : (
+                    <div className="text-slate-400 text-center text-xl">상점에서 파츠를 확인해 보세요!</div>
+                )}
+                
+                {currentScreen === 'race' && (
+                    <div className="absolute top-2 left-2 lg:top-6 lg:left-6 pointer-events-none scale-75 lg:scale-100 origin-top-left">
+                        <div className="bg-slate-900/90 backdrop-blur p-3 rounded-xl border border-slate-700 shadow-xl space-y-2 min-w-[140px]">
+                            <div className="text-[10px] uppercase tracking-widest text-slate-400 border-b border-slate-700 pb-1 mb-1">Lap History</div>
+                            {[...Array(TOTAL_LAPS)].map((_, i) => {
+                                const lapTime = userStats.lapHistory[i];
+                                const isCurrent = userStats.laps === i;
+                                return (
+                                    <div key={i} className="flex justify-between items-center text-xs font-mono">
+                                        <span className={isCurrent ? 'text-yellow-400 font-bold' : 'text-slate-500'}>LAP {i + 1}</span>
+                                        <span className={isCurrent ? 'text-white' : (lapTime ? 'text-green-400' : 'text-slate-600')}>
+                                            {lapTime ? fmtTime(lapTime) : (isCurrent ? fmtTime(userStats.currentLapTime) : '--:--')}
+                                        </span>
+                                    </div>
+                                )
+                            })}
+                            <div className="border-t border-slate-700 pt-1 flex justify-between items-center text-xs font-mono text-blue-300 mt-1">
+                                <span>TOTAL</span>
+                                <span>{fmtTime(userStats.totalTime)}</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {currentScreen === 'race' && (
+                    <React.Fragment>
+                        <div className="absolute top-2 right-2 lg:top-6 lg:right-6 pointer-events-auto flex gap-2">
+                            <button onClick={toggleMute} className="bg-slate-900/80 backdrop-blur p-2 rounded-full border border-slate-700 shadow-lg text-slate-300 hover:bg-slate-800 transition scale-90 lg:scale-100">
+                                {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                            </button>
+                            <div className="bg-slate-900/80 backdrop-blur px-3 py-1 lg:px-6 lg:py-2 rounded-full border border-slate-700 shadow-lg flex items-center gap-2 lg:gap-4 scale-90 lg:scale-100 origin-top-right">
+                                <div className="text-slate-400 text-[10px] lg:text-xs uppercase tracking-widest">상태</div>
+                                <div className={`text-base lg:text-xl font-black italic ${gameState === 'running' ? 'text-green-400' : 'text-slate-200'}`}>
+                                    {gameState === 'idle' && 'READY'}
+                                    {gameState === 'running' && 'RUN'}
+                                    {gameState === 'finished' && 'FINISH'}
+                                </div>
+                            </div>
+                        </div>
+
+                        {gameState === 'finished' && (
+                            <div className="absolute top-12 lg:top-6 left-0 right-0 flex justify-center gap-4 px-4 pointer-events-none">
+                                <div className={`bg-slate-900/90 backdrop-blur px-4 py-2 lg:px-6 lg:py-3 rounded-full border border-slate-700 shadow-2xl flex items-center gap-2 font-bold animate-bounce ${winner === 'user' ? 'text-yellow-400' : 'text-red-400'} text-sm lg:text-base`}>
+                                    <Trophy size={16} />
+                                    {winner === 'user' ? `우승! ($${(winner === 'user' ? 2000 : 500).toLocaleString()}+ 획득)` : '패배! (500$ 획득)'}
+                                </div>
+                            </div>
+                        )}
+                        
+                        <div className="absolute bottom-2 left-2 lg:bottom-4 lg:left-4 flex gap-2 lg:gap-4 scale-75 lg:scale-100 origin-bottom-left">
+                            {cars.current.slice(1).map(c => (
+                                <div key={c.id} className="bg-slate-900/80 backdrop-blur p-1.5 lg:p-2 rounded border border-slate-700 flex flex-col items-center min-w-[50px] lg:min-w-[60px]">
+                                    <div className="w-2.5 h-2.5 lg:w-3 lg:h-3 rounded-full mb-1" style={{backgroundColor: c.color}}></div>
+                                    <div className="text-[9px] lg:text-xs text-slate-400">{c.id.toUpperCase()}</div>
+                                    <div className="font-mono font-bold text-xs lg:text-sm">{c.laps}/{TOTAL_LAPS}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </React.Fragment>
+                )}
+              </div>
+            </div>
+          );
         };
 
         const root = window.ReactDOM.createRoot(document.getElementById('root'));
