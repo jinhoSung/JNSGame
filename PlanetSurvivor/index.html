@@ -55,6 +55,24 @@
         #volume-slider { width: 80px; height: 4px; -webkit-appearance: none; background: #555; border-radius: 2px; outline: none; cursor: pointer; }
         #volume-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; background: #fff; border-radius: 50%; cursor: pointer; }
 
+        /* [추가] 일시정지 오버레이 및 모달 */
+        #pause-menu {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(5px);
+            display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 99;
+        }
+        #pause-menu.active { display: flex !important; }
+        .pause-content {
+            background: #1f2937; padding: 30px; border-radius: 15px; border: 2px solid #60a5fa;
+            text-align: center; box-shadow: 0 0 20px rgba(96, 165, 250, 0.5);
+        }
+        .pause-btn-group { margin-top: 20px; }
+        .pause-btn { 
+            background: #10b981; color: white; padding: 10px 20px; border-radius: 5px; 
+            margin: 5px; font-size: 1.1rem; width: 180px;
+        }
+        .pause-btn.danger { background: #ef4444; }
+
         #boss-hud { display: none; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 60%; max-width: 600px; height: 30px; z-index: 20; pointer-events: none; }
         #boss-hud.active { display: block; animation: slideDown 0.5s ease-out; }
         .boss-name { text-align: center; font-weight: bold; color: #ef4444; text-shadow: 0 0 5px black; margin-bottom: 5px; font-size: 18px; }
@@ -129,10 +147,23 @@
 
 <!-- 컨트롤 UI: 사운드 & 게임 배속 -->
 <div id="controls-ui">
-    <button id="sound-btn" class="icon-btn">🔊</button>
+    <button id="sound-btn" class="icon-btn" onclick="toggleMute()">🔊</button>
     <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="0.5">
     <div style="width:1px; height:20px; background:#555; margin:0 5px;"></div>
     <button id="speed-btn" class="icon-btn">⏩ 1.0x</button>
+    <!-- [추가] 일시정지 버튼 -->
+    <button id="pause-btn" class="icon-btn" onclick="togglePause()">⏸️</button>
+</div>
+
+<!-- 일시정지 메뉴 -->
+<div id="pause-menu" class="hidden">
+    <div class="pause-content">
+        <h2 style="color:white; margin-bottom: 15px;">PAUSED</h2>
+        <div class="pause-btn-group">
+            <button class="pause-btn" onclick="togglePause()">▶️ RESUME</button>
+            <button class="pause-btn danger" onclick="confirmGoHome()">🏠 EXIT TO MENU</button>
+        </div>
+    </div>
 </div>
 
 <div id="boss-hud"><div class="boss-name">⚠️ GIANT PLANET EATER ⚠️</div><div class="boss-bar-bg"><div id="boss-hp-bar"></div></div></div>
@@ -156,6 +187,7 @@
     const bossHpBar = document.getElementById('boss-hp-bar');
     const warningMsg = document.getElementById('warning-msg');
     const diffButtons = document.querySelectorAll('.diff-btn');
+    const pauseMenu = document.getElementById('pause-menu');
     
     // Game Logic Variables
     let ZOOM_SCALE = 1.0;
@@ -169,7 +201,7 @@
     let currentDifficulty = 'EASY';
     
     // [수정] GAME_STATE 정의를 클래스 및 함수보다 앞쪽으로 이동
-    const GAME_STATE = { PLAYING: 0, LEVEL_UP: 1, GAME_OVER: 2 };
+    const GAME_STATE = { PLAYING: 0, LEVEL_UP: 1, GAME_OVER: 2, PAUSED: 3 };
 
     // [수정] RARITY 상수 정의를 최상단으로 이동 (ReferenceError 해결)
     const RARITY = {
@@ -194,6 +226,9 @@
             xp: 0        // [추가] 경험치 (Lv당 +10%)
         }
     };
+    
+    // [추가] 세션 동안 획득한 순수 크레딧 (저장된 크레딧과 분리)
+    let sessionEarnedCredits = 0;
 
     const DIFFICULTY_SETTINGS = {
         'EASY': { hpMult: 0.8, dmgMult: 0.8, spawnRate: 1.2 }, 
@@ -202,7 +237,7 @@
         'HELL': { hpMult: 2.5, dmgMult: 2.0, spawnRate: 0.6 }
     };
 
-    // [수정] 상점 아이템 목록 (치명타, 방어, 경험치 추가)
+    // [수정] 상점 아이템 목록 (크레딧 밸런스 조정 유지)
     const SHOP_ITEMS = {
         // [수정] 비용 상승: 100 -> 150
         damage: { name: "플라즈마 강화", desc: "모든 무기 공격력 +10%", baseCost: 150, costMult: 1.5 },
@@ -257,6 +292,33 @@
         speedBtn.innerText = `⏩ ${GAME_SPEED.toFixed(1)}x`;
     });
 
+    // [추가] 일시정지 토글 함수
+    window.togglePause = function() {
+        if (!isGameRunning) return;
+
+        if (currentState === GAME_STATE.PLAYING) {
+            currentState = GAME_STATE.PAUSED;
+            pauseMenu.classList.add('active');
+        } else if (currentState === GAME_STATE.PAUSED) {
+            currentState = GAME_STATE.PLAYING;
+            pauseMenu.classList.remove('active');
+            animate(); // 일시정지에서 풀릴 때 애니메이션 재시작
+        }
+    }
+
+    // [추가] 홈으로 돌아가기 확인 모달
+    window.confirmGoHome = function() {
+        // [수정] window.confirm 대신 직접 호출되도록 수정. confirm 사용은 유지.
+        const confirmed = window.confirm("경고: 메인 메뉴로 돌아가면 현재 게임 진행 상황(XP, 무기 레벨, 스코어)은 초기화됩니다. 계속하시겠습니까?");
+        if (confirmed) {
+            // [수정] 순수 획득 크레딧만 영구 저장소에 합산
+            saveFile.credits += sessionEarnedCredits;
+            saveGame();
+            isGameRunning = false;
+            window.location.reload(); 
+        }
+    }
+
     function resize() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
@@ -285,6 +347,7 @@
     function closeShop() {
         shopMenu.classList.add('hidden');
         mainMenu.classList.remove('hidden');
+        renderShop(); // 메뉴로 돌아올 때 상점 크레딧 재갱신
     }
 
     function renderShop() {
@@ -416,7 +479,8 @@
         projectiles=[]; enemies=[]; particles=[]; beams=[]; explosions=[]; drones=[]; lightnings=[]; shockwaves=[];
         boss = null;
         score = 0;
-        sessionCredits = 0;
+        // [수정] 세션 크레딧은 0부터 시작하고, 영구 크레딧은 saveFile.credits에 남아있음
+        sessionEarnedCredits = 0; 
         frame = 0;
         spawnTimer = 0; 
         regenTimer = 0; 
@@ -427,6 +491,7 @@
         core.maxHp = 100 + hpBonus;
         core.hp = core.maxHp;
         
+        // [수정] 무기 레벨은 항상 1로 초기화
         player = { level: 1, xp: 0, xpToNext: 150, weapons: [] };
         
         addWeapon('MISSILE'); 
@@ -691,7 +756,7 @@
             // [수정] 크레딧 획득량 조정
             const greedBonus = 1 + (saveFile.upgrades.greed * 0.1);
             const drop = Math.ceil((0.5 + Math.random()*1.5) * greedBonus); // 0.5~2.0 크레딧
-            sessionCredits += drop;
+            sessionEarnedCredits += drop; // 세션 획득 크레딧에만 더함
             audio.collect();
         }
         draw(){ ctx.beginPath(); ctx.arc(this.x,this.y,this.radius,0,Math.PI*2); ctx.fillStyle=this.color; ctx.fill(); if(this.hp<this.maxHp){ const w=20*(Math.max(0,this.hp)/this.maxHp); ctx.fillStyle='red';ctx.fillRect(this.x-10,this.y-18,20,3); ctx.fillStyle='#0f0';ctx.fillRect(this.x-10,this.y-18,w,3); } }
@@ -721,7 +786,7 @@
             explosions.push(new Explosion(this.x,this.y,300,'#fff')); 
             addXp(500); score+=1000; boss=null; bossHud.classList.remove('active'); 
             const greedBonus = 1 + (saveFile.upgrades.greed * 0.1);
-            sessionCredits += Math.ceil(50 * greedBonus); // 보스 크레딧도 조정
+            sessionEarnedCredits += Math.ceil(50 * greedBonus); // 보스 크레딧도 조정
             canvas.style.transform=`translate(${Math.random()*20-10}px, ${Math.random()*20-10}px)`; setTimeout(()=>canvas.style.transform='translate(0,0)', 200); 
         }
         draw(){ const sx=(Math.random()-0.5)*this.shake; const sy=(Math.random()-0.5)*this.shake; ctx.save(); ctx.translate(this.x+sx, this.y+sy); ctx.beginPath(); ctx.arc(0,0,this.radius+10,0,Math.PI*2); ctx.fillStyle='rgba(239, 68, 68, 0.2)'; ctx.fill(); ctx.beginPath(); ctx.arc(0,0,this.radius,0,Math.PI*2); ctx.fillStyle=this.color; ctx.fill(); ctx.strokeStyle='#7f1d1d'; ctx.lineWidth=5; ctx.stroke(); ctx.fillStyle='yellow'; ctx.beginPath(); ctx.arc(-20,-10,8,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(20,-10,8,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.moveTo(-30,20); ctx.quadraticCurveTo(0,50,30,20); ctx.strokeStyle='black'; ctx.lineWidth=3; ctx.stroke(); ctx.restore(); }
@@ -983,6 +1048,7 @@
         const xpBar = document.getElementById('xp-bar');
         const scoreText = document.getElementById('score-text');
         const gameCredits = document.getElementById('game-credits');
+        const shopCredits = document.getElementById('shop-credits'); // 상점 크레딧
 
         if (hpText) hpText.innerText = `${Math.ceil(core.hp)}/${core.maxHp}`; 
         if (hpBar) hpBar.style.width = `${(core.hp/core.maxHp)*100}%`; 
@@ -990,11 +1056,21 @@
         if (xpText) xpText.innerText = `${Math.floor((player.xp/player.xpToNext)*100)}%`; 
         if (xpBar) xpBar.style.width = `${(player.xp/player.xpToNext)*100}%`; 
         if (scoreText) scoreText.innerText = score; 
-        if (gameCredits) gameCredits.innerText = sessionCredits;
+        
+        // [수정] 인게임 크레딧 표시는 영구 크레딧 잔액 + 세션 획득 크레딧
+        if (gameCredits) gameCredits.innerText = saveFile.credits + sessionEarnedCredits;
+        // [수정] 상점 크레딧 표시는 영구 크레딧 잔액만 표시
+        if (shopCredits) shopCredits.innerText = saveFile.credits;
     }
 
     function animate(){
         if(!isGameRunning) return; 
+        
+        // [수정] PAUSED 상태일 경우 애니메이션 루프를 계속 호출하되 업데이트는 건너뜁니다.
+        if(currentState === GAME_STATE.PAUSED) {
+            requestAnimationFrame(animate); 
+            return; 
+        }
         
         requestAnimationFrame(animate);
         if(currentState===GAME_STATE.LEVEL_UP)return;
@@ -1003,10 +1079,11 @@
             ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(0,0,canvas.width,canvas.height);
             ctx.fillStyle='red'; ctx.font='bold 40px sans-serif'; ctx.textAlign='center'; ctx.fillText("MISSION FAILED",canvas.width/2,canvas.height/2);
             ctx.fillStyle='white'; ctx.font='20px sans-serif'; ctx.textAlign='center'; ctx.fillText(`Final Score: ${score}`,canvas.width/2,canvas.height/2+50);
-            ctx.fillText(`Earned Credits: ${sessionCredits}`,canvas.width/2,canvas.height/2+80);
+            ctx.fillText(`Earned Credits: ${sessionEarnedCredits}`,canvas.width/2,canvas.height/2+80);
             
             if(!window.gameOverTimer) {
-                saveFile.credits += sessionCredits;
+                // [수정] 게임 오버 시 순수 획득 크레딧만 영구 저장소에 합산
+                saveFile.credits += sessionEarnedCredits;
                 saveGame();
                 window.gameOverTimer = setTimeout(() => { isGameRunning = false; window.gameOverTimer = null; location.reload(); }, 3000);
             }
