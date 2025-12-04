@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Planet Survivor: Bug Fix</title>
+    <title>Planet Survivor: Missile Fix</title>
     <style>
         body {
             margin: 0; overflow: hidden; background-color: #0d1117; color: white;
@@ -238,10 +238,17 @@
         update() {
             if(!this.target || this.target.dead) this.target = this.findNewTarget(); // dead 체크 추가
             if(this.target && !this.target.dead) {
+                const dist = Math.hypot(this.target.x - this.x, this.target.y - this.y);
                 const ta = Math.atan2(this.target.y-this.y, this.target.x-this.x);
                 let d = ta - this.angle;
                 while(d <= -Math.PI) d+=Math.PI*2; while(d > Math.PI) d-=Math.PI*2;
-                this.angle += d*0.1;
+                
+                // [수정] 거리 비례 유도 로직: 가까울수록 더 강하게 유도
+                let turnRate = 0.15; // 기본 선회력
+                if (dist < 200) turnRate = 0.35; // 중거리
+                if (dist < 60) turnRate = 1.0; // 근거리 (즉시 조준)
+
+                this.angle += d * turnRate;
             }
             this.x+=Math.cos(this.angle)*this.speed; this.y+=Math.sin(this.angle)*this.speed; this.life--;
             if(Math.random()<0.5) particles.push(new Particle(this.x,this.y,'#555'));
@@ -256,7 +263,7 @@
         explode(){
             explosions.push(new Explosion(this.x,this.y,100,'#ef4444'));
             if(boss && !boss.dead && Math.hypot(boss.x-this.x,boss.y-this.y)<100+boss.radius) boss.takeDamage(this.damage);
-            enemies.forEach(e=>{ if(!e.dead && Math.hypot(e.x-this.x,e.y-this.y)<100) e.takeDamage(this.damage); });
+            enemies.forEach(e=>{ if(!e.dead && Math.hypot(e.x-this.x,e.y-this.y)<100) e.takeDamage(this.damage); }); // [수정] this.damage 사용
         }
     }
 
