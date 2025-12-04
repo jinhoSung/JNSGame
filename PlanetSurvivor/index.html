@@ -486,8 +486,6 @@
                     }
                 } else if(this.phase === 'HOVER') {
                     // [수정] 멈춘 상태에서는 위치 이동 없음 (버그 방지)
-                    // this.x += this.vx * 0.1 * GAME_SPEED; 
-                    // this.y += this.vy * 0.1 * GAME_SPEED; 
                     this.hoverTimer -= GAME_SPEED;
                     if(this.hoverTimer <= 0) { this.phase = 'RETURN'; this.hitList = []; }
                 } else if(this.phase === 'RETURN') {
@@ -540,7 +538,8 @@
             audio.explosion(); 
         }
         update(){
-            this.r += (this.maxR-this.r)*0.25 * GAME_SPEED; 
+            // [수정] 폭발 시각적 크기: maxR에 비례하여 크기가 커지도록 조정 (작은 폭발이 작게 보이도록)
+            this.r += (this.maxR / 5 + 5) * 0.25 * GAME_SPEED; // 작은 maxR(5)일 땐 느리고, 큰 maxR(150)일 땐 빠르게 팽창
             this.life -= GAME_SPEED;
         }
         draw(){
@@ -551,8 +550,14 @@
                 ctx.strokeStyle = this.c; ctx.lineWidth = 2; ctx.globalAlpha = Math.max(0, this.life/20); ctx.stroke();
             }
             ctx.globalAlpha=Math.max(0, this.life/20);
-            ctx.fillStyle=this.c; ctx.beginPath(); ctx.arc(this.x,this.y,this.r,0,Math.PI*2); ctx.fill(); 
-            ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(this.x,this.y,this.r*0.7,0,Math.PI*2); ctx.fill(); ctx.restore();
+            ctx.fillStyle=this.c; 
+            
+            // [수정] 중심 폭발 시각적 크기 조정
+            const visualRadius = Math.min(this.r, this.maxR);
+            ctx.beginPath(); ctx.arc(this.x,this.y,visualRadius,0,Math.PI*2); ctx.fill(); 
+            ctx.fillStyle='white'; 
+            ctx.beginPath(); ctx.arc(this.x,this.y,visualRadius*0.7,0,Math.PI*2); ctx.fill(); 
+            ctx.restore();
         }
     }
     class HomingMissile {
