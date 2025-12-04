@@ -8,6 +8,13 @@
         body { margin: 0; overflow: hidden; background-color: #0d1117; color: white; font-family: 'Segoe UI', sans-serif; user-select: none; touch-action: none; }
         canvas { display: block; }
         #ui-layer { position: absolute; top: 15px; left: 15px; pointer-events: none; width: 240px; max-width: 50%; z-index: 10; }
+        
+        /* 사운드 UI */
+        #sound-controls { position: absolute; top: 15px; right: 15px; z-index: 50; display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.6); padding: 8px 12px; border-radius: 20px; border: 1px solid #444; pointer-events: auto; }
+        #sound-btn { cursor: pointer; font-size: 20px; background: none; border: none; color: white; padding: 0; line-height: 1; }
+        #volume-slider { width: 80px; height: 4px; -webkit-appearance: none; background: #555; border-radius: 2px; outline: none; cursor: pointer; }
+        #volume-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; background: #fff; border-radius: 50%; cursor: pointer; }
+
         #boss-hud { display: none; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 60%; max-width: 600px; height: 30px; z-index: 20; pointer-events: none; }
         #boss-hud.active { display: block; animation: slideDown 0.5s ease-out; }
         .boss-name { text-align: center; font-weight: bold; color: #ef4444; text-shadow: 0 0 5px black; margin-bottom: 5px; font-size: 18px; }
@@ -52,6 +59,11 @@
     <div id="weapon-slots"></div>
 </div>
 
+<div id="sound-controls">
+    <button id="sound-btn">🔊</button>
+    <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="0.5">
+</div>
+
 <div id="boss-hud"><div class="boss-name">⚠️ GIANT PLANET EATER ⚠️</div><div class="boss-bar-bg"><div id="boss-hp-bar"></div></div></div>
 <div id="warning-msg">WARNING!<br><span style="font-size:30px">BOSS APPROACHING</span></div>
 
@@ -68,9 +80,120 @@
     const bossHpBar = document.getElementById('boss-hp-bar');
     const warningMsg = document.getElementById('warning-msg');
     
-    const ZOOM_SCALE = 0.7;
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    // [수정] 동적 해상도: 창 높이에 따라 줌 스케일 조정 (기본 900px 기준)
+    let ZOOM_SCALE = Math.max(0.6, window.innerHeight / 900);
+    
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        // 화면 크기가 바뀔 때마다 스케일 재계산
+        ZOOM_SCALE = Math.max(0.6, window.innerHeight / 900);
+        core.x = canvas.width / 2;
+        core.y = canvas.height / 2;
+    }
+    window.addEventListener('resize', resize);
+
+    /* ================= Sound System (Web Audio API) ================= */
+    class SoundManager {
+        constructor() {
+            this.ctx = null;
+            this.muted = false;
+            this.volume = 0.5;
+            this.initialized = false;
+        }
+
+        init() {
+            if (this.initialized) return;
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                this.ctx = new AudioContext();
+                this.initialized = true;
+            } catch (e) { console.error("Web Audio API not supported"); }
+        }
+
+        playTone(freq, type, duration, volMult = 1.0) {
+            if (!this.ctx || this.muted) return;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+            
+            // 볼륨 감쇠 (Envelope)
+            gain.gain.setValueAtTime(this.volume * volMult, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start();
+            osc.stop(this.ctx.currentTime + duration);
+        }
+
+        playNoise(duration, volMult = 1.0) {
+            if (!this.ctx || this.muted) return;
+            const bufferSize = this.ctx.sampleRate * duration;
+            const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+            const noise = this.ctx.createBufferSource();
+            noise.buffer = buffer;
+            const gain = this.ctx.createGain();
+            
+            // 필터 추가 (폭발음처럼)
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 800;
+
+            gain.gain.setValueAtTime(this.volume * volMult, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.ctx.destination);
+            noise.start();
+        }
+
+        shoot() { this.playTone(300 + Math.random()*200, 'square', 0.1, 0.3); }
+        laser() { this.playTone(600, 'sawtooth', 0.15, 0.2); }
+        hit() { this.playTone(100, 'square', 0.1, 0.4); }
+        explosion() { this.playNoise(0.4, 0.6); }
+        levelUp() { 
+            if(!this.ctx || this.muted) return;
+            // 아르페지오 효과
+            [440, 554, 659, 880].forEach((f, i) => {
+                setTimeout(() => this.playTone(f, 'sine', 0.3, 0.5), i * 100);
+            });
+        }
+        warning() {
+            if(!this.ctx || this.muted) return;
+            this.playTone(150, 'sawtooth', 0.5, 0.6);
+            setTimeout(() => this.playTone(150, 'sawtooth', 0.5, 0.6), 600);
+        }
+    }
+
+    const audio = new SoundManager();
+    const soundBtn = document.getElementById('sound-btn');
+    const volumeSlider = document.getElementById('volume-slider');
+
+    // 사운드 UI 이벤트
+    soundBtn.addEventListener('click', () => {
+        audio.init(); // 브라우저 정책상 사용자 제스처 필요
+        audio.muted = !audio.muted;
+        soundBtn.innerText = audio.muted ? '🔇' : '🔊';
+    });
+
+    volumeSlider.addEventListener('input', (e) => {
+        audio.init();
+        audio.volume = parseFloat(e.target.value);
+        if(audio.volume > 0 && audio.muted) {
+            audio.muted = false;
+            soundBtn.innerText = '🔊';
+        }
+    });
+    
+    // 게임 시작 시 사운드 초기화 시도
+    window.addEventListener('mousedown', () => audio.init(), { once: true });
+
 
     /* ================= DB & Constants ================= */
     const RARITY = {
@@ -82,12 +205,12 @@
     };
 
     const WEAPON_DB = {
-        'MISSILE': { name: '유도 미사일', icon: '🚀', type: 'HOMING', baseDamage: 30, baseCooldown: 45, color: '#f59e0b', range: 600, projectileCount: 1, explosive: false, blastRadius: 120 },
+        'MISSILE': { name: '유도 미사일', icon: '🚀', type: 'HOMING', baseDamage: 30, baseCooldown: 45, color: '#f59e0b', range: 600, projectileCount: 1, explosive: true, blastRadius: 15 },
         'BLASTER': { name: '광선 빔', icon: '🔫', type: 'BEAM', baseDamage: 120, baseCooldown: 200, color: '#10b981', range: 1000, thickness: 50, projectileCount: 1 },
         'ORBITAL': { name: '플라즈마 쉴드', icon: '🛡️', type: 'ZONE', baseDamage: 8, baseCooldown: 0, color: '#8b5cf6', range: 170, hitRate: 12 },
         'SNIPER': { name: '레일건', icon: '⚡', type: 'PIERCING', baseDamage: 60, baseCooldown: 100, color: '#3b82f6', range: 800, projectileCount: 1, rearShot: false },
         'MICRO_SWARM': { name: '마이크로 미사일', icon: '🎆', type: 'SWARM', baseDamage: 12, baseCooldown: 45, color: '#22d3ee', range: 500, projectileCount: 6, spread: 0.5 },
-        'INTERCEPTOR': { name: '요격 편대', icon: '🛸', type: 'UNIT', baseDamage: 18, baseCooldown: 30, color: '#e879f9', range: 300, unitCount: 1 },
+        'INTERCEPTOR': { name: '요격 편대', icon: '🛸', type: 'UNIT', baseDamage: 18, baseCooldown: 30, color: '#e879f9', range: 300, unitCount: 1, projectileCount: 1 },
         'TESLA': { name: '체인 라이트닝', icon: '🌩️', type: 'CHAIN', baseDamage: 35, baseCooldown: 80, color: '#facc15', range: 400, bounceCount: 3 },
         'GRAVITY': { name: '중력장 생성기', icon: '⚫', type: 'SLOW_ZONE', baseDamage: 3, baseCooldown: 0, color: '#111827', range: 250, slowFactor: 0.5 }
     };
@@ -149,35 +272,29 @@
     class Explosion {
         constructor(x,y,r,c, showArea=false){
             this.x=x;this.y=y;this.maxR=r;this.r=10;this.c=c;this.life=20;
-            this.showArea = showArea; // 범위 표시 여부
-            
-            // 충격파 추가
+            this.showArea = showArea; 
             shockwaves.push(new Shockwave(x, y, r * 1.0, c));
-            // 파편 추가
             const pCount = showArea ? 16 : 8;
             for(let i=0; i<pCount; i++){
                 particles.push(new Particle(x, y, c, (Math.random()-0.5)*12, (Math.random()-0.5)*12));
             }
+            audio.explosion(); // [사운드] 폭발음
         }
         update(){this.r+=(this.maxR-this.r)*0.25; this.life--;}
         draw(){
             ctx.save();
             ctx.globalAlpha=this.life/20; 
-            
-            // 1. 범위 공격 시 영역 표시 (반투명 원)
             if(this.showArea) {
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.maxR, 0, Math.PI*2);
                 ctx.fillStyle = this.c;
-                ctx.globalAlpha = (this.life/30) * 0.4; // 연하게
+                ctx.globalAlpha = (this.life/30) * 0.4; 
                 ctx.fill();
                 ctx.strokeStyle = this.c;
                 ctx.lineWidth = 2;
                 ctx.globalAlpha = this.life/20;
                 ctx.stroke();
             }
-
-            // 2. 중심 폭발
             ctx.globalAlpha=this.life/20;
             ctx.fillStyle=this.c; ctx.beginPath(); ctx.arc(this.x,this.y,this.r,0,Math.PI*2); ctx.fill(); 
             ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(this.x,this.y,this.r*0.7,0,Math.PI*2); ctx.fill();
@@ -199,7 +316,6 @@
                 this.angle+=d*turnRate;
             }
             this.x+=Math.cos(this.angle)*this.speed; this.y+=Math.sin(this.angle)*this.speed; this.life--;
-            // 미사일 꼬리 (금방 사라지도록 설정)
             if(Math.random()<0.5) particles.push(new Particle(this.x,this.y,'#555', null, null, 1.0, 0.1, 0.9));
         }
         findNewTarget(){
@@ -270,8 +386,18 @@
                 }
                 
                 if(this.cooldown<=0){
-                    projectiles.push(new Projectile(this.x, this.y, Math.cos(a)*15, Math.sin(a)*15, this.data.baseDamage, this.data.color, false, false));
-                    projectiles[projectiles.length-1].radius=5; this.cooldown=this.data.baseCooldown;
+                    const pCount = this.data.projectileCount || 1;
+                    for(let i=0; i<pCount; i++) {
+                        const spread = 0.2; 
+                        const offset = (pCount > 1) ? (i - (pCount - 1) / 2) * spread : 0;
+                        const fireAngle = a + offset;
+                        
+                        const p = new Projectile(this.x, this.y, Math.cos(fireAngle)*15, Math.sin(fireAngle)*15, this.data.baseDamage, this.data.color, false, false);
+                        p.radius = 5;
+                        projectiles.push(p);
+                    }
+                    audio.shoot(); // [사운드] 요격기 발사
+                    this.cooldown=this.data.baseCooldown;
                 }
             } 
 
@@ -303,10 +429,8 @@
         takeDamage(d){ 
             if(this.dead)return false; 
             this.hp-=d; 
-            // 타격 이펙트 (흰색 스파크 - 수정됨: 수명 단축 및 감속)
-            // 기존 10 (약 3초) -> 1.0 (약 0.2초) & decay 0.08
             for(let i=0; i<3; i++) particles.push(new Particle(this.x, this.y, '#fff', (Math.random()-0.5)*5, (Math.random()-0.5)*5, 1.0, 0.08, 0.9));
-            
+            audio.hit(); // [사운드] 적 피격
             if(this.hp<=0){this.hp=0; this.dead=true; this.die(); return true;} 
             return false; 
         }
@@ -317,28 +441,33 @@
         constructor() {
              const vW=canvas.width/ZOOM_SCALE; const vH=canvas.height/ZOOM_SCALE; const m=150; const cx=canvas.width/2; const cy=canvas.height/2; this.x=cx; this.y=cy-vH/2-m;
              this.maxHp=1000+(player.level*200); this.hp=this.maxHp; this.speed=0.3; this.radius=60; this.color='#ef4444'; this.shake=0; this.dead=false;
+             audio.warning(); // [사운드] 보스 등장 경고음
         }
         update(){ const a=Math.atan2(core.y-this.y, core.x-this.x); this.x+=Math.cos(a)*this.speed; this.y+=Math.sin(a)*this.speed; bossHpBar.style.width=`${Math.max(0,(this.hp/this.maxHp)*100)}%`; if(this.shake>0)this.shake--; }
-        takeDamage(d){ if(this.dead)return false; this.hp-=d; this.shake=5; if(this.hp<=0){this.hp=0; this.dead=true; this.die(); return true;} return false; }
+        takeDamage(d){ 
+            if(this.dead)return false; 
+            this.hp-=d; this.shake=5; 
+            audio.hit(); // [사운드] 보스 피격
+            if(this.hp<=0){this.hp=0; this.dead=true; this.die(); return true;} return false; 
+        }
         die(){ for(let i=0;i<50;i++)particles.push(new Particle(this.x+(Math.random()-0.5)*100, this.y+(Math.random()-0.5)*100, this.color)); explosions.push(new Explosion(this.x,this.y,300,'#fff')); addXp(500); score+=1000; boss=null; bossHud.classList.remove('active'); canvas.style.transform=`translate(${Math.random()*20-10}px, ${Math.random()*20-10}px)`; setTimeout(()=>canvas.style.transform='translate(0,0)', 200); }
         draw(){ const sx=(Math.random()-0.5)*this.shake; const sy=(Math.random()-0.5)*this.shake; ctx.save(); ctx.translate(this.x+sx, this.y+sy); ctx.beginPath(); ctx.arc(0,0,this.radius+10,0,Math.PI*2); ctx.fillStyle='rgba(239, 68, 68, 0.2)'; ctx.fill(); ctx.beginPath(); ctx.arc(0,0,this.radius,0,Math.PI*2); ctx.fillStyle=this.color; ctx.fill(); ctx.strokeStyle='#7f1d1d'; ctx.lineWidth=5; ctx.stroke(); ctx.fillStyle='yellow'; ctx.beginPath(); ctx.arc(-20,-10,8,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(20,-10,8,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.moveTo(-30,20); ctx.quadraticCurveTo(0,50,30,20); ctx.strokeStyle='black'; ctx.lineWidth=3; ctx.stroke(); ctx.restore(); }
     }
-    // [수정됨] 파편 클래스 Upgrade: decay(소멸속도)와 friction(마찰력) 추가
     class Particle { 
         constructor(x,y,c,vx,vy,life, decay, friction){
             this.x=x;this.y=y;this.c=c;
             this.vx=vx||(Math.random()-0.5)*4;
             this.vy=vy||(Math.random()-0.5)*4;
             this.life=life||1;
-            this.decay=decay||0.05; // 기본 소멸 속도
-            this.friction=friction||0.94; // 기본 마찰력 (속도 줄어듦)
+            this.decay=decay||0.05; 
+            this.friction=friction||0.94;
         } 
         update(){
             this.x+=this.vx;
             this.y+=this.vy;
-            this.vx*=this.friction; // 마찰 적용
+            this.vx*=this.friction;
             this.vy*=this.friction;
-            this.life-=this.decay; // 소멸 적용
+            this.life-=this.decay; 
         } 
         draw(){
             ctx.globalAlpha=Math.max(0,this.life);
@@ -349,7 +478,6 @@
             ctx.globalAlpha=1;
         } 
     }
-    // 중력장 전용 파티클 (중심으로 빨려들어감)
     class GravityParticle {
         constructor(x, y, tx, ty, color) {
             this.x = x; this.y = y; this.tx = tx; this.ty = ty; this.color = color;
@@ -361,7 +489,6 @@
         }
         update() {
             this.x += this.vx; this.y += this.vy;
-            // 중심으로 갈수록 가속
             this.vx *= 1.05; this.vy *= 1.05;
             this.life -= 0.05;
         }
@@ -369,7 +496,6 @@
             ctx.globalAlpha = Math.max(0, this.life);
             ctx.fillStyle = this.color;
             ctx.beginPath(); 
-            // 길쭉한 형태로 그림 (빨려들어가는 느낌)
             ctx.ellipse(this.x, this.y, 4, 1, Math.atan2(this.vy, this.vx), 0, Math.PI*2);
             ctx.fill();
             ctx.globalAlpha = 1;
@@ -403,11 +529,18 @@
             } else if (type === 'COOLDOWN') {
                 this.currentData.baseCooldown = Math.max(5, Math.floor(this.currentData.baseCooldown * (1 - (boost * 0.8))));
             } else if (type === 'RANGE') {
-                if(this.currentData.range) this.currentData.range = Math.floor(this.currentData.range * (1 + boost));
-                if(this.currentData.thickness) this.currentData.thickness = Math.floor(this.currentData.thickness * (1 + boost));
-                if(this.currentData.blastRadius) this.currentData.blastRadius = Math.floor(this.currentData.blastRadius * (1 + boost));
+                // [수정] 요격 편대는 범위 업그레이드 대신 미사일 개수를 늘림
+                if (this.id === 'INTERCEPTOR') {
+                    if(!this.currentData.projectileCount) this.currentData.projectileCount = 1;
+                    this.currentData.projectileCount += 1;
+                } else {
+                    if(this.currentData.range) this.currentData.range = Math.floor(this.currentData.range * (1 + boost));
+                    if(this.currentData.thickness) this.currentData.thickness = Math.floor(this.currentData.thickness * (1 + boost));
+                    if(this.currentData.blastRadius) this.currentData.blastRadius = Math.floor(this.currentData.blastRadius * (1 + boost));
+                }
             } else if (type === 'COUNT') {
-                if (this.currentData.projectileCount !== undefined) this.currentData.projectileCount++;
+                // [수정] 요격 편대는 COUNT가 '편대 수' 증가이므로, 중복으로 미사일 개수가 늘어나지 않도록 제외
+                if (this.currentData.projectileCount !== undefined && this.id !== 'INTERCEPTOR') this.currentData.projectileCount++;
                 if (this.currentData.unitCount !== undefined) { this.currentData.unitCount++; this.spawnUnits(); }
                 if (this.currentData.bounceCount !== undefined) this.currentData.bounceCount++;
             }
@@ -423,8 +556,8 @@
             }
             if(this.id === 'MISSILE') { 
                 this.currentData.explosive = true;
-                this.currentData.baseDamage *= 2;
-                this.currentData.blastRadius = 250;
+                this.currentData.baseDamage *= 2.5; 
+                this.currentData.blastRadius += 150; 
             }
             if(this.id === 'ORBITAL') { 
                 this.currentData.range += 100;
@@ -466,28 +599,24 @@
             ctx.beginPath(); ctx.moveTo(core.x,core.y); ctx.lineTo(wx,wy); ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.stroke();
             ctx.beginPath(); ctx.arc(wx,wy,8,0,Math.PI*2); ctx.fillStyle=this.currentData.color; ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.stroke();
             
-            // 일반 오라 존 (ORBITAL)
             if(this.currentData.type==='ZONE'){ 
                 ctx.beginPath();ctx.arc(core.x,core.y,this.currentData.range,0,Math.PI*2);
                 ctx.fillStyle='rgba(139,92,246,0.1)';ctx.fill();
                 ctx.strokeStyle='rgba(139,92,246,0.4)';ctx.lineWidth=2;ctx.stroke();
             }
-            // 중력장 (GRAVITY) - 시각 효과 강화
             if(this.currentData.type==='SLOW_ZONE'){ 
                 ctx.save();
                 ctx.translate(core.x, core.y);
-                // 회전하는 효과
                 ctx.rotate(frame * 0.02);
                 ctx.beginPath();
                 ctx.arc(0,0,this.currentData.range,0,Math.PI*2);
                 const grad = ctx.createRadialGradient(0,0,this.currentData.range*0.2, 0,0,this.currentData.range);
-                grad.addColorStop(0, 'rgba(0,0,0,0.8)'); // 중심 블랙홀
+                grad.addColorStop(0, 'rgba(0,0,0,0.8)'); 
                 grad.addColorStop(0.5, 'rgba(0,0,0,0.4)');
                 grad.addColorStop(1, 'rgba(100,100,100,0.1)');
                 ctx.fillStyle = grad;
                 ctx.fill();
                 
-                // 외곽선 소용돌이
                 ctx.beginPath();
                 for(let i=0; i<3; i++) {
                     ctx.arc(0, 0, this.currentData.range * (0.8 + i*0.1), i + frame*0.05, i + frame*0.05 + Math.PI);
@@ -516,33 +645,38 @@
                     beams.push(new BeamEffect(wx,wy,endX,endY,this.currentData.color,this.currentData.thickness));
                     if(boss && !boss.dead && pointToLineDistance(boss.x,boss.y,wx,wy,endX,endY)<(this.currentData.thickness/2)+boss.radius) boss.takeDamage(this.currentData.baseDamage);
                     enemies.forEach(e=>{if(!e.dead && pointToLineDistance(e.x,e.y,wx,wy,endX,endY)<(this.currentData.thickness/2)+e.radius) e.takeDamage(this.currentData.baseDamage);});
+                    audio.laser(); // [사운드] 빔 발사
                 } else if(this.currentData.type==='HOMING') {
                     projectiles.push(new HomingMissile(wx,wy,target,this.currentData.baseDamage,this.currentData.explosive,this.currentData.blastRadius));
+                    audio.shoot(); // [사운드] 미사일
                 } else if(this.currentData.type==='SWARM') {
                     const ba=Math.atan2(target.y-wy, target.x-wx); const fa=ba+(Math.random()-0.5)*spread*2;
                     projectiles.push(new Projectile(wx,wy,Math.cos(fa)*6,Math.sin(fa)*6,this.currentData.baseDamage,this.currentData.color,false,true));
+                    audio.shoot(); // [사운드] 스웜
                 } else if(this.currentData.type==='CHAIN') {
                     this.castLightning(target,this.currentData.baseDamage,this.currentData.bounceCount||3); break;
                 } else {
                     const ba=Math.atan2(target.y-wy, target.x-wx); const fa=ba+angleOffset; const ps=(this.currentData.type==='PIERCING')?25:8;
                     projectiles.push(new Projectile(wx,wy,Math.cos(fa)*ps,Math.sin(fa)*ps,this.currentData.baseDamage,this.currentData.color,this.currentData.type==='PIERCING',this.currentData.explosive));
                     if(this.currentData.rearShot) projectiles.push(new Projectile(wx,wy,Math.cos(fa+Math.PI)*ps,Math.sin(fa+Math.PI)*ps,this.currentData.baseDamage,this.currentData.color,this.currentData.type==='PIERCING',this.currentData.explosive));
+                    audio.shoot(); // [사운드] 기본 발사
                 }
             }
             this.cooldownTimer=this.currentData.baseCooldown;
         }
-        castLightning(t,d,b){ let c=t; let v=[c]; c.takeDamage(d); lightnings.push(new LightningEffect(core.x,core.y,c.x,c.y,this.currentData.color)); for(let i=0;i<b;i++){ let n=null; let min=300; enemies.forEach(e=>{if(e.dead||e===c||v.includes(e))return; const dist=Math.hypot(e.x-c.x,e.y-c.y); if(dist<min){min=dist;n=e;}}); if(n){lightnings.push(new LightningEffect(c.x,c.y,n.x,n.y,this.currentData.color)); n.takeDamage(d); v.push(n); c=n;}else break; } }
+        castLightning(t,d,b){ 
+            let c=t; let v=[c]; c.takeDamage(d); lightnings.push(new LightningEffect(core.x,core.y,c.x,c.y,this.currentData.color)); 
+            audio.laser(); // [사운드] 번개
+            for(let i=0;i<b;i++){ let n=null; let min=300; enemies.forEach(e=>{if(e.dead||e===c||v.includes(e))return; const dist=Math.hypot(e.x-c.x,e.y-c.y); if(dist<min){min=dist;n=e;}}); if(n){lightnings.push(new LightningEffect(c.x,c.y,n.x,n.y,this.currentData.color)); n.takeDamage(d); v.push(n); c=n;}else break; } 
+        }
         updateZone() {
             this.tickTimer++;
             if(this.currentData.type==='SLOW_ZONE'){
-                // 중력장 이펙트: 입자 빨아들이기
                 if(frame % 3 === 0) {
                     const angle = Math.random() * Math.PI * 2;
                     const dist = this.currentData.range;
-                    // 가장자리에서 생성
                     const px = core.x + Math.cos(angle) * dist;
                     const py = core.y + Math.sin(angle) * dist;
-                    // 코어 쪽으로 빨려들어가는 GravityParticle 생성
                     particles.push(new GravityParticle(px, py, core.x, core.y, this.currentData.color));
                 }
 
@@ -559,7 +693,11 @@
     function pointToLineDistance(px,py,x1,y1,x2,y2){ const A=px-x1;const B=py-y1;const C=x2-x1;const D=y2-y1; const dot=A*C+B*D;const len=C*C+D*D; let param=-1;if(len!==0)param=dot/len; let xx,yy;if(param<0){xx=x1;yy=y1;}else if(param>1){xx=x2;yy=y2;}else{xx=x1+param*C;yy=y1+param*D;} const dx=px-xx;const dy=py-yy; return Math.sqrt(dx*dx+dy*dy); }
     function addWeapon(id){ if(player.weapons.length>=6)return; player.weapons.push(new Weapon(id)); renderWeaponSlots(); }
     function addXp(amount){ player.xp+=amount; if(player.xp>=player.xpToNext)levelUp(); updateUi(); }
-    function levelUp(){ player.level++; player.xp=0; player.xpToNext=Math.floor(player.xpToNext*1.15); if(player.level%5===0 && !boss)spawnBoss(); currentState=GAME_STATE.LEVEL_UP; generateUpgradeCards(); upgradeMenu.classList.add('active'); }
+    function levelUp(){ 
+        player.level++; player.xp=0; player.xpToNext=Math.floor(player.xpToNext*1.15); 
+        audio.levelUp(); // [사운드] 레벨업
+        if(player.level%5===0 && !boss)spawnBoss(); currentState=GAME_STATE.LEVEL_UP; generateUpgradeCards(); upgradeMenu.classList.add('active'); 
+    }
     function spawnBoss(){ boss=new Boss(); bossHud.classList.add('active'); warningMsg.style.display='block'; setTimeout(()=>warningMsg.style.display='none',3000); }
     function rollRarity(){ const r=Math.random()*100; if(r<50)return RARITY.COMMON; if(r<80)return RARITY.UNCOMMON; if(r<95)return RARITY.RARE; if(r<99)return RARITY.EPIC; return RARITY.LEGENDARY; }
     function generateUpgradeCards(){
@@ -567,11 +705,13 @@
         player.weapons.forEach((w,i)=>{
             if((w.level+1)%5===0) options.push({type:'SPECIAL', weapon:w, index:i, desc:getSpecialDesc(w)});
             else {
-                // 일반 업그레이드 타입 랜덤
                 let type='DAMAGE'; const rnd=Math.random();
-                if(rnd<0.35) type='DAMAGE'; else if(rnd<0.70) type='COOLDOWN'; else if(rnd<0.95) type='RANGE'; else type='COUNT';
+                if(rnd<0.30) type='DAMAGE'; 
+                else if(rnd<0.60) type='COOLDOWN'; 
+                else if(rnd<0.80) type='RANGE'; 
+                else type='COUNT'; 
+
                 const rarity=rollRarity();
-                if(type==='COUNT' && rarity.name==='Common') type='RANGE';
                 options.push({type:'GENERAL', weapon:w, index:i, statType:type, rarity:rarity});
             }
         });
@@ -599,7 +739,9 @@
             if(opt.statType==='COOLDOWN'){txt='공격속도';} 
             if(opt.statType==='RANGE'){
                 txt='범위/크기';
-                if(w.id==='MISSILE') txt='사거리/폭발반경';
+                if(w.id==='MISSILE') txt='폭발 범위';
+                // [수정] 요격 편대 텍스트 수정
+                if(w.id==='INTERCEPTOR') { txt='미사일 개수'; val='+1'; }
             } 
             if(opt.statType==='COUNT'){txt='발사체 수'; val='+1';}
             desc=`${txt} <span style="color:${getColor(r.name)};font-weight:bold">+${val}</span>`; icon=w.currentData.icon; card.classList.add(r.color); tagName=r.name.toUpperCase();
@@ -621,7 +763,13 @@
         if(currentState===GAME_STATE.LEVEL_UP)return;
         if(currentState===GAME_STATE.GAME_OVER){ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='red';ctx.font='bold 40px sans-serif';ctx.textAlign='center';ctx.fillText("MISSION FAILED",canvas.width/2,canvas.height/2);ctx.fillStyle='white';ctx.font='20px sans-serif';ctx.fillText(`Final Score: ${score}`,canvas.width/2,canvas.height/2+50);return;}
         ctx.fillStyle='rgba(13, 17, 23, 0.2)';ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.save(); ctx.translate(canvas.width/2,canvas.height/2); ctx.scale(ZOOM_SCALE,ZOOM_SCALE); ctx.translate(-canvas.width/2,-canvas.height/2);
+        
+        // [수정] 줌 스케일 적용
+        ctx.save(); 
+        ctx.translate(canvas.width/2,canvas.height/2); 
+        ctx.scale(ZOOM_SCALE,ZOOM_SCALE); 
+        ctx.translate(-canvas.width/2,-canvas.height/2);
+        
         frame++;
         if(!boss){ const rate=Math.max(5, 50-(player.level*3)); if(frame%rate===0)enemies.push(new Enemy()); }
         ctx.beginPath();ctx.arc(core.x,core.y,core.radius,0,Math.PI*2);ctx.fillStyle=core.color;ctx.shadowBlur=20;ctx.shadowColor=core.color;ctx.fill();ctx.shadowBlur=0;
@@ -631,7 +779,10 @@
         for(let i=explosions.length-1;i>=0;i--){explosions[i].update();explosions[i].draw();if(explosions[i].life<=0)explosions.splice(i,1);}
         for(let i=shockwaves.length-1;i>=0;i--){shockwaves[i].update();shockwaves[i].draw();if(shockwaves[i].life<=0)shockwaves.splice(i,1);}
         for(let i=lightnings.length-1;i>=0;i--){lightnings[i].update();lightnings[i].draw();if(lightnings[i].life<=0)lightnings.splice(i,1);}
+        
+        // [수정] 화면 밖 제거 로직도 줌 스케일에 맞춰 조정
         const vW=canvas.width/ZOOM_SCALE;const vH=canvas.height/ZOOM_SCALE;const m=200;const cx=canvas.width/2;const cy=canvas.height/2;
+        
         for(let i=projectiles.length-1;i>=0;i--){
             const p=projectiles[i]; p.update(); p.draw();
             if(p.life<=0||p.x<cx-vW/2-m||p.x>cx+vW/2+m||p.y<cy-vH/2-m||p.y>cy+vH/2+m){projectiles.splice(i,1);continue;}
@@ -642,7 +793,7 @@
         for(let i=particles.length-1;i>=0;i--){particles[i].update();particles[i].draw();if(particles[i].life<=0)particles.splice(i,1);}
         ctx.restore();
     }
-    window.addEventListener('resize',()=>{canvas.width=window.innerWidth;canvas.height=window.innerHeight;core.x=canvas.width/2;core.y=canvas.height/2;});
+    window.addEventListener('resize', resize);
     renderWeaponSlots(); updateUi(); animate();
 </script>
 </body>
