@@ -80,7 +80,7 @@
     const bossHpBar = document.getElementById('boss-hp-bar');
     const warningMsg = document.getElementById('warning-msg');
     
-    // [수정] 동적 해상도 및 위치 보정: 리프레시 시 위치 어긋남 방지
+    // [수정] 동적 해상도 및 위치 보정
     let ZOOM_SCALE = 1.0;
     const core = { x: 0, y: 0, radius: 35, maxHp: 100, hp: 100, color: '#3b82f6' };
     
@@ -114,7 +114,7 @@
             } catch (e) { console.error("Web Audio API not supported"); }
         }
 
-        // [수정] 주파수 슬라이드(Pitch Slide) 기능 추가로 "피슝~" 효과 구현
+        // [수정] 주파수 슬라이드(Pitch Slide) 기능으로 더 SF적인 효과음 생성
         playTone(freq, type, duration, volMult = 1.0, slideTo = null) {
             if (!this.ctx || this.muted) return;
             const osc = this.ctx.createOscillator();
@@ -122,12 +122,10 @@
             osc.type = type;
             osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
             
-            // 주파수 변조 (Slide)
             if (slideTo) {
                 osc.frequency.exponentialRampToValueAtTime(slideTo, this.ctx.currentTime + duration);
             }
 
-            // 볼륨 감쇠 (Envelope)
             gain.gain.setValueAtTime(this.volume * volMult, this.ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
 
@@ -137,7 +135,6 @@
             osc.stop(this.ctx.currentTime + duration);
         }
 
-        // [수정] 폭발음 개선: 로우패스 필터 스윕으로 묵직한 "쿠광" 소리 구현
         playNoise(duration, volMult = 1.0) {
             if (!this.ctx || this.muted) return;
             const bufferSize = this.ctx.sampleRate * duration;
@@ -149,11 +146,11 @@
             noise.buffer = buffer;
             const gain = this.ctx.createGain();
             
-            // 필터 추가 (폭발음: 높은 주파수 차단하여 웅장하게)
+            // 폭발음 필터 개선 (묵직하게)
             const filter = this.ctx.createBiquadFilter();
             filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(1000, this.ctx.currentTime);
-            filter.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + duration); // 주파수 하강
+            filter.frequency.setValueAtTime(1200, this.ctx.currentTime);
+            filter.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + duration);
 
             gain.gain.setValueAtTime(this.volume * volMult, this.ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
@@ -164,33 +161,19 @@
             noise.start();
         }
 
-        // [수정] 각 무기에 어울리는 Sci-Fi 사운드 적용
-        shoot() { 
-            // "피슝" (높은음 -> 낮은음)
-            this.playTone(800, 'sine', 0.15, 0.2, 100); 
-        }
-        laser() { 
-            // "지잉" (톱니파, 날카로운 소리)
-            this.playTone(400, 'sawtooth', 0.1, 0.15); 
-        }
-        hit() { 
-            // "틱" (짧은 타격음)
-            this.playTone(150, 'square', 0.05, 0.3, 50); 
-        }
-        explosion() { 
-            // "쿠광" (노이즈 + 필터 스윕)
-            this.playNoise(0.5, 0.7); 
-        }
+        shoot() { this.playTone(800, 'sine', 0.15, 0.2, 100); } // 피슝
+        laser() { this.playTone(400, 'sawtooth', 0.1, 0.15); } // 지잉
+        whoosh() { this.playTone(600, 'triangle', 0.3, 0.3, 200); } // 부메랑 소리
+        hit() { this.playTone(200, 'square', 0.08, 0.2, 50); } // 퍽
+        explosion() { this.playNoise(0.5, 0.7); } // 쾅
         levelUp() { 
             if(!this.ctx || this.muted) return;
-            // 긍정적인 화음 (아르페지오)
-            [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => { // C Major
+            [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => { 
                 setTimeout(() => this.playTone(f, 'sine', 0.4, 0.4), i * 80);
             });
         }
         warning() {
             if(!this.ctx || this.muted) return;
-            // 사이렌 소리 (Wailing)
             this.playTone(200, 'sawtooth', 1.0, 0.5, 600);
             setTimeout(() => this.playTone(600, 'sawtooth', 1.0, 0.5, 200), 500);
         }
@@ -200,9 +183,8 @@
     const soundBtn = document.getElementById('sound-btn');
     const volumeSlider = document.getElementById('volume-slider');
 
-    // 사운드 UI 이벤트
     soundBtn.addEventListener('click', () => {
-        audio.init(); // 브라우저 정책상 사용자 제스처 필요
+        audio.init(); 
         audio.muted = !audio.muted;
         soundBtn.innerText = audio.muted ? '🔇' : '🔊';
     });
@@ -216,7 +198,6 @@
         }
     });
     
-    // 게임 시작 시 사운드 초기화 시도
     window.addEventListener('mousedown', () => audio.init(), { once: true });
 
 
@@ -232,7 +213,9 @@
     const WEAPON_DB = {
         'MISSILE': { name: '유도 미사일', icon: '🚀', type: 'HOMING', baseDamage: 30, baseCooldown: 45, color: '#f59e0b', range: 600, projectileCount: 1, explosive: true, blastRadius: 15 },
         'BLASTER': { name: '광선 빔', icon: '🔫', type: 'BEAM', baseDamage: 120, baseCooldown: 200, color: '#10b981', range: 1000, thickness: 50, projectileCount: 1 },
-        'ORBITAL': { name: '플라즈마 쉴드', icon: '🛡️', type: 'ZONE', baseDamage: 8, baseCooldown: 0, color: '#8b5cf6', range: 170, hitRate: 12 },
+        // [수정] ORBITAL(실드) 삭제 -> BOOMERANG(부메랑) 추가
+        // 관통형, 돌아오는 특성
+        'BOOMERANG': { name: '플라즈마 부메랑', icon: '🪃', type: 'BOOMERANG', baseDamage: 45, baseCooldown: 70, color: '#8b5cf6', range: 400, projectileCount: 1, speed: 7, isPiercing: true },
         'SNIPER': { name: '레일건', icon: '⚡', type: 'PIERCING', baseDamage: 60, baseCooldown: 100, color: '#3b82f6', range: 800, projectileCount: 1, rearShot: false },
         'MICRO_SWARM': { name: '마이크로 미사일', icon: '🎆', type: 'SWARM', baseDamage: 12, baseCooldown: 45, color: '#22d3ee', range: 500, projectileCount: 6, spread: 0.5 },
         'INTERCEPTOR': { name: '요격 편대', icon: '🛸', type: 'UNIT', baseDamage: 18, baseCooldown: 30, color: '#e879f9', range: 300, unitCount: 1, projectileCount: 1 },
@@ -275,9 +258,78 @@
         constructor(x, y, vx, vy, damage, color, isPiercing, isSmall=false) {
             this.x=x; this.y=y; this.vx=vx; this.vy=vy; this.damage=damage; this.color=color; this.isPiercing=isPiercing; 
             this.radius=isSmall?2:(isPiercing?4:3); this.life=isSmall?60:200; this.hitList=[];
+            
+            // [수정] 부메랑 로직용 속성
+            this.behavior = null; 
+            this.returnPhase = false;
+            this.speed = 0; // 부메랑용 스피드 저장
+            this.rotation = 0; // 회전각
         }
-        update(){this.x+=this.vx; this.y+=this.vy; this.life--;}
-        draw(){ctx.beginPath(); ctx.arc(this.x,this.y,this.radius,0,Math.PI*2); ctx.fillStyle=this.color; ctx.fill();}
+        update(){
+            if(this.behavior === 'BOOMERANG') {
+                // 부메랑: 나갔다가 플레이어에게 돌아옴
+                if(!this.returnPhase) {
+                    // 나가는 단계: 감속
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    this.speed *= 0.94; // 마찰로 속도 줄임
+                    // 속도 재계산
+                    this.vx *= 0.94;
+                    this.vy *= 0.94;
+                    
+                    if(this.speed < 0.5) {
+                        this.returnPhase = true;
+                    }
+                } else {
+                    // 돌아오는 단계: 플레이어 쪽으로 가속
+                    const angle = Math.atan2(core.y - this.y, core.x - this.x);
+                    this.speed += 0.5; // 가속
+                    if(this.speed > 15) this.speed = 15; // 최대 속도 제한
+                    
+                    this.vx = Math.cos(angle) * this.speed;
+                    this.vy = Math.sin(angle) * this.speed;
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    
+                    // 플레이어와 닿으면 제거
+                    if(Math.hypot(core.x - this.x, core.y - this.y) < 20) {
+                        this.life = 0;
+                    }
+                }
+                this.rotation += 0.4; // 뱅글뱅글 회전
+            } else {
+                // 일반 투사체
+                this.x+=this.vx; this.y+=this.vy; this.life--;
+            }
+        }
+        draw(){
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            if(this.behavior === 'BOOMERANG') {
+                // 부메랑 그리기 (회전하는 낫 모양)
+                ctx.rotate(this.rotation);
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(0, 0, 4, 0, Math.PI*2);
+                ctx.fill();
+                // 날개
+                ctx.beginPath();
+                ctx.moveTo(0, -8);
+                ctx.quadraticCurveTo(8, 0, 0, 8);
+                ctx.quadraticCurveTo(-3, 0, 0, -8);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.rotate(Math.PI/2);
+                ctx.moveTo(0, -8);
+                ctx.quadraticCurveTo(8, 0, 0, 8);
+                ctx.quadraticCurveTo(-3, 0, 0, -8);
+                ctx.fill();
+            } else {
+                // 일반 탄환
+                ctx.beginPath(); ctx.arc(0,0,this.radius,0,Math.PI*2); ctx.fillStyle=this.color; ctx.fill();
+            }
+            ctx.restore();
+        }
     }
     class Shockwave {
         constructor(x, y, maxRadius, color) {
@@ -302,7 +354,7 @@
             for(let i=0; i<pCount; i++){
                 particles.push(new Particle(x, y, c, (Math.random()-0.5)*12, (Math.random()-0.5)*12));
             }
-            audio.explosion(); // [사운드] 폭발음
+            audio.explosion(); 
         }
         update(){this.r+=(this.maxR-this.r)*0.25; this.life--;}
         draw(){
@@ -420,7 +472,7 @@
                         p.radius = 5;
                         projectiles.push(p);
                     }
-                    audio.shoot(); // [사운드] 요격기 발사
+                    audio.shoot(); 
                     this.cooldown=this.data.baseCooldown;
                 }
             } 
@@ -454,7 +506,7 @@
             if(this.dead)return false; 
             this.hp-=d; 
             for(let i=0; i<3; i++) particles.push(new Particle(this.x, this.y, '#fff', (Math.random()-0.5)*5, (Math.random()-0.5)*5, 1.0, 0.08, 0.9));
-            audio.hit(); // [사운드] 적 피격
+            audio.hit(); 
             if(this.hp<=0){this.hp=0; this.dead=true; this.die(); return true;} 
             return false; 
         }
@@ -465,13 +517,13 @@
         constructor() {
              const vW=canvas.width/ZOOM_SCALE; const vH=canvas.height/ZOOM_SCALE; const m=150; const cx=canvas.width/2; const cy=canvas.height/2; this.x=cx; this.y=cy-vH/2-m;
              this.maxHp=1000+(player.level*200); this.hp=this.maxHp; this.speed=0.3; this.radius=60; this.color='#ef4444'; this.shake=0; this.dead=false;
-             audio.warning(); // [사운드] 보스 등장 경고음
+             audio.warning(); 
         }
         update(){ const a=Math.atan2(core.y-this.y, core.x-this.x); this.x+=Math.cos(a)*this.speed; this.y+=Math.sin(a)*this.speed; bossHpBar.style.width=`${Math.max(0,(this.hp/this.maxHp)*100)}%`; if(this.shake>0)this.shake--; }
         takeDamage(d){ 
             if(this.dead)return false; 
             this.hp-=d; this.shake=5; 
-            audio.hit(); // [사운드] 보스 피격
+            audio.hit(); 
             if(this.hp<=0){this.hp=0; this.dead=true; this.die(); return true;} return false; 
         }
         die(){ for(let i=0;i<50;i++)particles.push(new Particle(this.x+(Math.random()-0.5)*100, this.y+(Math.random()-0.5)*100, this.color)); explosions.push(new Explosion(this.x,this.y,300,'#fff')); addXp(500); score+=1000; boss=null; bossHud.classList.remove('active'); canvas.style.transform=`translate(${Math.random()*20-10}px, ${Math.random()*20-10}px)`; setTimeout(()=>canvas.style.transform='translate(0,0)', 200); }
@@ -553,7 +605,6 @@
             } else if (type === 'COOLDOWN') {
                 this.currentData.baseCooldown = Math.max(5, Math.floor(this.currentData.baseCooldown * (1 - (boost * 0.8))));
             } else if (type === 'RANGE') {
-                // [수정] 요격 편대는 범위 업그레이드 대신 미사일 개수를 늘림
                 if (this.id === 'INTERCEPTOR') {
                     if(!this.currentData.projectileCount) this.currentData.projectileCount = 1;
                     this.currentData.projectileCount += 1;
@@ -563,7 +614,6 @@
                     if(this.currentData.blastRadius) this.currentData.blastRadius = Math.floor(this.currentData.blastRadius * (1 + boost));
                 }
             } else if (type === 'COUNT') {
-                // [수정] 요격 편대는 COUNT가 '편대 수' 증가이므로, 중복으로 미사일 개수가 늘어나지 않도록 제외
                 if (this.currentData.projectileCount !== undefined && this.id !== 'INTERCEPTOR') this.currentData.projectileCount++;
                 if (this.currentData.unitCount !== undefined) { this.currentData.unitCount++; this.spawnUnits(); }
                 if (this.currentData.bounceCount !== undefined) this.currentData.bounceCount++;
@@ -583,10 +633,11 @@
                 this.currentData.baseDamage *= 2.5; 
                 this.currentData.blastRadius += 150; 
             }
-            if(this.id === 'ORBITAL') { 
-                this.currentData.range += 100;
-                this.currentData.baseDamage *= 1.5;
-                this.currentData.hitRate = 5; 
+            // [수정] 부메랑 특수 진화: 인피니티 커터 (개수+2, 데미지 증가)
+            if(this.id === 'BOOMERANG') { 
+                this.currentData.projectileCount += 2;
+                this.currentData.baseDamage *= 2.0;
+                this.currentData.range += 150;
             }
             if(this.id === 'SNIPER') { 
                 this.currentData.rearShot = true;
@@ -656,7 +707,7 @@
             const range=this.currentData.range; let target=null; let bossInRange=false;
             if(boss && !boss.dead && Math.hypot(boss.x-core.x, boss.y-core.y)<=range) { target=boss; bossInRange=true; }
             if(!bossInRange) { let min=range; enemies.forEach(e=>{if(e.dead)return; const d=Math.hypot(e.x-core.x, e.y-core.y); if(d<=min){min=d; target=e;}}); }
-            if(!target && this.currentData.type!=='ZONE' && this.currentData.type!=='SLOW_ZONE') return;
+            if(!target && this.currentData.type!=='ZONE' && this.currentData.type!=='SLOW_ZONE' && this.currentData.type!=='BOOMERANG') return;
 
             const wx=core.x+Math.cos(this.angle)*this.orbitRadius; const wy=core.y+Math.sin(this.angle)*this.orbitRadius;
             const count=this.currentData.projectileCount||1; const spread=this.currentData.spread||0.2;
@@ -669,28 +720,39 @@
                     beams.push(new BeamEffect(wx,wy,endX,endY,this.currentData.color,this.currentData.thickness));
                     if(boss && !boss.dead && pointToLineDistance(boss.x,boss.y,wx,wy,endX,endY)<(this.currentData.thickness/2)+boss.radius) boss.takeDamage(this.currentData.baseDamage);
                     enemies.forEach(e=>{if(!e.dead && pointToLineDistance(e.x,e.y,wx,wy,endX,endY)<(this.currentData.thickness/2)+e.radius) e.takeDamage(this.currentData.baseDamage);});
-                    audio.laser(); // [사운드] 빔 발사
+                    audio.laser(); 
                 } else if(this.currentData.type==='HOMING') {
                     projectiles.push(new HomingMissile(wx,wy,target,this.currentData.baseDamage,this.currentData.explosive,this.currentData.blastRadius));
-                    audio.shoot(); // [사운드] 미사일
+                    audio.shoot(); 
                 } else if(this.currentData.type==='SWARM') {
                     const ba=Math.atan2(target.y-wy, target.x-wx); const fa=ba+(Math.random()-0.5)*spread*2;
                     projectiles.push(new Projectile(wx,wy,Math.cos(fa)*6,Math.sin(fa)*6,this.currentData.baseDamage,this.currentData.color,false,true));
-                    audio.shoot(); // [사운드] 스웜
+                    audio.shoot(); 
                 } else if(this.currentData.type==='CHAIN') {
                     this.castLightning(target,this.currentData.baseDamage,this.currentData.bounceCount||3); break;
+                } else if(this.currentData.type==='BOOMERANG') {
+                    // [수정] 부메랑 발사 로직
+                    // 타겟 방향으로 발사, 없으면 그냥 앞(마우스쪽? 없으니 랜덤)으로
+                    let aimAngle = this.angle;
+                    if(target) aimAngle = Math.atan2(target.y-wy, target.x-wx);
+                    const fa = aimAngle + angleOffset;
+                    const p = new Projectile(wx, wy, Math.cos(fa)*this.currentData.speed, Math.sin(fa)*this.currentData.speed, this.currentData.baseDamage, this.currentData.color, true, false);
+                    p.behavior = 'BOOMERANG'; // 동작 설정
+                    p.speed = this.currentData.speed; // 초기 속도
+                    projectiles.push(p);
+                    audio.whoosh(); // 부메랑 소리
                 } else {
                     const ba=Math.atan2(target.y-wy, target.x-wx); const fa=ba+angleOffset; const ps=(this.currentData.type==='PIERCING')?25:8;
                     projectiles.push(new Projectile(wx,wy,Math.cos(fa)*ps,Math.sin(fa)*ps,this.currentData.baseDamage,this.currentData.color,this.currentData.type==='PIERCING',this.currentData.explosive));
                     if(this.currentData.rearShot) projectiles.push(new Projectile(wx,wy,Math.cos(fa+Math.PI)*ps,Math.sin(fa+Math.PI)*ps,this.currentData.baseDamage,this.currentData.color,this.currentData.type==='PIERCING',this.currentData.explosive));
-                    audio.shoot(); // [사운드] 기본 발사
+                    audio.shoot(); 
                 }
             }
             this.cooldownTimer=this.currentData.baseCooldown;
         }
         castLightning(t,d,b){ 
             let c=t; let v=[c]; c.takeDamage(d); lightnings.push(new LightningEffect(core.x,core.y,c.x,c.y,this.currentData.color)); 
-            audio.laser(); // [사운드] 번개
+            audio.laser(); 
             for(let i=0;i<b;i++){ let n=null; let min=300; enemies.forEach(e=>{if(e.dead||e===c||v.includes(e))return; const dist=Math.hypot(e.x-c.x,e.y-c.y); if(dist<min){min=dist;n=e;}}); if(n){lightnings.push(new LightningEffect(c.x,c.y,n.x,n.y,this.currentData.color)); n.takeDamage(d); v.push(n); c=n;}else break; } 
         }
         updateZone() {
@@ -719,7 +781,7 @@
     function addXp(amount){ player.xp+=amount; if(player.xp>=player.xpToNext)levelUp(); updateUi(); }
     function levelUp(){ 
         player.level++; player.xp=0; player.xpToNext=Math.floor(player.xpToNext*1.15); 
-        audio.levelUp(); // [사운드] 레벨업
+        audio.levelUp(); 
         if(player.level%5===0 && !boss)spawnBoss(); currentState=GAME_STATE.LEVEL_UP; generateUpgradeCards(); upgradeMenu.classList.add('active'); 
     }
     function spawnBoss(){ boss=new Boss(); bossHud.classList.add('active'); warningMsg.style.display='block'; setTimeout(()=>warningMsg.style.display='none',3000); }
@@ -745,7 +807,7 @@
     function getSpecialDesc(w){
         if(w.id==='BLASTER')return"트라이던트 빔 (3갈래 발사)";
         if(w.id==='MISSILE')return"뉴클리어 (초광역 폭발)";
-        if(w.id==='ORBITAL')return"보이드 존 (범위/데미지 극대화)";
+        if(w.id==='BOOMERANG')return"인피니티 커터 (듀얼 부메랑)";
         if(w.id==='SNIPER')return"리코쎼 탄환 (적중 시 튕김)";
         if(w.id==='MICRO_SWARM')return"옴니 버스트 (360도 전방향 난사)";
         if(w.id==='INTERCEPTOR')return"우주 모함 (편대 4기로 증가)";
@@ -764,7 +826,6 @@
             if(opt.statType==='RANGE'){
                 txt='범위/크기';
                 if(w.id==='MISSILE') txt='폭발 범위';
-                // [수정] 요격 편대 텍스트 수정
                 if(w.id==='INTERCEPTOR') { txt='미사일 개수'; val='+1'; }
             } 
             if(opt.statType==='COUNT'){txt='발사체 수'; val='+1';}
@@ -788,7 +849,6 @@
         if(currentState===GAME_STATE.GAME_OVER){ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='red';ctx.font='bold 40px sans-serif';ctx.textAlign='center';ctx.fillText("MISSION FAILED",canvas.width/2,canvas.height/2);ctx.fillStyle='white';ctx.font='20px sans-serif';ctx.fillText(`Final Score: ${score}`,canvas.width/2,canvas.height/2+50);return;}
         ctx.fillStyle='rgba(13, 17, 23, 0.2)';ctx.fillRect(0,0,canvas.width,canvas.height);
         
-        // [수정] 줌 스케일 적용
         ctx.save(); 
         ctx.translate(canvas.width/2,canvas.height/2); 
         ctx.scale(ZOOM_SCALE,ZOOM_SCALE); 
@@ -804,12 +864,14 @@
         for(let i=shockwaves.length-1;i>=0;i--){shockwaves[i].update();shockwaves[i].draw();if(shockwaves[i].life<=0)shockwaves.splice(i,1);}
         for(let i=lightnings.length-1;i>=0;i--){lightnings[i].update();lightnings[i].draw();if(lightnings[i].life<=0)lightnings.splice(i,1);}
         
-        // [수정] 화면 밖 제거 로직도 줌 스케일에 맞춰 조정
         const vW=canvas.width/ZOOM_SCALE;const vH=canvas.height/ZOOM_SCALE;const m=200;const cx=canvas.width/2;const cy=canvas.height/2;
         
         for(let i=projectiles.length-1;i>=0;i--){
             const p=projectiles[i]; p.update(); p.draw();
-            if(p.life<=0||p.x<cx-vW/2-m||p.x>cx+vW/2+m||p.y<cy-vH/2-m||p.y>cy+vH/2+m){projectiles.splice(i,1);continue;}
+            // [수정] 부메랑은 돌아올 때까지 생존
+            if(p.life<=0 || (p.behavior !== 'BOOMERANG' && (p.x<cx-vW/2-m||p.x>cx+vW/2+m||p.y<cy-vH/2-m||p.y>cy+vH/2+m))){
+                projectiles.splice(i,1); continue;
+            }
             if(boss&&!boss.dead&&Math.hypot(p.x-boss.x,p.y-boss.y)<boss.radius+p.radius){if(p.explosive){p.explode();projectiles.splice(i,1);continue;}boss.takeDamage(p.damage);particles.push(new Particle(p.x,p.y,p.color,null,null,1.0,0.1));if(!p.isPiercing){projectiles.splice(i,1);continue;}}
             for(let j=enemies.length-1;j>=0;j--){const e=enemies[j];if(e.dead)continue;if(Math.hypot(p.x-e.x,p.y-e.y)<e.radius+p.radius){if(p.explosive){p.explode();projectiles.splice(i,1);break;}else{const died=e.takeDamage(p.damage);if(!died)particles.push(new Particle(e.x,e.y,'#fff',null,null,1.0,0.1));if(!p.isPiercing){projectiles.splice(i,1);break;}else if(!p.hitList.includes(e))p.hitList.push(e);}}}
         }
@@ -818,7 +880,6 @@
         ctx.restore();
     }
     
-    // [중요] 게임 시작 전 resize를 호출하여 초기 위치와 스케일을 정확히 설정
     resize();
     renderWeaponSlots(); updateUi(); animate();
 </script>
