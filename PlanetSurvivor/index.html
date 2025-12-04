@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Planet Survivor: Leveling Balance</title>
+    <title>Planet Survivor: Targeting Fix</title>
     <style>
         body {
             margin: 0; overflow: hidden; background-color: #0d1117; color: white;
@@ -215,7 +215,6 @@
     let projectiles=[], enemies=[], particles=[], beams=[], explosions=[], drones=[], lightnings=[];
     let boss = null; 
 
-    // [밸런스 수정] xpToNext: 50 -> 150 (초반 레벨업 속도 조절)
     const player = { level: 1, xp: 0, xpToNext: 150, weapons: [] };
     const core = { x: canvas.width/2, y: canvas.height/2, radius: 35, maxHp: 100, hp: 100, color: '#3b82f6' };
 
@@ -299,10 +298,19 @@
             this.x+=Math.cos(this.angle)*this.speed; this.y+=Math.sin(this.angle)*this.speed; this.life--;
             if(Math.random()<0.5) particles.push(new Particle(this.x,this.y,'#555'));
         }
+        
+        // [수정] 유도 미사일 전용 타겟팅 (범위 제한 없음)
         findNewTarget(){
             let n=null; let min=Infinity;
+            // 보스 우선 (거리 무관)
             if(boss && !boss.dead) return boss;
-            enemies.forEach(e=>{ if(!e.dead){ const d=Math.hypot(e.x-this.x,e.y-this.y); if(d<min){min=d; n=e;} } });
+            // 가장 가까운 적
+            enemies.forEach(e=>{ 
+                if(!e.dead){ 
+                    const d=Math.hypot(e.x-this.x,e.y-this.y); 
+                    if(d<min){min=d; n=e;} 
+                } 
+            });
             return n;
         }
         draw(){ ctx.save(); ctx.translate(this.x,this.y); ctx.rotate(this.angle); ctx.fillStyle=this.explosive?'#ef4444':'#f59e0b'; ctx.beginPath(); ctx.moveTo(6,0); ctx.lineTo(-4,4); ctx.lineTo(-4,-4); ctx.fill(); ctx.restore(); }
@@ -360,10 +368,19 @@
             }
             if(this.cooldown > 0) this.cooldown--;
         }
+        
+        // [수정] 인터셉터 타겟팅 (인터셉터 기준 가까운 적)
         findTarget() {
             let n=null; let min=Infinity;
+            // 1. 보스 우선 (거리 무관)
             if(boss && !boss.dead) return boss;
-            enemies.forEach(e=>{ if(!e.dead){ const d=Math.hypot(e.x-this.x,e.y-this.y); if(d<min){min=d; n=e;} } });
+            // 2. 가장 가까운 적
+            enemies.forEach(e=>{ 
+                if(!e.dead){ 
+                    const d=Math.hypot(e.x-this.x,e.y-this.y); 
+                    if(d<min){min=d; n=e;} 
+                } 
+            });
             return n;
         }
         draw() {
@@ -411,7 +428,6 @@
         }
         die(){
             for(let i=0;i<5;i++)particles.push(new Particle(this.x,this.y,this.color)); 
-            // [밸런스 수정] 적 처치 시 경험치 스케일링 (10 + 레벨)
             addXp(10 + player.level); 
             score+=10;
         }
@@ -567,15 +583,28 @@
         }
 
         fire() {
-            let target = null; let minDist = this.currentData.range;
-            if (boss && !boss.dead) { 
-                const dist = Math.hypot(boss.x - core.x, boss.y - core.y);
-                if (dist < minDist) { minDist = dist; target = boss; }
-            } else {
+            let target = null;
+            const range = this.currentData.range;
+
+            // [수정] 타겟팅 로직: 1순위 보스(사거리 내), 2순위 가장 가까운 적(사거리 내)
+            let bossInRange = false;
+            if (boss && !boss.dead) {
+                const distToBoss = Math.hypot(boss.x - core.x, boss.y - core.y);
+                if (distToBoss <= range) {
+                    target = boss;
+                    bossInRange = true;
+                }
+            }
+
+            if (!bossInRange) {
+                let minDist = range;
                 enemies.forEach(e => {
-                    if(e.dead) return;
+                    if (e.dead) return;
                     const dist = Math.hypot(e.x - core.x, e.y - core.y);
-                    if (dist < minDist) { minDist = dist; target = e; }
+                    if (dist <= minDist) {
+                        minDist = dist;
+                        target = e;
+                    }
                 });
             }
 
@@ -611,6 +640,7 @@
                     });
                 } 
                 else if (this.currentData.type === 'HOMING') {
+                    // 유도 미사일은 타겟만 지정해주면 알아서 쫓아감 (사거리 내 타겟)
                     projectiles.push(new HomingMissile(wx, wy, target, this.currentData.baseDamage, this.currentData.explosive));
                 }
                 else if (this.currentData.type === 'SWARM') { 
@@ -723,8 +753,7 @@
     }
     
     function levelUp(){
-        // [밸런스 수정] 레벨업 요구량 곡선 완화 (1.3 -> 1.15)
-        player.level++; player.xp=0; player.xpToNext=Math.floor(player.xpToNext * 1.15);
+        player.level++; player.xp=0; player.xpToNext=Math.floor(player.xpToNext*1.15);
         if (player.level % 5 === 0 && !boss) spawnBoss();
         currentState=GAME_STATE.LEVEL_UP; generateUpgradeCards(); upgradeMenu.classList.add('active');
     }
@@ -873,6 +902,7 @@
 
         frame++;
         
+        // [수정] 스폰 속도 2배 증가 (최소 5프레임 -> 2프레임)
         if (!boss) {
             const spawnRate = Math.max(5, 50 - (player.level * 3));
             if (frame % spawnRate === 0) enemies.push(new Enemy());
