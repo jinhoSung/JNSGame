@@ -81,8 +81,9 @@
         LEGENDARY: { name: 'Legendary', color: 'legendary', mult: 5.0, chance: 1 }
     };
 
+    // [수정] MISSILE에 blastRadius (폭발 반경) 속성 추가 (기본 150)
     const WEAPON_DB = {
-        'MISSILE': { name: '유도 미사일', icon: '🚀', type: 'HOMING', baseDamage: 30, baseCooldown: 45, color: '#f59e0b', range: 600, projectileCount: 1, explosive: false },
+        'MISSILE': { name: '유도 미사일', icon: '🚀', type: 'HOMING', baseDamage: 30, baseCooldown: 45, color: '#f59e0b', range: 600, projectileCount: 1, explosive: false, blastRadius: 150 },
         'BLASTER': { name: '광선 빔', icon: '🔫', type: 'BEAM', baseDamage: 120, baseCooldown: 200, color: '#10b981', range: 1000, thickness: 50, projectileCount: 1 },
         'ORBITAL': { name: '플라즈마 쉴드', icon: '🛡️', type: 'ZONE', baseDamage: 8, baseCooldown: 0, color: '#8b5cf6', range: 170, hitRate: 12 },
         'SNIPER': { name: '레일건', icon: '⚡', type: 'PIERCING', baseDamage: 60, baseCooldown: 100, color: '#3b82f6', range: 800, projectileCount: 1, rearShot: false },
@@ -138,8 +139,9 @@
         draw(){ctx.globalAlpha=this.life/20; ctx.fillStyle=this.c; ctx.beginPath(); ctx.arc(this.x,this.y,this.r,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1;}
     }
     class HomingMissile {
-        constructor(x, y, target, damage, explosive) {
+        constructor(x, y, target, damage, explosive, blastRadius) {
             this.x=x; this.y=y; this.target=target; this.damage=damage; this.explosive=explosive; this.speed=4; this.angle=Math.random()*Math.PI*2; this.life=300; this.radius=4;
+            this.blastRadius = blastRadius || 100; // 폭발 반경 (없으면 기본값)
         }
         update() {
             if(!this.target || this.target.dead) this.target=this.findNewTarget();
@@ -159,11 +161,10 @@
         }
         draw(){ ctx.save(); ctx.translate(this.x,this.y); ctx.rotate(this.angle); ctx.fillStyle=this.explosive?'#ef4444':'#f59e0b'; ctx.beginPath(); ctx.moveTo(6,0); ctx.lineTo(-4,4); ctx.lineTo(-4,-4); ctx.fill(); ctx.restore(); }
         explode(){
-            // 진화 시 폭발 반경 100 -> 180
-            const radius = 180;
-            explosions.push(new Explosion(this.x,this.y,radius,'#ef4444'));
-            if(boss && !boss.dead && Math.hypot(boss.x-this.x,boss.y-this.y)<radius+boss.radius) boss.takeDamage(this.damage);
-            enemies.forEach(e=>{ if(!e.dead && Math.hypot(e.x-this.x,e.y-this.y)<radius) e.takeDamage(this.damage); });
+            // [수정] 업그레이드된 blastRadius 사용
+            explosions.push(new Explosion(this.x,this.y,this.blastRadius,'#ef4444'));
+            if(boss && !boss.dead && Math.hypot(boss.x-this.x,boss.y-this.y)<this.blastRadius+boss.radius) boss.takeDamage(this.damage);
+            enemies.forEach(e=>{ if(!e.dead && Math.hypot(e.x-this.x,e.y-this.y)<this.blastRadius) e.takeDamage(this.damage); });
         }
     }
     class InterceptorUnit {
@@ -226,7 +227,7 @@
         
         applyGeneralUpgrade(rarityMult, type) {
             this.level++;
-            const boost = 0.10 * rarityMult; // 기본 10% * 희귀도
+            const boost = 0.10 * rarityMult; 
             
             if (type === 'DAMAGE') {
                 this.currentData.baseDamage = Math.floor(this.currentData.baseDamage * (1 + boost));
@@ -235,6 +236,8 @@
             } else if (type === 'RANGE') {
                 if(this.currentData.range) this.currentData.range = Math.floor(this.currentData.range * (1 + boost));
                 if(this.currentData.thickness) this.currentData.thickness = Math.floor(this.currentData.thickness * (1 + boost));
+                // [수정] 범위 업그레이드 시 폭발 반경도 증가
+                if(this.currentData.blastRadius) this.currentData.blastRadius = Math.floor(this.currentData.blastRadius * (1 + boost));
             } else if (type === 'COUNT') {
                 if (this.currentData.projectileCount !== undefined) this.currentData.projectileCount++;
                 if (this.currentData.unitCount !== undefined) { this.currentData.unitCount++; this.spawnUnits(); }
@@ -245,42 +248,43 @@
         applySpecialUpgrade() {
             this.level++;
             
-            // [Lv.5 궁극 진화]
-            if(this.id === 'BLASTER') { // 트라이던트 빔 (3갈래)
+            if(this.id === 'BLASTER') { 
                 this.currentData.projectileCount += 2; 
                 this.currentData.spread = 0.3;
                 this.currentData.thickness += 30;
                 this.currentData.baseDamage *= 2;
             }
-            if(this.id === 'MISSILE') { // 뉴클리어
+            if(this.id === 'MISSILE') { 
                 this.currentData.explosive = true;
                 this.currentData.baseDamage *= 2;
+                // [수정] 진화 시 기본 폭발 반경 대폭 증가
+                this.currentData.blastRadius = 250;
             }
-            if(this.id === 'ORBITAL') { // 보이드 존
+            if(this.id === 'ORBITAL') { 
                 this.currentData.range += 100;
                 this.currentData.baseDamage *= 1.5;
                 this.currentData.hitRate = 5; 
             }
-            if(this.id === 'SNIPER') { // 리코쎼 (튕김)
+            if(this.id === 'SNIPER') { 
                 this.currentData.rearShot = true;
                 this.currentData.projectileCount += 1;
             }
-            if(this.id === 'MICRO_SWARM') { // 옴니 버스트 (전방향)
+            if(this.id === 'MICRO_SWARM') { 
                 this.currentData.projectileCount = 20; 
-                this.currentData.spread = 6.28; // 360도
-                this.currentData.baseCooldown = 20; // 기관총 수준
+                this.currentData.spread = 6.28; 
+                this.currentData.baseCooldown = 20; 
             }
-            if(this.id === 'INTERCEPTOR') { // 우주 모함
-                this.currentData.unitCount += 3; // +3대
+            if(this.id === 'INTERCEPTOR') { 
+                this.currentData.unitCount += 3; 
                 this.spawnUnits();
             }
-            if(this.id === 'TESLA') { // 뇌신
+            if(this.id === 'TESLA') { 
                 this.currentData.bounceCount += 10;
                 this.currentData.range += 200;
             }
-            if(this.id === 'GRAVITY') { // 이벤트 호라이즌
+            if(this.id === 'GRAVITY') { 
                 this.currentData.range += 150;
-                this.currentData.slowFactor = 0.2; // 80% 감속
+                this.currentData.slowFactor = 0.2; 
                 this.currentData.baseDamage *= 3;
             }
         }
@@ -316,7 +320,8 @@
                     if(boss && !boss.dead && pointToLineDistance(boss.x,boss.y,wx,wy,endX,endY)<(this.currentData.thickness/2)+boss.radius) boss.takeDamage(this.currentData.baseDamage);
                     enemies.forEach(e=>{if(!e.dead && pointToLineDistance(e.x,e.y,wx,wy,endX,endY)<(this.currentData.thickness/2)+e.radius) e.takeDamage(this.currentData.baseDamage);});
                 } else if(this.currentData.type==='HOMING') {
-                    projectiles.push(new HomingMissile(wx,wy,target,this.currentData.baseDamage,this.currentData.explosive));
+                    // [수정] 폭발 반경(blastRadius) 전달
+                    projectiles.push(new HomingMissile(wx,wy,target,this.currentData.baseDamage,this.currentData.explosive,this.currentData.blastRadius));
                 } else if(this.currentData.type==='SWARM') {
                     const ba=Math.atan2(target.y-wy, target.x-wx); const fa=ba+(Math.random()-0.5)*spread*2;
                     projectiles.push(new Projectile(wx,wy,Math.cos(fa)*6,Math.sin(fa)*6,this.currentData.baseDamage,this.currentData.color,false,true));
@@ -355,11 +360,10 @@
         player.weapons.forEach((w,i)=>{
             if((w.level+1)%5===0) options.push({type:'SPECIAL', weapon:w, index:i, desc:getSpecialDesc(w)});
             else {
-                // 일반 업그레이드 타입 랜덤 (가중치: 파워35%, 쿨감35%, 범위25%, 발사체수5%)
+                // 일반 업그레이드 타입 랜덤
                 let type='DAMAGE'; const rnd=Math.random();
                 if(rnd<0.35) type='DAMAGE'; else if(rnd<0.70) type='COOLDOWN'; else if(rnd<0.95) type='RANGE'; else type='COUNT';
                 const rarity=rollRarity();
-                // COUNT는 최소 UNCOMMON 이상에서만 등장하도록 보정
                 if(type==='COUNT' && rarity.name==='Common') type='RANGE';
                 options.push({type:'GENERAL', weapon:w, index:i, statType:type, rarity:rarity});
             }
@@ -385,7 +389,13 @@
         else if(opt.type==='GENERAL'){
             const w=opt.weapon; const r=opt.rarity; title=`${w.currentData.name} <span style="font-size:12px;color:#aaa">Lv.${w.level}➤${w.level+1}</span>`;
             let txt='공격력', val=Math.floor(10*r.mult)+'%';
-            if(opt.statType==='COOLDOWN'){txt='공격속도';} if(opt.statType==='RANGE'){txt='범위/크기';} if(opt.statType==='COUNT'){txt='발사체 수'; val='+1';}
+            if(opt.statType==='COOLDOWN'){txt='공격속도';} 
+            // [수정] 카드 설명에 폭발 반경 표시
+            if(opt.statType==='RANGE'){
+                txt='범위/크기';
+                if(w.id==='MISSILE') txt='사거리/폭발반경';
+            } 
+            if(opt.statType==='COUNT'){txt='발사체 수'; val='+1';}
             desc=`${txt} <span style="color:${getColor(r.name)};font-weight:bold">+${val}</span>`; icon=w.currentData.icon; card.classList.add(r.color); tagName=r.name.toUpperCase();
         } else { title="긴급 수리"; desc="체력 50% 회복"; icon="❤️"; card.classList.add('common'); tagName='ITEM'; }
         function getColor(n){if(n==='Legendary')return'#eab308';if(n==='Epic')return'#a855f7';if(n==='Rare')return'#3b82f6';if(n==='Uncommon')return'#10b981';return'#9ca3af';}
