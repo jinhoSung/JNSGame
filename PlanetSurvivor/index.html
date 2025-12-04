@@ -592,6 +592,10 @@
         
         GAME_SPEED = 1.0;
         speedBtn.innerText = `⏩ ${GAME_SPEED.toFixed(1)}x`;
+        
+        // [수정] 보스 바가 시작 시 숨겨지도록 강제
+        bossHud.classList.remove('active');
+        warningMsg.style.display = 'none';
     }
 
     /* ================= Classes ================= */
@@ -840,8 +844,8 @@
              // [수정] 85% 확률로 완만한 나선형 적(spiral) 또는 15% 확률로 빠른 직선형 적(direct) 생성
              if (Math.random() < 0.85) {
                  // 완만한 나선형 (체력 높음, 느린 회전)
-                 // [수정] 나선 각도를 0.78에서 0.15로 완화하여 2바퀴 이상 돌게 함
-                 this.spiralDir = Math.random() < 0.5 ? 0.15 : -0.15; 
+                 // [수정] 나선 각도를 0.05로 대폭 완화하여 2바퀴 이상 돌게 함
+                 this.spiralDir = Math.random() < 0.5 ? 0.05 : -0.05; 
                  this.hp *= 1.5; // 체력 보너스
                  this.maxHp *= 1.5;
              } else {
@@ -860,7 +864,8 @@
             
             const dx = core.x - this.x;
             const dy = core.y - this.y;
-            const targetAngle = Math.atan2(dy, dx)+ 20; // 행성 중심을 향하는 각도
+            const dist = Math.hypot(dx, dy);
+            const targetAngle = Math.atan2(dy, dx); // 행성 중심을 향하는 각도
 
             let newAngle = targetAngle;
             
@@ -873,7 +878,9 @@
                  while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
 
                  // 2. 현재 이동 각도를 목표 방향으로 미세하게 갱신 (끌려가는 힘)
-                 this.currentMoveAngle += angleDiff * 0.01 * GAME_SPEED; // 0.01은 매우 느리게 중심을 따라가게 함
+                 // 행성에 가까워질수록 끌어당기는 힘(회전 보정)을 강하게 함
+                 const turnRate = 0.01 + (1 - (dist / canvas.height)) * 0.005; // 캔버스 높이에 비례하여 끌어당기는 힘 증가
+                 this.currentMoveAngle += angleDiff * turnRate * GAME_SPEED; // 0.01은 매우 느리게 중심을 따라가게 함
                  
                  // 3. 나선형 회전력 추가 (접선 방향으로 미는 힘)
                  this.currentMoveAngle += this.spiralDir * GAME_SPEED; 
