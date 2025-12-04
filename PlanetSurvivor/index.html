@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <!-- 모바일 뷰포트 설정 추가 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Planet Survivor: Core Defense</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0d1117;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+            touch-action: none; /* 모바일 터치 제스처 방지 */
+        }
+        canvas { display: block; }
+        
+        /* UI 오버레이 (사이즈 축소 및 반응형) */
+        #ui-layer {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            pointer-events: none;
+            width: 240px; /* 기존 300px -> 240px 축소 */
+            max-width: 50%; /* 화면이 작으면 더 줄어듦 */
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+
+        /* 모바일용 UI 미세 조정 */
+        @media (max-width: 600px) {
+            #ui-layer {
+                width: 180px;
+                top: 10px;
+                left: 10px;
+            }
+        }
+
+        .stat-box {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 8px 12px; /* 패딩 축소 */
+            border-radius: 6px;
+            border: 1px solid #444;
+            margin-bottom: 6px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            font-size: 12px; /* 폰트 축소 */
+        }
+        .bar-container {
+            width: 100%;
+            height: 6px; /* 바 두께 축소 */
+            background: #333;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        #hp-bar { width: 100%; height: 100%; background: #e74c3c; transition: width 0.2s; }
+        #xp-bar { width: 0%; height: 100%; background: #f1c40f; transition: width 0.2s; }
+
+        /* 점수 텍스트 조정 */
+        .stat-box span[style*="font-size: 20px"] {
+            font-size: 16px !important; /* 점수 크기 강제 축소 */
+        }
+
+        /* 무기 슬롯 표시 */
+        #weapon-slots {
+            display: flex;
+            gap: 4px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+        .slot {
+            width: 32px; /* 40px -> 32px 축소 */
+            height: 32px;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid #555;
+            border-radius: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 16px; /* 아이콘 축소 */
+            position: relative;
+        }
+        .slot .level-badge {
+            position: absolute;
+            bottom: -2px;
+            right: -2px;
+            background: #333;
+            font-size: 9px; /* 뱃지 축소 */
+            padding: 1px 3px;
+            border-radius: 3px;
+            border: 1px solid #777;
+        }
+
+        /* 레벨업 메뉴 (반응형 적용) */
+        #upgrade-menu {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            pointer-events: auto;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        #upgrade-menu.active { display: flex !important; }
+        
+        .cards-container {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 100%;
+            max-height: 80vh; /* 화면 넘어가면 스크롤 */
+            overflow-y: auto;
+        }
+        
+        .card {
+            background: linear-gradient(145deg, #1f2937, #111827);
+            border: 2px solid #374151;
+            width: 180px; /* 카드 폭 축소 (220 -> 180) */
+            padding: 15px; /* 패딩 축소 */
+            border-radius: 10px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        /* 모바일 환경 (카드 리스트형으로 변경) */
+        @media (max-width: 600px) {
+            .cards-container {
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+            }
+            .card {
+                width: 90%; /* 화면 꽉 차게 */
+                max-width: 320px;
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                text-align: left;
+                padding: 10px 15px;
+                height: auto;
+                min-height: 70px;
+            }
+            .card-icon {
+                font-size: 28px !important;
+                margin-bottom: 0 !important;
+                margin-right: 15px;
+                width: 40px;
+                text-align: center;
+            }
+            .card h3 {
+                margin: 0 0 4px 0 !important;
+                font-size: 16px !important;
+            }
+            .card p {
+                margin: 0 !important;
+                font-size: 11px !important;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: 180px;
+            }
+            .card-tag {
+                top: 50% !important;
+                transform: translateY(-50%);
+                right: 10px !important;
+            }
+        }
+
+        .card:hover {
+            transform: translateY(-3px);
+            border-color: #3b82f6;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+        }
+        .card.new-weapon { border-color: #10b981; }
+        .card.new-weapon:hover { border-color: #34d399; box-shadow: 0 0 10px rgba(16, 185, 129, 0.4); }
+        
+        .card-tag {
+            position: absolute;
+            top: 8px; right: 8px;
+            font-size: 9px;
+            padding: 2px 5px;
+            border-radius: 3px;
+            background: #444;
+            color: #ddd;
+        }
+        .card.new-weapon .card-tag { background: #059669; color: white; }
+
+        .card h3 { color: #60a5fa; margin: 8px 0; font-size: 15px; }
+        .card.new-weapon h3 { color: #34d399; }
+        .card p { font-size: 12px; color: #9ca3af; line-height: 1.3; }
+        .card-icon { font-size: 36px; margin-bottom: 8px; display: block; }
+        
+        .stat-highlight { color: #fbbf24; font-weight: bold; }
+
+    </style>
+</head>
+<body>
+
+    <!-- HUD -->
+    <div id="ui-layer">
+        <div class="stat-box">
+            <div style="display:flex; justify-content:space-between;">
+                <span>CORE HP</span>
+                <span id="hp-text">100/100</span>
+            </div>
+            <div class="bar-container"><div id="hp-bar"></div></div>
+        </div>
+        <div class="stat-box">
+            <div style="display:flex; justify-content:space-between;">
+                <span>EXP (LV.<span id="level-text">1</span>)</span>
+                <span id="xp-text">0%</span>
+            </div>
+            <div class="bar-container"><div id="xp-bar"></div></div>
+        </div>
+        <div class="stat-box" style="text-align: center;">
+            <span style="font-size: 11px; color:#aaa;">SCORE</span><br>
+            <span id="score-text" style="font-size: 16px; font-weight: bold; color: white;">0</span>
+        </div>
+        
+        <!-- 무기 슬롯 UI -->
+        <div id="weapon-slots">
+            <!-- JS로 생성 -->
+        </div>
+    </div>
+
+    <!-- 레벨업 화면 -->
+    <div id="upgrade-menu">
+        <h1 style="color:white; margin-bottom:10px; font-size: 24px; text-shadow: 0 0 10px #fff;">LEVEL UP!</h1>
+        <p style="color:#aaa; margin-bottom:20px; font-size: 14px;">Choose an upgrade</p>
+        <div class="cards-container" id="cards-area"></div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // UI Elements
+    const upgradeMenu = document.getElementById('upgrade-menu');
+    const cardsArea = document.getElementById('cards-area');
+    const weaponSlotsContainer = document.getElementById('weapon-slots');
+    
+    // 줌 레벨 설정 (작을수록 멀리 보임)
+    const ZOOM_SCALE = 0.7;
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    /* ================= 시스템 상수 & 데이터 ================= */
+    
+    // 무기 데이터베이스
+    const WEAPON_DB = {
+        'BLASTER': {
+            name: '레이저 위성',
+            icon: '🔫',
+            desc: '가장 가까운 적에게 레이저를 발사합니다.',
+            type: 'PROJECTILE',
+            baseDamage: 15,
+            baseCooldown: 30,
+            color: '#10b981',
+            range: 450
+        },
+        'ORBITAL': {
+            name: '플라즈마 쉴드',
+            icon: '🛡️',
+            desc: '행성 주변 적에게 피해를 줍니다.',
+            type: 'ZONE',
+            baseDamage: 5, // 틱당 데미지
+            baseCooldown: 0, // 지속형
+            color: '#8b5cf6',
+            range: 120
+        },
+        'MISSILE': {
+            name: '유도 미사일',
+            icon: '🚀',
+            desc: '적을 끝까지 추적하는 미사일입니다.',
+            type: 'HOMING',
+            baseDamage: 25,
+            baseCooldown: 60, // 느림
+            color: '#f59e0b',
+            range: 600
+        },
+        'SNIPER': {
+            name: '레일건',
+            icon: '⚡',
+            desc: '관통하는 탄환을 발사합니다.',
+            type: 'PIERCING',
+            baseDamage: 40,
+            baseCooldown: 90,
+            color: '#3b82f6',
+            range: 800
+        }
+    };
+
+    const GAME_STATE = { PLAYING: 0, LEVEL_UP: 1, GAME_OVER: 2 };
+    let currentState = GAME_STATE.PLAYING;
+    let frame = 0;
+    let score = 0;
+    
+    // 플레이어(코어) 데이터
+    const player = {
+        level: 1,
+        xp: 0,
+        xpToNext: 50,
+        weapons: [] // 획득한 무기 객체들이 저장됨
+    };
+
+    const core = {
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+        radius: 35,
+        maxHp: 100,
+        hp: 100,
+        color: '#3b82f6'
+    };
+
+    /* ================= 클래스 정의 ================= */
+
+    // 1. 무기 인스턴스 (실제 작동하는 무기)
+    class Weapon {
+        constructor(id) {
+            this.id = id;
+            this.level = 1;
+            this.data = JSON.parse(JSON.stringify(WEAPON_DB[id])); // 깊은 복사
+            
+            // 실시간 스탯
+            this.damage = this.data.baseDamage;
+            this.cooldown = this.data.baseCooldown;
+            this.cooldownTimer = 0;
+            
+            // 시각적 요소 (위성)
+            this.angle = Math.random() * Math.PI * 2; // 시작 각도
+            this.orbitRadius = 55 + (Math.random() * 10); // 궤도 거리
+            this.orbitSpeed = 0.02 + (Math.random() * 0.02);
+            
+            // ORBITAL 타입 전용
+            this.tickTimer = 0;
+        }
+
+        upgrade() {
+            this.level++;
+            // 레벨업 스탯 상승 로직 (단순화)
+            this.damage = Math.floor(this.damage * 1.2); // 데미지 20% 증가
+            this.cooldown = Math.max(5, Math.floor(this.cooldown * 0.9)); // 쿨타임 10% 감소
+            
+            // 시각적 변화
+            if (this.data.type === 'ZONE') {
+                this.data.range += 15;
+            }
+        }
+
+        update() {
+            // 위성 공전 애니메이션
+            this.angle += this.orbitSpeed;
+            
+            // 쿨타임 감소
+            if (this.cooldownTimer > 0) this.cooldownTimer--;
+
+            // 무기 타입별 행동 로직
+            if (this.data.type === 'ZONE') {
+                this.updateZone();
+            } else if (this.cooldownTimer <= 0) {
+                this.fire();
+            }
+        }
+
+        // 공전하는 위성 그리기
+        draw() {
+            const wx = core.x + Math.cos(this.angle) * this.orbitRadius;
+            const wy = core.y + Math.sin(this.angle) * this.orbitRadius;
+
+            // 연결선
+            ctx.beginPath();
+            ctx.moveTo(core.x, core.y);
+            ctx.lineTo(wx, wy);
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.stroke();
+
+            // 위성 본체
+            ctx.beginPath();
+            ctx.arc(wx, wy, 8, 0, Math.PI*2);
+            ctx.fillStyle = this.data.color;
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // ZONE 타입(쉴드) 시각화
+            if (this.data.type === 'ZONE') {
+                ctx.beginPath();
+                ctx.arc(core.x, core.y, this.data.range, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(139, 92, 246, 0.1)`;
+                ctx.fill();
+                ctx.strokeStyle = `rgba(139, 92, 246, 0.4)`;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        }
+
+        fire() {
+            // 적 찾기
+            let target = null;
+            let minDist = this.data.range;
+
+            // 전체 적 검색
+            enemies.forEach(e => {
+                const dist = Math.hypot(e.x - core.x, e.y - core.y);
+                if (dist < minDist) {
+                    minDist = dist;
+                    target = e;
+                }
+            });
+
+            if (!target && this.data.type !== 'ZONE') return;
+
+            // 발사 로직
+            const wx = core.x + Math.cos(this.angle) * this.orbitRadius;
+            const wy = core.y + Math.sin(this.angle) * this.orbitRadius;
+
+            if (this.data.type === 'PROJECTILE' || this.data.type === 'PIERCING') {
+                const angle = Math.atan2(target.y - wy, target.x - wx);
+                projectiles.push(new Projectile(
+                    wx, wy,
+                    Math.cos(angle) * 8, Math.sin(angle) * 8,
+                    this.damage,
+                    this.data.color,
+                    this.data.type === 'PIERCING'
+                ));
+                this.cooldownTimer = this.cooldown;
+            } 
+            else if (this.data.type === 'HOMING') {
+                projectiles.push(new HomingMissile(
+                    wx, wy, target, this.damage
+                ));
+                this.cooldownTimer = this.cooldown;
+            }
+        }
+
+        updateZone() {
+            // 지속 데미지 (매 10프레임마다)
+            this.tickTimer++;
+            if (this.tickTimer % 10 !== 0) return;
+
+            enemies.forEach(e => {
+                const dist = Math.hypot(e.x - core.x, e.y - core.y);
+                if (dist < this.data.range + e.radius) {
+                    e.takeDamage(this.damage);
+                    // 타격 효과
+                    particles.push(new Particle(e.x, e.y, this.data.color));
+                }
+            });
+        }
+    }
+
+    // 2. 투사체
+    class Projectile {
+        constructor(x, y, vx, vy, damage, color, isPiercing) {
+            this.x = x; this.y = y;
+            this.vx = vx; this.vy = vy;
+            this.damage = damage;
+            this.color = color;
+            this.isPiercing = isPiercing;
+            this.radius = isPiercing ? 4 : 3;
+            this.life = 200; // 사거리를 위해 수명 증가
+            this.hitList = []; // 관통 시 중복 피격 방지
+        }
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.life--;
+        }
+        draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+        }
+    }
+
+    class HomingMissile {
+        constructor(x, y, target, damage) {
+            this.x = x; this.y = y;
+            this.target = target;
+            this.damage = damage;
+            this.speed = 4;
+            this.angle = Math.random() * Math.PI * 2;
+            this.radius = 4;
+            this.life = 300; // 수명 증가
+        }
+        
+        // 새로운 타겟 찾기 (가장 가까운 적)
+        findNewTarget() {
+            let nearest = null;
+            let minDist = Infinity;
+            
+            enemies.forEach(e => {
+                if (e.hp > 0) {
+                    const dist = Math.hypot(e.x - this.x, e.y - this.y);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearest = e;
+                    }
+                }
+            });
+            return nearest;
+        }
+
+        update() {
+            // 타겟이 없거나 죽었으면 새 타겟을 찾음
+            if (!this.target || this.target.hp <= 0) {
+                this.target = this.findNewTarget();
+            }
+
+            if (this.target && this.target.hp > 0) {
+                const targetAngle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+                // 유도 성능 (서서히 회전)
+                let diff = targetAngle - this.angle;
+                while (diff <= -Math.PI) diff += Math.PI*2;
+                while (diff > Math.PI) diff -= Math.PI*2;
+                this.angle += diff * 0.1;
+            }
+            
+            this.x += Math.cos(this.angle) * this.speed;
+            this.y += Math.sin(this.angle) * this.speed;
+            this.life--;
+            
+            // 연기 효과
+            if(Math.random() < 0.5) {
+                particles.push(new Particle(this.x, this.y, '#555'));
+            }
+        }
+        draw() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.angle);
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.moveTo(6, 0);
+            ctx.lineTo(-4, 4);
+            ctx.lineTo(-4, -4);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    // 3. 적
+    class Enemy {
+        constructor() {
+            // 줌 아웃된 화면 경계 계산
+            const vWidth = canvas.width / ZOOM_SCALE;
+            const vHeight = canvas.height / ZOOM_SCALE;
+            const extraMargin = 50;
+
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+
+            // 시야 바깥 영역 계산 (왼쪽, 오른쪽, 위, 아래 경계값)
+            const left = cx - vWidth / 2 - extraMargin;
+            const right = cx + vWidth / 2 + extraMargin;
+            const top = cy - vHeight / 2 - extraMargin;
+            const bottom = cy + vHeight / 2 + extraMargin;
+
+            // 랜덤 위치 생성 (시야 바깥)
+            const side = Math.floor(Math.random() * 4);
+            if (side === 0) { // Top
+                this.x = Math.random() * (right - left) + left;
+                this.y = top; 
+            }
+            else if (side === 1) { // Right
+                this.x = right;
+                this.y = Math.random() * (bottom - top) + top;
+            }
+            else if (side === 2) { // Bottom
+                this.x = Math.random() * (right - left) + left;
+                this.y = bottom;
+            }
+            else { // Left
+                this.x = left;
+                this.y = Math.random() * (bottom - top) + top;
+            }
+
+            this.hp = 20 + (player.level * 8);
+            this.maxHp = this.hp;
+            this.speed = 0.5 + Math.random() * 0.5 + (player.level * 0.05);
+            this.radius = 12;
+            this.color = `hsl(${Math.random()*60}, 70%, 50%)`;
+        }
+
+        update() {
+            const angle = Math.atan2(core.y - this.y, core.x - this.x);
+            this.x += Math.cos(angle) * this.speed;
+            this.y += Math.sin(angle) * this.speed;
+        }
+
+        takeDamage(dmg) {
+            this.hp -= dmg;
+            if (this.hp <= 0) {
+                this.die();
+                return true; // killed
+            }
+            return false; // alive
+        }
+
+        die() {
+            for(let i=0; i<5; i++) particles.push(new Particle(this.x, this.y, this.color));
+            addXp(15);
+            score += 10;
+        }
+
+        draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            
+            // HP Bar
+            if (this.hp < this.maxHp) {
+                ctx.fillStyle = 'red';
+                ctx.fillRect(this.x - 10, this.y - 18, 20, 3);
+                ctx.fillStyle = '#0f0';
+                ctx.fillRect(this.x - 10, this.y - 18, 20 * (this.hp/this.maxHp), 3);
+            }
+        }
+    }
+
+    // 4. 파티클
+    class Particle {
+        constructor(x, y, color) {
+            this.x = x; this.y = y; this.color = color;
+            this.vx = (Math.random()-0.5)*4;
+            this.vy = (Math.random()-0.5)*4;
+            this.life = 1;
+        }
+        update() {
+            this.x += this.vx; this.y += this.vy;
+            this.life -= 0.05;
+        }
+        draw() {
+            ctx.globalAlpha = this.life;
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 2, 0, Math.PI*2);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
+    }
+
+    /* ================= 게임 데이터 관리 ================= */
+    let projectiles = [];
+    let enemies = [];
+    let particles = [];
+
+    // 초기 무기 지급
+    addWeapon('BLASTER');
+
+    /* ================= 로직 함수들 ================= */
+
+    function addWeapon(id) {
+        if (player.weapons.length >= 6) return;
+        player.weapons.push(new Weapon(id));
+        renderWeaponSlots();
+    }
+
+    function upgradeWeapon(index) {
+        if (player.weapons[index]) {
+            player.weapons[index].upgrade();
+            renderWeaponSlots();
+        }
+    }
+
+    function addXp(amount) {
+        player.xp += amount;
+        if (player.xp >= player.xpToNext) {
+            levelUp();
+        }
+        updateUi();
+    }
+
+    function levelUp() {
+        player.level++;
+        player.xp = 0;
+        player.xpToNext = Math.floor(player.xpToNext * 1.3);
+        
+        currentState = GAME_STATE.LEVEL_UP;
+        generateUpgradeCards();
+        upgradeMenu.classList.add('active');
+    }
+
+    function generateUpgradeCards() {
+        cardsArea.innerHTML = '';
+        const options = [];
+
+        // 1. 보유 중인 무기 업그레이드 옵션
+        player.weapons.forEach((w, index) => {
+            options.push({
+                type: 'UPGRADE',
+                weaponId: w.id,
+                weaponIndex: index,
+                currentLv: w.level,
+                data: w.data
+            });
+        });
+
+        // 2. 신규 무기 획득 옵션 (슬롯이 남았을 때만)
+        if (player.weapons.length < 6) {
+            Object.keys(WEAPON_DB).forEach(id => {
+                // 이미 가지고 있는 무기는 신규 획득에서 제외
+                const hasWeapon = player.weapons.some(w => w.id === id);
+                if (!hasWeapon) {
+                    options.push({
+                        type: 'NEW',
+                        weaponId: id,
+                        data: WEAPON_DB[id]
+                    });
+                }
+            });
+        }
+        
+        // 3. 회복 옵션
+        options.push({ type: 'HEAL', data: { name: '긴급 수리', icon: '❤️', desc: '코어 체력을 50% 회복합니다.' } });
+
+        // 랜덤으로 3개(또는 그 이하) 뽑기
+        options.sort(() => Math.random() - 0.5);
+        for (let i = 0; i < Math.min(3, options.length); i++) {
+            createCard(options[i]);
+        }
+    }
+
+    function createCard(opt) {
+        const card = document.createElement('div');
+        card.className = 'card';
+        if (opt.type === 'NEW') card.classList.add('new-weapon');
+
+        let title, desc, tag;
+        
+        if (opt.type === 'NEW') {
+            title = opt.data.name;
+            desc = opt.data.desc;
+            tag = 'NEW!';
+        } else if (opt.type === 'UPGRADE') {
+            title = `${opt.data.name} <span style="font-size:12px; color:#aaa">LV.${opt.currentLv + 1}</span>`;
+            desc = `공격력 <span class="stat-highlight">+20%</span><br>쿨타임 <span class="stat-highlight">-10%</span>`;
+            tag = 'UPGRADE';
+        } else {
+            title = opt.data.name;
+            desc = opt.data.desc;
+            tag = 'ITEM';
+        }
+
+        card.innerHTML = `
+            <div class="card-tag">${tag}</div>
+            <div class="card-icon">${opt.data.icon || '🔧'}</div>
+            <h3>${title}</h3>
+            <p>${desc}</p>
+        `;
+
+        card.onclick = () => {
+            selectUpgrade(opt);
+        };
+        cardsArea.appendChild(card);
+    }
+
+    function selectUpgrade(opt) {
+        if (opt.type === 'NEW') {
+            addWeapon(opt.weaponId);
+        } else if (opt.type === 'UPGRADE') {
+            upgradeWeapon(opt.weaponIndex);
+        } else if (opt.type === 'HEAL') {
+            core.hp = Math.min(core.hp + 50, core.maxHp);
+        }
+
+        upgradeMenu.classList.remove('active');
+        currentState = GAME_STATE.PLAYING;
+        updateUi();
+    }
+
+    function renderWeaponSlots() {
+        weaponSlotsContainer.innerHTML = '';
+        for(let i=0; i<6; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'slot';
+            if (player.weapons[i]) {
+                const w = player.weapons[i];
+                slot.innerHTML = `
+                    ${w.data.icon}
+                    <div class="level-badge">${w.level}</div>
+                `;
+                slot.style.borderColor = w.data.color;
+                slot.style.boxShadow = `0 0 5px ${w.data.color}`;
+            } else {
+                slot.innerHTML = '<span style="color:#333; font-size:12px;">EMPTY</span>';
+            }
+            weaponSlotsContainer.appendChild(slot);
+        }
+    }
+
+    function updateUi() {
+        document.getElementById('hp-text').innerText = `${Math.ceil(core.hp)}/${core.maxHp}`;
+        document.getElementById('hp-bar').style.width = `${(core.hp / core.maxHp) * 100}%`;
+        
+        document.getElementById('level-text').innerText = player.level;
+        document.getElementById('xp-text').innerText = `${Math.floor((player.xp / player.xpToNext)*100)}%`;
+        document.getElementById('xp-bar').style.width = `${(player.xp / player.xpToNext) * 100}%`;
+        
+        document.getElementById('score-text').innerText = score;
+    }
+
+    /* ================= 메인 루프 ================= */
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        if (currentState === GAME_STATE.LEVEL_UP) return;
+        if (currentState === GAME_STATE.GAME_OVER) {
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.fillRect(0,0,canvas.width, canvas.height);
+            ctx.fillStyle = 'red';
+            ctx.font = 'bold 50px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText("MISSION FAILED", canvas.width/2, canvas.height/2);
+            ctx.fillStyle = 'white';
+            ctx.font = '20px sans-serif';
+            ctx.fillText(`Final Score: ${score}`, canvas.width/2, canvas.height/2 + 50);
+            return;
+        }
+
+        // 1. 화면 클리어 (일반 좌표계)
+        ctx.fillStyle = 'rgba(13, 17, 23, 0.2)'; // 잔상
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 2. 줌 아웃 적용 (좌표계 변환)
+        ctx.save();
+        ctx.translate(canvas.width/2, canvas.height/2); // 중심으로 이동
+        ctx.scale(ZOOM_SCALE, ZOOM_SCALE);              // 축소
+        ctx.translate(-canvas.width/2, -canvas.height/2); // 원위치
+
+        frame++;
+
+        // 적 생성
+        const spawnRate = Math.max(10, 80 - (player.level * 2));
+        if (frame % spawnRate === 0) enemies.push(new Enemy());
+
+        // 코어(행성) 그리기
+        ctx.beginPath();
+        ctx.arc(core.x, core.y, core.radius, 0, Math.PI * 2);
+        ctx.fillStyle = core.color;
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = core.color;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // 무기(위성) 업데이트 & 그리기
+        player.weapons.forEach(w => {
+            w.update();
+            w.draw();
+        });
+
+        // 투사체 처리
+        // 줌 아웃 경계 계산 (삭제 기준)
+        const vWidth = canvas.width / ZOOM_SCALE;
+        const vHeight = canvas.height / ZOOM_SCALE;
+        const boundMargin = 200;
+
+        for (let i = projectiles.length - 1; i >= 0; i--) {
+            const p = projectiles[i];
+            p.update();
+            p.draw();
+
+            // 화면 밖 제거 (확장된 좌표 기준)
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            if (p.life <= 0 || 
+                p.x < cx - vWidth/2 - boundMargin || p.x > cx + vWidth/2 + boundMargin ||
+                p.y < cy - vHeight/2 - boundMargin || p.y > cy + vHeight/2 + boundMargin) {
+                projectiles.splice(i, 1);
+                continue;
+            }
+
+            // 적 충돌
+            for (let j = enemies.length - 1; j >= 0; j--) {
+                const e = enemies[j];
+                const dist = Math.hypot(p.x - e.x, p.y - e.y);
+                
+                if (dist < e.radius + p.radius) {
+                    if (e.takeDamage(p.damage)) {
+                        enemies.splice(j, 1);
+                    } else {
+                        // 피격 효과
+                        particles.push(new Particle(e.x, e.y, '#fff'));
+                    }
+                    
+                    if (!p.isPiercing) {
+                        projectiles.splice(i, 1);
+                        break;
+                    } else if (!p.hitList.includes(e)) {
+                        p.hitList.push(e); 
+                    }
+                }
+            }
+        }
+
+        // 적 이동 및 충돌
+        for (let i = enemies.length - 1; i >= 0; i--) {
+            const e = enemies[i];
+            e.update();
+            e.draw();
+
+            const dist = Math.hypot(e.x - core.x, e.y - core.y);
+            if (dist < core.radius + e.radius) {
+                core.hp -= 10;
+                enemies.splice(i, 1); // 자폭
+                updateUi();
+                
+                // 화면 흔들림 효과 (여기서 줌 변환을 고려해야 하지만, 단순 효과라 그대로 둠)
+                // canvas.style.transform... 은 HTML 요소 자체를 움직이므로 줌과 무관하게 작동
+                canvas.style.transform = `translate(${Math.random()*10-5}px, ${Math.random()*10-5}px)`;
+                setTimeout(() => canvas.style.transform = 'translate(0,0)', 50);
+
+                if (core.hp <= 0) currentState = GAME_STATE.GAME_OVER;
+            }
+        }
+
+        // 파티클
+        for (let i = particles.length - 1; i >= 0; i--) {
+            particles[i].update();
+            particles[i].draw();
+            if (particles[i].life <= 0) particles.splice(i, 1);
+        }
+
+        // 3. 줌 아웃 해제 (UI 렌더링에 영향 안주기 위해)
+        ctx.restore();
+    }
+
+    // 반응형
+    window.addEventListener('resize', () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        core.x = canvas.width/2;
+        core.y = canvas.height/2;
+    });
+
+    // 시작
+    renderWeaponSlots();
+    updateUi();
+    animate();
+
+</script>
+</body>
+</html>
