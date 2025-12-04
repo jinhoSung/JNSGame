@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>자율주행 레이싱 (Local Storage)</title>
+    <title>자율주행 레이싱 (Advanced Logic)</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -52,7 +52,7 @@
         const MAP_SCALE = 0.85;
         const MAX_SKID_MARKS = 50; 
         const TOTAL_LAPS = 3;
-        const STORAGE_KEY = 'racing_game_v1_local_data'; // LocalStorage Key
+        const STORAGE_KEY = 'racing_game_v2_advanced_logic'; // Updated Key for new logic
 
         const CHECKPOINT_RADIUS_START = 220; 
         const CHECKPOINT_RADIUS_NORMAL = 120; 
@@ -61,8 +61,23 @@
             border: 90, curb: 80, asphalt: 70 
         };
 
-        const SENSOR_LABELS = { 0: '좌측', 1: '전방좌측', 2: '전방', 3: '전방우측', 4: '우측' }; 
-        const SENSOR_SELECT_LABELS = { 0: '좌측 센서', 1: '전방 좌측', 2: '전방 센서', 3: '전방 우측', 4: '우측 센서' };
+        // --- Enhanced Sensor Config (7 Rays + Speed) ---
+        // Angles in degrees: -90(L), -45(FL), -20(FLL), 0(F), 20(FRR), 45(FR), 90(R)
+        const SENSOR_ANGLES = [-90, -45, -20, 0, 20, 45, 90];
+        
+        // Special ID for Speed Sensor
+        const SENSOR_SPEED_ID = 99;
+
+        const SENSOR_SELECT_LABELS = { 
+            0: '좌측 (90°)', 
+            1: '전방좌측 (45°)', 
+            2: '전방좌측 (20°)',
+            3: '전방 (0°)', 
+            4: '전방우측 (20°)',
+            5: '전방우측 (45°)', 
+            6: '우측 (90°)',
+            [SENSOR_SPEED_ID]: '현재 속도 (Speed)'
+        };
 
         const OPERATOR_OPTIONS = [
             { value: '<', label: '작다면 (<)' }, { value: '>', label: '크다면 (>)' }, 
@@ -74,12 +89,28 @@
             { value: 'ELSE_IF', label: '아니면 만약 (ELSE IF)', color: 'border-indigo-500' },
             { value: 'ELSE', label: '아니면 (ELSE)', color: 'border-purple-500' },
         ];
+        
+        // Enhanced Actions
+        const ACTION_OPTIONS = [
+            { value: 'ACCEL_100', label: '가속 100%' },
+            { value: 'ACCEL_75', label: '가속 75%' },
+            { value: 'ACCEL_50', label: '가속 50%' },
+            { value: 'BRAKE_100', label: '감속 100% (급제동)' },
+            { value: 'BRAKE_75', label: '감속 75%' },
+            { value: 'BRAKE_50', label: '감속 50%' },
+            { value: 'REVERSE', label: '후진 (Reverse)' },
+            { value: 'LEFT_100', label: '좌회전 100%' },
+            { value: 'LEFT_50', label: '좌회전 50%' },
+            { value: 'RIGHT_100', label: '우회전 100%' },
+            { value: 'RIGHT_50', label: '우회전 50%' },
+            { value: 'NONE', label: '유지 (중립)' }
+        ];
 
         const INITIAL_BLOCKS = [
-          { id: 1, flowType: 'IF', sensor: 2, operator: '<', valueType: 'number', value: 80, action: 'BRAKE' },
-          { id: 2, flowType: 'ELSE_IF', sensor: 0, operator: '>', valueType: 'sensor', value: 4, action: 'RIGHT' },
-          { id: 3, flowType: 'ELSE_IF', sensor: 4, operator: '>', valueType: 'sensor', value: 0, action: 'LEFT' },
-          { id: 4, flowType: 'ELSE', sensor: 2, operator: '>', valueType: 'number', value: 0, action: 'ACCEL' },
+          { id: 1, flowType: 'IF', sensor: 3, operator: '<', valueType: 'number', value: 80, action: 'BRAKE_100' },
+          { id: 2, flowType: 'ELSE_IF', sensor: 0, operator: '>', valueType: 'sensor', value: 6, action: 'RIGHT_50' },
+          { id: 3, flowType: 'ELSE_IF', sensor: 6, operator: '>', valueType: 'sensor', value: 0, action: 'LEFT_50' },
+          { id: 4, flowType: 'ELSE', sensor: 3, operator: '>', valueType: 'number', value: 0, action: 'ACCEL_100' },
         ];
 
         const PART_TYPES = [
@@ -177,7 +208,8 @@
           const [blocks, setBlocks] = useState(INITIAL_BLOCKS);
           const [gameState, setGameState] = useState('idle');
           const [winner, setWinner] = useState(null);
-          const [sensorReadings, setSensorReadings] = useState([0, 0, 0, 0, 0]);
+          // 7 sensors
+          const [sensorReadings, setSensorReadings] = useState(new Array(7).fill(0));
           const [currentTrackIdx, setCurrentTrackIdx] = useState(0);
           const [isMuted, setIsMuted] = useState(false);
           const [carsInitialized, setCarsInitialized] = useState(false);
@@ -403,12 +435,11 @@
 
           const castRays = (car, range) => {
             const readings = [];
-            const angles = [-60, -30, 0, 30, 60]; 
-            
-            angles.forEach(offset => {
+            // Updated angles for 7 sensors
+            SENSOR_ANGLES.forEach(offset => {
               const rayAngle = car.angle + (offset * Math.PI / 180);
               let distance = 0;
-              let step = 2;
+              let step = 3; // Faster raycast
               let maxDist = range;
               let rx = car.x;
               let ry = car.y;
@@ -442,6 +473,7 @@
             
             // Steering
             if (Math.abs(car.speed) > 0.5) {
+                // inputs.steer now ranges -1.0 to 1.0 (float)
                 car.angle += inputs.steer * carPhysics.turnSpeed * (car.speed > 0 ? 1 : -1);
             }
 
@@ -459,6 +491,7 @@
 
             car.moveAngle += angleDiff * grip;
 
+            // Throttle inputs (-1 to 1)
             car.speed += inputs.throttle * carPhysics.acceleration;
             car.speed *= carPhysics.friction;
 
@@ -603,10 +636,26 @@
             return { steer, throttle: throttle - variance };
           };
 
-          const evaluateCondition = (block, currentReadings) => {
+          const evaluateCondition = (block, currentReadings, currentSpeed) => {
               if (block.flowType === 'ELSE') return false; 
-              const leftValue = currentReadings[block.sensor];
-              let rightValue = block.valueType === 'sensor' ? currentReadings[block.value] : block.value;
+              
+              let leftValue = 0;
+              if (block.sensor === SENSOR_SPEED_ID) {
+                  leftValue = currentSpeed;
+              } else {
+                  leftValue = currentReadings[block.sensor];
+              }
+
+              let rightValue = 0;
+              if (block.valueType === 'sensor') {
+                  if (block.value === SENSOR_SPEED_ID) {
+                      rightValue = currentSpeed;
+                  } else {
+                      rightValue = currentReadings[block.value];
+                  }
+              } else {
+                  rightValue = block.value;
+              }
 
               if (block.operator === '<') return leftValue < rightValue;
               if (block.operator === '>') return leftValue > rightValue;
@@ -619,23 +668,35 @@
           
           const applyAction = (block, steerOutputs) => {
                 switch(block.action) {
-                    case 'LEFT': steerOutputs.turnLeft = true; break;
-                    case 'RIGHT': steerOutputs.turnRight = true; break;
-                    case 'ACCEL': steerOutputs.gas = true; break;
-                    case 'BRAKE': steerOutputs.brake = true; break;
+                    case 'LEFT_100': steerOutputs.steer = -1.0; break;
+                    case 'LEFT_50': steerOutputs.steer = -0.5; break;
+                    case 'RIGHT_100': steerOutputs.steer = 1.0; break;
+                    case 'RIGHT_50': steerOutputs.steer = 0.5; break;
+                    
+                    case 'ACCEL_100': steerOutputs.throttle = 1.0; break;
+                    case 'ACCEL_75': steerOutputs.throttle = 0.75; break;
+                    case 'ACCEL_50': steerOutputs.throttle = 0.5; break;
+                    
+                    case 'BRAKE_100': steerOutputs.throttle = -1.0; break;
+                    case 'BRAKE_75': steerOutputs.throttle = -0.75; break;
+                    case 'BRAKE_50': steerOutputs.throttle = -0.5; break;
+                    
+                    case 'REVERSE': steerOutputs.throttle = -0.5; break; 
+                    case 'NONE': break;
                     default: break;
                 }
           }
 
           const getUserInputs = (car, currentReadings) => {
-            const steerOutputs = { turnLeft: false, turnRight: false, gas: false, brake: false };
-            let steer = 0;
-            let throttle = 0;
+            const steerOutputs = { steer: 0, throttle: 0 }; 
             let matchedInChain = false; 
+
+            // Speed is needed for logic comparison
+            const currentSpeed = Math.abs(car.speed) * 10; // Scale up for easier logic (0-15 speed -> 0-150 range)
 
             for (let i = 0; i < blocks.length; i++) {
                 const block = blocks[i];
-                const conditionMet = evaluateCondition(block, currentReadings);
+                const conditionMet = evaluateCondition(block, currentReadings, currentSpeed);
                 const isStartOfChain = block.flowType === 'IF';
                 const isElseIf = block.flowType === 'ELSE_IF';
                 const isElse = block.flowType === 'ELSE';
@@ -657,12 +718,7 @@
                     }
                 } 
             }
-            if (steerOutputs.turnLeft) steer -= 1;
-            if (steerOutputs.turnRight) steer += 1;
-            if (steerOutputs.gas) throttle += 1;
-            if (steerOutputs.brake) throttle -= 1;
-
-            return { steer, throttle };
+            return steerOutputs;
           };
 
           const update = (timestamp) => {
@@ -815,11 +871,11 @@
 
                 if (!car.isAI) {
                     const readings = castRays(car, physics.sensorRange);
-                    const angles = [-60, -30, 0, 30, 60];
+                    // Updated to SENSOR_ANGLES
                     readings.forEach((r, i) => {
                        ctx.save();
                        ctx.translate(car.x, car.y);
-                       ctx.rotate(car.angle + (angles[i] * Math.PI / 180));
+                       ctx.rotate(car.angle + (SENSOR_ANGLES[i] * Math.PI / 180));
                        const grad = ctx.createLinearGradient(0, 0, r, 0);
                        grad.addColorStop(0, 'rgba(255, 255, 0, 0.5)');
                        grad.addColorStop(1, 'rgba(255, 0, 0, 0.8)');
@@ -942,7 +998,7 @@
 
           // --- Block Logic Handlers ---
           const addBlock = () => {
-            const newBlock = { id: Date.now(), flowType: 'IF', sensor: 2, operator: '<', valueType: 'number', value: 50, action: 'BRAKE' };
+            const newBlock = { id: Date.now(), flowType: 'IF', sensor: 3, operator: '<', valueType: 'number', value: 50, action: 'BRAKE_50' };
             setBlocks([...blocks, newBlock]);
             playClickSound();
           };
@@ -1206,15 +1262,13 @@
                                   <span className="font-bold text-blue-300">→</span>
                                   
                                   <select className={`border border-slate-600 rounded px-1 lg:px-2 py-1 font-bold outline-none flex-grow
-                                        ${block.action === 'LEFT' || block.action === 'RIGHT' ? 'bg-indigo-900 text-indigo-200' : ''}
-                                        ${block.action === 'ACCEL' ? 'bg-green-900 text-green-200' : ''}
-                                        ${block.action === 'BRAKE' ? 'bg-red-900 text-red-200' : ''}
+                                        ${block.action.startsWith('LEFT') || block.action.startsWith('RIGHT') ? 'bg-indigo-900 text-indigo-200' : ''}
+                                        ${block.action.startsWith('ACCEL') ? 'bg-green-900 text-green-200' : ''}
+                                        ${block.action.startsWith('BRAKE') || block.action === 'REVERSE' ? 'bg-red-900 text-red-200' : ''}
+                                        ${block.action === 'NONE' ? 'bg-slate-800 text-slate-400' : ''}
                                         ${isElse ? 'w-full' : ''}`}
                                     value={block.action} onChange={(e) => updateBlock(block.id, 'action', e.target.value)}>
-                                    <option value="LEFT">좌회전</option>
-                                    <option value="RIGHT">우회전</option>
-                                    <option value="ACCEL">가속</option>
-                                    <option value="BRAKE">감속</option>
+                                    {ACTION_OPTIONS.map(opt => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
                                   </select>
                                   <button onClick={() => removeBlock(block.id)} className="text-slate-500 hover:text-red-400 ml-auto opacity-100 lg:opacity-0 group-hover:opacity-100 transition"><Trash2 size={14} /></button>
                                 </div>
@@ -1308,13 +1362,13 @@
                         {/* Bottom Right Controls: Sensor Data (Moved Here) */}
                         <div className="absolute bottom-2 right-2 lg:bottom-4 lg:right-4 pointer-events-none origin-bottom-right scale-75 lg:scale-90">
                             {/* Sensor Distance Panel */}
-                            <div className="bg-slate-900/90 backdrop-blur p-2 lg:p-3 rounded-xl border border-slate-700 shadow-xl min-w-[200px] lg:min-w-[240px]">
+                            <div className="bg-slate-900/90 backdrop-blur p-2 lg:p-3 rounded-xl border border-slate-700 shadow-xl min-w-[200px] lg:min-w-[280px]">
                                 <div className="flex items-center gap-2 mb-1 lg:mb-2 text-[10px] lg:text-xs uppercase tracking-wider text-slate-400 border-b border-slate-700 pb-1">
-                                    <Activity size={12} /> 실시간 센서
+                                    <Activity size={12} /> 실시간 센서 (7-Way)
                                 </div>
-                                <div className="grid grid-cols-5 gap-1 text-center">
+                                <div className="grid grid-cols-7 gap-1 text-center">
                                     {sensorReadings.map((val, idx) => {
-                                        const labels = ['좌', '전좌', '전', '전우', '우']; // 더 짧은 라벨
+                                        const labels = ['좌', '전좌', '전좌', '전', '전우', '전우', '우']; 
                                         const color = val < 50 ? 'text-red-400' : 'text-green-400';
                                         return (
                                             <div key={idx} className="bg-slate-800 p-1 rounded border border-slate-600">
