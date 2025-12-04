@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Planet Survivor: Interceptor Accuracy Fix</title>
+    <title>Planet Survivor: Leveling Balance</title>
     <style>
         body {
             margin: 0; overflow: hidden; background-color: #0d1117; color: white;
@@ -166,7 +166,7 @@
     };
 
     const WEAPON_DB = {
-        'MISSILE': { // [기본 무기]
+        'MISSILE': {
             name: '유도 미사일', icon: '🚀', type: 'HOMING',
             baseDamage: 30, baseCooldown: 45, color: '#f59e0b',
             range: 600, projectileCount: 1, explosive: false
@@ -215,7 +215,8 @@
     let projectiles=[], enemies=[], particles=[], beams=[], explosions=[], drones=[], lightnings=[];
     let boss = null; 
 
-    const player = { level: 1, xp: 0, xpToNext: 50, weapons: [] };
+    // [밸런스 수정] xpToNext: 50 -> 150 (초반 레벨업 속도 조절)
+    const player = { level: 1, xp: 0, xpToNext: 150, weapons: [] };
     const core = { x: canvas.width/2, y: canvas.height/2, radius: 35, maxHp: 100, hp: 100, color: '#3b82f6' };
 
     /* ================= 보조 클래스 ================= */
@@ -343,10 +344,11 @@
                 if(this.cooldown <= 0) {
                     projectiles.push(new Projectile(
                         this.x, this.y,
-                        // [수정] 투사체 속도 7 -> 15로 증가
                         Math.cos(angleToTarget)*15, Math.sin(angleToTarget)*15,
-                        this.data.baseDamage, this.data.color, false
+                        this.data.baseDamage, this.data.color, false, false
                     ));
+                    projectiles[projectiles.length-1].radius = 5; 
+                    
                     this.cooldown = this.data.baseCooldown;
                 }
             } else {
@@ -388,12 +390,18 @@
              this.speed = this.baseSpeed;
              this.radius=12; this.color=`hsl(${Math.random()*60},70%,50%)`;
              this.dead = false; this.slowed = false;
+             
+             this.spiralDir = Math.random() < 0.5 ? 1 : -1; 
         }
         update(){
             this.speed = this.baseSpeed;
             if (this.slowed) { this.speed *= 0.5; this.slowed = false; }
-            const a=Math.atan2(core.y-this.y, core.x-this.x);
-            this.x+=Math.cos(a)*this.speed; this.y+=Math.sin(a)*this.speed;
+            
+            const angleToCore = Math.atan2(core.y - this.y, core.x - this.x);
+            const moveAngle = angleToCore + (this.spiralDir * 0.78);
+            
+            this.x += Math.cos(moveAngle) * this.speed; 
+            this.y += Math.sin(moveAngle) * this.speed;
         }
         takeDamage(d){
             if(this.dead) return false;
@@ -401,7 +409,12 @@
             if(this.hp<=0){ this.hp = 0; this.dead = true; this.die(); return true; } 
             return false;
         }
-        die(){for(let i=0;i<5;i++)particles.push(new Particle(this.x,this.y,this.color)); addXp(15); score+=10;}
+        die(){
+            for(let i=0;i<5;i++)particles.push(new Particle(this.x,this.y,this.color)); 
+            // [밸런스 수정] 적 처치 시 경험치 스케일링 (10 + 레벨)
+            addXp(10 + player.level); 
+            score+=10;
+        }
         draw(){
             ctx.beginPath(); ctx.arc(this.x,this.y,this.radius,0,Math.PI*2); ctx.fillStyle=this.color; ctx.fill();
             if(this.hp<this.maxHp){
@@ -710,7 +723,8 @@
     }
     
     function levelUp(){
-        player.level++; player.xp=0; player.xpToNext=Math.floor(player.xpToNext*1.3);
+        // [밸런스 수정] 레벨업 요구량 곡선 완화 (1.3 -> 1.15)
+        player.level++; player.xp=0; player.xpToNext=Math.floor(player.xpToNext * 1.15);
         if (player.level % 5 === 0 && !boss) spawnBoss();
         currentState=GAME_STATE.LEVEL_UP; generateUpgradeCards(); upgradeMenu.classList.add('active');
     }
@@ -860,7 +874,7 @@
         frame++;
         
         if (!boss) {
-            const spawnRate = Math.max(10, 80 - (player.level * 2));
+            const spawnRate = Math.max(5, 50 - (player.level * 3));
             if (frame % spawnRate === 0) enemies.push(new Enemy());
         }
 
