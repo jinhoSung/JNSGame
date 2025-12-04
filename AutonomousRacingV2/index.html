@@ -105,7 +105,9 @@
             border: 90, curb: 80, asphalt: 70 
         };
 
-        const SENSOR_LABELS = { 0: '좌측 센서', 1: '전방 좌측', 2: '전방 센서', 3: '전방 우측', 4: '우측 센서' };
+        const SENSOR_LABELS = { 0: '좌측', 1: '전방좌측', 2: '전방', 3: '전방우측', 4: '우측' }; // 축약
+        const SENSOR_SELECT_LABELS = { 0: '좌측 센서', 1: '전방 좌측', 2: '전방 센서', 3: '전방 우측', 4: '우측 센서' }; // 선택용 전체 이름
+
         const OPERATOR_OPTIONS = [
             { value: '<', label: '작다면 (<)' }, { value: '>', label: '크다면 (>)' }, 
             { value: '<=', label: '같거나 작다면 (<=)' }, { value: '>=', label: '같거나 크다면 (>=)' }, 
@@ -1224,24 +1226,6 @@
                           </div>
                         </div>
 
-                        <div className="p-2 lg:p-4 bg-slate-800/50 border-b border-slate-700">
-                            <div className="flex items-center gap-2 mb-1 lg:mb-2 text-[10px] lg:text-xs uppercase tracking-wider text-slate-400">
-                                <Activity size={12} /> 실시간 센서 거리
-                            </div>
-                            <div className="grid grid-cols-5 gap-1 text-center">
-                                {sensorReadings.map((val, idx) => {
-                                    const labels = ['좌측', '전방좌측', '전방', '전방우측', '우측'];
-                                    const color = val < 50 ? 'text-red-400' : 'text-green-400';
-                                    return (
-                                        <div key={idx} className="bg-slate-900 p-1 lg:p-2 rounded border border-slate-700">
-                                            <div className="text-[9px] lg:text-[10px] text-slate-500">{labels[idx]}</div>
-                                            <div className={`font-mono text-xs lg:text-sm font-bold ${color}`}>{Math.round(val)}</div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
                         <div className="flex-1 overflow-y-auto p-2 lg:p-4 space-y-2 lg:space-y-3 no-scrollbar">
                           {blocks.length === 0 && (<div className="text-slate-500 text-center py-10 italic text-sm">로직 블록이 없습니다.</div>)}
                           
@@ -1264,7 +1248,7 @@
                                       <React.Fragment>
                                           <select className="bg-slate-900 border border-slate-600 rounded px-1 lg:px-2 py-1 text-slate-200 focus:border-blue-500 outline-none max-w-[80px] lg:max-w-none"
                                             value={block.sensor} onChange={(e) => updateBlock(block.id, 'sensor', parseInt(e.target.value))}>
-                                            {Object.entries(SENSOR_LABELS).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
+                                            {Object.entries(SENSOR_SELECT_LABELS).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
                                           </select>
                                           
                                           <select className="bg-slate-900 border border-slate-600 rounded px-1 lg:px-2 py-1 text-slate-200 focus:border-blue-500 outline-none max-w-[70px] lg:max-w-none"
@@ -1289,7 +1273,7 @@
                                           ) : (
                                               <select className="bg-slate-900 border border-slate-600 rounded px-1 lg:px-2 py-1 text-slate-200 focus:border-blue-500 outline-none w-16 lg:w-24"
                                                 value={block.value} onChange={(e) => updateBlock(block.id, 'value', parseInt(e.target.value))}>
-                                                {Object.entries(SENSOR_LABELS).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
+                                                {Object.entries(SENSOR_SELECT_LABELS).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
                                               </select>
                                           )}
                                       </React.Fragment>
@@ -1383,14 +1367,40 @@
                             </div>
                         )}
                         
-                        <div className="absolute bottom-2 left-2 lg:bottom-4 lg:left-4 flex gap-2 lg:gap-4 scale-75 lg:scale-100 origin-bottom-left">
-                            {cars.current.slice(1).map(c => (
-                                <div key={c.id} className="bg-slate-900/80 backdrop-blur p-1.5 lg:p-2 rounded border border-slate-700 flex flex-col items-center min-w-[50px] lg:min-w-[60px]">
-                                    <div className="w-2.5 h-2.5 lg:w-3 lg:h-3 rounded-full mb-1" style={{backgroundColor: c.color}}></div>
-                                    <div className="text-[9px] lg:text-xs text-slate-400">{c.id.toUpperCase()}</div>
-                                    <div className="font-mono font-bold text-xs lg:text-sm">{c.laps}/{TOTAL_LAPS}</div>
+                        {/* Bottom Left Controls: AI Counters Only */}
+                        <div className="absolute bottom-2 left-2 lg:bottom-4 lg:left-4 flex items-end gap-2 lg:gap-4 pointer-events-none origin-bottom-left scale-90 lg:scale-100">
+                            {/* AI Lap Counters */}
+                            <div className="flex gap-2 lg:gap-4">
+                                {cars.current.slice(1).map(c => (
+                                    <div key={c.id} className="bg-slate-900/80 backdrop-blur p-1.5 lg:p-2 rounded border border-slate-700 flex flex-col items-center min-w-[50px] lg:min-w-[60px]">
+                                        <div className="w-2.5 h-2.5 lg:w-3 lg:h-3 rounded-full mb-1" style={{backgroundColor: c.color}}></div>
+                                        <div className="text-[9px] lg:text-xs text-slate-400">{c.id.toUpperCase()}</div>
+                                        <div className="font-mono font-bold text-xs lg:text-sm">{c.laps}/{TOTAL_LAPS}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Bottom Right Controls: Sensor Data (Moved Here) */}
+                        <div className="absolute bottom-2 right-2 lg:bottom-4 lg:right-4 pointer-events-none origin-bottom-right scale-75 lg:scale-90">
+                            {/* Sensor Distance Panel */}
+                            <div className="bg-slate-900/90 backdrop-blur p-2 lg:p-3 rounded-xl border border-slate-700 shadow-xl min-w-[200px] lg:min-w-[240px]">
+                                <div className="flex items-center gap-2 mb-1 lg:mb-2 text-[10px] lg:text-xs uppercase tracking-wider text-slate-400 border-b border-slate-700 pb-1">
+                                    <Activity size={12} /> 실시간 센서
                                 </div>
-                            ))}
+                                <div className="grid grid-cols-5 gap-1 text-center">
+                                    {sensorReadings.map((val, idx) => {
+                                        const labels = ['좌', '전좌', '전', '전우', '우']; // 더 짧은 라벨
+                                        const color = val < 50 ? 'text-red-400' : 'text-green-400';
+                                        return (
+                                            <div key={idx} className="bg-slate-800 p-1 rounded border border-slate-600">
+                                                <div className="text-[8px] lg:text-[9px] text-slate-500">{labels[idx]}</div>
+                                                <div className={`font-mono text-xs lg:text-sm font-bold ${color}`}>{Math.round(val)}</div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         </div>
                     </React.Fragment>
                 )}
