@@ -299,7 +299,7 @@
         const data = localStorage.getItem('planetSurvivorSave');
         if (data) {
             const loaded = JSON.parse(data);
-            // 병합 로직 (새로운 업그레이드 키를 안전하게 추가)
+            // 기존 데이터와 저장 파일 병합 (새로운 업그레이드 키를 안전하게 추가)
             saveFile = { ...saveFile, ...loaded, upgrades: { ...saveFile.upgrades, ...loaded.upgrades } };
         }
     }
@@ -463,7 +463,7 @@
         dpsTracker = {};
         sessionStartTime = Date.now();
         // 무기 목록에 DPS 키를 미리 생성
-        WEAPON_DB.forEach(w => dpsTracker[w.id] = 0);
+        Object.keys(WEAPON_DB).forEach(id => dpsTracker[id] = 0);
     }
     
     // [추가] 피해량 트래킹 함수
@@ -828,26 +828,25 @@
              if(side===0){this.x=Math.random()*(vW+m*2)+(cx-vW/2-m); this.y=cy-vH/2-m;} else if(side===1){this.x=cx+vW/2+m; this.y=Math.random()*(vH+m*2)+(cy-vH/2-m);} else if(side===2){this.x=Math.random()*(vW+m*2)+(cx-vW/2-m); this.y=cy+vH/2+m;} else{this.x=cx-vW/2-m; this.y=Math.random()*(vH+m*2)+(cy-vH/2-m);}
              
              const diff = DIFFICULTY_SETTINGS[currentDifficulty];
-             // [수정] 적 HP 스케일링 강화: 기본 HP가 1000이 되었으므로, 적의 기본 HP도 조정
-             // 50 + (player.level * 20) * diff.hpMult로 조정
-             this.hp = (50 + (player.level*20)) * diff.hpMult;
+             // [수정] 적 HP 스케일링 강화: 60 + (player.level * 25) * diff.hpMult로 조정
+             this.hp = (60 + (player.level*25)) * diff.hpMult;
              this.maxHp = this.hp;
              this.baseSpeed = (0.5+Math.random()*0.5+(player.level*0.05));
              this.speed = this.baseSpeed;
              
              this.radius=12; this.color=`hsl(${Math.random()*60},70%,50%)`; this.dead=false; this.slowed=false; 
              
-             // [수정] 50% 확률로 완만한 나선형 적(spiral) 또는 빠른 직선형 적(direct) 생성
-             if (Math.random() < 0.5) {
+             // [수정] 85% 확률로 완만한 나선형 적(spiral) 또는 15% 확률로 빠른 직선형 적(direct) 생성
+             if (Math.random() < 0.85) {
                  // 완만한 나선형 (체력 높음, 느린 회전)
-                 this.spiralDir = Math.random() < 0.5 ? 0.15 : -0.15; // 2바퀴 이상을 돌게 완화
+                 this.spiralDir = Math.random() < 0.5 ? 0.78 : -0.78; // 2바퀴 이상을 돌게 완화
                  this.hp *= 1.5; // 체력 보너스
                  this.maxHp *= 1.5;
              } else {
                  // 빠른 직선형 (체력 낮음, 직선 이동)
                  this.spiralDir = 0; 
-                 this.hp *= 0.8; // 체력 페널티
-                 this.maxHp *= 0.8;
+                 this.hp *= 0.7; // 체력 페널티
+                 this.maxHp *= 0.7;
              }
         }
         update(){ 
@@ -1319,7 +1318,7 @@
             if(p.life<=0 || (p.behavior !== 'BOOMERANG' && (p.x<cx-vW/2-m||p.x>cx+vW/2+m||p.y<cy-vH/2-m||p.y>cy+vH/2+m))){
                 projectiles.splice(i,1); continue;
             }
-            if(boss&&!boss.dead&&Math.hypot(p.x-boss.x,p.y-boss.y)<boss.radius+p.radius){if(p.explosive){p.explode();projectiles.splice(i,1);continue;}boss.takeDamage(p.damage);particles.push(new Particle(p.x,p.y,p.color,null,null,1.0,0.1));if(!p.isPiercing){projectiles.splice(i,1);continue;}}
+            if(boss&&!boss.dead&&Math.hypot(p.x-boss.x,p.y-boss.y)<boss.radius+p.radius){if(p.explosive){p.explode();projectiles.splice(i,1);continue;}boss.takeDamage(p.damage, p.weaponId);particles.push(new Particle(p.x,p.y,p.color,null,null,1.0,0.1));if(!p.isPiercing){projectiles.splice(i,1);continue;}}
             for(let j=enemies.length-1;j>=0;j--){const e=enemies[j];if(e.dead)continue;
                 
                 // 부메랑이 이미 이 적을 때렸는지 확인
@@ -1331,7 +1330,7 @@
                         projectiles.splice(i,1);
                         break;
                     }else{
-                        const died=e.takeDamage(p.damage);
+                        const died=e.takeDamage(p.damage, p.weaponId);
                         if(!died)particles.push(new Particle(e.x,e.y,'#fff',null,null,1.0,0.1));
                         
                         if(!p.isPiercing){
