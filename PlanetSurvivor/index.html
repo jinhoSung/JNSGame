@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content=ㅀ"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Planet Survivor: Ultimate Evolution</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #0d1117; color: white; font-family: 'Segoe UI', sans-serif; user-select: none; touch-action: none; }
@@ -905,7 +905,14 @@
             trackDamage(weaponId, d);
             
             this.hp-=d; 
-            for(let i=0; i<3; i++) particles.push(new Particle(this.x, this.y, '#fff', (Math.random()-0.5)*5, (Math.random()-0.5)*5, 1.0, 0.08, 0.9));
+            
+            // [추가] 레일건 피격 시 이펙트 발생
+            if (weaponId === 'SNIPER') {
+                for(let i=0; i<6; i++) particles.push(new Particle(this.x, this.y, i % 2 === 0 ? '#fff' : '#facc15', (Math.random()-0.5)*8, (Math.random()-0.5)*8, 1.0, 0.08, 0.9));
+            } else {
+                for(let i=0; i<3; i++) particles.push(new Particle(this.x, this.y, '#fff', (Math.random()-0.5)*5, (Math.random()-0.5)*5, 1.0, 0.08, 0.9));
+            }
+            
             audio.hit(); 
             if(this.hp<=0){this.hp=0; this.dead=true; this.die(); return true;} 
             return false; 
@@ -1044,8 +1051,12 @@
                     if(this.currentData.blastRadius) this.currentData.blastRadius = Math.floor(this.currentData.blastRadius * (1 + boost));
                 }
             } else if (type === 'COUNT') {
-                if (this.currentData.projectileCount !== undefined && this.id !== 'INTERCEPTOR') {
-                    // [수정] 발사체 수 증가에 희귀도 배율 적용
+                if (this.id === 'TESLA' || this.id === 'GRAVITY') {
+                    // [추가] 체인 라이트닝, 중력장: COUNT 업그레이드가 기본 발사 횟수 증가
+                    this.currentData.projectileCount += Math.max(1, Math.floor(1 * rarityMult));
+                }
+                // [수정] 발사체 수 증가에 희귀도 배율 적용
+                else if (this.currentData.projectileCount !== undefined && this.id !== 'INTERCEPTOR') {
                     this.currentData.projectileCount += Math.max(1, Math.floor(1 * rarityMult));
                 }
                 if (this.currentData.unitCount !== undefined) { this.currentData.unitCount++; this.spawnUnits(); }
@@ -1106,8 +1117,16 @@
 
             const wx=core.x+Math.cos(this.angle)*this.orbitRadius; const wy=core.y+Math.sin(this.angle)*this.orbitRadius;
             const count=this.currentData.projectileCount||1; const spread=this.currentData.spread||0.2;
-
-            for(let i=0; i<count; i++) {
+            
+            // [수정] 체인 라이트닝은 발사체 수 만큼 공격 횟수 증가
+            let fireCount = 1;
+            if (this.currentData.type === 'CHAIN' || this.currentData.type === 'SLOW_ZONE') {
+                 fireCount = this.currentData.projectileCount || 1;
+            } else {
+                 fireCount = count;
+            }
+            
+            for(let i=0; i<fireCount; i++) {
                 let angleOffset=(count>1)?(i-(count-1)/2)*spread:0;
                 let dmg = this.currentData.baseDamage;
                 let color = this.currentData.color;
@@ -1132,7 +1151,9 @@
                     projectiles.push(new Projectile(wx,wy,Math.cos(fa)*6,Math.sin(fa)*6,dmg,color,false,true, weaponId, this.currentData.life || 60)); 
                     audio.shoot(); 
                 } else if(this.currentData.type==='CHAIN') {
-                    this.castLightning(target,dmg,this.currentData.bounceCount||3, weaponId); break;
+                    this.castLightning(target,dmg,this.currentData.bounceCount||3, weaponId); 
+                    // 체인 라이트닝은 루프 내에서 발사 후 break (i=0일 때만 실행)
+                    if (i === 0) break;
                 } else if(this.currentData.type==='BOOMERANG') {
                     const fa = Math.random() * Math.PI * 2; 
                     const p = new Projectile(wx, wy, Math.cos(fa)*this.currentData.speed, Math.sin(fa)*this.currentData.speed, dmg, color, true, false, weaponId);
@@ -1168,8 +1189,11 @@
                     const angle = Math.random() * Math.PI * 2; const dist = this.currentData.range; const px = core.x + Math.cos(angle) * dist; const py = core.y + Math.sin(angle) * dist;
                     particles.push(new GravityParticle(px, py, core.x, core.y, this.currentData.color));
                 }
-                if(boss&&!boss.dead&&Math.hypot(boss.x-core.x,boss.y-core.y)<this.currentData.range+boss.radius && Math.floor(this.tickTimer)%10===0) boss.takeDamage(this.currentData.baseDamage, this.id);
-                enemies.forEach(e=>{if(!e.dead && Math.hypot(e.x-core.x,e.y-core.y)<this.currentData.range+e.radius){ e.slowed=true; if(Math.floor(this.tickTimer)%10===0)e.takeDamage(this.currentData.baseDamage, this.id);}}); return;
+                // [수정] 중력장: 피해 틱 횟수는 currentData.projectileCount를 사용
+                const tickRate = 10 / (this.currentData.projectileCount || 1); 
+
+                if(boss&&!boss.dead&&Math.hypot(boss.x-core.x,boss.y-core.y)<this.currentData.range+boss.radius && Math.floor(this.tickTimer)%tickRate===0) boss.takeDamage(this.currentData.baseDamage, this.id);
+                enemies.forEach(e=>{if(!e.dead && Math.hypot(e.x-core.x,e.y-core.y)<this.currentData.range+e.radius){ e.slowed=true; if(Math.floor(this.tickTimer)%tickRate===0)e.takeDamage(this.currentData.baseDamage, this.id);}}); return;
             }
             // hitRate(공격 속도)도 빨라짐
             if(Math.floor(this.tickTimer)%(this.currentData.hitRate||10)!==0)return;
