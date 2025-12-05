@@ -597,11 +597,10 @@
         speedBtn.innerText = `⏩ ${GAME_SPEED.toFixed(1)}x`;
         
         // [수정] 보스 바가 시작 시 숨겨지도록 강제
-        if (bossHud) {
-            bossHud.classList.remove('active');
-            bossHud.style.display = 'none'; // 인라인 스타일로도 강제 숨김
-        }
+        if (bossHud) bossHud.classList.remove('active');
         if (warningMsg) warningMsg.style.display = 'none';
+        // [수정] CSS 인라인 스타일로도 안전하게 숨김
+        if (bossHud) bossHud.style.display = 'none'; 
     }
 
     /* ================= Classes ================= */
@@ -818,6 +817,16 @@
                     if(!audio.muted) audio.shoot(); this.cooldown=this.data.baseCooldown;
                 }
             } 
+            
+            // [수정] 요격 편대의 이동 범위를 코어 근처로 제한
+            const distToCore = Math.hypot(this.x - core.x, this.y - core.y);
+            const maxRadius = 400; 
+            if (distToCore > maxRadius) {
+                const angleToCore = Math.atan2(core.y - this.y, core.x - this.x);
+                this.x += Math.cos(angleToCore) * (distToCore - maxRadius) * 0.1 * GAME_SPEED;
+                this.y += Math.sin(angleToCore) * (distToCore - maxRadius) * 0.1 * GAME_SPEED;
+            }
+
             drones.forEach(other => {
                 if (other === this) return;
                 const dist = Math.hypot(this.x - other.x, this.y - other.y);
@@ -1188,21 +1197,25 @@
         updateZone() {
             this.tickTimer += 1 * GAME_SPEED; // 타이머도 속도 적용
             if(this.currentData.type==='SLOW_ZONE'){
+                
+                // [수정] 중력장: 피해 틱 횟수는 currentData.projectileCount를 사용 (COUNT 업글 효과)
+                const tickRate = 60 / (this.currentData.projectileCount || 1); // 1초당 틱 (60프레임 기준)
+
                 // 파티클 생성 빈도는 frame 기반으로 유지하되, tickTimer를 이용
                 if(Math.floor(this.tickTimer) % 3 === 0) {
                     const angle = Math.random() * Math.PI * 2; const dist = this.currentData.range; const px = core.x + Math.cos(angle) * dist; const py = core.y + Math.sin(angle) * dist;
                     particles.push(new GravityParticle(px, py, core.x, core.y, this.currentData.color));
                 }
                 
-                // [수정] 중력장: 피해 틱 횟수는 currentData.projectileCount를 사용
-                const tickRate = 60 / (this.currentData.projectileCount || 1); // 1초당 틱 (60프레임 기준)
-
                 if(boss&&!boss.dead&&Math.hypot(boss.x-core.x,boss.y-core.y)<this.currentData.range+boss.radius && Math.floor(this.tickTimer)%tickRate===0) {
                     boss.takeDamage(this.currentData.baseDamage, this.id);
                 }
                 enemies.forEach(e=>{
                     if(!e.dead && Math.hypot(e.x-core.x,e.y-core.y)<this.currentData.range+e.radius){ 
+                        // [수정] 슬로우 효과 적용
                         e.slowed=true; 
+                        core.slowFactor = this.currentData.slowFactor;
+
                         if(Math.floor(this.tickTimer)%tickRate===0) {
                             e.takeDamage(this.currentData.baseDamage, this.id);
                             // [추가] 피격 효과 (작은 흑색/백색 파티클)
@@ -1298,7 +1311,8 @@
             if(opt.type==='NEW')addWeapon(opt.id);
             else if(opt.type==='SPECIAL')opt.weapon.applySpecialUpgrade();
             else if(opt.type==='GENERAL')opt.weapon.applyGeneralUpgrade(opt.rarity.mult, opt.statType);
-            else if(opt.type==='HEAL')core.hp=Math.min(core.hp+50, core.maxHp);
+            // [수정] 최대 체력의 50%를 회복하도록 수정
+            else if(opt.type==='HEAL')core.hp=Math.min(core.hp + core.maxHp * 0.5, core.maxHp);
             renderWeaponSlots(); updateUi(); upgradeMenu.classList.remove('active'); currentState=GAME_STATE.PLAYING;
         }; cardsArea.appendChild(card);
     }
