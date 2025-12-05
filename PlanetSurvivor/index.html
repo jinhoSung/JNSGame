@@ -197,8 +197,9 @@
     </div>
 </div>
 
+<!-- [수정] 인라인 스타일로 기본 상태 강제 숨김 -->
 <div id="boss-hud" style="display: none;"><div class="boss-name">⚠️ GIANT PLANET EATER ⚠️</div><div class="boss-bar-bg"><div id="boss-hp-bar"></div></div></div>
-<div id="warning-msg">WARNING!<br><span style="font-size:30px">BOSS APPROACHING</span></div>
+<div id="warning-msg" style="display: none;">WARNING!<br><span style="font-size:30px">BOSS APPROACHING</span></div>
 
 <div id="upgrade-menu"><h1 style="color:white; margin-bottom:10px; font-size: 24px;">LEVEL UP!</h1><div class="cards-container" id="cards-area"></div></div>
 <canvas id="gameCanvas"></canvas>
@@ -562,7 +563,7 @@
         'SNIPER': { name: '레일건', icon: '⚡', type: 'PIERCING', baseDamage: 100, baseCooldown: 100, color: '#3b82f6', range: 800, projectileCount: 1, rearShot: false, speed: 40 },
         // [수정] 마이크로 미사일: 기본 피해량 12 -> 20으로 증가
         'MICRO_SWARM': { name: '마이크로 미사일', icon: '🎆', type: 'SWARM', baseDamage: 20, baseCooldown: 45, color: '#22d3ee', range: 500, projectileCount: 6, spread: 0.5, life: 60 },
-        'INTERCEPTOR': { name: '요격 편대', icon: '🛸', type: 'UNIT', baseDamage: 18, baseCooldown: 30, color: '#e879f9', range: 300, unitCount: 1, projectileCount: 1 },
+        'INTERCEPTOR': { name: '요격 편대', icon: '🛸', type: 'UNIT', baseDamage: 25, baseCooldown: 30, color: '#e879f9', range: 300, unitCount: 1, projectileCount: 1 }, // [수정] 요격 편대 기본 데미지 25
         // [수정] 체인 라이트닝: 기본 사거리 400 -> 550으로 증가.
         'TESLA': { name: '체인 라이트닝', icon: '🌩️', type: 'CHAIN', baseDamage: 35, baseCooldown: 80, color: '#facc15', range: 550, bounceCount: 3 },
         'GRAVITY': { name: '중력장 생성기', icon: '⚫', type: 'SLOW_ZONE', baseDamage: 3, baseCooldown: 0, color: '#111827', range: 250, slowFactor: 0.5 }
@@ -1043,7 +1044,10 @@
                     if(this.currentData.blastRadius) this.currentData.blastRadius = Math.floor(this.currentData.blastRadius * (1 + boost));
                 }
             } else if (type === 'COUNT') {
-                if (this.currentData.projectileCount !== undefined && this.id !== 'INTERCEPTOR') this.currentData.projectileCount++;
+                if (this.currentData.projectileCount !== undefined && this.id !== 'INTERCEPTOR') {
+                    // [수정] 발사체 수 증가에 희귀도 배율 적용
+                    this.currentData.projectileCount += Math.max(1, Math.floor(1 * rarityMult));
+                }
                 if (this.currentData.unitCount !== undefined) { this.currentData.unitCount++; this.spawnUnits(); }
                 if (this.currentData.bounceCount !== undefined) this.currentData.bounceCount++;
             }
@@ -1239,7 +1243,12 @@
                 else if (w.id === 'MICRO_SWARM') { txt='미사일 수명'; val=`+${Math.floor(boost * 100)}%`; }
                 else if (w.id === 'TESLA') { txt='전이 횟수'; val='+1'; }
             } 
-            if(opt.statType==='COUNT'){txt='발사체 수'; val='+1';}
+            if(opt.statType==='COUNT'){
+                txt='발사체 수'; 
+                // [수정] 발사체 수 증가에 희귀도 배율 적용
+                const countIncrease = Math.max(1, Math.floor(1 * r.mult));
+                val=`+${countIncrease}`;
+            }
             desc=`${txt} <span style="color:${getColor(r.name)};font-weight:bold">+${val}</span>`; icon=w.currentData.icon; card.classList.add(r.color); tagName=r.name.toUpperCase();
         } else { title="긴급 수리"; desc="체력 50% 회복"; icon="❤️"; card.classList.add('common'); tagName='ITEM'; }
         function getColor(n){if(n==='Legendary')return'#eab308';if(n==='Epic')return'#a855f7';if(n==='Rare')return'#3b82f6';if(n==='Uncommon')return'#10b981';return'#9ca3af';}
