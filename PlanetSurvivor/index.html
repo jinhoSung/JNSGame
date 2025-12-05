@@ -607,6 +607,7 @@
             this.behavior = null; 
             this.phase = 'OUT'; this.hoverTimer = 0; this.speed = 0; this.rotation = 0; 
             this.weaponId = weaponId; 
+            this.trail = []; // 궤적 저장용 배열
         }
         update(){
             if(this.behavior === 'BOOMERANG') {
@@ -638,40 +639,71 @@
                 this.x += this.vx * GAME_SPEED; 
                 this.y += this.vy * GAME_SPEED; 
                 this.life -= GAME_SPEED;
+
+                // 마이크로 미사일 궤적 업데이트
+                if (this.weaponId === 'MICRO_SWARM') {
+                    this.trail.push({x: this.x, y: this.y});
+                    if (this.trail.length > 15) { // 궤적 길이 제한
+                        this.trail.shift();
+                    }
+                }
             }
         }
         draw(){
             ctx.save(); 
-            ctx.translate(this.x, this.y);
+            
+            // 마이크로 미사일은 궤적만 그림
+            if (this.weaponId === 'MICRO_SWARM') {
+                if (this.trail.length > 1) {
+                    ctx.beginPath();
+                    ctx.moveTo(this.trail[0].x, this.trail[0].y);
+                    for (let i = 1; i < this.trail.length; i++) {
+                        ctx.lineTo(this.trail[i].x, this.trail[i].y);
+                    }
+                    ctx.lineWidth = 2; // 궤적 굵기
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    
+                    // 꼬리 쪽으로 갈수록 투명해지는 효과
+                    const gradient = ctx.createLinearGradient(this.trail[0].x, this.trail[0].y, this.x, this.y);
+                    gradient.addColorStop(0, 'rgba(34, 211, 238, 0.0)'); // 꼬리 끝 (완전 투명)
+                    gradient.addColorStop(1, this.color); // 머리 (원래 색상)
+                    ctx.strokeStyle = gradient;
 
-            if (this.behavior === 'BOOMERANG') {
-                ctx.scale(3.8, 3.8); ctx.rotate(this.rotation); ctx.fillStyle = this.color;
-                ctx.beginPath(); ctx.moveTo(-6, -4); ctx.quadraticCurveTo(0, 6, 6, -4); ctx.quadraticCurveTo(0, 0, -6, -4); ctx.fill();
-                ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.5; ctx.stroke();
-            } else if (this.weaponId === 'SNIPER') {
-                const angle = Math.atan2(this.vy, this.vx);
-                ctx.rotate(angle);
-                
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = '#60a5fa'; 
-                
-                ctx.fillStyle = '#ffffff';
-                ctx.beginPath();
-                ctx.moveTo(15, 0);
-                ctx.lineTo(-30, 3);
-                ctx.lineTo(-30, -3);
-                ctx.fill();
-                
-                ctx.strokeStyle = this.color;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(15, 0);
-                ctx.lineTo(-40, 0); 
-                ctx.stroke();
-                
-                ctx.shadowBlur = 0; 
+                    ctx.stroke();
+                }
             } else {
-                ctx.beginPath(); ctx.arc(0,0,this.radius,0,Math.PI*2); ctx.fillStyle=this.color; ctx.fill();
+                ctx.translate(this.x, this.y);
+
+                if (this.behavior === 'BOOMERANG') {
+                    ctx.scale(3.8, 3.8); ctx.rotate(this.rotation); ctx.fillStyle = this.color;
+                    ctx.beginPath(); ctx.moveTo(-6, -4); ctx.quadraticCurveTo(0, 6, 6, -4); ctx.quadraticCurveTo(0, 0, -6, -4); ctx.fill();
+                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.5; ctx.stroke();
+                } else if (this.weaponId === 'SNIPER') {
+                    const angle = Math.atan2(this.vy, this.vx);
+                    ctx.rotate(angle);
+                    
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = '#60a5fa'; 
+                    
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.moveTo(15, 0);
+                    ctx.lineTo(-30, 3);
+                    ctx.lineTo(-30, -3);
+                    ctx.fill();
+                    
+                    ctx.strokeStyle = this.color;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(15, 0);
+                    ctx.lineTo(-40, 0); 
+                    ctx.stroke();
+                    
+                    ctx.shadowBlur = 0; 
+                } else {
+                    ctx.beginPath(); ctx.arc(0,0,this.radius,0,Math.PI*2); ctx.fillStyle=this.color; ctx.fill();
+                }
             }
             ctx.restore();
         }
@@ -1154,12 +1186,22 @@
                 } else if(this.currentData.type==='SWARM') {
                     // [수정] 마이크로 미사일: 시계바늘처럼 회전하며 한 방향으로 집중 발사
                     // i(발사체 인덱스)에 따라 약간의 부채꼴(spread)만 형성하고 전방위로 퍼지지 않게 함
-                    const spread = 0.3; // 좁은 범위
-                    const angleOffset = (count > 1) ? (i - (count - 1) / 2) * spread : 0;
-                    const fireAngle = this.swarmAngle + angleOffset;
+                    // spread를 더 좁게(0.08), 발사체 수를 늘려서(10) 연결된 띠처럼 보이게 함
+                    const spread = 0.08; // 매우 좁은 범위
+                    // 기본 발사체 수를 10개로 고정하여 풍성한 띠 표현 (COUNT 업그레이드 미적용)
+                    const fireCount = 10; 
                     
-                    projectiles.push(new Projectile(wx,wy,Math.cos(fireAngle)*6,Math.sin(fireAngle)*6,dmg,color,false,true, weaponId, this.currentData.life || 60)); 
+                    for(let i=0; i<fireCount; i++) {
+                        const angleOffset = (i - (fireCount - 1) / 2) * spread;
+                        const fireAngle = this.swarmAngle + angleOffset;
+                        // 속도를 약간 다양하게 하여 띠의 두께감 형성
+                        const speed = 6 + (Math.random() - 0.5) * 1.5; 
+                        
+                        projectiles.push(new Projectile(wx,wy,Math.cos(fireAngle)*speed,Math.sin(fireAngle)*speed,dmg,color,false,true, weaponId, this.currentData.life || 60)); 
+                    }
                     audio.shoot(); 
+                    // 반복문이 끝났으므로 break
+                    break;
                 } else if(this.currentData.type==='CHAIN') {
                     this.castLightning(target,dmg,this.currentData.bounceCount||3, weaponId); 
                     // 체인 라이트닝은 루프 내에서 발사 후 break (i=0일 때만 실행)
