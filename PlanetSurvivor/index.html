@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content=ㅀ"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Planet Survivor: Ultimate Evolution</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #0d1117; color: white; font-family: 'Segoe UI', sans-serif; user-select: none; touch-action: none; }
@@ -197,7 +197,6 @@
     </div>
 </div>
 
-<!-- [수정] 인라인 스타일로 기본 상태 강제 숨김 -->
 <div id="boss-hud" style="display: none;"><div class="boss-name">⚠️ GIANT PLANET EATER ⚠️</div><div class="boss-bar-bg"><div id="boss-hp-bar"></div></div></div>
 <div id="warning-msg" style="display: none;">WARNING!<br><span style="font-size:30px">BOSS APPROACHING</span></div>
 
@@ -598,7 +597,10 @@
         speedBtn.innerText = `⏩ ${GAME_SPEED.toFixed(1)}x`;
         
         // [수정] 보스 바가 시작 시 숨겨지도록 강제
-        if (bossHud) bossHud.classList.remove('active');
+        if (bossHud) {
+            bossHud.classList.remove('active');
+            bossHud.style.display = 'none'; // 인라인 스타일로도 강제 숨김
+        }
         if (warningMsg) warningMsg.style.display = 'none';
     }
 
@@ -864,7 +866,9 @@
         }
         update(){ 
             this.speed=this.baseSpeed; 
-            if(this.slowed){this.speed*=0.5; this.slowed=false;} 
+            
+            // [수정] 중력장 슬로우 효과 적용
+            if(this.slowed){this.speed*= (1 - (core.slowFactor || 0.5)); this.slowed=false;} // core.slowFactor는 Gravity Weapon에서 설정됨
             
             const dx = core.x - this.x;
             const dy = core.y - this.y;
@@ -1118,7 +1122,7 @@
             const wx=core.x+Math.cos(this.angle)*this.orbitRadius; const wy=core.y+Math.sin(this.angle)*this.orbitRadius;
             const count=this.currentData.projectileCount||1; const spread=this.currentData.spread||0.2;
             
-            // [수정] 체인 라이트닝은 발사체 수 만큼 공격 횟수 증가
+            // [수정] 체인 라이트닝, 중력장은 발사체 수 만큼 공격 횟수 증가
             let fireCount = 1;
             if (this.currentData.type === 'CHAIN' || this.currentData.type === 'SLOW_ZONE') {
                  fireCount = this.currentData.projectileCount || 1;
@@ -1189,11 +1193,24 @@
                     const angle = Math.random() * Math.PI * 2; const dist = this.currentData.range; const px = core.x + Math.cos(angle) * dist; const py = core.y + Math.sin(angle) * dist;
                     particles.push(new GravityParticle(px, py, core.x, core.y, this.currentData.color));
                 }
+                
                 // [수정] 중력장: 피해 틱 횟수는 currentData.projectileCount를 사용
-                const tickRate = 10 / (this.currentData.projectileCount || 1); 
+                const tickRate = 60 / (this.currentData.projectileCount || 1); // 1초당 틱 (60프레임 기준)
 
-                if(boss&&!boss.dead&&Math.hypot(boss.x-core.x,boss.y-core.y)<this.currentData.range+boss.radius && Math.floor(this.tickTimer)%tickRate===0) boss.takeDamage(this.currentData.baseDamage, this.id);
-                enemies.forEach(e=>{if(!e.dead && Math.hypot(e.x-core.x,e.y-core.y)<this.currentData.range+e.radius){ e.slowed=true; if(Math.floor(this.tickTimer)%tickRate===0)e.takeDamage(this.currentData.baseDamage, this.id);}}); return;
+                if(boss&&!boss.dead&&Math.hypot(boss.x-core.x,boss.y-core.y)<this.currentData.range+boss.radius && Math.floor(this.tickTimer)%tickRate===0) {
+                    boss.takeDamage(this.currentData.baseDamage, this.id);
+                }
+                enemies.forEach(e=>{
+                    if(!e.dead && Math.hypot(e.x-core.x,e.y-core.y)<this.currentData.range+e.radius){ 
+                        e.slowed=true; 
+                        if(Math.floor(this.tickTimer)%tickRate===0) {
+                            e.takeDamage(this.currentData.baseDamage, this.id);
+                            // [추가] 피격 효과 (작은 흑색/백색 파티클)
+                            for(let i=0; i<2; i++) particles.push(new Particle(e.x, e.y, i % 2 === 0 ? '#111' : '#fff', (Math.random()-0.5)*3, (Math.random()-0.5)*3, 1.0, 0.1, 0.9));
+                        }
+                    }
+                }); 
+                return;
             }
             // hitRate(공격 속도)도 빨라짐
             if(Math.floor(this.tickTimer)%(this.currentData.hitRate||10)!==0)return;
