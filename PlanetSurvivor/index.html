@@ -90,7 +90,7 @@
         }
         .pause-btn.danger { background: #ef4444; }
 
-        #boss-hud { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 60%; max-width: 600px; height: 30px; z-index: 20; pointer-events: none; }
+        #boss-hud { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 60%; max-width: 600px; height: 30px; z-index: 20; pointer-events: none; display: none; } /* [수정] 기본 CSS에 display: none; 명시 */
         #boss-hud.active { display: block; animation: slideDown 0.5s ease-out; }
         .boss-name { text-align: center; font-weight: bold; color: #ef4444; text-shadow: 0 0 5px black; margin-bottom: 5px; font-size: 18px; }
         .boss-bar-bg { width: 100%; height: 100%; background: #333; border: 2px solid #555; border-radius: 5px; overflow: hidden; }
@@ -197,7 +197,7 @@
     </div>
 </div>
 
-<div id="boss-hud"><div class="boss-name">⚠️ GIANT PLANET EATER ⚠️</div><div class="boss-bar-bg"><div id="boss-hp-bar"></div></div></div>
+<div id="boss-hud" style="display: none;"><div class="boss-name">⚠️ GIANT PLANET EATER ⚠️</div><div class="boss-bar-bg"><div id="boss-hp-bar"></div></div></div>
 <div id="warning-msg">WARNING!<br><span style="font-size:30px">BOSS APPROACHING</span></div>
 
 <div id="upgrade-menu"><h1 style="color:white; margin-bottom:10px; font-size: 24px;">LEVEL UP!</h1><div class="cards-container" id="cards-area"></div></div>
@@ -527,7 +527,7 @@
             gain.connect(this.ctx.destination);
             noise.start();
         }
-        shoot() { this.playTone(800, 'sine', 0.15, 0.2, 100); }
+        shoot() { this.playTone(800, 'sine', 0.15, 0.2, 10); }
         laser() { this.playTone(400, 'sawtooth', 0.1, 0.15); }
         whoosh() { this.playTone(600, 'triangle', 0.3, 0.3, 200); }
         hit() { this.playTone(200, 'square', 0.08, 0.2, 50); }
@@ -597,8 +597,8 @@
         speedBtn.innerText = `⏩ ${GAME_SPEED.toFixed(1)}x`;
         
         // [수정] 보스 바가 시작 시 숨겨지도록 강제
-        bossHud.classList.remove('active');
-        warningMsg.style.display = 'none';
+        if (bossHud) bossHud.classList.remove('active');
+        if (warningMsg) warningMsg.style.display = 'none';
     }
 
     /* ================= Classes ================= */
@@ -685,7 +685,7 @@
     }
     class Shockwave {
         constructor(x, y, maxRadius, color) {
-            this.x = x; this.y = y; this.maxRadius = maxRadius; this.radius = 1; this.color = color; this.life = 30; this.maxLife = 30;
+            this.x = x; this.y = y; this.maxR = maxRadius; this.radius = 1; this.color = color; this.life = 30; this.maxLife = 30;
         }
         update() { 
             this.radius += (this.maxR-this.radius) * 0.15 * GAME_SPEED; 
@@ -955,7 +955,10 @@
         die(){ 
             for(let i=0;i<50;i++)particles.push(new Particle(this.x+(Math.random()-0.5)*100, this.y+(Math.random()-0.5)*100, this.color)); 
             explosions.push(new Explosion(this.x,this.y,300,'#fff')); 
-            addXp(500); score+=1000; boss=null; bossHud.classList.remove('active'); 
+            addXp(500); score+=1000; boss=null; 
+            // [수정] 보스 처치 시 보스 UI 숨김
+            if (bossHud) bossHud.classList.remove('active');
+            
             const greedBonus = 1 + (saveFile.upgrades.greed * 0.1);
             sessionEarnedCredits += Math.ceil(50 * greedBonus); // 보스 크레딧도 조정
             canvas.style.transform=`translate(${Math.random()*20-10}px, ${Math.random()*20-10}px)`; setTimeout(()=>canvas.style.transform='translate(0,0)', 200); 
