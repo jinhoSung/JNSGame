@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>네온 스와이프 벽돌 깨기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- NEW: Tone.js 사운드 라이브러리 불러오기 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #111; touch-action: none; font-family: 'Segoe UI', sans-serif; }
+        canvas { display: block; }
+        .glow-text { text-shadow: 0 0 10px rgba(255, 255, 255, 0.8); }
+        /* 깜빡이는 효과 */
+        @keyframes blink { 50% { opacity: 0.5; } }
+        .blink { animation: blink 1.5s infinite; }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center h-screen bg-gray-900 text-white">
+
+    <!-- UI 오버레이 -->
+    <div id="ui-layer" class="absolute top-0 left-0 w-full h-full pointer-events-none flex flex-col justify-between p-4 z-10">
+        <div class="flex justify-between items-center w-full max-w-xl mx-auto mt-2">
+            <div class="text-3xl font-bold glow-text text-cyan-400">SCORE: <span id="score">0</span></div>
+            <div class="text-xl font-bold text-yellow-400">HIGHSCORE: <span id="high-score">0</span></div>
+        </div>
+        
+        <!-- 속도 조절 슬라이더 위치 변경: 캔버스 외곽에 붙임 -->
+        <div id="speed-control" class="absolute top-0 left-1/2 transform -translate-x-1/2 w-full max-w-md p-2 pointer-events-auto z-30">
+            <div class="flex items-center justify-center bg-gray-800/80 p-2 rounded-b-lg shadow-xl border-x-4 border-b-4 border-cyan-500">
+                <label for="speed-slider" class="text-white text-sm mr-4 font-semibold w-12">속도:</label>
+                <!-- 속도 범위 20~50으로 확장, 기본값 35 -->
+                <input type="range" id="speed-slider" min="20" max="50" value="35" step="1" oninput="updateBallSpeed(this.value)">
+                <span id="current-speed" class="text-lg ml-4 text-cyan-400 font-bold w-6 text-right">35</span>
+            </div>
+        </div>
+
+
+        <!-- 공 개수 표시 (발사 대기 중일 때 캐릭터 위에 표시될 예정이지만, UI로도 둠) -->
+        <div class="absolute bottom-20 left-1/2 transform -translate-x-1/2 text-white font-bold text-lg opacity-80">
+            x <span id="ball-count">75</span>
+        </div>
+
+        <!-- 게임 오버 / 시작 화면 -->
+        <div id="menu-screen" class="absolute inset-0 flex items-center justify-center pointer-events-auto bg-black/80 backdrop-blur-sm z-20">
+            <div class="text-center p-6 bg-gray-800 rounded-2xl border-2 border-cyan-500 shadow-[0_0_30px_rgba(34,211,238,0.3)]">
+                <h1 class="text-5xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500 glow-text">BRICK BREAKER</h1>
+                <p class="text-gray-400 mb-6 text-sm">드래그하여 조준하고 손을 떼면 발사! (소리 켜짐)</p>
+                <div class="flex justify-center gap-4 mb-6 text-xs text-gray-300">
+                    <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-green-400 mr-2"></span>공 추가 (+)</div>
+                    <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-red-500 mr-2"></span>가로 레이저 (L)</div>
+                    <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-yellow-400 mr-2"></span>폭탄 (B)</div>
+                </div>
+                
+                <div id="result-area" class="hidden mb-6">
+                    <p class="text-2xl text-white">GAME OVER</p>
+                    <p class="text-yellow-400 text-xl mt-2">Score: <span id="final-score">0</span></p>
+                </div>
+
+                <button onclick="startGame()" class="px-10 py-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold rounded-full text-xl transition transform hover:scale-105 shadow-lg">
+                    START GAME
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const highScoreEl = document.getElementById('high-score');
+        const ballCountEl = document.getElementById('ball-count');
+        const menuScreen = document.getElementById('menu-screen');
+        const resultArea = document.getElementById('result-area');
+        const finalScoreEl = document.getElementById('final-score');
+
+        // NEW: 사운드 설정
+        let synth;
+        let polySynth;
+        
+        // NEW: 사운드 쓰로틀링 변수
+        let lastSynthTime = 0;
+        const SYNTH_COOLDOWN = 0.02; // 20ms 쿨다운
+
+        function setupAudio() {
+             // 사운드를 위한 컨텍스트 활성화
+            if (Tone.context.state !== 'running') {
+                Tone.context.resume();
+            }
+
+            // 충돌음: 간단한 신시사이저
+            synth = new Tone.MembraneSynth({
+                pitchDecay: 0.05,
+                octaves: 1,
+                envelope: {
+                    attack: 0.001,
+                    decay: 0.4,
+                    sustain: 0.01,
+                    release: 0.4,
+                },
+            }).toDestination();
+            
+            // 다수의 공을 위한 폴리 신시사이저
+            polySynth = new Tone.PolySynth(Tone.Synth, {
+                oscillator: {
+                    type: "fmsine",
+                    modulationType: "square",
+                    harmonicity: 0.5,
+                    modulationIndex: 1.2
+                },
+                envelope: {
+                    attack: 0.005,
+                    decay: 0.1,
+                    sustain: 0.0,
+                }
+            }).toDestination();
+        }
+
+
+        // 게임 설정
+        let canvasWidth, canvasHeight;
+        let isGameRunning = false;
+        let score = 0;
+        let highScore = localStorage.getItem('brickHighScore') || 0;
+        highScoreEl.innerText = highScore;
+
+        // 상태 상수
+        const STATE_AIMING = 0;
+        const STATE_SHOOTING = 1;
+        const STATE_MOVING_BRICKS = 2;
+        let gameState = STATE_AIMING;
+
+        // 게임 객체
+        let balls = []; // 활성화된 공들
+        let bricks = [];
+        let items = []; // 공 추가 아이템 (+)
+        let lasers = []; // 레이저 아이템 (L)
+        let bombs = []; // 폭탄 아이템 (B)
+        let particles = []; // 이펙트
+        let laserBeams = []; // 레이저 발사 이펙트
+
+        // 발사 관련 변수
+        let launchX; // 발사 위치 X
+        let launchY; // 발사 위치 Y (바닥)
+        let totalBalls = 75; // HUGE: 공 개수 75개로 시작
+        let ballsToShoot = 0; // 발사해야 할 남은 공
+        let shootTimer = null;
+        let aimAngle = -Math.PI / 2; // 조준 각도
+        let firstBallLanded = false; // 턴 종료 후 첫 공이 바닥에 닿았는지
+        let nextLaunchX = 0; // 다음 턴 발사 위치
+
+        // 설정값
+        const BALL_RADIUS = 6;
+        let currentBallSpeed = 35; // NEW: 초기 속도 35로 상향
+        const BRICK_PADDING = 1; // NEW: 벽돌 간격 1로 극단적 축소
+        const BRICK_COLS = 20; // HUGE: 벽돌 열 개수 20개로 증가 (더 작고 촘촘하게)
+        let BRICK_WIDTH, BRICK_HEIGHT;
+
+        // 속도 조절 함수
+        function updateBallSpeed(value) {
+            currentBallSpeed = parseInt(value);
+            document.getElementById('current-speed').innerText = currentBallSpeed;
+        }
+
+        // 초기화
+        function init() {
+            resize();
+            window.addEventListener('resize', resize);
+            
+            // 입력 이벤트
+            canvas.addEventListener('mousedown', startAim);
+            // 마우스 이동 시 드래그 여부와 관계없이 조준선 업데이트
+            document.addEventListener('mousemove', updateAim); 
+            canvas.addEventListener('mouseup', shoot);
+            
+            canvas.addEventListener('touchstart', (e) => startAim(e.touches[0]), {passive: false});
+            canvas.addEventListener('touchmove', (e) => { e.preventDefault(); updateAim(e.touches[0]); }, {passive: false});
+            canvas.addEventListener('touchend', shoot);
+
+            // NEW: 오디오 초기화
+            setupAudio();
+
+            loop();
+        }
+
+        function resize() {
+            canvasWidth = Math.min(window.innerWidth, 600);
+            canvasHeight = window.innerHeight;
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+
+            // 벽돌 개수(20개)에 맞춰 벽돌 너비 계산
+            // 벽돌 너비는 캔버스 너비에서 패딩을 제외한 후 열 개수로 나눔
+            BRICK_WIDTH = (canvasWidth - BRICK_PADDING * (BRICK_COLS + 1)) / BRICK_COLS; 
+            BRICK_HEIGHT = BRICK_WIDTH * 0.6;
+            
+            // 게임 중 리사이즈 시 발사 위치 조정
+            if (!isGameRunning) {
+                launchX = canvasWidth / 2;
+                launchY = canvasHeight - 20;
+                nextLaunchX = launchX; // 초기 발사 위치도 중앙으로 설정
+            } else {
+                launchY = canvasHeight - 20;
+            }
+        }
+
+        function startGame() {
+            score = 0;
+            totalBalls = 75; // HUGE: 공 개수 75개로 시작
+            document.getElementById('speed-slider').value = 35; // 슬라이더 값 초기화
+            currentBallSpeed = 35;
+            
+            scoreEl.innerText = score;
+            ballCountEl.innerText = totalBalls;
+            document.getElementById('current-speed').innerText = currentBallSpeed; // UI 업데이트
+            
+            bricks = [];
+            items = [];
+            lasers = []; 
+            bombs = []; 
+            balls = []; 
+            particles = [];
+            laserBeams = []; 
+            
+            // 발사 위치 초기화 및 중앙 고정
+            launchX = canvasWidth / 2;
+            launchY = canvasHeight - 20;
+            nextLaunchX = launchX; 
+            
+            // --- NEW: 시작 시 5줄 배치 ---
+            for(let i = 0; i < 5; i++) {
+                addNewRow(i + 1); // 시작 HP를 1부터 5까지 설정
+            }
+            // --------------------------
+            
+            isGameRunning = true;
+            gameState = STATE_AIMING;
+            menuScreen.classList.add('hidden');
+            resultArea.classList.add('hidden');
+        }
+
+        // --- 로직: 벽돌 및 아이템 생성 (turnScore 인자 추가) ---
+
+        function addNewRow(initialScore = null) {
+            
+            const turnScore = initialScore === null ? score + 1 : initialScore;
+            
+            if (initialScore === null) {
+                score++; // 턴 증가가 곧 점수
+                scoreEl.innerText = score;
+            }
+
+
+            // 기존 벽돌 한 칸 내리기 (초기 배치 시에는 내리지 않음)
+            if (initialScore === null) {
+                for (let i = 0; i < bricks.length; i++) {
+                    bricks[i].row++;
+                    bricks[i].y += BRICK_HEIGHT + BRICK_PADDING;
+                    
+                    // 게임 오버 체크
+                    if (bricks[i].y + BRICK_HEIGHT > launchY - 50) {
+                        gameOver();
+                        return;
+                    }
+                }
+                
+                // 기존 아이템 (공 추가) 한 칸 내리기
+                for (let i = 0; i < items.length; i++) {
+                    items[i].y += BRICK_HEIGHT + BRICK_PADDING;
+                    if (items[i].y > launchY) {
+                        items[i].active = false; // 바닥 닿으면 사라짐 (못 먹음)
+                    }
+                }
+
+                // 기존 아이템 (레이저) 한 칸 내리기
+                for (let i = 0; i < lasers.length; i++) {
+                    lasers[i].y += BRICK_HEIGHT + BRICK_PADDING;
+                    if (lasers[i].y > launchY) {
+                        lasers[i].active = false; // 바닥 닿으면 사라짐 (못 먹음)
+                    }
+                }
+                
+                // 기존 아이템 (폭탄) 한 칸 내리기
+                for (let i = 0; i < bombs.length; i++) {
+                    bombs[i].y += BRICK_HEIGHT + BRICK_PADDING;
+                    if (bombs[i].y > launchY) {
+                        bombs[i].active = false; // 바닥 닿으면 사라짐 (못 먹음)
+                    }
+                }
+            }
+
+
+            // 새 줄 생성 (확률적으로 벽돌 혹은 공 아이템 배치)
+            for (let col = 0; col < BRICK_COLS; col++) {
+                const rand = Math.random();
+                const x = col * BRICK_WIDTH + BRICK_PADDING;
+                const rowOffset = initialScore === null ? 0 : initialScore - 1; // 초기 배치 시 줄 간격
+                const y = (BRICK_HEIGHT + BRICK_PADDING) * rowOffset + 50; // 상단 여백
+                
+                // 이미 벽돌이 있는 곳은 건너뛰기 로직은 제거 (새로운 배열에 추가하므로 필요 없음)
+
+                if (rand < 0.03) { // 확률 3% 
+                    // 공 추가 아이템 (+)
+                    items.push({
+                        x: x + BRICK_WIDTH / 2,
+                        y: y + BRICK_HEIGHT / 2,
+                        radius: 6, // 크기 조정
+                        active: true
+                    });
+                } else if (rand < 0.05 && turnScore >= 3) { // 확률 2% 
+                    // 레이저 아이템 (L)
+                    lasers.push({
+                        x: x + BRICK_WIDTH / 2,
+                        y: y + BRICK_HEIGHT / 2,
+                        radius: 6,
+                        active: true
+                    });
+                } else if (rand < 0.07 && turnScore >= 5) { // 확률 2%
+                     // 폭탄 아이템 (B)
+                    bombs.push({
+                        x: x + BRICK_WIDTH / 2,
+                        y: y + BRICK_HEIGHT / 2,
+                        radius: 6,
+                        active: true
+                    });
+                } else if (rand < 0.9) { // HUGE: 확률 83% (벽돌 밀집도 극대화)
+                    // 벽돌
+                    // 벽돌 HP는 현재 턴 점수(turnScore)에 비례
+                    bricks.push({
+                        x: x + BRICK_PADDING,
+                        y: y,
+                        w: BRICK_WIDTH - BRICK_PADDING * 2,
+                        h: BRICK_HEIGHT,
+                        hp: turnScore, 
+                        maxHp: turnScore,
+                        row: rowOffset,
+                        color: getBrickColor(turnScore)
+                    });
+                }
+            }
+        }
+
+        function getBrickColor(hp) {
+            // HP에 따라 색상 변화 (Hue 회전)
+            const hue = (hp * 15) % 360;
+            return `hsl(${hue}, 70%, 60%)`;
+        }
+
+        // --- 로직: 입력 및 발사 ---
+
+        let isDragging = false;
+
+        function startAim(e) {
+            if (gameState !== STATE_AIMING || !isGameRunning) return;
+            isDragging = true;
+        }
+
+        function updateAim(e) {
+            if (gameState !== STATE_AIMING) return;
+
+            // 마우스 위치를 캔버스 좌표계로 변환 (캔버스가 가운데 정렬되어 있다고 가정)
+            const rect = canvas.getBoundingClientRect();
+            // 캔버스 왼쪽 상단이 (0, 0)
+            const tx = (e.clientX || e.pageX) - rect.left; 
+            const ty = (e.clientY || e.pageY) - rect.top;
+
+            // 각도 계산 (발사 위치 기준)
+            let dx = tx - launchX;
+            let dy = ty - launchY;
+            
+            // 각도 제한 (너무 바닥으로 쏘지 못하게, 위쪽 절반만)
+            let angle = Math.atan2(dy, dx);
+            if (angle > -0.1) angle = -0.1;
+            if (angle < -Math.PI + 0.1) angle = -Math.PI + 0.1;
+            
+            aimAngle = angle;
+        }
+
+        function shoot() {
+            if (!isDragging || gameState !== STATE_AIMING) return;
+            isDragging = false;
+            
+            gameState = STATE_SHOOTING;
+            ballsToShoot = totalBalls;
+            firstBallLanded = false;
+            
+            // NEW: 발사 사운드
+            polySynth.triggerAttackRelease('C4', '8n');
+
+            // 일정 간격으로 공 발사
+            shootTimer = setInterval(() => {
+                if (ballsToShoot <= 0) {
+                    clearInterval(shootTimer);
+                    return;
+                }
+                
+                balls.push({
+                    x: launchX,
+                    y: launchY,
+                    // 동적으로 변경된 속도 사용
+                    dx: Math.cos(aimAngle) * currentBallSpeed,
+                    dy: Math.sin(aimAngle) * currentBallSpeed,
+                    radius: BALL_RADIUS,
+                    active: true
+                });
+                ballsToShoot--;
+                
+            }, 15); // 발사 간격 15ms로 줄여서 공이 더 빠르게 쏟아지게 함
+        }
+
+        // --- 로직: 폭탄 발동 및 처리 ---
+        function triggerBomb(bombX, bombY) {
+            // NEW: 폭탄 사운드
+            polySynth.triggerAttackRelease(['C2', 'G2'], '0.5');
+
+            // 폭탄 터지는 이펙트 생성 (큰 파티클)
+            for(let i = 0; i < 20; i++) {
+                particles.push({
+                    x: bombX,
+                    y: bombY,
+                    dx: (Math.random() - 0.5) * 10, // 이펙트 범위 확대
+                    dy: (Math.random() - 0.5) * 10,
+                    life: 1.5, // 이펙트 지속시간 증가
+                    color: '#ffc107' // 노란색
+                });
+            }
+
+            // 폭발 범위 계산 (대략적인 3x3 격자)
+            const explosionRange = 2.0 * BRICK_WIDTH; // NEW: 폭발 범위 증가
+
+            for (let j = bricks.length - 1; j >= 0; j--) {
+                const brick = bricks[j];
+                
+                // 폭탄 중심과 벽돌 중심의 거리
+                const brickCenterX = brick.x + brick.w / 2;
+                const brickCenterY = brick.y + brick.h / 2;
+                const dist = Math.hypot(brickCenterX - bombX, brickCenterY - bombY);
+
+                if (dist < explosionRange) { 
+                    // 폭발 범위 내에 있으면 즉시 파괴
+                    brick.hp = 0; 
+                    createParticles(brickCenterX, brickCenterY, brick.color, 10); // NEW: 파티클 증가
+
+                    if (brick.hp <= 0) {
+                        bricks.splice(j, 1);
+                    }
+                }
+            }
+        }
+
+        // --- 로직: 레이저 발동 및 처리 ---
+
+        function triggerLaser(yPos) {
+            // NEW: 레이저 사운드
+            polySynth.triggerAttackRelease(['C5', 'G5', 'A5'], '0.2', Tone.now(), 0.5);
+
+            // 레이저 빔 객체 생성 (일시적인 시각 효과 및 데미지)
+            laserBeams.push({
+                y: yPos,
+                life: 1.0, // 생명력 (애니메이션 지속 시간)
+            });
+
+            // 레이저가 통과하는 벽돌에 데미지 적용
+            for (let j = bricks.length - 1; j >= 0; j--) {
+                const brick = bricks[j];
+                // 벽돌의 y 좌표가 레이저 발사 위치에 있는지 체크
+                if (brick.y < yPos && brick.y + brick.h > yPos) {
+                    // 현재 턴 점수만큼의 데미지 부여
+                    brick.hp -= score; 
+                    createParticles(brick.x + brick.w / 2, brick.y + brick.h / 2, '#f43f5e', 8); // NEW: 파티클 증가
+
+                    if (brick.hp <= 0) {
+                        bricks.splice(j, 1);
+                    }
+                }
+            }
+        }
+
+        function updateLaserBeams() {
+            for (let i = laserBeams.length - 1; i >= 0; i--) {
+                const beam = laserBeams[i];
+                beam.life -= 0.03; // 레이저가 서서히 사라짐
+                if (beam.life <= 0) {
+                    laserBeams.splice(i, 1);
+                }
+            }
+        }
+
+
+        // --- 로직: 물리 엔진 및 업데이트 ---
+
+        function update() {
+            if (!isGameRunning) return;
+
+            // 1. 공 이동 및 충돌
+            if (gameState === STATE_SHOOTING) {
+
+                for (let i = balls.length - 1; i >= 0; i--) {
+                    const b = balls[i];
+                    if (!b.active) continue;
+
+                    // 이동
+                    b.x += b.dx;
+                    b.y += b.dy;
+
+                    // 벽 충돌 (좌우)
+                    if (b.x - b.radius < 0) {
+                        b.x = b.radius;
+                        b.dx = -b.dx;
+                        // FIX: 쓰로틀링 체크
+                        if (Tone.now() > lastSynthTime + SYNTH_COOLDOWN) {
+                            synth.triggerAttackRelease('A3', '8n', Tone.now());
+                            lastSynthTime = Tone.now();
+                        }
+                    } else if (b.x + b.radius > canvasWidth) {
+                        b.x = canvasWidth - b.radius;
+                        b.dx = -b.dx;
+                        // FIX: 쓰로틀링 체크
+                        if (Tone.now() > lastSynthTime + SYNTH_COOLDOWN) {
+                            synth.triggerAttackRelease('A3', '8n', Tone.now());
+                            lastSynthTime = Tone.now();
+                        }
+                    }
+
+                    // 천장 충돌
+                    if (b.y - b.radius < 0) {
+                        b.y = b.radius;
+                        b.dy = -b.dy;
+                        // FIX: 쓰로틀링 체크
+                        if (Tone.now() > lastSynthTime + SYNTH_COOLDOWN) {
+                            synth.triggerAttackRelease('C4', '8n', Tone.now());
+                            lastSynthTime = Tone.now();
+                        }
+                    }
+
+                    // 바닥 충돌 (턴 종료 로직)
+                    if (b.y + b.radius > canvasHeight) {
+                        b.active = false;
+                        
+                        // 첫 번째로 떨어진 공의 위치가 다음 턴 발사 위치
+                        if (!firstBallLanded) {
+                            firstBallLanded = true;
+                            // X축은 중앙으로 고정 (요청 사항)
+                            nextLaunchX = canvasWidth / 2; 
+                            // NEW: 턴 종료 사운드
+                            polySynth.triggerAttackRelease('F3', '4n');
+                        }
+                    }
+
+                    // 벽돌 충돌
+                    let hit = false;
+                    for (let j = bricks.length - 1; j >= 0; j--) {
+                        const brick = bricks[j];
+                        if (
+                            b.x > brick.x - b.radius &&
+                            b.x < brick.x + brick.w + b.radius &&
+                            b.y > brick.y - b.radius &&
+                            b.y < brick.y + brick.h + b.radius
+                        ) {
+                            // 충돌 방향 판별 (간략화)
+                            const prevX = b.x - b.dx;
+                            const prevY = b.y - b.dy;
+
+                            if (prevY < brick.y || prevY > brick.y + brick.h) {
+                                b.dy = -b.dy; // 위아래 충돌
+                            } else {
+                                b.dx = -b.dx; // 좌우 충돌
+                            }
+                            
+                            // FIX: 쓰로틀링 체크
+                            if (Tone.now() > lastSynthTime + SYNTH_COOLDOWN) {
+                                synth.triggerAttackRelease('G4', '16n', Tone.now()); 
+                                lastSynthTime = Tone.now();
+                            }
+
+                            // 벽돌 HP 감소
+                            brick.hp--;
+                            hit = true;
+                            createParticles(b.x, b.y, brick.color, 5); // 파티클 증가
+
+                            if (brick.hp <= 0) {
+                                bricks.splice(j, 1);
+                            }
+                            break; // 한 프레임에 벽돌 하나만 충돌
+                        }
+                    }
+
+                    // 아이템 충돌
+                    if (!hit) {
+                        // 공 추가 아이템 충돌 (+)
+                        for (let k = items.length - 1; k >= 0; k--) {
+                            const item = items[k];
+                            if (!item.active) continue;
+                            
+                            const dist = Math.hypot(b.x - item.x, b.y - item.y);
+                            if (dist < b.radius + item.radius) {
+                                item.active = false;
+                                totalBalls++; // 공 추가!
+                                ballCountEl.innerText = totalBalls;
+                                createParticles(item.x, item.y, '#0ff', 15); // NEW: 아이템 획득 이펙트
+                                // NEW: 아이템 획득 사운드
+                                polySynth.triggerAttackRelease(['C5', 'E5', 'G5'], '8n');
+                            }
+                        }
+
+                        // 레이저 아이템 충돌 (L)
+                        for (let k = lasers.length - 1; k >= 0; k--) {
+                            const laser = lasers[k];
+                            if (!laser.active) continue;
+                            
+                            const dist = Math.hypot(b.x - laser.x, b.y - laser.y);
+                            if (dist < b.radius + laser.radius) {
+                                laser.active = false;
+                                triggerLaser(laser.y); // 레이저 발동!
+                                createParticles(laser.x, laser.y, '#f43f5e', 15); // 붉은색 파티클 증가
+                            }
+                        }
+                        
+                        // 폭탄 아이템 충돌 (B)
+                        for (let k = bombs.length - 1; k >= 0; k--) {
+                            const bomb = bombs[k];
+                            if (!bomb.active) continue;
+                            
+                            const dist = Math.hypot(b.x - bomb.x, b.y - bomb.y);
+                            if (dist < b.radius + bomb.radius) {
+                                bomb.active = false;
+                                triggerBomb(bomb.x, bomb.y); // 폭탄 발동!
+                                
+                                // 공은 폭탄을 맞고 튕겨나가지 않도록 속도 변경 (파괴적인 아이템은 공이 멈추는 경향이 있음)
+                                b.dx *= 0.1;
+                                b.dy *= 0.1; 
+                            }
+                        }
+                    }
+
+                    // 공 제거
+                    if (!b.active) {
+                        balls.splice(i, 1);
+                    }
+                }
+
+                // --- 벽돌이 모두 사라졌는지 확인 (즉시 다음 턴) ---
+                if (bricks.length === 0) {
+                    endTurn();
+                    return; 
+                }
+                // ------------------------------------
+
+
+                // 모든 공이 사라지고 대기열도 없으면 턴 종료
+                if (balls.length === 0 && ballsToShoot <= 0) {
+                    endTurn();
+                }
+            }
+            
+            // 파티클 및 레이저 업데이트
+            updateParticles();
+            updateLaserBeams(); // <-- 업데이트
+            
+            // 발사 위치 부드러운 이동 (다음 턴 준비)
+            if (gameState === STATE_AIMING) {
+                const diff = launchX - nextLaunchX;
+                if (Math.abs(diff) > 1) {
+                    launchX -= diff * 0.2; // 부드럽게 이동
+                } else {
+                    launchX = nextLaunchX;
+                }
+            }
+        }
+
+        function endTurn() {
+            gameState = STATE_MOVING_BRICKS;
+            
+            // FIX: 남은 공을 모두 제거합니다.
+            balls = []; 
+
+            // 아이템 정리
+            items = items.filter(i => i.active);
+            lasers = lasers.filter(i => i.active); // 레이저 아이템 정리
+            bombs = bombs.filter(i => i.active); // 폭탄 아이템 정리
+
+            // 다음 발사 위치 설정
+            if (!firstBallLanded) nextLaunchX = canvasWidth / 2; // 중앙 고정
+            
+            // 벽돌 내리기 및 새 줄 생성
+            addNewRow();
+            
+            // 상태 변경
+            if (isGameRunning) {
+                gameState = STATE_AIMING;
+                ballCountEl.innerText = totalBalls;
+            }
+        }
+
+        // NEW: 파티클 개수를 인자로 받도록 수정
+        function createParticles(x, y, color, count = 5) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    dx: (Math.random() - 0.5) * 4,
+                    dy: (Math.random() - 0.5) * 4,
+                    life: 1.0,
+                    color: color
+                });
+            }
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.dx;
+                p.y += p.dy;
+                p.life -= 0.05;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        function gameOver() {
+            isGameRunning = false;
+            // NEW: 게임 오버 사운드
+            polySynth.triggerAttackRelease(['C3', 'B2', 'A2', 'G2'], '2n');
+
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('brickHighScore', highScore);
+                highScoreEl.innerText = highScore;
+            }
+            finalScoreEl.innerText = score;
+            menuScreen.classList.remove('hidden');
+            resultArea.classList.remove('hidden');
+        }
+
+        // --- 렌더링 ---
+        
+        // 조준선 반사 경로를 그리는 보조 함수 (최대 반사 횟수 3회)
+        function drawAimReflection(startX, startY, angle) {
+            let x = startX;
+            let y = startY;
+            let currentAngle = angle;
+            
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = 2;
+            
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+
+            const MAX_REFLECTIONS = 3;
+            for (let reflectCount = 0; reflectCount < MAX_REFLECTIONS; reflectCount++) {
+                let hitX, hitY, t;
+                let dx = Math.cos(currentAngle);
+                let dy = Math.sin(currentAngle);
+
+                // 1. 천장 충돌 시간 (t_y)
+                let t_y = (0 - y) / dy; 
+
+                // 2. 왼쪽 벽 충돌 시간 (t_x_left)
+                let t_x_left = (0 - x) / dx;
+
+                // 3. 오른쪽 벽 충돌 시간 (t_x_right)
+                let t_x_right = (canvasWidth - x) / dx;
+
+                // 유효한 충돌 시간 (t > 0) 중에서 가장 작은 t를 찾습니다.
+                let min_t = Infinity;
+                let hitWall = null; // 'top', 'left', 'right'
+
+                if (dy < 0 && t_y > 0.01) { // 위로 향하고, t>0
+                    min_t = Math.min(min_t, t_y);
+                    if (min_t === t_y) hitWall = 'top';
+                }
+
+                if (dx < 0 && t_x_left > 0.01) { // 왼쪽으로 향하고, t>0
+                    min_t = Math.min(min_t, t_x_left);
+                    if (min_t === t_x_left) hitWall = 'left';
+                }
+
+                if (dx > 0 && t_x_right > 0.01) { // 오른쪽으로 향하고, t>0
+                    min_t = Math.min(min_t, t_x_right);
+                    if (min_t === t_x_right) hitWall = 'right';
+                }
+
+                // 충돌 지점 계산
+                if (hitWall) {
+                    hitX = x + dx * min_t;
+                    hitY = y + dy * min_t;
+
+                    // 라인 그리기
+                    ctx.lineTo(hitX, hitY);
+
+                    // 새로운 시작점 및 각도 설정
+                    x = hitX;
+                    y = hitY;
+                    
+                    if (hitWall === 'top') {
+                        currentAngle = -currentAngle; // y축 반전
+                    } else if (hitWall === 'left' || hitWall === 'right') {
+                        currentAngle = Math.PI - currentAngle; // x축 반전
+                    }
+                } else {
+                    // 벽에 닿지 않으면 경로를 쭉 그림
+                    // 화면을 벗어나는 지점까지 그림 (충분히 긴 길이)
+                    let endX = x + dx * 1000; 
+                    let endY = y + dy * 1000;
+                    ctx.lineTo(endX, endY);
+                    break;
+                }
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+
+        function drawLaserBeams() {
+            laserBeams.forEach(beam => {
+                ctx.globalAlpha = beam.life;
+                ctx.fillStyle = `rgba(244, 63, 94, ${beam.life})`; // 붉은색 레이저
+                ctx.shadowBlur = 30 * beam.life;
+                ctx.shadowColor = 'rgba(244, 63, 94, 1)'; 
+                
+                // 레이저 빔 그리기 (가로줄)
+                ctx.fillRect(0, beam.y - 5, canvasWidth, 10);
+                
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1.0;
+            });
+        }
+
+        function drawLasers() {
+             lasers.forEach(i => {
+                if (!i.active) return;
+                ctx.beginPath();
+                ctx.arc(i.x, i.y, i.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = '#f43f5e'; // Red
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                
+                // L 표시
+                ctx.fillStyle = '#f43f5e';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('L', i.x, i.y);
+
+                // 반짝임
+                ctx.beginPath();
+                ctx.arc(i.x, i.y, i.radius + 5 + Math.sin(Date.now() / 200) * 2, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(244, 63, 94, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            });
+        }
+        
+        // 폭탄 아이템 렌더링
+        function drawBombs() {
+             bombs.forEach(i => {
+                if (!i.active) return;
+                ctx.beginPath();
+                ctx.arc(i.x, i.y, i.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = '#ffc107'; // Yellow
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                
+                // B 표시
+                ctx.fillStyle = '#ffc107';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('B', i.x, i.y);
+
+                // 반짝임
+                ctx.beginPath();
+                ctx.arc(i.x, i.y, i.radius + 5 + Math.sin(Date.now() / 200) * 2, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(255, 193, 7, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            });
+        }
+
+
+        function draw() {
+            // 배경
+            ctx.fillStyle = '#111827';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 레이저 빔 렌더링 (가장 먼저 그려져야 벽돌 밑으로 들어가지 않음)
+            drawLaserBeams();
+            
+            // 네온 테두리(벽) 그리기
+            ctx.strokeStyle = '#00ffff'; // Cyan
+            ctx.lineWidth = 4;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#00ffff';
+            ctx.strokeRect(0, 0, canvasWidth, canvasHeight);
+            ctx.shadowBlur = 0;
+
+
+            // 가이드라인 (조준 중일 때)
+            if (gameState === STATE_AIMING) { 
+                drawAimReflection(launchX, launchY, aimAngle); // 반사 경로 그리는 함수 호출
+            }
+
+            // 발사 지점 (현재 위치)
+            ctx.beginPath();
+            ctx.arc(launchX, launchY, 10, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff';
+            ctx.fill();
+            
+            // 공 개수 표시 (중앙 발사 지점 위)
+            if (gameState === STATE_AIMING || gameState === STATE_SHOOTING) {
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 18px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(`x ${totalBalls}`, launchX, launchY - 20);
+            }
+
+
+            // 공 그리기 (SHOOTING 상태에서만)
+            if (gameState === STATE_SHOOTING) {
+                balls.forEach(b => {
+                    ctx.beginPath();
+                    ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = '#38bdf8'; // Cyan-400
+                    ctx.fill();
+                });
+            }
+
+            // 벽돌 그리기
+            bricks.forEach(b => {
+                // 벽돌 몸체
+                ctx.fillStyle = b.color;
+                ctx.beginPath();
+                ctx.roundRect(b.x, b.y, b.w, b.h, 4);
+                ctx.fill();
+                
+                // 테두리 (네온 효과)
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // HP 텍스트
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 12px Arial'; // NEW: 폰트 크기 조정 (벽돌이 작아짐)
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(b.hp, b.x + b.w / 2, b.y + b.h / 2);
+            });
+
+            // 아이템 그리기 (공 추가: +)
+            items.forEach(i => {
+                if (!i.active) return;
+                ctx.beginPath();
+                ctx.arc(i.x, i.y, i.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = '#4ade80'; // Green
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                
+                // + 표시
+                ctx.fillStyle = '#4ade80';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('+', i.x, i.y);
+                
+                // 반짝임
+                ctx.beginPath();
+                ctx.arc(i.x, i.y, i.radius + 5 + Math.sin(Date.now() / 200) * 2, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(74, 222, 128, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            });
+
+            // 아이템 그리기 (레이저: L)
+            drawLasers();
+            
+            // 아이템 그리기 (폭탄: B)
+            drawBombs();
+
+            // 파티클 그리기
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            });
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        init();
+
+    </script>
+</body>
+</html>
