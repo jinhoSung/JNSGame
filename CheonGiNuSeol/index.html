@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>천기누설 (CheonGiNuSeol) - 운명 분석 시스템</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        body { font-family: 'Pretendard', sans-serif; }
+        @keyframes fade-in { 
+            from { opacity: 0; transform: translateY(10px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+        .animate-fade-in { animation: fade-in 0.5s ease-out forwards; }
+        .text-shadow { text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans selection:bg-purple-500 selection:text-white flex flex-col items-center min-h-screen">
+
+    <div id="root" class="w-full flex justify-center"></div>
+
+    <!-- Firebase SDK Setup -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // 1. 설정 초기화
+        let firebaseConfig = {};
+        
+        // 2. 자동 설정 (웹사이트 환경) 시도
+        try {
+            const firebaseConfigStr = window.__firebase_config || '{}';
+            const parsedConfig = JSON.parse(firebaseConfigStr);
+            if (parsedConfig.apiKey) {
+                firebaseConfig = parsedConfig;
+            }
+        } catch (e) {
+            console.error("Firebase auto-config parsing failed", e);
+        }
+
+        // 3. 수동 설정 (로컬 실행용) - 자동 설정이 없을 경우 적용
+        // 다운로드 후 실행 시 아래 정보가 사용됩니다.
+        if (!firebaseConfig.apiKey) {
+            firebaseConfig = {
+                apiKey: "AIzaSyBzqw4WEVcRjPQ6qbqibwLrPWakD4slLZs",
+                authDomain: "sajucompatibility.firebaseapp.com",
+                projectId: "sajucompatibility",
+                storageBucket: "sajucompatibility.firebasestorage.app",
+                messagingSenderId: "188903468088",
+                appId: "1:188903468088:web:e2f2c4bfd9743716428acd",
+                measurementId: "G-SWQ608XNYM"
+            };
+        }
+
+        if (firebaseConfig.apiKey) {
+            try {
+                const app = initializeApp(firebaseConfig);
+                window.fbAuth = getAuth(app);
+                window.fbDb = getFirestore(app);
+                window.fbSignInAnonymously = signInAnonymously;
+                window.fbSignInWithCustomToken = signInWithCustomToken;
+                window.fbOnAuthStateChanged = onAuthStateChanged;
+                window.fbCollection = collection;
+                window.fbAddDoc = addDoc;
+                window.fbServerTimestamp = serverTimestamp;
+                window.appId = window.__app_id || 'default-app-id';
+                window.isFirebaseAvailable = true;
+                console.log("Firebase initialized");
+            } catch (err) {
+                console.error("Firebase initialization error:", err);
+                window.isFirebaseAvailable = false;
+            }
+        } else {
+            console.warn("Firebase config missing. Save feature disabled.");
+            window.isFirebaseAvailable = false;
+        }
+    </script>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- Icons ---
+        const Icon = ({ path, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{path}</svg>
+        );
+        const Sparkles = (p) => <Icon {...p} path={<><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M9 3v4"/><path d="M3 9h4"/><path d="M3 5h4"/></>} />;
+        const Heart = (p) => <Icon {...p} path={<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>} />;
+        const Calendar = (p) => <Icon {...p} path={<><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></>} />;
+        const Clock = (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>} />;
+        const ArrowRight = (p) => <Icon {...p} path={<path d="M5 12h14m-7-7 7 7-7 7"/>} />;
+        const RefreshCw = (p) => <Icon {...p} path={<><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></>} />;
+        const Sun = (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></>} />;
+        const BookOpen = (p) => <Icon {...p} path={<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>} />;
+        const Search = (p) => <Icon {...p} path={<><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></>} />;
+        const User = (p) => <Icon {...p} path={<><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>} />;
+        const CheckCircle = (p) => <Icon {...p} path={<><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></>} />;
+        const Compass = (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></>} />;
+        const Palette = (p) => <Icon {...p} path={<path d="M13.5 22H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5h10a5 5 0 0 1 5 5v6.5M10.5 8.5 7 12l3.5 3.5M17 12l-3.5 3.5"/>} />;
+        const Hash = (p) => <Icon {...p} path={<><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></>} />;
+        const Shield = (p) => <Icon {...p} path={<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/>} />;
+        const Scale = (p) => <Icon {...p} path={<><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></>} />;
+
+        // --- Data ---
+        const GAN = ["갑(甲)", "을(乙)", "병(丙)", "정(丁)", "무(戊)", "기(己)", "경(庚)", "신(辛)", "임(壬)", "계(癸)"];
+        const JI = ["자(子)", "축(丑)", "인(寅)", "묘(卯)", "진(辰)", "사(巳)", "오(午)", "미(未)", "신(申)", "유(酉)", "술(戌)", "해(亥)"];
+        
+        const COLORS = {
+            "갑(甲)": "bg-green-600", "을(乙)": "bg-green-500", "병(丙)": "bg-red-600", "정(丁)": "bg-red-500",
+            "무(戊)": "bg-yellow-600", "기(己)": "bg-yellow-500", "경(庚)": "bg-gray-400", "신(辛)": "bg-gray-300",
+            "임(壬)": "bg-blue-800", "계(癸)": "bg-blue-600", "인(寅)": "bg-green-600", "묘(卯)": "bg-green-500",
+            "사(巳)": "bg-red-600", "오(午)": "bg-red-500", "진(辰)": "bg-yellow-600", "술(戌)": "bg-yellow-600", "축(丑)": "bg-yellow-500", "미(未)": "bg-yellow-500",
+            "신(申)": "bg-gray-400", "유(酉)": "bg-gray-300", "해(亥)": "bg-blue-800", "자(子)": "bg-blue-600",
+        };
+
+        const ELEMENTS = {
+            Wood: { label: "목(Wood)", color: "text-green-400", bg: "bg-green-500", desc: "성장, 인자함, 추진력, 시작" },
+            Fire: { label: "화(Fire)", color: "text-red-400", bg: "bg-red-500", desc: "열정, 예의, 화려함, 확산" },
+            Earth: { label: "토(Earth)", color: "text-yellow-400", bg: "bg-yellow-500", desc: "믿음, 포용, 중용, 안정" },
+            Metal: { label: "금(Metal)", color: "text-gray-300", bg: "bg-gray-400", desc: "결단, 의리, 냉철함, 마무리" },
+            Water: { label: "수(Water)", color: "text-blue-400", bg: "bg-blue-500", desc: "지혜, 유연함, 친화력, 저장" },
+        };
+
+        const DAY_MASTER_DETAILS = {
+            "갑(甲)": "곧게 뻗은 소나무처럼 자존심이 강하고 리더십이 있습니다. 굽히기보다는 부러지는 성격으로, 시작은 잘하나 마무리가 약할 수 있습니다.",
+            "을(乙)": "유연한 화초처럼 환경 적응력이 뛰어납니다. 끈질긴 생명력을 가졌으며, 실속을 잘 챙기고 사교적입니다.",
+            "병(丙)": "태양처럼 밝고 정열적입니다. 숨기는 것이 없고 매사 공명정대하지만, 다혈질적인 면이 있어 실수가 잦을 수 있습니다.",
+            "정(丁)": "촛불처럼 은은한 헌신과 따뜻함을 가졌습니다. 섬세하고 감수성이 풍부하며, 내면에 강한 열정을 품고 있습니다.",
+            "무(戊)": "큰 산처럼 묵직하고 포용력이 있습니다. 신용을 중시하며 중후한 매력이 있으나, 고집이 세고 융통성이 부족할 수 있습니다.",
+            "기(己)": "비옥한 밭처럼 만물을 길러내는 어머니의 마음을 가졌습니다. 실속 있고 자기 관리가 철저하지만, 의심이 많을 수 있습니다.",
+            "경(庚)": "단단한 바위나 무쇠처럼 결단력이 있고 의리가 강합니다. 혁명적인 기질이 있어 맺고 끊음이 확실하나, 독단적일 수 있습니다.",
+            "신(辛)": "가공된 보석처럼 섬세하고 예민하며 깔끔합니다. 자존심이 매우 강하고 냉철한 판단력을 가졌습니다.",
+            "임(壬)": "큰 바다처럼 도량이 넓고 지혜롭습니다. 유연한 사고를 가졌으나, 속을 알 수 없고 변덕이 심할 수 있습니다.",
+            "계(癸)": "봄비처럼 만물을 적시는 자애로움이 있습니다. 총명하고 아이디어가 뛰어나지만, 신경이 예민하고 소극적일 수 있습니다."
+        };
+
+        const SULI_DETAILS = {
+            1: "만물의 시초가 되는 수로, 부귀와 명예를 겸비하여 대업을 이룰 대길운입니다. (두령격)",
+            3: "지혜와 재능이 뛰어나 명성을 떨치고, 지도자의 위치에 오를 대길운입니다. (명망격)",
+            11: "가문을 일으키고 부귀영화를 누리며, 만인이 우러러보는 위치에 오를 대길운입니다. (신성격)",
+            13: "두뇌가 명석하고 처세술이 뛰어나 어떤 분야에서도 성공할 대길운입니다. (총명격)",
+            15: "덕망과 복록을 겸비하여 윗사람의 후원과 아랫사람의 존경을 받는 최상의 길운입니다. (통솔격)",
+            21: "탁월한 리더십으로 만인을 통솔하고, 자수성가하여 큰 성공을 거둘 대길운입니다. (두령격)",
+            23: "작은 것으로 큰 것을 이루는 기상으로, 명예와 지위가 크게 오를 대길운입니다. (공명격)",
+            24: "재물운이 왕성하여 손대는 일마다 큰 이익을 얻고, 가문이 번창할 대길운입니다. (입신격)",
+            25: "재주가 비상하고 성실하여 자수성가하며, 평생 안락한 삶을 누릴 길운입니다. (안전격)",
+            29: "권력과 재물을 함께 얻고, 지혜와 덕망으로 존경받을 대길운입니다. (성공격)",
+            31: "의지가 굳고 판단력이 정확하여 학문이나 예술 분야에서 대성할 대길운입니다. (융창격)",
+            33: "자신감이 넘치고 재능이 뛰어나 천하에 명성을 떨칠 강한 운세입니다. (승천격)",
+            35: "온화하고 성실한 성품으로 주위의 신망을 얻어 평온하고 행복한 삶을 누릴 길운입니다. (평온격)",
+            37: "강인한 의지와 추진력으로 난관을 극복하고 마침내 대업을 달성할 대길운입니다. (태공격)",
+            39: "타고난 재능과 인덕으로 부귀영화를 누리지만, 때로는 고독할 수 있는 운세입니다. (안락격)",
+            47: "재물과 명예가 함께 따르며, 말년까지 풍요롭고 행복하게 살 대길운입니다. (출세격)",
+            48: "지덕을 겸비하여 존경받으며, 재물운도 따르는 길운입니다. (유덕격)"
+        };
+
+        const HANJA_STROKES = {
+            '金': 8, '李': 7, '朴': 6, '崔': 11, '鄭': 19, '姜': 9, '趙': 14, '尹': 4, '張': 11, '林': 8, '韓': 17, '申': 5, '吳': 7, '徐': 10, '權': 22, '黃': 12, '宋': 7, '安': 6, '柳': 9, '洪': 10, '俊': 9, '浩': 11, '珉': 10, '瑞': 14, '賢': 15, '智': 12, '旼': 8, '赫': 14, '宇': 6, '敏': 11, '始': 8, '允': 4, '成': 7, '鉉': 13, '源': 14, '珍': 10, '秀': 7, '榮': 14, '勳': 16, '建': 9, '熙': 13, '英': 11, '美': 9, '淑': 12, '惠': 12, '珠': 11, '晶': 12, '恩': 10, '雅': 12, '愛': 13, '情': 11, '信': 9, '吉': 6, '童': 12, '福': 14, '壽': 14, '康': 11, '寧': 14
+        };
+
+        const SajuApp = () => {
+            const [activeTab, setActiveTab] = useState('total');
+            const [user, setUser] = useState(null);
+            
+            // Firebase Auth Setup
+            useEffect(() => {
+                if (window.isFirebaseAvailable) {
+                    const auth = window.fbAuth;
+                    const initAuth = async () => {
+                        if (window.__initial_auth_token) {
+                            await window.fbSignInWithCustomToken(auth, window.__initial_auth_token);
+                        } else {
+                            await window.fbSignInAnonymously(auth);
+                        }
+                    };
+                    initAuth();
+                    const unsubscribe = window.fbOnAuthStateChanged(auth, (u) => {
+                        if (u) setUser(u);
+                    });
+                    return () => unsubscribe();
+                }
+            }, []);
+
+            // --- Logic Functions ---
+            const getCharInfo = (char, type) => {
+                let elemIdx, polarity; 
+                if (type === 'GAN') {
+                    const idx = GAN.indexOf(char);
+                    if (idx === -1) return { element: "Earth", polarity: 0, elemIdx: 2 }; // Safe fallback
+                    elemIdx = Math.floor(idx / 2); polarity = idx % 2;
+                } else {
+                    const idx = JI.indexOf(char);
+                    if (idx === -1) return { element: "Earth", polarity: 0, elemIdx: 2 }; // Safe fallback
+                    const jiMap = [{e:4, p:1}, {e:2, p:1}, {e:0, p:0}, {e:0, p:1}, {e:2, p:0}, {e:1, p:0}, {e:1, p:1}, {e:2, p:1}, {e:3, p:0}, {e:3, p:1}, {e:2, p:0}, {e:4, p:0}];
+                    elemIdx = jiMap[idx].e; polarity = jiMap[idx].p;
+                }
+                const elements = ["Wood", "Fire", "Earth", "Metal", "Water"];
+                return { element: elements[elemIdx], polarity, elemIdx };
+            };
+
+            const getElement = (char) => GAN.includes(char) ? getCharInfo(char, 'GAN').element : getCharInfo(char, 'JI').element;
+
+            const calculateSaju = (dateStr, timeStr, calendarType = 'solar', isLeap = false) => {
+                if (!dateStr) return null;
+                let date = new Date(dateStr);
+                if (calendarType === 'lunar') { date.setDate(date.getDate() + (isLeap ? 60 : 30)); }
+                const year = date.getFullYear();
+                const month = date.getMonth() + 1;
+                const hour = timeStr ? parseInt(timeStr.split(':')[0], 10) : 12;
+                
+                const yearGanIdx = (year - 4 + 600) % 10;
+                const yearJiIdx = (year - 4 + 600) % 12;
+                let monthJiIdx = (month + 1) % 12;
+                if (monthJiIdx < 0) monthJiIdx += 12;
+                const monthGanIdx = (yearGanIdx * 2 + monthJiIdx) % 10;
+                
+                const refDate = new Date('2000-01-01');
+                const diffDays = Math.floor((date.getTime() - refDate.getTime()) / (1000 * 60 * 60 * 24));
+                let dayCycleIdx = (54 + diffDays) % 60;
+                if (dayCycleIdx < 0) dayCycleIdx += 60;
+                const dayGanIdx = dayCycleIdx % 10;
+                const dayJiIdx = dayCycleIdx % 12;
+                
+                let hourJiIdx = Math.floor((hour + 1) / 2) % 12;
+                const hourGanIdx = (dayGanIdx * 2 + hourJiIdx) % 10;
+
+                return {
+                    type: calendarType === 'lunar' ? `음력 ${isLeap ? '(윤달)' : ''}` : '양력',
+                    year: { gan: GAN[yearGanIdx], ji: JI[yearJiIdx] },
+                    month: { gan: GAN[monthGanIdx], ji: JI[monthJiIdx] },
+                    day: { gan: GAN[dayGanIdx], ji: JI[dayJiIdx] },
+                    hour: { gan: GAN[hourGanIdx], ji: JI[hourJiIdx] },
+                };
+            };
+
+            const getSuliInterpretation = (count) => {
+                const num = count % 81 === 0 ? 81 : count % 81;
+                return SULI_DETAILS[num] || `${num}수는 길흉이 혼재된 평이한 운세입니다. 긍정적인 마음으로 노력하면 좋은 결과를 얻을 수 있습니다.`;
+            };
+
+            // --- UI Components ---
+            const PillarCard = ({ title, data }) => (
+                <div className="flex flex-col items-center p-3 md:p-4 bg-gray-800 rounded-lg border border-gray-700 shadow-md">
+                    <span className="text-gray-400 text-xs mb-2 tracking-widest uppercase">{title}</span>
+                    <div className="flex flex-col gap-3 items-center w-full">
+                        <div className="flex flex-col items-center">
+                            <div className={`w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full text-white font-bold text-lg md:text-xl shadow-inner ${COLORS[data.gan]}`}>{data.gan.charAt(0)}</div>
+                            <span className="text-gray-500 text-xs mt-1">{data.gan}</span>
+                        </div>
+                        <div className="w-full h-px bg-gray-700/50"></div>
+                        <div className="flex flex-col items-center">
+                            <div className={`w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full text-white font-bold text-lg md:text-xl shadow-inner ${COLORS[data.ji]}`}>{data.ji.charAt(0)}</div>
+                            <span className="text-gray-500 text-xs mt-1">{data.ji}</span>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            const SajuAnalysisCard = ({ result }) => {
+                if (!result) return null;
+                const counts = { Wood: 0, Fire: 0, Earth: 0, Metal: 0, Water: 0 };
+                [result.year, result.month, result.day, result.hour].forEach(pillar => {
+                    counts[getElement(pillar.gan)]++; counts[getElement(pillar.ji)]++;
+                });
+                const maxElement = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
+                const weakElement = Object.keys(counts).reduce((a, b) => counts[a] < counts[b] ? a : b);
+                const dayMaster = result.day.gan;
+                
+                const elementAdvice = {
+                    Wood: "목(Wood) 기운이 강한 당신은 추진력과 성장 욕구가 대단합니다. 하지만 너무 앞만 보고 달리다 부러질 수 있으니, 때로는 멈춰 서서 주변을 돌아보는 여유가 필요합니다. 명상이나 요가로 마음을 차분히 하세요.",
+                    Fire: "화(Fire) 기운이 강한 당신은 열정과 화려함을 추구합니다. 하지만 감정 기복이 심해질 수 있으니, 물(수영, 반신욕)을 가까이 하거나 차분한 독서를 통해 내면을 다스리는 것이 좋습니다.",
+                    Earth: "토(Earth) 기운이 강한 당신은 믿음직하고 포용력이 넓습니다. 하지만 고집이 세고 변화를 싫어해 정체될 수 있습니다. 새로운 취미나 여행을 통해 삶에 활력을 불어넣으세요.",
+                    Metal: "금(Metal) 기운이 강한 당신은 결단력 있고 냉철합니다. 하지만 너무 날카로워 주변에 상처를 줄 수 있습니다. 부드러운 음악을 듣거나 식물을 키우며 감성을 키워보세요.",
+                    Water: "수(Water) 기운이 강한 당신은 지혜롭고 유연합니다. 하지만 생각이 너무 많아 우울해질 수 있습니다. 햇볕을 자주 쬐고 활동적인 운동을 하여 양기를 보충하세요."
+                };
+
+                return (
+                    <div className="mt-8 animate-fade-in border-t border-gray-700 pt-8">
+                        <h3 className="text-xl font-bold text-purple-300 mb-2 flex items-center gap-2"><Sparkles className="w-5 h-5" /> 선천운 정밀 분석</h3>
+                        <div className="grid grid-cols-4 gap-2 mb-6">
+                            <PillarCard title="시주 (자식/말년)" data={result.hour} />
+                            <PillarCard title="일주 (나/배우자)" data={result.day} />
+                            <PillarCard title="월주 (부모/직업)" data={result.month} />
+                            <PillarCard title="년주 (조상/초년)" data={result.year} />
+                        </div>
+                        
+                        <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 mb-4">
+                            <h4 className="text-lg font-bold text-white mb-3 flex items-center gap-2"><User className="w-5 h-5" /> 본원(Day Master) 심층 분석</h4>
+                            <div className="text-2xl font-bold text-purple-400 mb-2">{dayMaster} ({ELEMENTS[getElement(dayMaster)].label})</div>
+                            <p className="text-gray-300 leading-relaxed text-sm">{DAY_MASTER_DETAILS[dayMaster]}</p>
+                        </div>
+
+                        <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700">
+                            <h4 className="text-lg font-bold text-white mb-3 flex items-center gap-2"><Scale className="w-5 h-5" /> 오행 균형과 개운법</h4>
+                            <div className="flex gap-1 h-3 rounded-full overflow-hidden bg-gray-900 mb-3">
+                                {Object.entries(counts).map(([elem, count]) => (<div key={elem} style={{ width: `${(count / 8) * 100}%` }} className={`h-full ${ELEMENTS[elem].bg}`} />))}
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                                <div className="bg-gray-900/50 p-3 rounded text-center"><span className="block text-gray-500 text-xs">가장 강한 기운</span><span className={`font-bold ${ELEMENTS[maxElement].color}`}>{ELEMENTS[maxElement].label}</span></div>
+                                <div className="bg-gray-900/50 p-3 rounded text-center"><span className="block text-gray-500 text-xs">보완이 필요한 기운</span><span className={`font-bold ${ELEMENTS[weakElement].color}`}>{ELEMENTS[weakElement].label}</span></div>
+                            </div>
+                            <div className="bg-gray-900/30 p-4 rounded-lg">
+                                <p className="text-gray-300 text-sm leading-relaxed"><span className="text-yellow-400 font-bold">💡 맞춤 조언:</span> {elementAdvice[maxElement]}</p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const NamingResultCard = ({ result }) => {
+                if (!result) return null;
+                return (
+                    <div className="mt-8 animate-fade-in border-t border-gray-700 pt-8">
+                        <h3 className="text-xl font-bold text-green-300 mb-6 flex items-center gap-2"><BookOpen className="w-5 h-5" /> 성명학 정밀 분석</h3>
+                        <div className="space-y-4">
+                            <div className="bg-gray-800 p-5 rounded-xl border border-gray-700">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-green-400 font-bold">초년운 (원격)</span>
+                                    <span className="text-2xl font-bold text-white">{result.won}수</span>
+                                </div>
+                                <p className="text-sm text-gray-300 leading-relaxed">{getSuliInterpretation(result.won)}</p>
+                            </div>
+                            <div className="bg-gray-800 p-5 rounded-xl border border-gray-700 border-l-4 border-l-yellow-500">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-yellow-400 font-bold">장년운 (형격) - 핵심 운세</span>
+                                    <span className="text-2xl font-bold text-white">{result.hyeong}수</span>
+                                </div>
+                                <p className="text-sm text-gray-300 leading-relaxed">{getSuliInterpretation(result.hyeong)}</p>
+                            </div>
+                            <div className="bg-gray-800 p-5 rounded-xl border border-gray-700">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-blue-400 font-bold">중년운 (이격)</span>
+                                    <span className="text-2xl font-bold text-white">{result.li}수</span>
+                                </div>
+                                <p className="text-sm text-gray-300 leading-relaxed">{getSuliInterpretation(result.li)}</p>
+                            </div>
+                            <div className="bg-gray-800 p-5 rounded-xl border border-gray-700">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-purple-400 font-bold">말년운 (정격) - 총운</span>
+                                    <span className="text-2xl font-bold text-white">{result.jeong}수</span>
+                                </div>
+                                <p className="text-sm text-gray-300 leading-relaxed">{getSuliInterpretation(result.jeong)}</p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const DetailedGunghapResult = ({ result }) => {
+                if (!result) return null;
+                const getScoreColor = (score) => {
+                    if (score >= 85) return "text-pink-400";
+                    if (score >= 70) return "text-blue-400";
+                    return "text-gray-400";
+                };
+                
+                // Element relationship advice
+                const getElementAdvice = (e1, e2) => {
+                    if (e1 === e2) return "같은 오행이라 친구처럼 편안하지만, 자존심 싸움이 잦을 수 있습니다. 서로의 다름을 인정하는 것이 중요합니다.";
+                    // Wood generates Fire, Fire generates Earth... (Generating Cycle)
+                    const gen = {Wood:"Fire", Fire:"Earth", Earth:"Metal", Metal:"Water", Water:"Wood"};
+                    if (gen[e1] === e2) return "당신이 상대방을 도와주는 상생 관계입니다. 당신의 헌신이 상대방에게 큰 힘이 됩니다.";
+                    if (gen[e2] === e1) return "상대방이 당신을 도와주는 상생 관계입니다. 상대방의 배려에 감사함을 표현하세요.";
+                    // Controlling Cycle
+                    const con = {Wood:"Earth", Earth:"Water", Water:"Fire", Fire:"Metal", Metal:"Wood"};
+                    if (con[e1] === e2) return "당신이 상대방을 리드하는 관계입니다. 강압적이지 않도록 주의하면 주도권을 잡을 수 있습니다.";
+                    if (con[e2] === e1) return "상대방이 당신을 리드하는 관계입니다. 상대의 결단력을 믿고 따르면 안정감을 얻을 수 있습니다.";
+                    return "서로 다른 매력에 끌리지만, 가치관의 차이가 있을 수 있으니 많은 대화가 필요합니다.";
+                };
+
+                const elem1 = ELEMENTS[getElement(result.p1.gan)].label.split('(')[0]; 
+                const e1Key = getElement(result.p1.gan);
+                const e2Key = getElement(result.p2.gan);
+
+                return (
+                    <div className="mt-8 animate-fade-in border-t border-gray-700 pt-8 space-y-6">
+                        <div className="text-center">
+                            <h3 className="text-2xl font-bold text-white mb-2">두 분의 궁합 리포트</h3>
+                            <div className={`text-8xl font-black ${getScoreColor(result.score)} mb-4 drop-shadow-lg tracking-tighter`}>{result.score}점</div>
+                            <p className="text-lg text-gray-300 font-medium px-4">{result.summary}</p>
+                        </div>
+                        
+                        {result.nameChemistry && (
+                            <div className="bg-gray-800 p-5 rounded-2xl border border-gray-700">
+                                <h4 className="text-green-400 font-bold mb-3 flex items-center gap-2"><BookOpen className="w-4 h-4" /> 이름(합수) 궁합 풀이</h4>
+                                <div className="text-center">
+                                    <div className="text-2xl font-bold text-white mb-2">합수 {result.nameChemistry.totalStrokes}획</div>
+                                    <div className="bg-gray-900/50 p-4 rounded-lg text-left">
+                                        <p className="text-sm text-gray-300 leading-relaxed">{getSuliInterpretation(result.nameChemistry.totalStrokes)}</p>
+                                    </div>
+                                    <span className="text-xs text-gray-500 mt-2 block">(이름 궁합 점수가 종합 점수에 가산되었습니다)</span>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700">
+                            <h4 className="text-lg font-bold text-purple-300 mb-4 flex items-center gap-2"><User className="w-5 h-5" /> 성격(일간) 케미스트리</h4>
+                            <div className="flex items-center justify-between px-2 mb-6">
+                                <div className="flex flex-col items-center">
+                                    <span className="text-sm text-gray-500 mb-2">나</span>
+                                    <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold text-white shadow-lg ${COLORS[result.p1.gan]}`}>{result.p1.gan.charAt(0)}</div>
+                                    <span className="text-xs text-gray-400 mt-1">{ELEMENTS[e1Key].label}</span>
+                                </div>
+                                <div className="flex flex-col items-center px-4 w-full">
+                                    <div className="h-1 w-full bg-gray-700 rounded-full mb-2 relative">
+                                        <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-gray-500 rounded-full"></div>
+                                    </div>
+                                    <span className="text-xs text-gray-400 text-center">{getElementAdvice(e1Key, e2Key)}</span>
+                                </div>
+                                <div className="flex flex-col items-center">
+                                    <span className="text-sm text-gray-500 mb-2">상대</span>
+                                    <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold text-white shadow-lg ${COLORS[result.p2.gan]}`}>{result.p2.gan.charAt(0)}</div>
+                                    <span className="text-xs text-gray-400 mt-1">{ELEMENTS[e2Key].label}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-gradient-to-r from-pink-900/40 to-purple-900/40 p-6 rounded-2xl border border-pink-500/30">
+                            <h4 className="text-pink-300 font-bold mb-3 flex items-center gap-2"><Heart className="w-5 h-5" /> 연애/결혼 조언</h4>
+                            <div className="space-y-3 text-sm text-gray-200 leading-relaxed">
+                                <p><span className="text-pink-400 font-bold">♥ 갈등 관리:</span> {result.branchDesc.includes("충") ? "두 분은 서로의 자존심을 건드리면 크게 싸울 수 있습니다. 화가 날 때는 자리를 피하고, 감정이 가라앉은 뒤 대화하세요." : "큰 갈등 없이 평온한 관계를 유지할 수 있습니다. 지루해지지 않도록 새로운 데이트를 즐기세요."}</p>
+                                <p><span className="text-pink-400 font-bold">♥ 데이트 팁:</span> {e1Key === "Water" || e2Key === "Water" ? "밤에 분위기 좋은 곳에서 진지한 대화를 나누는 것이 좋습니다." : "활동적인 야외 데이트나 맛집 탐방이 사랑을 키워줍니다."}</p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const GunghapSection = () => {
+                const [p1Date, setP1Date] = useState('');
+                const [p2Date, setP2Date] = useState('');
+                const [p1NameKr, setP1NameKr] = useState('');
+                const [p2NameKr, setP2NameKr] = useState('');
+                const [p1Hanja, setP1Hanja] = useState('');
+                const [p2Hanja, setP2Hanja] = useState('');
+                const [p1Type, setP1Type] = useState('solar');
+                const [p1Leap, setP1Leap] = useState(false);
+                const [p2Type, setP2Type] = useState('solar');
+                const [p2Leap, setP2Leap] = useState(false);
+                const [result, setResult] = useState(null);
+                const [loading, setLoading] = useState(false);
+
+                const getNameStrokes = (name) => {
+                    if (!name) return 0;
+                    let total = 0;
+                    for (let char of name) { total += (HANJA_STROKES[char] || 0); }
+                    return total;
+                };
+
+                const checkNameCompatibility = (n1, n2) => {
+                    if (!n1 || !n2) return null;
+                    const s1 = getNameStrokes(n1); const s2 = getNameStrokes(n2);
+                    if (s1 === 0 || s2 === 0) return null;
+                    const total = s1 + s2; const mod = total % 81 || 81;
+                    const goodNums = [1,3,5,6,7,8,11,13,15,16,17,18,21,23,24,25,29,31,32,33,35,37,38,39,41,45,47,48,52,61,63,65,67,68];
+                    const isGood = goodNums.includes(mod);
+                    return { totalStrokes: total, isGood, desc: SULI_DETAILS[mod] || (isGood ? "서로의 기운이 조화로운 길한 숫자입니다." : "서로 노력이 필요한 평이한 숫자입니다."), bonus: isGood ? 10 : 0 };
+                };
+
+                const handleAnalyze = async () => {
+                    if (!p1Date || !p2Date || !p1NameKr || !p2NameKr) return;
+                    setLoading(true); setResult(null);
+
+                    const saju1 = calculateSaju(p1Date, '12:00', p1Type, p1Leap);
+                    const saju2 = calculateSaju(p2Date, '12:00', p2Type, p2Leap);
+                    const s1Idx = GAN.indexOf(saju1.day.gan); const s2Idx = GAN.indexOf(saju2.day.gan);
+                    let score = 60; if (Math.abs(s1Idx - s2Idx) === 5) score += 20; 
+                    
+                    const j1Idx = JI.indexOf(saju1.day.ji); const j2Idx = JI.indexOf(saju2.day.ji);
+                    const dist = (j2Idx - j1Idx + 12) % 12;
+                    let branchDesc = "";
+                    if (dist === 6) { score -= 15; branchDesc = "충"; } else if (dist === 4 || dist === 8) { score += 15; branchDesc = "합"; }
+
+                    let nameRes = null;
+                    if (p1Hanja && p2Hanja) {
+                        nameRes = checkNameCompatibility(p1Hanja, p2Hanja);
+                        if (nameRes) score += nameRes.bonus;
+                    }
+
+                    const resData = {
+                        score: Math.min(100, Math.max(0, score)),
+                        summary: score > 80 ? "놓치지 마세요! 천생연분입니다." : score > 60 ? "서로 노력하면 좋은 결실을 맺습니다." : "서로 많은 이해와 양보가 필요합니다.",
+                        p1: { gan: saju1.day.gan }, p2: { gan: saju2.day.gan },
+                        nameChemistry: nameRes,
+                        branchDesc: branchDesc
+                    };
+
+                    if (user && window.isFirebaseAvailable) {
+                        try {
+                            const db = window.fbDb;
+                            const path = `artifacts/${window.appId}/users/${user.uid}/gunghap_history`;
+                            await window.fbAddDoc(window.fbCollection(db, path), {
+                                p1Date, p2Date, p1Name: p1NameKr, p2Name: p2NameKr, p1Hanja: p1Hanja || null, p2Hanja: p2Hanja || null,
+                                score: resData.score, summary: resData.summary, timestamp: window.fbServerTimestamp()
+                            });
+                        } catch(e) { console.error("Save failed:", e); }
+                    }
+                    setTimeout(() => { setResult(resData); setLoading(false); }, 800);
+                };
+
+                return (
+                    <div className="space-y-6 w-full animate-fade-in">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
+                                <h4 className="text-pink-400 mb-2 font-bold flex items-center gap-2"><Heart className="w-4 h-4" /> 내 정보</h4>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="bg-gray-900 rounded-lg p-1 flex border border-gray-600">
+                                        <button onClick={() => setP1Type('solar')} className={`px-3 py-1 rounded-md text-sm font-bold transition-colors ${p1Type === 'solar' ? 'bg-gray-700 text-white' : 'text-gray-500'}`}>양력</button>
+                                        <button onClick={() => setP1Type('lunar')} className={`px-3 py-1 rounded-md text-sm font-bold transition-colors ${p1Type === 'lunar' ? 'bg-gray-700 text-white' : 'text-gray-500'}`}>음력</button>
+                                    </div>
+                                    {p1Type === 'lunar' && <label className="text-xs text-gray-400"><input type="checkbox" checked={p1Leap} onChange={(e)=>setP1Leap(e.target.checked)} className="mr-1"/>윤달</label>}
+                                </div>
+                                <input type="date" className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white mb-2" value={p1Date} onChange={(e) => setP1Date(e.target.value)} />
+                                <div className="space-y-2">
+                                    <input type="text" placeholder="이름 (한글)" className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" value={p1NameKr} onChange={(e) => setP1NameKr(e.target.value)} />
+                                    <input type="text" placeholder="이름 (한자) - 선택" className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" value={p1Hanja} onChange={(e) => setP1Hanja(e.target.value)} />
+                                </div>
+                            </div>
+                            <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
+                                <h4 className="text-blue-400 mb-2 font-bold flex items-center gap-2"><Heart className="w-4 h-4" /> 상대방 정보</h4>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="bg-gray-900 rounded-lg p-1 flex border border-gray-600">
+                                        <button onClick={() => setP2Type('solar')} className={`px-3 py-1 rounded-md text-sm font-bold transition-colors ${p2Type === 'solar' ? 'bg-gray-700 text-white' : 'text-gray-500'}`}>양력</button>
+                                        <button onClick={() => setP2Type('lunar')} className={`px-3 py-1 rounded-md text-sm font-bold transition-colors ${p2Type === 'lunar' ? 'bg-gray-700 text-white' : 'text-gray-500'}`}>음력</button>
+                                    </div>
+                                    {p2Type === 'lunar' && <label className="text-xs text-gray-400"><input type="checkbox" checked={p2Leap} onChange={(e)=>setP2Leap(e.target.checked)} className="mr-1"/>윤달</label>}
+                                </div>
+                                <input type="date" className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white mb-2" value={p2Date} onChange={(e) => setP2Date(e.target.value)} />
+                                <div className="space-y-2">
+                                    <input type="text" placeholder="이름 (한글)" className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" value={p2NameKr} onChange={(e) => setP2NameKr(e.target.value)} />
+                                    <input type="text" placeholder="이름 (한자) - 선택" className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" value={p2Hanja} onChange={(e) => setP2Hanja(e.target.value)} />
+                                </div>
+                            </div>
+                        </div>
+                        <button onClick={handleAnalyze} disabled={!p1Date || !p2Date || !p1NameKr || !p2NameKr || loading} className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 transition-all ${(!p1Date || !p2Date || !p1NameKr || !p2NameKr) ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gradient-to-r from-pink-600 to-purple-600 text-white hover:from-pink-500 hover:to-purple-500 transform hover:-translate-y-1'}`}>
+                            {loading ? <RefreshCw className="w-6 h-6 animate-spin" /> : <><Heart className="fill-current" /> 궁합 보기</>}
+                        </button>
+                        <DetailedGunghapResult result={result} />
+                    </div>
+                );
+            };
+
+            const [inputDate, setInputDate] = useState('');
+            const [inputTime, setInputTime] = useState('');
+            const [calendarType, setCalendarType] = useState('solar');
+            const [isLeapMonth, setIsLeapMonth] = useState(false);
+            const [nameKorean, setNameKorean] = useState('');
+            const [nameHanja, setNameHanja] = useState('');
+            const [strokes, setStrokes] = useState([]);
+            const [manualStrokes, setManualStrokes] = useState({});
+            const [sajuResult, setSajuResult] = useState(null);
+            const [namingResult, setNamingResult] = useState(null);
+
+            const handleHanjaChange = (e) => {
+                const val = e.target.value.replace(/\s/g, '');
+                setNameHanja(val);
+                setStrokes(val.split('').map(char => { return { char, count: HANJA_STROKES[char] || manualStrokes[char] || null }; }));
+                setNamingResult(null); 
+            };
+
+            const updateManualStroke = (char, count) => {
+                if (count === '') {
+                    const newManual = {...manualStrokes}; delete newManual[char];
+                    setManualStrokes(newManual); setStrokes(prev => prev.map(s => s.char === char ? { ...s, count: null } : s));
+                    return;
+                }
+                const num = parseInt(count, 10);
+                if (!isNaN(num)) {
+                    setManualStrokes(prev => ({...prev, [char]: num})); setStrokes(prev => prev.map(s => s.char === char ? { ...s, count: num } : s));
+                }
+            };
+
+            const calculateNaming = (strokes) => {
+                const counts = strokes.map(s => s.count);
+                let won, hyeong, li, jeong;
+                if (counts.length === 3) {
+                    hyeong = counts[0] + counts[1]; won = counts[1] + counts[2];
+                    li = counts[0] + counts[2]; jeong = counts[0] + counts[1] + counts[2];
+                } else if (counts.length === 2) {
+                    hyeong = counts[0] + counts[1]; won = counts[1] + 1; 
+                    li = counts[0] + 1; jeong = counts[0] + counts[1];
+                } else {
+                    jeong = counts.reduce((a,b) => a+b, 0); won = jeong; hyeong = jeong; li = jeong;
+                }
+                return { won, hyeong, li, jeong };
+            };
+
+            const handleTotalAnalyze = async () => {
+                if (!inputDate || !nameKorean) return;
+                const sRes = calculateSaju(inputDate, inputTime, calendarType, isLeapMonth);
+                setSajuResult(sRes);
+                let nRes = null;
+                if (nameHanja && strokes.length > 0) {
+                    if (strokes.some(s => !s.count)) { alert("획수 정보가 없는 한자가 있습니다."); return; }
+                    nRes = calculateNaming(strokes);
+                    setNamingResult(nRes);
+                } else { setNamingResult(null); }
+
+                if (user && window.isFirebaseAvailable) {
+                    try {
+                        const db = window.fbDb;
+                        const path = `artifacts/${window.appId}/users/${user.uid}/saju_history`;
+                        await window.fbAddDoc(window.fbCollection(db, path), {
+                            date: inputDate, time: inputTime, calendarType, isLeapMonth,
+                            name: nameKorean, hanja: nameHanja || null, dayMaster: sRes.day.gan, timestamp: window.fbServerTimestamp()
+                        });
+                    } catch(e) { console.error("Save failed:", e); }
+                }
+            };
+
+            return (
+                <div className="w-full max-w-2xl px-4 pb-12 flex flex-col items-center">
+                    <header className="w-full max-w-2xl px-6 py-8 flex flex-col items-center text-center">
+                        <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-yellow-400 mb-2 tracking-tight">천기누설 (天機漏洩)</h1>
+                        <p className="text-gray-400 text-sm">운명의 흐름을 읽고 미래를 준비하세요</p>
+                    </header>
+                    <main className="w-full">
+                        <div className="bg-gray-800/50 backdrop-blur-lg rounded-3xl shadow-2xl border border-gray-700 overflow-hidden">
+                            <div className="flex border-b border-gray-700">
+                                <button onClick={() => setActiveTab('total')} className={`flex-1 py-4 text-center font-bold transition-colors ${activeTab === 'total' ? 'bg-gray-800 text-purple-400 border-b-2 border-purple-500' : 'bg-gray-900/50 text-gray-500'}`}><Sparkles className="w-4 h-4 inline mr-1" /> 종합 분석</button>
+                                <button onClick={() => setActiveTab('gunghap')} className={`flex-1 py-4 text-center font-bold transition-colors ${activeTab === 'gunghap' ? 'bg-gray-800 text-pink-400 border-b-2 border-pink-500' : 'bg-gray-900/50 text-gray-500'}`}><Heart className="w-4 h-4 inline mr-1" /> 연인 궁합</button>
+                            </div>
+                            <div className="p-6 md:p-8">
+                                {activeTab === 'total' && (
+                                    <div className="space-y-6 animate-fade-in">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="md:col-span-1">
+                                                <label className="block text-gray-400 text-sm font-bold mb-2 flex items-center gap-2"><Calendar className="w-4 h-4" /> 생년월일</label>
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <div className="bg-gray-900 rounded-lg p-1 flex border border-gray-600">
+                                                        <button onClick={() => setCalendarType('solar')} className={`px-3 py-1 rounded-md text-sm font-bold transition-colors ${calendarType === 'solar' ? 'bg-gray-700 text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}>양력</button>
+                                                        <button onClick={() => setCalendarType('lunar')} className={`px-3 py-1 rounded-md text-sm font-bold transition-colors ${calendarType === 'lunar' ? 'bg-gray-700 text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}>음력</button>
+                                                    </div>
+                                                    {calendarType === 'lunar' && (<label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer select-none"><input type="checkbox" checked={isLeapMonth} onChange={(e) => setIsLeapMonth(e.target.checked)} className="w-4 h-4 rounded border-gray-600 bg-gray-900 text-purple-500 focus:ring-purple-500" />윤달</label>)}
+                                                </div>
+                                                <input type="date" className="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all" value={inputDate} onChange={(e) => setInputDate(e.target.value)} />
+                                            </div>
+                                            <div className="md:col-span-1">
+                                                <label className="block text-gray-400 text-sm font-bold mb-2 flex items-center gap-2"><Clock className="w-4 h-4" /> 태어난 시간</label>
+                                                <div className="h-[42px] mb-2 hidden md:block"></div> 
+                                                <input type="time" className="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all" value={inputTime} onChange={(e) => setInputTime(e.target.value)} />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="block text-gray-400 text-sm font-bold mb-2 flex items-center gap-2"><User className="w-4 h-4" /> 이름 정보</label>
+                                                <div className="space-y-3">
+                                                    <input type="text" placeholder="이름 (한글) - 필수" className="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-green-500 outline-none transition-all placeholder-gray-600 tracking-widest" value={nameKorean} onChange={(e) => setNameKorean(e.target.value)} />
+                                                    <input type="text" placeholder="이름 (한자) - 선택 (성명학 분석용)" className="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-green-500 outline-none transition-all placeholder-gray-600 tracking-widest" value={nameHanja} onChange={handleHanjaChange} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {strokes.length > 0 && nameHanja && (
+                                            <div className="bg-gray-900/50 p-4 rounded-lg border border-gray-700 animate-fade-in">
+                                                <span className="text-sm text-gray-400 block mb-3">한자 획수 확인</span>
+                                                <div className="flex flex-wrap gap-4">
+                                                    {strokes.map((s, idx) => {
+                                                        const isDb = HANJA_STROKES[s.char] !== undefined;
+                                                        return (
+                                                            <div key={idx} className="flex flex-col items-center gap-2 bg-gray-800 p-3 rounded border border-gray-600">
+                                                                <span className="text-2xl font-serif text-white">{s.char}</span>
+                                                                {isDb ? (<span className="text-green-400 font-bold text-sm">{s.count}획</span>) : (
+                                                                    <div className="flex flex-col items-center gap-1"><span className="text-red-400 text-xs font-bold">미확인</span>
+                                                                        <div className="flex items-center gap-1">
+                                                                            <input type="number" className="w-12 bg-gray-700 border border-gray-500 rounded text-center text-sm p-1 text-white" placeholder="?" value={s.count || ''} onChange={(e) => updateManualStroke(s.char, e.target.value)} />
+                                                                            <a href={`https://hanja.dict.naver.com/search?query=${s.char}`} target="_blank" rel="noreferrer" className="p-1 bg-blue-600 rounded text-white hover:bg-blue-500" title="네이버 한자사전 검색"><Search className="w-3 h-3" /></a>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                        <button onClick={handleTotalAnalyze} className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 transition-all mt-2 ${(!inputDate || !nameKorean) ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-500 hover:to-indigo-500 transform hover:-translate-y-1'}`} disabled={!inputDate || !nameKorean}>운명 분석하기 <ArrowRight className="w-5 h-5" /></button>
+                                        <SajuAnalysisCard result={sajuResult} />
+                                        <NamingResultCard result={namingResult} />
+                                    </div>
+                                )}
+                                {activeTab === 'gunghap' && <GunghapSection />}
+                            </div>
+                        </div>
+                    </main>
+                    <footer className="py-6 text-gray-600 text-xs text-center"><p>© 2024 CheonGiNuSeol. All destiny is in your hands.</p></footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<SajuApp />);
+    </script>
+</body>
+</html>
