@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI Self Driving Car - Even Spacing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #1f2937; touch-action: none; font-family: 'Segoe UI', sans-serif; }
+        canvas { display: block; margin: 0 auto; background: #6b7280; }
+        
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #60A5FA; cursor: pointer; margin-top: -6px; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #4B5563; border-radius: 2px; }
+
+        .ui-panel { transition: transform 0.3s ease-in-out, opacity 0.3s; }
+        .ui-hidden { transform: translateX(-120%); opacity: 0; pointer-events: none; }
+        
+        @keyframes pulse-blue {
+            0% { box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(96, 165, 250, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(96, 165, 250, 0); }
+        }
+        .heartbeat {
+            animation: pulse-blue 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="carCanvas"></canvas>
+
+    <!-- UI Panel -->
+    <div class="fixed top-4 left-4 z-20 flex flex-col items-start gap-3">
+        <button id="toggleBtn" class="bg-gray-900/80 text-yellow-400 p-3 rounded-full shadow-lg hover:bg-gray-800 transition border border-yellow-400/30">
+            <i data-lucide="eye"></i>
+        </button>
+
+        <div id="uiPanel" class="bg-gray-900/90 backdrop-blur-md text-white p-5 rounded-2xl shadow-2xl w-72 border border-gray-700">
+            <div class="flex items-center justify-between mb-4 border-b border-gray-700 pb-2">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="align-justify" class="text-blue-400"></i>
+                    <h2 class="text-lg font-bold">균등 배치 (v13)</h2>
+                </div>
+                <div class="w-3 h-3 bg-blue-500 rounded-full heartbeat" title="시스템 작동 중"></div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mb-4 text-sm text-gray-300">
+                <div>
+                    <span class="block text-xs text-gray-500">생존 / 전체</span>
+                    <span id="populationDisplay" class="font-mono text-lg text-white">100 / 100</span>
+                </div>
+                <div>
+                    <span class="block text-xs text-gray-500">최고 기록 (Y)</span>
+                    <span id="scoreDisplay" class="font-mono text-lg text-yellow-400">0</span>
+                </div>
+                <div>
+                    <span class="block text-xs text-gray-500">현재 세대</span>
+                    <span id="generationDisplay" class="font-mono text-lg text-blue-400">1</span>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <div class="flex justify-between mb-1">
+                    <span class="text-sm text-gray-400">돌연변이율 (Mutation)</span>
+                    <span id="mutationVal" class="text-sm font-bold text-blue-400">0.2</span>
+                </div>
+                <input type="range" id="mutationSlider" min="0.0" max="1.0" step="0.05" value="0.2">
+            </div>
+
+             <div class="mb-5">
+                <div class="flex justify-between mb-1">
+                    <span class="text-sm text-gray-400">시뮬레이션 배속</span>
+                    <span id="simSpeedVal" class="text-sm font-bold text-yellow-400">1x</span>
+                </div>
+                <input type="range" id="simSpeedSlider" min="1" max="20" value="1" step="1">
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="saveBrain(true)" class="bg-blue-600 hover:bg-blue-700 py-2 rounded-lg text-sm font-medium transition flex justify-center items-center gap-1">
+                    <i data-lucide="save" class="w-4 h-4"></i>수동 저장
+                </button>
+                <button onclick="discardBrain()" class="bg-red-600 hover:bg-red-700 py-2 rounded-lg text-sm font-medium transition flex justify-center items-center gap-1">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>초기화
+                </button>
+            </div>
+            <p id="statusMsg" class="mt-3 text-xs text-gray-400 text-center leading-relaxed">
+                장애물 간격 자동 조절 중...<br>
+                절대 겹쳐서 나오지 않습니다.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. 신경망 ---
+        class NeuralNetwork {
+            constructor(neuronCounts) {
+                this.levels = [];
+                for (let i = 0; i < neuronCounts.length - 1; i++) {
+                    this.levels.push(new Level(neuronCounts[i], neuronCounts[i + 1]));
+                }
+            }
+            static feedForward(givenInputs, network) {
+                let outputs = Level.feedForward(givenInputs, network.levels[0]);
+                for (let i = 1; i < network.levels.length; i++) {
+                    outputs = Level.feedForward(outputs, network.levels[i]);
+                }
+                return outputs;
+            }
+            static mutate(network, amount = 1) {
+                network.levels.forEach(level => {
+                    for (let i = 0; i < level.biases.length; i++) {
+                        level.biases[i] = lerp(level.biases[i], Math.random() * 2 - 1, amount);
+                    }
+                    for (let i = 0; i < level.weights.length; i++) {
+                        for (let j = 0; j < level.weights[i].length; j++) {
+                            level.weights[i][j] = lerp(level.weights[i][j], Math.random() * 2 - 1, amount);
+                        }
+                    }
+                });
+            }
+        }
+
+        class Level {
+            constructor(inputCount, outputCount) {
+                this.inputs = new Array(inputCount);
+                this.outputs = new Array(outputCount);
+                this.biases = new Array(outputCount);
+                this.weights = [];
+                for (let i = 0; i < inputCount; i++) {
+                    this.weights[i] = new Array(outputCount);
+                }
+                Level.#randomize(this);
+            }
+            static #randomize(level) {
+                for (let i = 0; i < level.inputs.length; i++) {
+                    for (let j = 0; j < level.outputs.length; j++) {
+                        level.weights[i][j] = Math.random() * 2 - 1;
+                    }
+                }
+                for (let i = 0; i < level.biases.length; i++) {
+                    level.biases[i] = Math.random() * 2 - 1;
+                }
+            }
+            static feedForward(givenInputs, level) {
+                for (let i = 0; i < level.inputs.length; i++) {
+                    level.inputs[i] = givenInputs[i];
+                }
+                for (let i = 0; i < level.outputs.length; i++) {
+                    let sum = 0;
+                    for (let j = 0; j < level.inputs.length; j++) {
+                        sum += level.inputs[j] * level.weights[j][i];
+                    }
+                    if (sum > level.biases[i]) level.outputs[i] = 1;
+                    else level.outputs[i] = 0;
+                }
+                return level.outputs;
+            }
+        }
+
+        // --- 2. 기본 클래스 ---
+        class Sensor {
+            constructor(car) {
+                this.car = car;
+                this.rayCount = 7; 
+                this.rayLength = 300; 
+                this.raySpread = Math.PI / 1.3; 
+                this.rays = [];
+                this.readings = [];
+            }
+            update(roadBorders, traffic) {
+                this.#castRays();
+                this.readings = [];
+                for (let i = 0; i < this.rays.length; i++) {
+                    this.readings.push(this.#getReading(this.rays[i], roadBorders, traffic));
+                }
+            }
+            #getReading(ray, roadBorders, traffic) {
+                let touches = [];
+                for (let i = 0; i < roadBorders.length; i++) {
+                    const touch = getIntersection(ray[0], ray[1], roadBorders[i][0], roadBorders[i][1]);
+                    if (touch) touches.push(touch);
+                }
+                for (let i = 0; i < traffic.length; i++) {
+                    const poly = traffic[i].polygon;
+                    for (let j = 0; j < poly.length; j++) {
+                        const value = getIntersection(ray[0], ray[1], poly[j], poly[(j + 1) % poly.length]);
+                        if (value) touches.push(value);
+                    }
+                }
+                if (touches.length == 0) return null;
+                const offsets = touches.map(e => e.offset);
+                const minOffset = Math.min(...offsets);
+                return touches.find(e => e.offset == minOffset);
+            }
+            #castRays() {
+                this.rays = [];
+                for (let i = 0; i < this.rayCount; i++) {
+                    const rayAngle = lerp(this.raySpread / 2, -this.raySpread / 2, this.rayCount == 1 ? 0.5 : i / (this.rayCount - 1)) + this.car.angle;
+                    const start = { x: this.car.x, y: this.car.y };
+                    const end = { x: this.car.x - Math.sin(rayAngle) * this.rayLength, y: this.car.y - Math.cos(rayAngle) * this.rayLength };
+                    this.rays.push([start, end]);
+                }
+            }
+            draw(ctx) {
+                for (let i = 0; i < this.rayCount; i++) {
+                    if (!this.rays[i]) continue;
+                    let end = this.rays[i][1];
+                    if (this.readings[i]) end = this.readings[i];
+                    ctx.beginPath(); ctx.lineWidth = 2; ctx.strokeStyle = "yellow"; ctx.moveTo(this.rays[i][0].x, this.rays[i][0].y); ctx.lineTo(end.x, end.y); ctx.stroke();
+                    ctx.beginPath(); ctx.lineWidth = 2; ctx.strokeStyle = "black"; ctx.moveTo(this.rays[i][1].x, this.rays[i][1].y); ctx.lineTo(end.x, end.y); ctx.stroke();
+                }
+            }
+        }
+
+        class Car {
+            constructor(x, y, width, height, controlType, maxSpeed = 4) { 
+                this.x = x; this.y = y; this.width = width; this.height = height;
+                this.speed = 0; this.acceleration = 0.2; this.maxSpeed = maxSpeed; this.friction = 0.05;
+                this.angle = 0; this.damaged = false; this.controlType = controlType;
+                this.useBrain = controlType == "AI";
+                
+                this.age = 0;
+                this.isTooSlow = false;
+                
+                if (controlType != "DUMMY") {
+                    this.sensor = new Sensor(this);
+                    this.brain = new NeuralNetwork([this.sensor.rayCount, 12, 4]); 
+                }
+                this.controls = { forward: false, left: false, right: false, reverse: false };
+                if (controlType == "DUMMY") this.controls.forward = true;
+            }
+
+            update(roadBorders, traffic) {
+                if (!this.damaged) {
+                    this.#move();
+                    this.polygon = this.#createPolygon();
+                    this.damaged = this.#assessDamage(roadBorders, traffic);
+
+                    if(this.controlType == "AI") {
+                        this.age++;
+                        if (Math.cos(this.angle) < 0) this.damaged = true; 
+
+                        if (this.age > 90) {
+                            if (this.speed < 1.5) {
+                                this.isTooSlow = true; 
+                                this.damaged = true;
+                            } else {
+                                this.isTooSlow = false;
+                            }
+                        }
+                    }
+                }
+
+                if (this.sensor) {
+                    this.sensor.update(roadBorders, traffic);
+                    if (this.useBrain) {
+                        const offsets = this.sensor.readings.map(s => s == null ? 0 : 1 - s.offset);
+                        try {
+                            const outputs = NeuralNetwork.feedForward(offsets, this.brain);
+                            this.controls.forward = outputs[0];
+                            this.controls.left = outputs[1];
+                            this.controls.right = outputs[2];
+                            this.controls.reverse = false; 
+                        } catch (e) {
+                            this.damaged = true;
+                        }
+                    }
+                }
+            }
+
+            #assessDamage(roadBorders, traffic) {
+                for (let i = 0; i < roadBorders.length; i++) if (polysIntersect(this.polygon, roadBorders[i])) return true;
+                for (let i = 0; i < traffic.length; i++) if (polysIntersect(this.polygon, traffic[i].polygon)) return true;
+                return false;
+            }
+
+            #createPolygon() {
+                const points = [];
+                const rad = Math.hypot(this.width, this.height) / 2;
+                const alpha = Math.atan2(this.width, this.height);
+                points.push({ x: this.x - Math.sin(this.angle - alpha) * rad, y: this.y - Math.cos(this.angle - alpha) * rad });
+                points.push({ x: this.x - Math.sin(this.angle + alpha) * rad, y: this.y - Math.cos(this.angle + alpha) * rad });
+                points.push({ x: this.x - Math.sin(Math.PI + this.angle - alpha) * rad, y: this.y - Math.cos(Math.PI + this.angle - alpha) * rad });
+                points.push({ x: this.x - Math.sin(Math.PI + this.angle + alpha) * rad, y: this.y - Math.cos(Math.PI + this.angle + alpha) * rad });
+                return points;
+            }
+
+            #move() {
+                if (this.controls.forward) this.speed += this.acceleration;
+                if (this.controls.reverse) this.speed -= this.acceleration;
+                if (this.speed > this.maxSpeed) this.speed = this.maxSpeed;
+                if (this.speed < -this.maxSpeed / 2) this.speed = -this.maxSpeed / 2;
+                if (this.speed > 0) this.speed -= this.friction;
+                if (this.speed < 0) this.speed += this.friction;
+                if (Math.abs(this.speed) < this.friction) this.speed = 0;
+
+                if (this.speed != 0) {
+                    const flip = this.speed > 0 ? 1 : -1;
+                    if (this.controls.left) this.angle += 0.05 * flip;
+                    if (this.controls.right) this.angle -= 0.05 * flip;
+                }
+                this.x -= Math.sin(this.angle) * this.speed;
+                this.y -= Math.cos(this.angle) * this.speed;
+            }
+
+            draw(ctx, color = "black", drawSensor = false) {
+                if (this.damaged) ctx.fillStyle = "gray";
+                else ctx.fillStyle = color;
+
+                ctx.beginPath();
+                if (this.polygon) {
+                    ctx.moveTo(this.polygon[0].x, this.polygon[0].y);
+                    for (let i = 1; i < this.polygon.length; i++) ctx.lineTo(this.polygon[i].x, this.polygon[i].y);
+                }
+                ctx.fill();
+                if (this.sensor && drawSensor) this.sensor.draw(ctx);
+
+                if (this.isTooSlow) {
+                    ctx.fillStyle = "red";
+                    ctx.font = "bold 12px Arial";
+                    ctx.fillText("SLOW!", this.x - 20, this.y - 40);
+                }
+            }
+        }
+
+        class Road {
+            constructor(x, width, laneCount = 3) {
+                this.x = x;
+                this.width = width;
+                this.laneCount = laneCount;
+                this.left = x - width / 2;
+                this.right = x + width / 2;
+                const infinity = 1000000; this.top = -infinity; this.bottom = infinity;
+                const topLeft = { x: this.left, y: this.top }; const topRight = { x: this.right, y: this.top };
+                const bottomLeft = { x: this.left, y: this.bottom }; const bottomRight = { x: this.right, y: this.bottom };
+                this.borders = [[topLeft, bottomLeft], [topRight, bottomRight]];
+            }
+            getLaneCenter(laneIndex) {
+                const laneWidth = this.width / this.laneCount;
+                return this.left + laneWidth / 2 + Math.min(laneIndex, this.laneCount - 1) * laneWidth;
+            }
+            draw(ctx) {
+                ctx.lineWidth = 5; ctx.strokeStyle = "white";
+                for (let i = 1; i <= this.laneCount - 1; i++) {
+                    const x = lerp(this.left, this.right, i / this.laneCount);
+                    ctx.setLineDash([20, 20]); ctx.beginPath(); ctx.moveTo(x, this.top); ctx.lineTo(x, this.bottom); ctx.stroke();
+                }
+                ctx.setLineDash([]);
+                this.borders.forEach(border => { ctx.beginPath(); ctx.moveTo(border[0].x, border[0].y); ctx.lineTo(border[1].x, border[1].y); ctx.stroke(); });
+            }
+        }
+
+        // --- 3. 유틸리티 및 전역 변수 ---
+        function lerp(A, B, t) { return A + (B - A) * t; }
+        function getIntersection(A, B, C, D) {
+            const tTop = (D.x - C.x) * (A.y - C.y) - (D.y - C.y) * (A.x - C.x);
+            const uTop = (C.y - A.y) * (A.x - B.x) - (C.x - A.x) * (A.y - B.y);
+            const bottom = (D.y - C.y) * (B.x - A.x) - (D.x - C.x) * (B.y - A.y);
+            if (bottom != 0) {
+                const t = tTop / bottom; const u = uTop / bottom;
+                if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return { x: lerp(A.x, B.x, t), y: lerp(A.y, B.y, t), offset: t }
+            }
+            return null;
+        }
+        function polysIntersect(poly1, poly2) {
+            for (let i = 0; i < poly1.length; i++) for (let j = 0; j < poly2.length; j++) if (getIntersection(poly1[i], poly1[(i + 1) % poly1.length], poly2[j], poly2[(j + 1) % poly2.length])) return true;
+            return false;
+        }
+
+        const canvas = document.getElementById("carCanvas");
+        const ctx = canvas.getContext("2d");
+        const uiPanel = document.getElementById("uiPanel");
+        const populationDisplay = document.getElementById("populationDisplay");
+        const scoreDisplay = document.getElementById("scoreDisplay");
+        const generationDisplay = document.getElementById("generationDisplay");
+        const statusMsg = document.getElementById("statusMsg");
+        
+        let cars = [];
+        let bestCar;
+        let traffic = [];
+        let road;
+        let simulationSpeed = 1;
+        let mutationAmount = 0.2; 
+        let generationCount = 1;
+        const CAR_COUNT = 100;
+        
+        // ** 5차선 설정 **
+        const LANE_COUNT = 5;
+        let ROAD_WIDTH = 450;
+        
+        let globalStuckTimer = 0;
+        let lastBestY = 0;
+        let animationId; 
+
+        // ** v13 저장소 (균등 배치) **
+        const STORAGE_KEY = "bestBrain_v13_spaced";
+
+        function getCarDimensions() {
+            const laneWidth = ROAD_WIDTH / LANE_COUNT;
+            const width = laneWidth * 0.6;
+            const height = width * 1.8; 
+            return { width, height };
+        }
+
+        function handleResize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            ROAD_WIDTH = Math.min(window.innerWidth * 0.95, 550);
+            road = new Road(canvas.width / 2, ROAD_WIDTH, LANE_COUNT);
+            if(cars.length === 0) resetGame();
+        }
+
+        function generateCars(N) {
+            const { width, height } = getCarDimensions();
+            const cars = [];
+            for(let i=0; i<N; i++) {
+                cars.push(new Car(road.getLaneCenter(2), 100, width, height, "AI"));
+            }
+            return cars;
+        }
+
+        function resetGame() {
+            road = new Road(canvas.width / 2, ROAD_WIDTH, LANE_COUNT); 
+            cars = generateCars(CAR_COUNT);
+            bestCar = cars[0];
+            globalStuckTimer = 0;
+            
+            populationDisplay.innerText = `${CAR_COUNT} / ${CAR_COUNT}`;
+            generationDisplay.innerText = generationCount;
+            statusMsg.innerText = "새로운 세대 시작됨";
+            statusMsg.className = "mt-3 text-xs text-green-400 text-center";
+
+            if(localStorage.getItem(STORAGE_KEY)) {
+                try {
+                    const brainData = JSON.parse(localStorage.getItem(STORAGE_KEY));
+                    if(brainData && brainData.levels) {
+                        for(let i=0; i<cars.length; i++) {
+                            cars[i].brain = JSON.parse(localStorage.getItem(STORAGE_KEY));
+                            if(i != 0) NeuralNetwork.mutate(cars[i].brain, mutationAmount);
+                        }
+                    }
+                } catch(e) { 
+                    console.error("뇌 데이터 손상됨, 리셋", e);
+                    discardBrain(); 
+                    return; 
+                }
+            }
+
+            const { width, height } = getCarDimensions();
+            const TS = 1.0; 
+            
+            // [개선 1] 트래픽 생성 - 체인 방식 (절대 안 겹침)
+            traffic = [];
+            let currentY = -300; // 첫 장애물 위치
+            
+            // 7~8개의 장애물을 미리 생성
+            for(let i=0; i<8; i++) {
+                // 랜덤 차선
+                const lane = Math.floor(Math.random() * LANE_COUNT);
+                traffic.push(new Car(road.getLaneCenter(lane), currentY, width, height, "DUMMY", TS));
+                
+                // 다음 장애물은 400 ~ 700px 뒤에 배치 (충분한 간격)
+                currentY -= (400 + Math.random() * 300);
+            }
+        }
+
+        function saveBrain(showAlert = true) {
+            if(bestCar && bestCar.brain) {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(bestCar.brain));
+                if(showAlert) alert("저장 완료");
+            }
+        }
+
+        function discardBrain() {
+            localStorage.removeItem(STORAGE_KEY);
+            generationCount = 1;
+            resetGame();
+        }
+        
+        function skipGeneration() {
+            let targetCar = cars[0];
+            const aliveCars = cars.filter(c => !c.damaged);
+            if (aliveCars.length > 0) {
+                targetCar = aliveCars.reduce((prev, current) => (prev.y < current.y) ? prev : current);
+            } else if (cars.length > 0) {
+                targetCar = cars.reduce((prev, current) => (prev.y < current.y) ? prev : current);
+            }
+            
+            if(targetCar && targetCar.brain) {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(targetCar.brain));
+            }
+            generationCount++;
+            resetGame();
+        }
+
+        // --- 메인 루프 (안전장치 포함) ---
+        function animate(time) {
+            try {
+                // 시뮬레이션 로직
+                for(let i=0; i<simulationSpeed; i++) {
+                    traffic.forEach(t => t.update(road.borders, []));
+                    cars.forEach(c => c.update(road.borders, traffic));
+
+                    const aliveCars = cars.filter(c => !c.damaged);
+                    
+                    if (aliveCars.length > 0) {
+                        bestCar = aliveCars.reduce((prev, current) => (prev.y < current.y) ? prev : current);
+                    } else if (cars.length > 0) {
+                        bestCar = cars.reduce((prev, current) => (prev.y < current.y) ? prev : current);
+                    } else {
+                        resetGame();
+                        break;
+                    }
+
+                    // [개선 2] 트래픽 리스폰 - 체인 방식 (겹침 방지)
+                    if(bestCar) {
+                        traffic.forEach(t => {
+                            // 화면 밖으로 나간 장애물 재활용
+                            if(t.y > bestCar.y + 800) { 
+                                // 현재 트래픽 중 '가장 멀리 있는 녀석(Y값이 가장 작은)'을 찾음
+                                const furthestCar = traffic.reduce((min, c) => c.y < min.y ? c : min, traffic[0]);
+                                
+                                // 그 녀석 뒤에 줄을 섬
+                                t.y = furthestCar.y - 400 - Math.random() * 300;
+                                t.x = road.getLaneCenter(Math.floor(Math.random() * LANE_COUNT)); 
+                                t.speed = 1.0; 
+                            }
+                        });
+
+                        if(aliveCars.length > 0) {
+                            if (Math.abs(bestCar.y - lastBestY) < 5) { 
+                                globalStuckTimer++;
+                            } else {
+                                globalStuckTimer = 0;
+                                lastBestY = bestCar.y;
+                            }
+
+                            if(globalStuckTimer > 120) { 
+                                statusMsg.innerText = "교착 상태 감지됨! 강제 리셋";
+                                statusMsg.className = "mt-3 text-xs text-red-400 text-center font-bold";
+                                skipGeneration();
+                                break; 
+                            }
+                        }
+                    }
+
+                    if(cars.every(c => c.damaged)) {
+                        skipGeneration();
+                        break; 
+                    }
+                }
+
+                // 렌더링
+                canvas.height = window.innerHeight;
+                
+                ctx.save();
+                if(bestCar) {
+                    ctx.translate(0, -bestCar.y + canvas.height * 0.7);
+                }
+
+                road.draw(ctx);
+                traffic.forEach(t => t.draw(ctx, "#EF4444"));
+                
+                ctx.globalAlpha = 0.2;
+                cars.forEach(c => c.draw(ctx, "#3B82F6"));
+                
+                ctx.globalAlpha = 1;
+                if(bestCar) bestCar.draw(ctx, "#3B82F6", true);
+
+                ctx.restore();
+
+                // UI 업데이트
+                if(Math.floor(time) % 10 === 0) {
+                    const aliveCount = cars.filter(c => !c.damaged).length;
+                    populationDisplay.innerText = `${aliveCount} / ${CAR_COUNT}`;
+                    if(bestCar) scoreDisplay.innerText = Math.abs(Math.floor(bestCar.y));
+                }
+
+                animationId = requestAnimationFrame(animate);
+
+            } catch (err) {
+                console.error("Critical Animation Error:", err);
+                cancelAnimationFrame(animationId);
+                statusMsg.innerText = "치명적 오류 발생! 자동 복구 중...";
+                statusMsg.className = "mt-3 text-xs text-red-500 font-bold blink";
+                
+                setTimeout(() => {
+                    discardBrain(); // 문제있는 뇌 폐기
+                    animate(); // 재시작
+                }, 1000);
+            }
+        }
+
+        window.addEventListener("resize", handleResize);
+        
+        document.getElementById("toggleBtn").addEventListener("click", (e) => {
+            const btn = e.currentTarget;
+            if (uiPanel.classList.contains("ui-hidden")) {
+                uiPanel.classList.remove("ui-hidden");
+                btn.innerHTML = '<i data-lucide="eye-off"></i>';
+            } else {
+                uiPanel.classList.add("ui-hidden");
+                btn.innerHTML = '<i data-lucide="eye"></i>';
+            }
+            lucide.createIcons();
+        });
+
+        document.getElementById("simSpeedSlider").addEventListener("input", (e) => {
+            simulationSpeed = parseInt(e.target.value);
+            document.getElementById("simSpeedVal").innerText = simulationSpeed + "x";
+        });
+
+        document.getElementById("mutationSlider").addEventListener("input", (e) => {
+            mutationAmount = parseFloat(e.target.value);
+            document.getElementById("mutationVal").innerText = mutationAmount.toFixed(2);
+        });
+
+        handleResize();
+        animate();
+        lucide.createIcons();
+
+    </script>
+</body>
+</html>
