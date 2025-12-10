@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 비행기 학습 - 반응형</title>
+    <title>AI 비행기 학습 - UI 토글 기능</title>
     <style>
         /* 기본 설정 */
         html, body {
@@ -17,12 +17,13 @@
             overflow: hidden; /* 전체 페이지 스크롤 방지 */
         }
 
-        /* 메인 컨테이너: PC에서는 가로(row), 모바일에서는 세로(column) */
+        /* 메인 컨테이너 */
         #main-container {
             display: flex;
             flex-direction: row;
             width: 100%;
             height: 100%;
+            transition: all 0.3s ease; /* 부드러운 전환 효과 */
         }
         
         /* 게임 영역 */
@@ -34,46 +35,77 @@
             align-items: center;
             background: linear-gradient(to bottom, #0f0c29, #302b63, #24243e);
             overflow: hidden;
-            padding: 10px; /* 여백 조금 줌 */
+            padding: 10px;
             box-sizing: border-box;
+            transition: all 0.3s ease;
         }
 
-        /* 캔버스: 논리적 크기는 고정이지만 스타일로 크기 조절 */
         canvas {
             box-shadow: 0 0 20px rgba(0,0,0,0.5);
             border-radius: 4px;
-            /* JS로 동적 크기 조절됨 */
         }
 
         /* 사이드바 컨트롤 패널 */
         #sidebar {
             width: 340px;
-            min-width: 300px; /* 너무 작아지지 않게 */
+            min-width: 300px;
             background: rgba(22, 33, 62, 0.98);
             border-left: 1px solid #30475e;
             padding: 20px;
             box-sizing: border-box;
-            overflow-y: auto; /* 내용 넘치면 스크롤 */
+            overflow-y: auto;
             display: flex;
             flex-direction: column;
             gap: 15px;
             z-index: 10;
+            transition: all 0.3s ease; /* 부드러운 열림/닫힘 */
         }
 
-        /* 모바일용 스타일 (화면 너비 900px 이하) */
+        /* UI 숨김 클래스 */
+        .hidden-ui {
+            display: none !important;
+        }
+
+        /* 토글 버튼 스타일 */
+        #toggle-ui-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 100;
+            background: rgba(0, 255, 204, 0.2);
+            border: 1px solid #00ffcc;
+            color: #00ffcc;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            backdrop-filter: blur(4px);
+        }
+
+        #toggle-ui-btn:hover {
+            background: rgba(0, 255, 204, 0.4);
+            transform: rotate(90deg);
+        }
+
+        /* 모바일용 스타일 */
         @media (max-width: 900px) {
             #main-container {
                 flex-direction: column;
             }
 
             #game-area {
-                flex: 1; /* 남는 공간 차지 (보통 위쪽 60~70%) */
+                flex: 1;
                 min-height: 200px;
             }
 
             #sidebar {
                 width: 100%;
-                height: 40%; /* 화면의 아래쪽 40% 차지 */
+                height: 40%;
                 min-height: 250px;
                 border-left: none;
                 border-top: 1px solid #30475e;
@@ -81,121 +113,30 @@
             }
         }
 
-        /* UI 요소 스타일 */
-        h2, h3 {
-            margin: 0 0 10px 0;
-            color: #00ffcc;
-            text-transform: uppercase;
-            font-size: 0.9rem;
-            letter-spacing: 1px;
-            border-bottom: 1px solid #30475e;
-            padding-bottom: 5px;
-        }
-
+        /* UI 요소 스타일들 */
+        h2, h3 { margin: 0 0 10px 0; color: #00ffcc; text-transform: uppercase; font-size: 0.9rem; letter-spacing: 1px; border-bottom: 1px solid #30475e; padding-bottom: 5px; }
         h2 { font-size: 1.2rem; color: #fff; border: none; }
-
-        .control-group {
-            background: #1f2a40;
-            padding: 12px;
-            border-radius: 8px;
-            flex-shrink: 0; /* 스크롤 시 찌그러짐 방지 */
-        }
-
-        .stat-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 5px;
-            font-size: 0.9rem;
-            color: #b0c4de;
-        }
+        .control-group { background: #1f2a40; padding: 12px; border-radius: 8px; flex-shrink: 0; }
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9rem; color: #b0c4de; }
         .stat-val { font-weight: bold; color: #fff; }
-
-        label {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.8rem;
-            margin-top: 8px;
-            color: #d1d5db;
-        }
-
-        /* 슬라이더 터치 영역 확대 */
-        input[type="range"] {
-            width: 45%;
-            height: 15px; /* 터치하기 편하게 높이 증가 (보이는 건 CSS로 처리) */
-            -webkit-appearance: none; /* 기본 스타일 제거 */
-            background: transparent;
-        }
-        
-        /* 슬라이더 트랙 커스텀 */
-        input[type="range"]::-webkit-slider-runnable-track {
-            width: 100%;
-            height: 4px;
-            background: #30475e;
-            border-radius: 2px;
-        }
-        
-        /* 슬라이더 썸(손잡이) 커스텀 */
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 20px;
-            height: 20px;
-            background: #00ffcc;
-            border-radius: 50%;
-            cursor: pointer;
-            margin-top: -8px; /* 트랙 중앙 정렬 */
-            box-shadow: 0 0 5px rgba(0,255,204,0.5);
-        }
-
-        input[type="number"] {
-            width: 50px;
-            background: #0f1526;
-            border: 1px solid #30475e;
-            color: white;
-            padding: 4px;
-            border-radius: 4px;
-            text-align: center;
-        }
-
-        .btn-group {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 10px;
-            flex-shrink: 0;
-            padding-bottom: 20px; /* 모바일 하단 여백 */
-        }
-
-        button {
-            background: #ff4757;
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: 0.2s;
-            width: 100%;
-            font-size: 0.9rem;
-        }
+        label { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; margin-top: 8px; color: #d1d5db; }
+        input[type="range"] { width: 45%; height: 15px; -webkit-appearance: none; background: transparent; }
+        input[type="range"]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #30475e; border-radius: 2px; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; background: #00ffcc; border-radius: 50%; cursor: pointer; margin-top: -8px; box-shadow: 0 0 5px rgba(0,255,204,0.5); }
+        input[type="number"] { width: 50px; background: #0f1526; border: 1px solid #30475e; color: white; padding: 4px; border-radius: 4px; text-align: center; }
+        .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; flex-shrink: 0; padding-bottom: 20px; }
+        button { background: #ff4757; color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s; width: 100%; font-size: 0.9rem; }
         button:hover { opacity: 0.9; }
-        button:active { transform: scale(0.98); }
         button.save-btn { background: #2ed573; }
         button.reset-btn { background: #535c68; }
-
-        .value-display {
-            font-size: 0.8rem;
-            color: #00ffcc;
-            width: 35px;
-            text-align: right;
-        }
-        
-        .hint {
-            font-size: 0.7rem; color: #666; margin-bottom: 5px; display: block;
-        }
+        .value-display { font-size: 0.8rem; color: #00ffcc; width: 35px; text-align: right; }
+        .hint { font-size: 0.7rem; color: #666; margin-bottom: 5px; display: block; }
     </style>
 </head>
 <body>
+
+<!-- 토글 버튼 -->
+<button id="toggle-ui-btn" title="설정 패널 토글">⚙️</button>
 
 <div id="main-container">
     <div id="game-area">
@@ -213,6 +154,7 @@
             <h3>📊 학습 현황</h3>
             <div class="stat-row"><span>현재 세대</span><span class="stat-val" id="genDisplay">1</span></div>
             <div class="stat-row"><span>생존 개체</span><span class="stat-val" id="aliveDisplay">0</span></div>
+            <div class="stat-row"><span>현재 점수</span><span class="stat-val" id="currentScoreDisplay">0</span></div>
             <div class="stat-row"><span>최고 점수</span><span class="stat-val" id="scoreDisplay">0</span></div>
             <div class="stat-row"><span id="saveStatus" style="color: #2ed573;">대기중...</span></div>
         </div>
@@ -292,41 +234,58 @@
 
 <script>
 // ==========================================
+// UI 토글 로직
+// ==========================================
+const toggleBtn = document.getElementById('toggle-ui-btn');
+const sidebar = document.getElementById('sidebar');
+
+toggleBtn.addEventListener('click', () => {
+    sidebar.classList.toggle('hidden-ui');
+    
+    // 아이콘 변경 (X 또는 톱니바퀴)
+    if (sidebar.classList.contains('hidden-ui')) {
+        toggleBtn.innerText = '⚙️'; // 닫혔을 때 (열기 아이콘)
+        toggleBtn.style.opacity = '0.5'; // 약간 흐리게
+    } else {
+        toggleBtn.innerText = '✖'; // 열렸을 때 (닫기 아이콘)
+        toggleBtn.style.opacity = '1';
+    }
+
+    // UI가 사라지거나 나타날 때 캔버스 크기 재조정
+    // 애니메이션 시간(0.3s) 고려하여 약간의 딜레이 후 리사이즈
+    setTimeout(resizeCanvas, 50); 
+    setTimeout(resizeCanvas, 310); 
+});
+
+// ==========================================
 // 0. 화면 대응 (Responsive Logic)
 // ==========================================
 function resizeCanvas() {
     const container = document.getElementById('game-area');
     const canvas = document.getElementById('gameCanvas');
     
-    // 게임의 내부 해상도 (논리적 크기)
     const GAME_WIDTH = 800;
     const GAME_HEIGHT = 500;
     const TARGET_RATIO = GAME_WIDTH / GAME_HEIGHT;
 
-    // 현재 컨테이너 크기
     const containerWidth = container.clientWidth;
     const containerHeight = container.clientHeight;
     const containerRatio = containerWidth / containerHeight;
 
     let finalWidth, finalHeight;
 
-    // 화면 비율에 맞춰 꽉 차게 스케일링 (contain 방식)
     if (containerRatio > TARGET_RATIO) {
-        // 컨테이너가 더 납작함 -> 높이에 맞춤
         finalHeight = containerHeight;
         finalWidth = finalHeight * TARGET_RATIO;
     } else {
-        // 컨테이너가 더 홀쭉함 -> 너비에 맞춤
         finalWidth = containerWidth;
         finalHeight = finalWidth / TARGET_RATIO;
     }
 
-    // 약간의 여백(padding) 고려해서 95% 크기로 설정
     canvas.style.width = (finalWidth * 0.95) + 'px';
     canvas.style.height = (finalHeight * 0.95) + 'px';
 }
 
-// 초기 로드 및 리사이즈 이벤트 연결
 window.addEventListener('load', resizeCanvas);
 window.addEventListener('resize', resizeCanvas);
 
@@ -340,13 +299,12 @@ const CONFIG = {
     gameSpeed: 1,
     gravity: 0.6,
     lift: -10,
-    pipeGap: 130,       // 수직 간격
+    pipeGap: 130,
     pipeSpeed: 3,
-    pipeDistance: 250,  // 수평 등장 간격 (밀도)
-    specialChance: 0.3  // 특수 장애물 확률
+    pipeDistance: 250,
+    specialChance: 0.3
 };
 
-// UI 이벤트 리스너 등록
 function bindInput(id, configKey, displayId) {
     const input = document.getElementById(id);
     const display = document.getElementById(displayId);
@@ -453,7 +411,6 @@ class NeuralNetwork {
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// 내부 해상도는 고정 (물리 엔진 일관성 유지)
 canvas.width = 800;
 canvas.height = 500;
 
@@ -494,38 +451,31 @@ class Pipe {
         this.x = canvas.width;
         this.w = 50;
         
-        // 기본값
         this.type = 'normal';
-        this.color = '#4cd137'; // Green
+        this.color = '#4cd137';
         this.moveSpeed = 0;
         this.angle = 0;
-        this.baseTop = this.top; // 움직임 계산 기준점
+        this.baseTop = this.top;
         this.baseSpacing = this.spacing;
 
-        // 특수 장애물 확률 체크
         if (Math.random() < CONFIG.specialChance) {
             const typeRoll = Math.random();
-            
             if (typeRoll < 0.33) {
-                // Type 1: Moving (위아래 선형 이동)
                 this.type = 'moving';
-                this.color = '#00a8ff'; // Blue
+                this.color = '#00a8ff';
                 this.moveSpeed = 1.5;
                 this.moveDir = Math.random() > 0.5 ? 1 : -1;
             } else if (typeRoll < 0.66) {
-                // Type 2: Narrow (좁은 통로)
                 this.type = 'narrow';
-                this.spacing = CONFIG.pipeGap * 0.7; // 30% 더 좁음
-                this.color = '#e84118'; // Red
+                this.spacing = CONFIG.pipeGap * 0.7;
+                this.color = '#e84118';
                 this.baseSpacing = this.spacing;
             } else {
-                // Type 3: Sine Wave (물결 이동)
                 this.type = 'sine';
-                this.color = '#9c88ff'; // Purple
+                this.color = '#9c88ff';
                 this.angle = 0;
             }
         }
-
         this.updateBottom();
     }
 
@@ -536,7 +486,6 @@ class Pipe {
     update() {
         this.x -= CONFIG.pipeSpeed;
 
-        // 장애물 유형별 동작
         if (this.type === 'moving') {
             this.top += this.moveSpeed * this.moveDir;
             if (this.top < 20 || this.top > canvas.height / 2 + 50) {
@@ -706,7 +655,6 @@ function init() {
             planes.push(new Plane());
         }
     }
-    // 초기 캔버스 리사이즈 실행
     resizeCanvas();
 }
 
@@ -838,6 +786,7 @@ function animate() {
     }
 
     document.getElementById('aliveDisplay').innerText = planes.length;
+    document.getElementById('currentScoreDisplay').innerText = currentHighScore;
     
     requestAnimationFrame(animate);
 }
