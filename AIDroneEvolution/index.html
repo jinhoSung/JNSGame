@@ -13,11 +13,10 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             overflow: hidden;
             display: flex;
-            flex-direction: row; /* 좌우 배치로 변경 */
+            flex-direction: row;
             height: 100vh;
         }
         
-        /* 캔버스 영역 */
         #game-area {
             flex-grow: 1;
             position: relative;
@@ -32,9 +31,8 @@
             border-radius: 4px;
         }
 
-        /* 사이드바 컨트롤 패널 */
         #sidebar {
-            width: 320px;
+            width: 340px; /* 너비 약간 증가 */
             background: rgba(22, 33, 62, 0.95);
             border-left: 1px solid #30475e;
             padding: 20px;
@@ -42,7 +40,7 @@
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 15px;
         }
 
         h2, h3 {
@@ -59,7 +57,7 @@
 
         .control-group {
             background: #1f2a40;
-            padding: 15px;
+            padding: 12px;
             border-radius: 8px;
         }
 
@@ -76,13 +74,13 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 0.85rem;
-            margin-top: 10px;
+            font-size: 0.8rem;
+            margin-top: 8px;
             color: #d1d5db;
         }
 
         input[type="range"] {
-            width: 50%;
+            width: 45%;
             height: 4px;
             background: #30475e;
             border-radius: 2px;
@@ -99,7 +97,7 @@
         }
 
         input[type="number"] {
-            width: 60px;
+            width: 50px;
             background: #0f1526;
             border: 1px solid #30475e;
             color: white;
@@ -112,6 +110,7 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
+            margin-top: 10px;
         }
 
         button {
@@ -132,8 +131,12 @@
         .value-display {
             font-size: 0.8rem;
             color: #00ffcc;
-            width: 30px;
+            width: 35px;
             text-align: right;
+        }
+        
+        .hint {
+            font-size: 0.7rem; color: #666; margin-bottom: 5px; display: block;
         }
     </style>
 </head>
@@ -146,7 +149,7 @@
     <div id="sidebar">
         <div>
             <h2>AI 학습 제어 센터</h2>
-            <div style="font-size: 0.8rem; color: #aaa;">Neural Evolution Dashboard</div>
+            <div style="font-size: 0.8rem; color: #aaa;">Neural Evolution Dashboard V2</div>
         </div>
 
         <!-- 1. 학습 현황 -->
@@ -162,7 +165,7 @@
         <div class="control-group">
             <h3>🧠 신경망 (Brain)</h3>
             <label>
-                개체수 (Population)
+                개체수 (Pop)
                 <input type="number" id="popInput" value="100" min="10" max="500">
             </label>
             <label>
@@ -170,14 +173,11 @@
                 <input type="range" id="mutationRate" min="0.01" max="1.0" step="0.01" value="0.1">
                 <span class="value-display" id="val_mutationRate">0.1</span>
             </label>
-            <div style="font-size:0.7rem; color:#888; margin-bottom:5px;">높을수록 돌연변이가 많이 발생합니다.</div>
-            
             <label>
                 변이 강도 (Strength)
                 <input type="range" id="mutationStrength" min="0.1" max="2.0" step="0.1" value="0.5">
                 <span class="value-display" id="val_mutationStrength">0.5</span>
             </label>
-            <div style="font-size:0.7rem; color:#888;">한 번에 값이 변하는 정도입니다.</div>
         </div>
 
         <!-- 3. 물리/환경 설정 -->
@@ -200,11 +200,11 @@
             </label>
         </div>
 
-        <!-- 4. 장애물 설정 -->
+        <!-- 4. 장애물 설정 (확장됨) -->
         <div class="control-group">
             <h3>🚧 장애물 (Obstacles)</h3>
             <label>
-                통로 간격 (Gap)
+                수직 통로 간격 (Gap)
                 <input type="range" id="pipeGap" min="80" max="200" step="10" value="130">
                 <span class="value-display" id="val_pipeGap">130</span>
             </label>
@@ -213,6 +213,22 @@
                 <input type="range" id="pipeSpeed" min="1" max="10" step="1" value="3">
                 <span class="value-display" id="val_pipeSpeed">3</span>
             </label>
+            
+            <hr style="border: 0; border-top: 1px solid #30475e; margin: 10px 0;">
+            
+            <label>
+                등장 간격 (Distance)
+                <input type="range" id="pipeDistance" min="150" max="400" step="10" value="250">
+                <span class="value-display" id="val_pipeDistance">250</span>
+            </label>
+            <span class="hint">낮을수록 장애물이 촘촘하게(자주) 나옵니다.</span>
+
+            <label>
+                특수 장애물 확률 (Complex)
+                <input type="range" id="specialChance" min="0" max="1.0" step="0.1" value="0.3">
+                <span class="value-display" id="val_specialChance">0.3</span>
+            </label>
+            <span class="hint">움직이거나 변형되는 장애물의 등장 빈도입니다.</span>
         </div>
 
         <!-- 버튼 -->
@@ -225,19 +241,20 @@
 <script>
 // ==========================================
 // 0. 전역 설정 (Config)
-// UI와 연동되어 게임 로직에 실시간 반영됨
 // ==========================================
 const CONFIG = {
-    mutationRate: 0.1,      // 변이 확률
-    mutationStrength: 0.5,  // 변이 강도
-    gameSpeed: 1,           // 게임 배속
-    gravity: 0.6,           // 중력
-    lift: -10,              // 점프 힘
-    pipeGap: 130,           // 파이프 사이 간격
-    pipeSpeed: 3            // 파이프 이동 속도
+    mutationRate: 0.1,
+    mutationStrength: 0.5,
+    gameSpeed: 1,
+    gravity: 0.6,
+    lift: -10,
+    pipeGap: 130,       // 수직 간격
+    pipeSpeed: 3,
+    pipeDistance: 250,  // 수평 등장 간격 (밀도)
+    specialChance: 0.3  // 특수 장애물 확률
 };
 
-// UI 이벤트 리스너 등록 함수
+// UI 이벤트 리스너 등록
 function bindInput(id, configKey, displayId) {
     const input = document.getElementById(id);
     const display = document.getElementById(displayId);
@@ -249,18 +266,23 @@ function bindInput(id, configKey, displayId) {
     });
 }
 
-// 초기 바인딩
-bindInput('mutationRate', 'mutationRate', 'val_mutationRate');
-bindInput('mutationStrength', 'mutationStrength', 'val_mutationStrength');
-bindInput('gameSpeed', 'gameSpeed', 'val_gameSpeed');
-bindInput('gravity', 'gravity', 'val_gravity');
-bindInput('lift', 'lift', 'val_lift');
-bindInput('pipeGap', 'pipeGap', 'val_pipeGap');
-bindInput('pipeSpeed', 'pipeSpeed', 'val_pipeSpeed');
+const inputs = [
+    ['mutationRate', 'mutationRate', 'val_mutationRate'],
+    ['mutationStrength', 'mutationStrength', 'val_mutationStrength'],
+    ['gameSpeed', 'gameSpeed', 'val_gameSpeed'],
+    ['gravity', 'gravity', 'val_gravity'],
+    ['lift', 'lift', 'val_lift'],
+    ['pipeGap', 'pipeGap', 'val_pipeGap'],
+    ['pipeSpeed', 'pipeSpeed', 'val_pipeSpeed'],
+    ['pipeDistance', 'pipeDistance', 'val_pipeDistance'],
+    ['specialChance', 'specialChance', 'val_specialChance']
+];
+
+inputs.forEach(item => bindInput(item[0], item[1], item[2]));
 
 
 // ==========================================
-// 1. 신경망 (Neural Network) 클래스
+// 1. 신경망 (Neural Network)
 // ==========================================
 class NeuralNetwork {
     constructor(inputNodes, hiddenNodes, outputNodes) {
@@ -307,14 +329,12 @@ class NeuralNetwork {
         return clone;
     }
 
-    // CONFIG의 설정값을 사용하여 변이 적용
     mutate() {
         const rate = CONFIG.mutationRate;
         const strength = CONFIG.mutationStrength;
 
         function mutateVal(val) {
             if (Math.random() < rate) {
-                // 기존 값에 랜덤한 값을 더하거나 뺌 (가우시안 분포 흉내)
                 return val + (Math.random() * 2 - 1) * strength;
             }
             return val;
@@ -336,7 +356,7 @@ class NeuralNetwork {
 }
 
 // ==========================================
-// 2. 게임 엔티티
+// 2. 게임 엔티티 (업데이트됨)
 // ==========================================
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -376,52 +396,91 @@ class Particle {
 class Pipe {
     constructor(id) {
         this.id = id;
-        this.spacing = CONFIG.pipeGap; // 설정값 적용
+        this.spacing = CONFIG.pipeGap; 
         this.top = Math.random() * (canvas.height / 2);
         this.x = canvas.width;
         this.w = 50;
-        // 속도는 update에서 CONFIG 참조
         
+        // 기본값
         this.type = 'normal';
         this.color = '#4cd137'; // Green
-        
-        // 난이도 조절: 움직이는 장애물 확률
-        const rand = Math.random();
-        if (rand < 0.2) {
-            this.type = 'moving';
-            this.color = '#00a8ff'; // Blue
-            this.moveSpeed = 1.5;
-            this.moveDir = Math.random() > 0.5 ? 1 : -1;
-        } else if (rand < 0.4) {
-            this.type = 'narrow';
-            this.spacing = CONFIG.pipeGap * 0.8; // 설정값 비례 축소
-            this.color = '#e84118'; // Red
+        this.moveSpeed = 0;
+        this.angle = 0;
+        this.baseTop = this.top; // 움직임 계산 기준점
+        this.baseSpacing = this.spacing;
+
+        // 특수 장애물 확률 체크
+        if (Math.random() < CONFIG.specialChance) {
+            const typeRoll = Math.random();
+            
+            if (typeRoll < 0.33) {
+                // Type 1: Moving (위아래 선형 이동)
+                this.type = 'moving';
+                this.color = '#00a8ff'; // Blue
+                this.moveSpeed = 1.5;
+                this.moveDir = Math.random() > 0.5 ? 1 : -1;
+            } else if (typeRoll < 0.66) {
+                // Type 2: Narrow (좁은 통로)
+                this.type = 'narrow';
+                this.spacing = CONFIG.pipeGap * 0.7; // 30% 더 좁음
+                this.color = '#e84118'; // Red
+                this.baseSpacing = this.spacing;
+            } else {
+                // Type 3: Sine Wave (물결 이동)
+                this.type = 'sine';
+                this.color = '#9c88ff'; // Purple
+                this.angle = 0;
+            }
         }
 
+        this.updateBottom();
+    }
+
+    updateBottom() {
         this.bottom = canvas.height - (this.top + this.spacing);
     }
 
     update() {
-        this.x -= CONFIG.pipeSpeed; // 설정값 적용
+        this.x -= CONFIG.pipeSpeed;
 
+        // 장애물 유형별 동작
         if (this.type === 'moving') {
             this.top += this.moveSpeed * this.moveDir;
+            // 화면 밖으로 나가지 않게 반전
             if (this.top < 20 || this.top > canvas.height / 2 + 50) {
                 this.moveDir *= -1;
             }
-            this.bottom = canvas.height - (this.top + this.spacing);
+            this.updateBottom();
+        } 
+        else if (this.type === 'sine') {
+            this.angle += 0.05;
+            // 기준점(baseTop)을 중심으로 위아래 50px 진동
+            this.top = this.baseTop + Math.sin(this.angle) * 50;
+            this.updateBottom();
         }
+        // Narrow는 움직이지 않지만 간격이 좁음 (생성시 처리됨)
     }
 
     draw(ctx) {
         ctx.fillStyle = this.color;
         
+        // 윗 파이프
         ctx.fillRect(this.x, 0, this.w, this.top);
+        // 아랫 파이프
         ctx.fillRect(this.x, canvas.height - this.bottom, this.w, this.bottom);
         
+        // 파이프 장식
         ctx.fillStyle = 'rgba(0,0,0,0.2)';
         ctx.fillRect(this.x + 40, 0, 10, this.top);
         ctx.fillRect(this.x + 40, canvas.height - this.bottom, 10, this.bottom);
+        
+        // 특수 장애물 표시
+        if(this.type !== 'normal') {
+            ctx.fillStyle = '#fff';
+            ctx.font = '10px Arial';
+            let label = this.type === 'moving' ? 'MOVE' : (this.type === 'sine' ? 'SINE' : 'NARROW');
+            ctx.fillText(label, this.x + 5, 15);
+        }
     }
 }
 
@@ -448,7 +507,6 @@ class Plane {
     }
 
     mutate() {
-        // NeuralNetwork 클래스 내부에서 CONFIG 참조함
         this.brain.mutate();
     }
 
@@ -465,11 +523,15 @@ class Plane {
 
         if (closest != null) {
             let inputs = [];
-            // 정규화된 입력값 (0 ~ 1 사이 권장)
+            // 입력 1: 내 높이
             inputs[0] = this.y / canvas.height;
+            // 입력 2: 내 속도
             inputs[1] = this.velocity / 10;
+            // 입력 3: 파이프까지 거리
             inputs[2] = closest.x / canvas.width;
+            // 입력 4: 위 파이프 끝점
             inputs[3] = closest.top / canvas.height;
+            // 입력 5: 아래 파이프 시작점
             inputs[4] = (canvas.height - closest.bottom) / canvas.height;
 
             let output = this.brain.predict(inputs);
@@ -480,21 +542,20 @@ class Plane {
     }
 
     up() {
-        this.velocity += CONFIG.lift; // 설정값 적용
+        this.velocity += CONFIG.lift;
     }
 
     update() {
-        this.velocity += CONFIG.gravity; // 설정값 적용
+        this.velocity += CONFIG.gravity;
         this.y += this.velocity;
         this.score++;
 
-        // 꼬리 그리기용 데이터
         this.trail.push({x: this.x, y: this.y});
         if (this.trail.length > this.trailLength) {
             this.trail.shift();
         }
         for(let point of this.trail) {
-            point.x -= CONFIG.pipeSpeed; // 배경 속도에 맞춰 꼬리 이동
+            point.x -= CONFIG.pipeSpeed;
         }
     }
 
@@ -544,7 +605,7 @@ let generation = 1;
 let highScore = 0;
 let pipeCounter = 1;
 
-const STORAGE_KEY = 'MyAI_Flyer_Advanced_Brain';
+const STORAGE_KEY = 'MyAI_Flyer_Pro_Brain'; // 키 변경 (설정 구조 바뀜)
 
 function init() {
     totalPlanes = parseInt(document.getElementById('popInput').value) || 100;
@@ -558,7 +619,7 @@ function init() {
         
         for (let i = 0; i < totalPlanes; i++) {
             let p = new Plane(bestBrain);
-            if (i > 0) p.mutate(); // CONFIG 값에 따라 변이
+            if (i > 0) p.mutate();
             planes.push(p);
         }
     } else {
@@ -585,7 +646,6 @@ function resetGame() {
     savedPlanes.sort((a, b) => b.score - a.score);
     let bestOne = savedPlanes[0];
     
-    // 최고 점수 갱신 및 자동 저장
     if (bestOne.score > highScore) {
         highScore = bestOne.score;
         document.getElementById('scoreDisplay').innerText = highScore;
@@ -597,11 +657,10 @@ function resetGame() {
     totalPlanes = parseInt(document.getElementById('popInput').value) || 100;
     planes = [];
     
-    // 다음 세대 생성 (Elitism: 최고 개체는 그대로, 나머지는 변이)
     for (let i = 0; i < totalPlanes; i++) {
         let p = new Plane(bestOne.brain);
         if (i > 0) { 
-             p.mutate(); // CONFIG.mutationRate / Strength 적용됨
+             p.mutate();
         }
         planes.push(p);
     }
@@ -638,11 +697,11 @@ function resetBrain() {
 }
 
 function animate() {
-    // 게임 배속 처리 (CONFIG.gameSpeed)
     for (let n = 0; n < CONFIG.gameSpeed; n++) {
         
-        // 파이프 생성 로직
-        if (pipes.length === 0 || pipes[pipes.length - 1].x < canvas.width - 250) {
+        // 파이프 생성 로직 (거리 설정 반영)
+        // 마지막 파이프의 X좌표가 '전체 너비 - 등장간격' 보다 작아지면 생성
+        if (pipes.length === 0 || pipes[pipes.length - 1].x < canvas.width - CONFIG.pipeDistance) {
             pipes.push(new Pipe(pipeCounter++));
         }
 
@@ -687,11 +746,10 @@ function animate() {
 
         if (planes.length === 0) {
             resetGame();
-            break; // 리셋 후 현재 프레임 루프 중단
+            break;
         }
     }
 
-    // 그리기 (배속과 상관없이 한 번만 그림)
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     for (let pipe of pipes) pipe.draw(ctx);
@@ -702,7 +760,6 @@ function animate() {
     let fewSurvivors = planes.length <= 5;
 
     for (let p of planes) {
-        // 최고 점수 개체는 하이라이트
         let isHighScorer = (p.score === currentHighScore) && (p.score > 0);
         p.draw(ctx, isHighScorer, fewSurvivors);
     }
@@ -712,7 +769,6 @@ function animate() {
     requestAnimationFrame(animate);
 }
 
-// 시작
 init();
 animate();
 
