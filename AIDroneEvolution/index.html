@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Drone Evolution</title>
+    <style>
+        body {
+            background-color: #222;
+            color: white;
+            font-family: 'Noto Sans KR', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+        canvas {
+            background-color: #333;
+            border: 2px solid #555;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        .controls {
+            margin-top: 15px;
+            background: #444;
+            padding: 15px;
+            border-radius: 8px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        .stat-box {
+            text-align: center;
+        }
+        .highlight {
+            color: #4CAF50;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+        button:hover { background-color: #45a049; }
+    </style>
+</head>
+<body>
+
+    <h1>🚀 AI Drone Evolution</h1>
+    <canvas id="gameCanvas" width="800" height="500"></canvas>
+
+    <div class="controls">
+        <div class="stat-box">
+            세대(Generation): <span id="genCount" class="highlight">1</span>
+        </div>
+        <div class="stat-box">
+            생존: <span id="aliveCount">0</span> / <span id="totalCount">0</span>
+        </div>
+        <div class="stat-box">
+            최고 점수: <span id="bestScore">0</span>
+        </div>
+        <div style="border-left: 1px solid #666; padding-left: 20px;">
+            <label for="speedSlider">학습 속도:</label>
+            <input type="range" id="speedSlider" min="1" max="10" value="1">
+            <span id="speedDisplay">x1</span>
+        </div>
+        <button onclick="resetSimulation()">처음부터 다시</button>
+    </div>
+
+    <script>
+        // --- 1. AI 두뇌 (Neural Network) ---
+        class NeuralNetwork {
+            constructor(brain = null) {
+                if (brain) {
+                    // 부모의 뇌를 복사 (깊은 복사)
+                    this.weights = brain.weights.map(w => w); 
+                    this.bias = brain.bias;
+                } else {
+                    // 새로운 뇌 생성 (랜덤 가중치)
+                    // 입력: 4개 (y위치, y속도, 장애물 거리, 장애물 구멍 y)
+                    // 출력: 1개 (점프할 확률)
+                    // 여기서는 간단하게 단층 퍼셉트론 구조 사용 (입력 4개 -> 출력 1개)
+                    this.weights = Array(4).fill(0).map(() => Math.random() * 2 - 1);
+                    this.bias = Math.random() * 2 - 1;
+                }
+            }
+
+            predict(inputs) {
+                // 입력값 * 가중치 + 편향
+                let sum = this.bias;
+                for (let i = 0; i < this.weights.length; i++) {
+                    sum += inputs[i] * this.weights[i];
+                }
+                // 활성화 함수 (Sigmoid): 결과를 0~1 사이로 변환
+                return 1 / (1 + Math.exp(-sum));
+            }
+
+            mutate(rate) {
+                // 돌연변이: 가끔씩 가중치를 랜덤하게 변경
+                this.weights = this.weights.map(w => {
+                    if (Math.random() < rate) {
+                        return w + (Math.random() * 0.4 - 0.2); // 조금 수정
+                    }
+                    return w;
+                });
+                if (Math.random() < rate) {
+                    this.bias += (Math.random() * 0.4 - 0.2);
+                }
+            }
+        }
+
+        // --- 2. 비행기 (Drone) 객체 ---
+        class Drone {
+            constructor(brain = null) {
+                this.y = canvas.height / 2;
+                this.x = 100;
+                this.velocity = 0;
+                this.gravity = 0.6;
+                this.lift = -10; // 점프 힘
+                this.brain = new NeuralNetwork(brain);
+                
+                this.alive = true;
+                this.score = 0;
+                this.fitness = 0;
+            }
+
+            update(pipes) {
+                if (!this.alive) return;
+
+                this.score++;
+                
+                // 물리 적용
+                this.velocity += this.gravity;
+                this.y += this.velocity;
+
+                // AI의 생각 (Think)
+                // 가장 가까운 장애물 찾기
+                let closestPipe = null;
+                let closestDist = Infinity;
+                
+                for (let pipe of pipes) {
+                    let d = (pipe.x + pipe.width) - this.x;
+                    if (d > 0 && d < closestDist) {
+                        closestPipe = pipe;
+                        closestDist = d;
+                    }
+                }
+
+                if (closestPipe) {
+                    // AI에게 줄 입력 데이터 정규화 (0~1 사이 값으로 만들어주면 학습이 잘 됨)
+                    let inputs = [
+                        this.y / canvas.height,             // 내 높이
+                        this.velocity / 10,                 // 내 속도
+                        closestDist / canvas.width,         // 장애물 거리
+                        closestPipe.top / canvas.height     // 구멍의 시작 높이
+                    ];
+
+                    let output = this.brain.predict(inputs);
+                    if (output > 0.5) {
+                        this.jump();
+                    }
+                }
+
+                // 충돌 검사
+                // 1. 바닥이나 천장에 닿음
+                if (this.y > canvas.height || this.y < 0) {
+                    this.alive = false;
+                }
+
+                // 2. 파이프에 닿음
+                if (closestPipe) {
+                    if (
+                        this.x + 10 > closestPipe.x && 
+                        this.x - 10 < closestPipe.x + closestPipe.width
+                    ) {
+                        // 파이프 구멍 영역이 아니면 충돌
+                        if (this.y - 10 < closestPipe.top || this.y + 10 > closestPipe.bottom) {
+                            this.alive = false;
+                        }
+                    }
+                }
+            }
+
+            jump() {
+                this.velocity = this.lift;
+            }
+
+            draw(ctx) {
+                if (!this.alive) return;
+                
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                
+                // 최고 점수 드론은 특별한 색으로 표시
+                if (this === bestDrone) {
+                    ctx.fillStyle = "#FF5722"; // 주황색 (리더)
+                    ctx.globalAlpha = 1.0;
+                    ctx.scale(1.2, 1.2);
+                } else {
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.5)"; // 반투명 흰색
+                }
+
+                // 드론 모양 (삼각형)
+                ctx.beginPath();
+                ctx.moveTo(10, 0);
+                ctx.lineTo(-10, 7);
+                ctx.lineTo(-10, -7);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // --- 3. 게임 관리 (시스템) ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let drones = [];
+        const TOTAL_DRONES = 100; // 한 세대당 드론 수
+        let pipes = [];
+        let frameCount = 0;
+        let generation = 1;
+        let bestScore = 0;
+        let speedMultiplier = 1;
+        let bestDrone = null;
+
+        // 초기화
+        function init() {
+            drones = [];
+            for (let i = 0; i < TOTAL_DRONES; i++) {
+                drones.push(new Drone());
+            }
+            pipes = [];
+            frameCount = 0;
+            loop();
+        }
+
+        // 다음 세대 생성 (진화)
+        function nextGeneration() {
+            generation++;
+            document.getElementById('genCount').innerText = generation;
+
+            // 1. 적합도 계산 (오래 살수록 높은 점수)
+            // 지수 함수를 써서 점수 차이를 벌림 (잘한 놈을 확실히 우대)
+            let sumFitness = 0;
+            for (let drone of drones) {
+                // 거리가 멀수록 점수가 기하급수적으로 높아짐
+                drone.fitness = Math.pow(drone.score, 2); 
+                sumFitness += drone.fitness;
+            }
+
+            // 2. 새로운 드론 생성
+            let newDrones = [];
+            for (let i = 0; i < TOTAL_DRONES; i++) {
+                // 룰렛 휠 선택: 점수가 높은 부모가 선택될 확률이 높음
+                let parent = selectParent(sumFitness);
+                let child = new Drone(parent.brain); // 부모의 뇌를 물려받음
+                child.brain.mutate(0.1); // 10% 확률로 돌연변이 발생
+                newDrones.push(child);
+            }
+            
+            drones = newDrones;
+            pipes = [];
+            frameCount = 0;
+        }
+
+        function selectParent(sumFitness) {
+            let r = Math.random() * sumFitness;
+            let index = 0;
+            while (r > 0 && index < drones.length) {
+                r -= drones[index].fitness;
+                index++;
+            }
+            index--;
+            if (index < 0) index = 0;
+            return drones[index];
+        }
+
+        // 파이프 생성
+        function addPipe() {
+            let gapHeight = 120; // 구멍 크기
+            let minTop = 50;
+            let maxTop = canvas.height - minTop - gapHeight;
+            let top = Math.random() * (maxTop - minTop) + minTop;
+
+            pipes.push({
+                x: canvas.width,
+                width: 50,
+                top: top,
+                bottom: top + gapHeight
+            });
+        }
+
+        // 게임 루프
+        function update() {
+            // 파이프 관리
+            if (frameCount % 100 === 0) {
+                addPipe();
+            }
+            frameCount++;
+
+            // 파이프 이동
+            for (let i = pipes.length - 1; i >= 0; i--) {
+                pipes[i].x -= 3; // 속도
+                if (pipes[i].x + pipes[i].width < 0) {
+                    pipes.splice(i, 1);
+                }
+            }
+
+            // 드론 업데이트
+            let aliveCount = 0;
+            let currentBestScore = 0;
+            bestDrone = null;
+
+            for (let drone of drones) {
+                drone.update(pipes);
+                if (drone.alive) {
+                    aliveCount++;
+                    if (drone.score > currentBestScore) {
+                        currentBestScore = drone.score;
+                        bestDrone = drone;
+                    }
+                }
+            }
+
+            // UI 업데이트
+            document.getElementById('aliveCount').innerText = aliveCount;
+            document.getElementById('totalCount').innerText = TOTAL_DRONES;
+            if (currentBestScore > bestScore) {
+                bestScore = currentBestScore;
+                document.getElementById('bestScore').innerText = bestScore;
+            }
+
+            // 전멸했으면 다음 세대로
+            if (aliveCount === 0) {
+                nextGeneration();
+            }
+        }
+
+        function draw() {
+            // 배경 지우기
+            ctx.fillStyle = '#333';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 파이프 그리기
+            ctx.fillStyle = '#888';
+            for (let pipe of pipes) {
+                ctx.fillRect(pipe.x, 0, pipe.width, pipe.top); // 위쪽 파이프
+                ctx.fillRect(pipe.x, pipe.bottom, pipe.width, canvas.height - pipe.bottom); // 아래쪽 파이프
+            }
+
+            // 드론 그리기
+            for (let drone of drones) {
+                drone.draw(ctx);
+            }
+        }
+
+        function loop() {
+            // 속도 배수만큼 반복 실행 (빨리감기 기능)
+            for(let i=0; i<speedMultiplier; i++) {
+                update();
+            }
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        // --- 컨트롤 ---
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+            speedMultiplier = parseInt(e.target.value);
+            document.getElementById('speedDisplay').innerText = 'x' + speedMultiplier;
+        });
+
+        function resetSimulation() {
+            generation = 1;
+            bestScore = 0;
+            document.getElementById('genCount').innerText = 1;
+            document.getElementById('bestScore').innerText = 0;
+            init();
+        }
+
+        // 시작
+        init();
+
+    </script>
+</body>
+</html>
