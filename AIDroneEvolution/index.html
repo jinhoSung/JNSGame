@@ -3,388 +3,565 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Drone Evolution</title>
+    <title>AI 비행기 학습 - VFX & 저장 기능</title>
     <style>
         body {
-            background-color: #222;
-            color: white;
-            font-family: 'Noto Sans KR', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a2e;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin: 0;
-            padding: 20px;
         }
         canvas {
-            background-color: #333;
-            border: 2px solid #555;
+            background: linear-gradient(to bottom, #0f0c29, #302b63, #24243e);
             box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            margin-top: 10px;
         }
-        .controls {
-            margin-top: 15px;
-            background: #444;
-            padding: 15px;
-            border-radius: 8px;
+        #controls {
+            width: 800px;
             display: flex;
-            gap: 20px;
+            justify-content: space-between;
             align-items: center;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            border-radius: 0 0 10px 10px;
         }
         .stat-box {
-            text-align: center;
-        }
-        .highlight {
-            color: #4CAF50;
-            font-weight: bold;
-            font-size: 1.2em;
+            font-size: 14px;
         }
         button {
-            padding: 8px 16px;
-            background-color: #4CAF50;
-            border: none;
+            background: #ff4757;
             color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
             cursor: pointer;
-            border-radius: 4px;
-            font-size: 1em;
+            font-weight: bold;
+            transition: 0.2s;
         }
-        button:hover { background-color: #45a049; }
+        button:hover {
+            background: #ff6b81;
+        }
+        button.save-btn {
+            background: #2ed573;
+        }
+        button.save-btn:hover {
+            background: #7bed9f;
+        }
+        #speedSlider {
+            width: 100px;
+        }
     </style>
 </head>
 <body>
 
-    <h1>🚀 AI Drone Evolution</h1>
-    <canvas id="gameCanvas" width="800" height="500"></canvas>
-
-    <div class="controls">
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="controls">
         <div class="stat-box">
-            세대(Generation): <span id="genCount" class="highlight">1</span>
-        </div>
-        <div class="stat-box">
-            생존: <span id="aliveCount">0</span> / <span id="totalCount">0</span>
+            세대: <span id="genDisplay">1</span> | 
+            생존: <span id="aliveDisplay">0</span> | 
+            최고 점수: <span id="scoreDisplay">0</span>
         </div>
         <div class="stat-box">
-            최고 점수: <span id="bestScore">0</span>
+            <span id="saveStatus" style="color: #2ed573; margin-right: 10px;"></span>
+            <label>게임 속도: <input type="range" id="speedSlider" min="1" max="10" value="1"></label>
+            <button class="save-btn" onclick="saveBestBrain()">현재 뇌 저장</button>
+            <button onclick="resetBrain()">학습 초기화</button>
         </div>
-        <div style="border-left: 1px solid #666; padding-left: 20px;">
-            <label for="speedSlider">학습 속도:</label>
-            <input type="range" id="speedSlider" min="1" max="10" value="1">
-            <span id="speedDisplay">x1</span>
-        </div>
-        <button onclick="resetSimulation()">처음부터 다시</button>
     </div>
 
-    <script>
-        // --- 1. AI 두뇌 (Neural Network) ---
-        class NeuralNetwork {
-            constructor(brain = null) {
-                if (brain) {
-                    // 부모의 뇌를 복사 (깊은 복사)
-                    this.weights = brain.weights.map(w => w); 
-                    this.bias = brain.bias;
-                } else {
-                    // 새로운 뇌 생성 (랜덤 가중치)
-                    // 입력: 4개 (y위치, y속도, 장애물 거리, 장애물 구멍 y)
-                    // 출력: 1개 (점프할 확률)
-                    // 여기서는 간단하게 단층 퍼셉트론 구조 사용 (입력 4개 -> 출력 1개)
-                    this.weights = Array(4).fill(0).map(() => Math.random() * 2 - 1);
-                    this.bias = Math.random() * 2 - 1;
-                }
-            }
+<script>
+// ==========================================
+// 1. 간단한 신경망 (Neural Network) 클래스
+// ==========================================
+class NeuralNetwork {
+    constructor(inputNodes, hiddenNodes, outputNodes) {
+        this.inputNodes = inputNodes;
+        this.hiddenNodes = hiddenNodes;
+        this.outputNodes = outputNodes;
 
-            predict(inputs) {
-                // 입력값 * 가중치 + 편향
-                let sum = this.bias;
-                for (let i = 0; i < this.weights.length; i++) {
-                    sum += inputs[i] * this.weights[i];
-                }
-                // 활성화 함수 (Sigmoid): 결과를 0~1 사이로 변환
-                return 1 / (1 + Math.exp(-sum));
-            }
-
-            mutate(rate) {
-                // 돌연변이: 가끔씩 가중치를 랜덤하게 변경
-                this.weights = this.weights.map(w => {
-                    if (Math.random() < rate) {
-                        return w + (Math.random() * 0.4 - 0.2); // 조금 수정
-                    }
-                    return w;
-                });
-                if (Math.random() < rate) {
-                    this.bias += (Math.random() * 0.4 - 0.2);
-                }
-            }
-        }
-
-        // --- 2. 비행기 (Drone) 객체 ---
-        class Drone {
-            constructor(brain = null) {
-                this.y = canvas.height / 2;
-                this.x = 100;
-                this.velocity = 0;
-                this.gravity = 0.6;
-                this.lift = -10; // 점프 힘
-                this.brain = new NeuralNetwork(brain);
-                
-                this.alive = true;
-                this.score = 0;
-                this.fitness = 0;
-            }
-
-            update(pipes) {
-                if (!this.alive) return;
-
-                this.score++;
-                
-                // 물리 적용
-                this.velocity += this.gravity;
-                this.y += this.velocity;
-
-                // AI의 생각 (Think)
-                // 가장 가까운 장애물 찾기
-                let closestPipe = null;
-                let closestDist = Infinity;
-                
-                for (let pipe of pipes) {
-                    let d = (pipe.x + pipe.width) - this.x;
-                    if (d > 0 && d < closestDist) {
-                        closestPipe = pipe;
-                        closestDist = d;
-                    }
-                }
-
-                if (closestPipe) {
-                    // AI에게 줄 입력 데이터 정규화 (0~1 사이 값으로 만들어주면 학습이 잘 됨)
-                    let inputs = [
-                        this.y / canvas.height,             // 내 높이
-                        this.velocity / 10,                 // 내 속도
-                        closestDist / canvas.width,         // 장애물 거리
-                        closestPipe.top / canvas.height     // 구멍의 시작 높이
-                    ];
-
-                    let output = this.brain.predict(inputs);
-                    if (output > 0.5) {
-                        this.jump();
-                    }
-                }
-
-                // 충돌 검사
-                // 1. 바닥이나 천장에 닿음
-                if (this.y > canvas.height || this.y < 0) {
-                    this.alive = false;
-                }
-
-                // 2. 파이프에 닿음
-                if (closestPipe) {
-                    if (
-                        this.x + 10 > closestPipe.x && 
-                        this.x - 10 < closestPipe.x + closestPipe.width
-                    ) {
-                        // 파이프 구멍 영역이 아니면 충돌
-                        if (this.y - 10 < closestPipe.top || this.y + 10 > closestPipe.bottom) {
-                            this.alive = false;
-                        }
-                    }
-                }
-            }
-
-            jump() {
-                this.velocity = this.lift;
-            }
-
-            draw(ctx) {
-                if (!this.alive) return;
-                
-                ctx.save();
-                ctx.translate(this.x, this.y);
-                
-                // 최고 점수 드론은 특별한 색으로 표시
-                if (this === bestDrone) {
-                    ctx.fillStyle = "#FF5722"; // 주황색 (리더)
-                    ctx.globalAlpha = 1.0;
-                    ctx.scale(1.2, 1.2);
-                } else {
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.5)"; // 반투명 흰색
-                }
-
-                // 드론 모양 (삼각형)
-                ctx.beginPath();
-                ctx.moveTo(10, 0);
-                ctx.lineTo(-10, 7);
-                ctx.lineTo(-10, -7);
-                ctx.fill();
-                ctx.restore();
-            }
-        }
-
-        // --- 3. 게임 관리 (시스템) ---
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
+        // 가중치(Weights) 초기화 (-1 ~ 1)
+        this.weightsIH = new Float32Array(this.inputNodes * this.hiddenNodes).map(() => Math.random() * 2 - 1);
+        this.weightsHO = new Float32Array(this.hiddenNodes * this.outputNodes).map(() => Math.random() * 2 - 1);
         
-        let drones = [];
-        const TOTAL_DRONES = 100; // 한 세대당 드론 수
-        let pipes = [];
-        let frameCount = 0;
-        let generation = 1;
-        let bestScore = 0;
-        let speedMultiplier = 1;
-        let bestDrone = null;
+        // 편향(Bias) 초기화
+        this.biasH = new Float32Array(this.hiddenNodes).map(() => Math.random() * 2 - 1);
+        this.biasO = new Float32Array(this.outputNodes).map(() => Math.random() * 2 - 1);
+    }
 
-        // 초기화
-        function init() {
-            drones = [];
-            for (let i = 0; i < TOTAL_DRONES; i++) {
-                drones.push(new Drone());
+    // 예측 (Feed Forward)
+    predict(inputArray) {
+        // Input -> Hidden
+        let hidden = new Float32Array(this.hiddenNodes);
+        for (let i = 0; i < this.hiddenNodes; i++) {
+            let sum = 0;
+            for (let j = 0; j < this.inputNodes; j++) {
+                sum += inputArray[j] * this.weightsIH[j * this.hiddenNodes + i];
             }
-            pipes = [];
-            frameCount = 0;
-            loop();
+            sum += this.biasH[i];
+            hidden[i] = Math.tanh(sum); // 활성화 함수
         }
 
-        // 다음 세대 생성 (진화)
-        function nextGeneration() {
-            generation++;
-            document.getElementById('genCount').innerText = generation;
-
-            // 1. 적합도 계산 (오래 살수록 높은 점수)
-            // 지수 함수를 써서 점수 차이를 벌림 (잘한 놈을 확실히 우대)
-            let sumFitness = 0;
-            for (let drone of drones) {
-                // 거리가 멀수록 점수가 기하급수적으로 높아짐
-                drone.fitness = Math.pow(drone.score, 2); 
-                sumFitness += drone.fitness;
+        // Hidden -> Output
+        let output = new Float32Array(this.outputNodes);
+        for (let i = 0; i < this.outputNodes; i++) {
+            let sum = 0;
+            for (let j = 0; j < this.hiddenNodes; j++) {
+                sum += hidden[j] * this.weightsHO[j * this.outputNodes + i];
             }
+            sum += this.biasO[i];
+            output[i] = Math.tanh(sum);
+        }
+        return output;
+    }
 
-            // 2. 새로운 드론 생성
-            let newDrones = [];
-            for (let i = 0; i < TOTAL_DRONES; i++) {
-                // 룰렛 휠 선택: 점수가 높은 부모가 선택될 확률이 높음
-                let parent = selectParent(sumFitness);
-                let child = new Drone(parent.brain); // 부모의 뇌를 물려받음
-                child.brain.mutate(0.1); // 10% 확률로 돌연변이 발생
-                newDrones.push(child);
+    // 복제 (Mutation 포함)
+    clone() {
+        let clone = new NeuralNetwork(this.inputNodes, this.hiddenNodes, this.outputNodes);
+        // 가중치 복사
+        clone.weightsIH.set(this.weightsIH);
+        clone.weightsHO.set(this.weightsHO);
+        clone.biasH.set(this.biasH);
+        clone.biasO.set(this.biasO);
+        return clone;
+    }
+
+    // 돌연변이 (Mutation)
+    mutate(rate) {
+        function mutateVal(val) {
+            if (Math.random() < rate) {
+                return val + (Math.random() * 2 - 1) * 0.5; // 약간 조정
             }
-            
-            drones = newDrones;
-            pipes = [];
-            frameCount = 0;
+            return val;
+        }
+        this.weightsIH = this.weightsIH.map(mutateVal);
+        this.weightsHO = this.weightsHO.map(mutateVal);
+        this.biasH = this.biasH.map(mutateVal);
+        this.biasO = this.biasO.map(mutateVal);
+    }
+    
+    // 데이터 로드용 (JSON 객체에서 복원)
+    static fromJSON(data) {
+        let nn = new NeuralNetwork(data.inputNodes, data.hiddenNodes, data.outputNodes);
+        nn.weightsIH = Float32Array.from(Object.values(data.weightsIH));
+        nn.weightsHO = Float32Array.from(Object.values(data.weightsHO));
+        nn.biasH = Float32Array.from(Object.values(data.biasH));
+        nn.biasO = Float32Array.from(Object.values(data.biasO));
+        return nn;
+    }
+}
+
+// ==========================================
+// 2. 게임 엔티티 (비행기, 파이프, 파티클)
+// ==========================================
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+canvas.width = 800;
+canvas.height = 500;
+
+// 파티클 (폭발 효과)
+class Particle {
+    constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 3 + 1;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        this.life = 1.0; // 수명
+        this.color = color;
+        this.decay = Math.random() * 0.03 + 0.02;
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life -= this.decay;
+        this.vx *= 0.95; // 마찰
+        this.vy *= 0.95;
+    }
+
+    draw(ctx) {
+        ctx.globalAlpha = Math.max(0, this.life);
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+    }
+}
+
+class Pipe {
+    constructor() {
+        this.spacing = 120; // 파이프 사이 간격
+        this.top = Math.random() * (canvas.height / 2);
+        this.bottom = canvas.height - (this.top + this.spacing);
+        this.x = canvas.width;
+        this.w = 50;
+        this.speed = 3;
+        this.passed = false;
+    }
+
+    update() {
+        this.x -= this.speed;
+    }
+
+    draw(ctx) {
+        ctx.fillStyle = '#4cd137'; // 파이프 색
+        ctx.shadowBlur = 0; // 파이프는 빛나지 않음
+        ctx.fillRect(this.x, 0, this.w, this.top);
+        ctx.fillRect(this.x, canvas.height - this.bottom, this.w, this.bottom);
+        
+        // 파이프 장식 (입체감)
+        ctx.fillStyle = '#44bd32';
+        ctx.fillRect(this.x + 5, 0, this.w - 10, this.top);
+        ctx.fillRect(this.x + 5, canvas.height - this.bottom, this.w - 10, this.bottom);
+    }
+}
+
+class Plane {
+    constructor(brain = null) {
+        this.y = canvas.height / 2;
+        this.x = 60;
+        this.gravity = 0.6;
+        this.lift = -10;
+        this.velocity = 0;
+        this.width = 20;
+        this.height = 20;
+        
+        this.score = 0;
+        this.fitness = 0;
+        this.dead = false;
+
+        // 신경망
+        if (brain) {
+            this.brain = brain.clone();
+        } else {
+            // 입력: Y위치, 속도, 파이프거리X, 상단파이프Y, 하단파이프Y
+            this.brain = new NeuralNetwork(5, 8, 1);
         }
 
-        function selectParent(sumFitness) {
-            let r = Math.random() * sumFitness;
-            let index = 0;
-            while (r > 0 && index < drones.length) {
-                r -= drones[index].fitness;
-                index++;
+        // 시각 효과용
+        this.color = `hsl(${Math.random() * 360}, 70%, 60%)`;
+        this.trail = []; // 꼬리 궤적
+        this.trailLength = 10;
+    }
+
+    mutate(rate) {
+        this.brain.mutate(rate);
+    }
+
+    think(pipes) {
+        // 가장 가까운 파이프 찾기
+        let closest = null;
+        let closestD = Infinity;
+        for (let i = 0; i < pipes.length; i++) {
+            let d = (pipes[i].x + pipes[i].w) - this.x;
+            if (d > 0 && d < closestD) {
+                closest = pipes[i];
+                closestD = d;
             }
-            index--;
-            if (index < 0) index = 0;
-            return drones[index];
         }
 
+        if (closest != null) {
+            let inputs = [];
+            // 입력 데이터 정규화 (0~1 사이 값으로 변환 시도)
+            inputs[0] = this.y / canvas.height;
+            inputs[1] = this.velocity / 10;
+            inputs[2] = closest.x / canvas.width;
+            inputs[3] = closest.top / canvas.height;
+            inputs[4] = (canvas.height - closest.bottom) / canvas.height;
+
+            let output = this.brain.predict(inputs);
+            // 출력이 0.5보다 크면 점프
+            if (output[0] > 0.5) {
+                this.up();
+            }
+        }
+    }
+
+    up() {
+        this.velocity += this.lift;
+        // 속도 제한
+        if (this.velocity < -8) this.velocity = -8;
+    }
+
+    update() {
+        this.velocity += this.gravity;
+        this.y += this.velocity;
+        this.score++;
+
+        // 꼬리 궤적 저장
+        this.trail.push({x: this.x, y: this.y});
+        if (this.trail.length > this.trailLength) {
+            this.trail.shift();
+        }
+    }
+
+    draw(ctx, isHighScorer, fewSurvivors) {
+        // 1. 꼬리 그리기 (Trail Effect)
+        ctx.beginPath();
+        for(let i=0; i<this.trail.length; i++) {
+            let p = this.trail[i];
+            let alpha = i / this.trail.length; // 뒤로 갈수록 투명
+            ctx.strokeStyle = this.color;
+            ctx.globalAlpha = alpha * 0.5;
+            ctx.lineWidth = 3;
+            if (i===0) ctx.moveTo(p.x, p.y);
+            else ctx.lineTo(p.x, p.y);
+        }
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+
+        // 2. 비행기 그리기
+        ctx.fillStyle = this.color;
+        
+        // 빛나는 효과 (조건 충족 시)
+        if (isHighScorer || fewSurvivors) {
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = this.color;
+        } else {
+            ctx.shadowBlur = 0;
+        }
+
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        // 비행기 회전
+        // let angle = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (this.velocity * 0.1)));
+        // ctx.rotate(angle);
+        
+        // 삼각형 비행기
+        ctx.beginPath();
+        ctx.moveTo(10, 0);
+        ctx.lineTo(-10, 5);
+        ctx.lineTo(-10, -5);
+        ctx.fill();
+        ctx.restore();
+
+        // 그림자 초기화 (다른 객체에 영향 안 주게)
+        ctx.shadowBlur = 0;
+    }
+}
+
+// ==========================================
+// 3. 게임 관리 (Game Controller)
+// ==========================================
+const TOTAL_PLANES = 100;
+let planes = [];
+let savedPlanes = [];
+let pipes = [];
+let particles = []; // 폭발 파티클
+let generation = 1;
+let highScore = 0;
+let gameSpeed = 1;
+
+// 로컬 스토리지 키
+const STORAGE_KEY = 'MyAI_Flyer_Brain';
+
+// 게임 초기화
+function init() {
+    // 1. 저장된 뇌가 있는지 확인
+    let bestBrainJSON = localStorage.getItem(STORAGE_KEY);
+    
+    planes = [];
+    if (bestBrainJSON) {
+        document.getElementById('saveStatus').innerText = "저장된 데이터 로드됨";
+        let bestBrain = NeuralNetwork.fromJSON(JSON.parse(bestBrainJSON));
+        
+        // 불러온 뇌를 기반으로 100마리 생성 (약간씩 변이)
+        for (let i = 0; i < TOTAL_PLANES; i++) {
+            let p = new Plane(bestBrain);
+            if (i > 0) p.mutate(0.1); // 0번은 원본 유지, 나머지는 변이
+            planes.push(p);
+        }
+    } else {
+        document.getElementById('saveStatus').innerText = "새로운 학습 시작";
+        for (let i = 0; i < TOTAL_PLANES; i++) {
+            planes.push(new Plane());
+        }
+    }
+}
+
+// 폭발 생성 함수
+function createExplosion(x, y, color) {
+    for (let i = 0; i < 8; i++) {
+        particles.push(new Particle(x, y, color));
+    }
+}
+
+function resetGame() {
+    // 다음 세대 준비
+    generation++;
+    document.getElementById('genDisplay').innerText = generation;
+    pipes = [];
+    particles = [];
+    
+    // 가장 잘한 놈 찾기 (Fitness 기반)
+    // 점수가 높은 순으로 정렬
+    savedPlanes.sort((a, b) => b.score - a.score);
+    let bestOne = savedPlanes[0];
+    
+    // 최고 점수 갱신 확인 및 저장
+    if (bestOne.score > highScore) {
+        highScore = bestOne.score;
+        document.getElementById('scoreDisplay').innerText = highScore;
+        // 최고 기록 경신 시 자동 저장
+        saveBrainToLocal(bestOne.brain); 
+    } else if (savedPlanes.length > 0) {
+        // 최고 기록이 아니더라도, 이번 세대의 챔피언은 저장 (점진적 학습)
+        // 단, 너무 못했으면 저장 안하는 로직을 넣을 수도 있음. 
+        // 여기서는 그냥 이번 세대 1등을 저장.
+        saveBrainToLocal(bestOne.brain);
+    }
+
+    planes = [];
+    // 다음 세대 생성 전략:
+    // 1등의 뇌를 그대로 복사하거나 변이시켜서 채움
+    for (let i = 0; i < TOTAL_PLANES; i++) {
+        let p = new Plane(bestOne.brain);
+        if (i > 0) { // 0번은 엘리트 보존
+             p.mutate(0.1); 
+        }
+        planes.push(p);
+    }
+    savedPlanes = [];
+}
+
+// 로컬 스토리지 저장
+function saveBrainToLocal(brain) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(brain));
+    let status = document.getElementById('saveStatus');
+    status.innerText = "자동 저장 완료!";
+    status.style.opacity = 1;
+    setTimeout(() => { status.style.opacity = 0.5; }, 1000);
+}
+
+// 버튼용 수동 저장
+function saveBestBrain() {
+    // 현재 살아있는 애들 중 1등 혹은 죽은 애들 중 1등
+    let currentBest = planes[0];
+    // 죽은 애들이 있다면 비교
+    if (savedPlanes.length > 0) {
+        let deadBest = savedPlanes.sort((a,b) => b.score - a.score)[0];
+        if (!currentBest || deadBest.score > currentBest.score) {
+            currentBest = deadBest;
+        }
+    }
+    
+    if (currentBest) {
+        saveBrainToLocal(currentBest.brain);
+        alert("현재 최고 기록의 뇌가 저장되었습니다.");
+    }
+}
+
+// 초기화 (Reset)
+function resetBrain() {
+    if(confirm("모든 학습 데이터를 지우고 처음부터 시작하시겠습니까?")) {
+        localStorage.removeItem(STORAGE_KEY);
+        location.reload();
+    }
+}
+
+// 게임 루프
+function animate() {
+    // 속도 조절 (루프를 여러 번 실행)
+    for (let n = 0; n < gameSpeed; n++) {
         // 파이프 생성
-        function addPipe() {
-            let gapHeight = 120; // 구멍 크기
-            let minTop = 50;
-            let maxTop = canvas.height - minTop - gapHeight;
-            let top = Math.random() * (maxTop - minTop) + minTop;
-
-            pipes.push({
-                x: canvas.width,
-                width: 50,
-                top: top,
-                bottom: top + gapHeight
-            });
+        if (pipes.length === 0 || pipes[pipes.length - 1].x < canvas.width - 250) {
+            pipes.push(new Pipe());
         }
 
-        // 게임 루프
-        function update() {
-            // 파이프 관리
-            if (frameCount % 100 === 0) {
-                addPipe();
-            }
-            frameCount++;
+        // 비행기 업데이트
+        for (let i = planes.length - 1; i >= 0; i--) {
+            let p = planes[i];
+            p.think(pipes);
+            p.update();
 
-            // 파이프 이동
-            for (let i = pipes.length - 1; i >= 0; i--) {
-                pipes[i].x -= 3; // 속도
-                if (pipes[i].x + pipes[i].width < 0) {
-                    pipes.splice(i, 1);
-                }
-            }
+            // 충돌 체크 (천장, 바닥, 파이프)
+            let crashed = false;
+            
+            // 1. 화면 밖
+            if (p.y > canvas.height || p.y < 0) crashed = true;
 
-            // 드론 업데이트
-            let aliveCount = 0;
-            let currentBestScore = 0;
-            bestDrone = null;
-
-            for (let drone of drones) {
-                drone.update(pipes);
-                if (drone.alive) {
-                    aliveCount++;
-                    if (drone.score > currentBestScore) {
-                        currentBestScore = drone.score;
-                        bestDrone = drone;
+            // 2. 파이프 충돌
+            for (let pipe of pipes) {
+                if (p.x + 10 > pipe.x && p.x - 10 < pipe.x + pipe.w) {
+                    if (p.y - 5 < pipe.top || p.y + 5 > canvas.height - pipe.bottom) {
+                        crashed = true;
                     }
                 }
             }
 
-            // UI 업데이트
-            document.getElementById('aliveCount').innerText = aliveCount;
-            document.getElementById('totalCount').innerText = TOTAL_DRONES;
-            if (currentBestScore > bestScore) {
-                bestScore = currentBestScore;
-                document.getElementById('bestScore').innerText = bestScore;
-            }
-
-            // 전멸했으면 다음 세대로
-            if (aliveCount === 0) {
-                nextGeneration();
+            if (crashed) {
+                createExplosion(p.x, p.y, p.color); // 폭발 이펙트!
+                savedPlanes.push(planes.splice(i, 1)[0]);
             }
         }
 
-        function draw() {
-            // 배경 지우기
-            ctx.fillStyle = '#333';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // 파이프 그리기
-            ctx.fillStyle = '#888';
-            for (let pipe of pipes) {
-                ctx.fillRect(pipe.x, 0, pipe.width, pipe.top); // 위쪽 파이프
-                ctx.fillRect(pipe.x, pipe.bottom, pipe.width, canvas.height - pipe.bottom); // 아래쪽 파이프
-            }
-
-            // 드론 그리기
-            for (let drone of drones) {
-                drone.draw(ctx);
+        // 파이프 업데이트
+        for (let i = pipes.length - 1; i >= 0; i--) {
+            pipes[i].update();
+            if (pipes[i].x + pipes[i].w < 0) {
+                pipes.splice(i, 1);
             }
         }
 
-        function loop() {
-            // 속도 배수만큼 반복 실행 (빨리감기 기능)
-            for(let i=0; i<speedMultiplier; i++) {
-                update();
-            }
-            draw();
-            requestAnimationFrame(loop);
+        // 파티클 업데이트
+        for (let i = particles.length - 1; i >= 0; i--) {
+            particles[i].update();
+            if (particles[i].life <= 0) particles.splice(i, 1);
         }
 
-        // --- 컨트롤 ---
-        document.getElementById('speedSlider').addEventListener('input', (e) => {
-            speedMultiplier = parseInt(e.target.value);
-            document.getElementById('speedDisplay').innerText = 'x' + speedMultiplier;
-        });
-
-        function resetSimulation() {
-            generation = 1;
-            bestScore = 0;
-            document.getElementById('genCount').innerText = 1;
-            document.getElementById('bestScore').innerText = 0;
-            init();
+        // 전멸 체크
+        if (planes.length === 0) {
+            resetGame();
+            break; // 이번 프레임 루프 중단
         }
+    }
 
-        // 시작
-        init();
+    // 그리기 (1번만 수행)
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    </script>
+    // 파이프 그리기
+    for (let pipe of pipes) pipe.draw(ctx);
+
+    // 파티클 그리기
+    for (let p of particles) p.draw(ctx);
+
+    // 비행기 그리기
+    // 점수 상위권이거나, 남은 수가 적으면 빛나게 하기 위한 조건 계산
+    let currentHighScore = 0;
+    planes.forEach(p => { if(p.score > currentHighScore) currentHighScore = p.score; });
+
+    let fewSurvivors = planes.length <= 5; // 5마리 이하 남았을 때
+
+    for (let p of planes) {
+        let isHighScorer = (p.score === currentHighScore) && (p.score > 0);
+        p.draw(ctx, isHighScorer, fewSurvivors);
+    }
+
+    // UI 업데이트
+    document.getElementById('aliveDisplay').innerText = planes.length;
+    
+    requestAnimationFrame(animate);
+}
+
+// 이벤트 리스너
+document.getElementById('speedSlider').addEventListener('input', (e) => {
+    gameSpeed = parseInt(e.target.value);
+});
+
+// 실행
+init();
+animate();
+
+</script>
 </body>
 </html>
