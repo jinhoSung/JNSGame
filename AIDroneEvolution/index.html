@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 비행기 학습 - VFX & 저장 기능</title>
+    <title>AI 비행기 학습 - 고급 설정 & 저장</title>
     <style>
         body {
             margin: 0;
@@ -13,83 +13,252 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             overflow: hidden;
             display: flex;
-            flex-direction: column;
+            flex-direction: row; /* 좌우 배치로 변경 */
+            height: 100vh;
+        }
+        
+        /* 캔버스 영역 */
+        #game-area {
+            flex-grow: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
             align-items: center;
-        }
-        canvas {
             background: linear-gradient(to bottom, #0f0c29, #302b63, #24243e);
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-            margin-top: 10px;
         }
-        #controls {
-            width: 800px;
+
+        canvas {
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            border-radius: 4px;
+        }
+
+        /* 사이드바 컨트롤 패널 */
+        #sidebar {
+            width: 320px;
+            background: rgba(22, 33, 62, 0.95);
+            border-left: 1px solid #30475e;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        h2, h3 {
+            margin: 0 0 10px 0;
+            color: #00ffcc;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+            border-bottom: 1px solid #30475e;
+            padding-bottom: 5px;
+        }
+
+        h2 { font-size: 1.2rem; color: #fff; border: none; }
+
+        .control-group {
+            background: #1f2a40;
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+            color: #b0c4de;
+        }
+        .stat-val { font-weight: bold; color: #fff; }
+
+        label {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(5px);
-            border-radius: 0 0 10px 10px;
+            font-size: 0.85rem;
+            margin-top: 10px;
+            color: #d1d5db;
         }
-        .control-group {
-            display: flex;
-            align-items: center;
+
+        input[type="range"] {
+            width: 50%;
+            height: 4px;
+            background: #30475e;
+            border-radius: 2px;
+            appearance: none;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            background: #00ffcc;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        input[type="number"] {
+            width: 60px;
+            background: #0f1526;
+            border: 1px solid #30475e;
+            color: white;
+            padding: 4px;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 10px;
         }
-        .stat-box {
-            font-size: 14px;
-        }
+
         button {
             background: #ff4757;
             color: white;
             border: none;
-            padding: 8px 15px;
+            padding: 10px;
             border-radius: 5px;
             cursor: pointer;
             font-weight: bold;
             transition: 0.2s;
+            width: 100%;
         }
-        button:hover {
-            background: #ff6b81;
-        }
-        button.save-btn {
-            background: #2ed573;
-        }
-        button.save-btn:hover {
-            background: #7bed9f;
-        }
-        input[type="number"] {
-            width: 50px;
-            padding: 5px;
-            border-radius: 5px;
-            border: none;
-            text-align: center;
-        }
-        #speedSlider {
-            width: 80px;
+        button:hover { opacity: 0.9; }
+        button.save-btn { background: #2ed573; }
+        button.reset-btn { background: #535c68; }
+
+        .value-display {
+            font-size: 0.8rem;
+            color: #00ffcc;
+            width: 30px;
+            text-align: right;
         }
     </style>
 </head>
 <body>
 
-    <canvas id="gameCanvas"></canvas>
+    <div id="game-area">
+        <canvas id="gameCanvas"></canvas>
+    </div>
     
-    <div id="controls">
-        <div class="stat-box">
-            세대: <span id="genDisplay">1</span> | 
-            생존: <span id="aliveDisplay">0</span> | 
-            최고 점수: <span id="scoreDisplay">0</span>
+    <div id="sidebar">
+        <div>
+            <h2>AI 학습 제어 센터</h2>
+            <div style="font-size: 0.8rem; color: #aaa;">Neural Evolution Dashboard</div>
         </div>
+
+        <!-- 1. 학습 현황 -->
         <div class="control-group">
-            <span id="saveStatus" style="color: #2ed573; font-size: 12px;"></span>
-            <label style="font-size: 12px;">개체수: <input type="number" id="popInput" value="100" min="10" max="500"></label>
-            <label style="font-size: 12px;">속도: <input type="range" id="speedSlider" min="1" max="20" value="1"></label>
-            <button class="save-btn" onclick="saveBestBrain()">저장</button>
-            <button onclick="resetBrain()">초기화</button>
+            <h3>📊 학습 현황</h3>
+            <div class="stat-row"><span>현재 세대</span><span class="stat-val" id="genDisplay">1</span></div>
+            <div class="stat-row"><span>생존 개체</span><span class="stat-val" id="aliveDisplay">0</span></div>
+            <div class="stat-row"><span>최고 점수</span><span class="stat-val" id="scoreDisplay">0</span></div>
+            <div class="stat-row"><span id="saveStatus" style="color: #2ed573;">대기중...</span></div>
+        </div>
+
+        <!-- 2. 신경망 설정 -->
+        <div class="control-group">
+            <h3>🧠 신경망 (Brain)</h3>
+            <label>
+                개체수 (Population)
+                <input type="number" id="popInput" value="100" min="10" max="500">
+            </label>
+            <label>
+                변이 확률 (Rate)
+                <input type="range" id="mutationRate" min="0.01" max="1.0" step="0.01" value="0.1">
+                <span class="value-display" id="val_mutationRate">0.1</span>
+            </label>
+            <div style="font-size:0.7rem; color:#888; margin-bottom:5px;">높을수록 돌연변이가 많이 발생합니다.</div>
+            
+            <label>
+                변이 강도 (Strength)
+                <input type="range" id="mutationStrength" min="0.1" max="2.0" step="0.1" value="0.5">
+                <span class="value-display" id="val_mutationStrength">0.5</span>
+            </label>
+            <div style="font-size:0.7rem; color:#888;">한 번에 값이 변하는 정도입니다.</div>
+        </div>
+
+        <!-- 3. 물리/환경 설정 -->
+        <div class="control-group">
+            <h3>🌍 물리 엔진 (Physics)</h3>
+            <label>
+                게임 속도 (Speed)
+                <input type="range" id="gameSpeed" min="1" max="50" step="1" value="1">
+                <span class="value-display" id="val_gameSpeed">x1</span>
+            </label>
+            <label>
+                중력 (Gravity)
+                <input type="range" id="gravity" min="0.1" max="1.5" step="0.1" value="0.6">
+                <span class="value-display" id="val_gravity">0.6</span>
+            </label>
+            <label>
+                점프 힘 (Lift)
+                <input type="range" id="lift" min="-20" max="-5" step="1" value="-10">
+                <span class="value-display" id="val_lift">-10</span>
+            </label>
+        </div>
+
+        <!-- 4. 장애물 설정 -->
+        <div class="control-group">
+            <h3>🚧 장애물 (Obstacles)</h3>
+            <label>
+                통로 간격 (Gap)
+                <input type="range" id="pipeGap" min="80" max="200" step="10" value="130">
+                <span class="value-display" id="val_pipeGap">130</span>
+            </label>
+            <label>
+                이동 속도 (Speed)
+                <input type="range" id="pipeSpeed" min="1" max="10" step="1" value="3">
+                <span class="value-display" id="val_pipeSpeed">3</span>
+            </label>
+        </div>
+
+        <!-- 버튼 -->
+        <div class="btn-group">
+            <button class="save-btn" onclick="saveBestBrain()">💾 최고 기록 저장</button>
+            <button class="reset-btn" onclick="resetBrain()">🗑️ 초기화</button>
         </div>
     </div>
 
 <script>
+// ==========================================
+// 0. 전역 설정 (Config)
+// UI와 연동되어 게임 로직에 실시간 반영됨
+// ==========================================
+const CONFIG = {
+    mutationRate: 0.1,      // 변이 확률
+    mutationStrength: 0.5,  // 변이 강도
+    gameSpeed: 1,           // 게임 배속
+    gravity: 0.6,           // 중력
+    lift: -10,              // 점프 힘
+    pipeGap: 130,           // 파이프 사이 간격
+    pipeSpeed: 3            // 파이프 이동 속도
+};
+
+// UI 이벤트 리스너 등록 함수
+function bindInput(id, configKey, displayId) {
+    const input = document.getElementById(id);
+    const display = document.getElementById(displayId);
+    
+    input.addEventListener('input', (e) => {
+        CONFIG[configKey] = parseFloat(e.target.value);
+        if(display) display.innerText = CONFIG[configKey];
+        if(id === 'gameSpeed') display.innerText = 'x' + CONFIG[configKey];
+    });
+}
+
+// 초기 바인딩
+bindInput('mutationRate', 'mutationRate', 'val_mutationRate');
+bindInput('mutationStrength', 'mutationStrength', 'val_mutationStrength');
+bindInput('gameSpeed', 'gameSpeed', 'val_gameSpeed');
+bindInput('gravity', 'gravity', 'val_gravity');
+bindInput('lift', 'lift', 'val_lift');
+bindInput('pipeGap', 'pipeGap', 'val_pipeGap');
+bindInput('pipeSpeed', 'pipeSpeed', 'val_pipeSpeed');
+
+
 // ==========================================
 // 1. 신경망 (Neural Network) 클래스
 // ==========================================
@@ -138,10 +307,15 @@ class NeuralNetwork {
         return clone;
     }
 
-    mutate(rate) {
+    // CONFIG의 설정값을 사용하여 변이 적용
+    mutate() {
+        const rate = CONFIG.mutationRate;
+        const strength = CONFIG.mutationStrength;
+
         function mutateVal(val) {
             if (Math.random() < rate) {
-                return val + (Math.random() * 2 - 1) * 0.5;
+                // 기존 값에 랜덤한 값을 더하거나 뺌 (가우시안 분포 흉내)
+                return val + (Math.random() * 2 - 1) * strength;
             }
             return val;
         }
@@ -187,8 +361,6 @@ class Particle {
         this.x += this.vx;
         this.y += this.vy;
         this.life -= this.decay;
-        this.vx *= 0.95;
-        this.vy *= 0.95;
     }
 
     draw(ctx) {
@@ -204,18 +376,17 @@ class Particle {
 class Pipe {
     constructor(id) {
         this.id = id;
-        this.spacing = 130; // 기본 간격
+        this.spacing = CONFIG.pipeGap; // 설정값 적용
         this.top = Math.random() * (canvas.height / 2);
         this.x = canvas.width;
         this.w = 50;
-        this.speed = 3;
-        this.passed = false;
+        // 속도는 update에서 CONFIG 참조
         
-        // 장애물 타입 결정 (0: 일반, 1: 좁은통로, 2: 움직임)
-        const rand = Math.random();
         this.type = 'normal';
         this.color = '#4cd137'; // Green
         
+        // 난이도 조절: 움직이는 장애물 확률
+        const rand = Math.random();
         if (rand < 0.2) {
             this.type = 'moving';
             this.color = '#00a8ff'; // Blue
@@ -223,7 +394,7 @@ class Pipe {
             this.moveDir = Math.random() > 0.5 ? 1 : -1;
         } else if (rand < 0.4) {
             this.type = 'narrow';
-            this.spacing = 100; // 더 좁음
+            this.spacing = CONFIG.pipeGap * 0.8; // 설정값 비례 축소
             this.color = '#e84118'; // Red
         }
 
@@ -231,39 +402,26 @@ class Pipe {
     }
 
     update() {
-        this.x -= this.speed;
+        this.x -= CONFIG.pipeSpeed; // 설정값 적용
 
-        // 움직이는 장애물 로직
         if (this.type === 'moving') {
             this.top += this.moveSpeed * this.moveDir;
-            // 상하 반전 체크
             if (this.top < 20 || this.top > canvas.height / 2 + 50) {
                 this.moveDir *= -1;
             }
-            // bottom 재계산 (간격 유지)
             this.bottom = canvas.height - (this.top + this.spacing);
         }
     }
 
     draw(ctx) {
         ctx.fillStyle = this.color;
-        ctx.shadowBlur = 0;
         
-        // 위 파이프
         ctx.fillRect(this.x, 0, this.w, this.top);
-        // 아래 파이프
         ctx.fillRect(this.x, canvas.height - this.bottom, this.w, this.bottom);
         
-        // 입체감 장식
         ctx.fillStyle = 'rgba(0,0,0,0.2)';
         ctx.fillRect(this.x + 40, 0, 10, this.top);
         ctx.fillRect(this.x + 40, canvas.height - this.bottom, 10, this.bottom);
-
-        // 번호 표시
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 16px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(this.id, this.x + this.w/2, this.top - 10);
     }
 }
 
@@ -271,14 +429,11 @@ class Plane {
     constructor(brain = null) {
         this.y = canvas.height / 2;
         this.x = 60;
-        this.gravity = 0.6;
-        this.lift = -10;
         this.velocity = 0;
         this.width = 20;
         this.height = 20;
         
         this.score = 0;
-        this.fitness = 0;
         this.dead = false;
 
         if (brain) {
@@ -289,11 +444,12 @@ class Plane {
 
         this.color = `hsl(${Math.random() * 360}, 70%, 60%)`;
         this.trail = []; 
-        this.trailLength = 20; // 꼬리 길이 증가
+        this.trailLength = 20;
     }
 
-    mutate(rate) {
-        this.brain.mutate(rate);
+    mutate() {
+        // NeuralNetwork 클래스 내부에서 CONFIG 참조함
+        this.brain.mutate();
     }
 
     think(pipes) {
@@ -309,6 +465,7 @@ class Plane {
 
         if (closest != null) {
             let inputs = [];
+            // 정규화된 입력값 (0 ~ 1 사이 권장)
             inputs[0] = this.y / canvas.height;
             inputs[1] = this.velocity / 10;
             inputs[2] = closest.x / canvas.width;
@@ -323,48 +480,39 @@ class Plane {
     }
 
     up() {
-        this.velocity += this.lift;
-        if (this.velocity < -8) this.velocity = -8;
+        this.velocity += CONFIG.lift; // 설정값 적용
     }
 
     update() {
-        this.velocity += this.gravity;
+        this.velocity += CONFIG.gravity; // 설정값 적용
         this.y += this.velocity;
         this.score++;
 
-        // 꼬리 궤적 로직 수정: 현재 위치 저장
+        // 꼬리 그리기용 데이터
         this.trail.push({x: this.x, y: this.y});
         if (this.trail.length > this.trailLength) {
             this.trail.shift();
         }
-
-        // 꼬리 이동: 모든 궤적 점을 왼쪽으로 이동시켜 속도감 연출
         for(let point of this.trail) {
-            point.x -= 3; // 꼬리가 뒤로 밀려나는 속도
+            point.x -= CONFIG.pipeSpeed; // 배경 속도에 맞춰 꼬리 이동
         }
     }
 
     draw(ctx, isHighScorer, fewSurvivors) {
-        // 1. 꼬리 그리기
+        // 꼬리
         ctx.beginPath();
         if (this.trail.length > 0) {
             ctx.moveTo(this.trail[0].x, this.trail[0].y);
             for(let i=1; i<this.trail.length; i++) {
-                let p = this.trail[i];
-                // 부드러운 곡선
-                // ctx.lineTo(p.x, p.y); 
-                // 혹은 그냥 직선 연결
-                ctx.lineTo(p.x, p.y);
+                ctx.lineTo(this.trail[i].x, this.trail[i].y);
             }
         }
-        
         ctx.strokeStyle = this.color;
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // 2. 비행기 그리기
+        // 본체
         ctx.fillStyle = this.color;
-        
         if (isHighScorer || fewSurvivors) {
             ctx.shadowBlur = 15;
             ctx.shadowColor = this.color;
@@ -374,51 +522,47 @@ class Plane {
 
         ctx.save();
         ctx.translate(this.x, this.y);
-        
         ctx.beginPath();
         ctx.moveTo(10, 0);
         ctx.lineTo(-10, 5);
         ctx.lineTo(-10, -5);
         ctx.fill();
         ctx.restore();
-
         ctx.shadowBlur = 0;
     }
 }
 
 // ==========================================
-// 3. 게임 관리
+// 3. 게임 관리 (Game Manager)
 // ==========================================
-let totalPlanes = 100; // 초기값
+let totalPlanes = 100;
 let planes = [];
 let savedPlanes = [];
 let pipes = [];
 let particles = [];
 let generation = 1;
 let highScore = 0;
-let gameSpeed = 1;
-let pipeCounter = 1; // 장애물 번호 카운터
+let pipeCounter = 1;
 
-const STORAGE_KEY = 'MyAI_Flyer_Brain';
+const STORAGE_KEY = 'MyAI_Flyer_Advanced_Brain';
 
 function init() {
-    // UI에서 개체수 읽어오기
     totalPlanes = parseInt(document.getElementById('popInput').value) || 100;
     
     let bestBrainJSON = localStorage.getItem(STORAGE_KEY);
     planes = [];
     
     if (bestBrainJSON) {
-        document.getElementById('saveStatus').innerText = "로드됨";
+        document.getElementById('saveStatus').innerText = "로드 완료";
         let bestBrain = NeuralNetwork.fromJSON(JSON.parse(bestBrainJSON));
         
         for (let i = 0; i < totalPlanes; i++) {
             let p = new Plane(bestBrain);
-            if (i > 0) p.mutate(0.1); 
+            if (i > 0) p.mutate(); // CONFIG 값에 따라 변이
             planes.push(p);
         }
     } else {
-        document.getElementById('saveStatus').innerText = "새 시작";
+        document.getElementById('saveStatus').innerText = "새로운 시작";
         for (let i = 0; i < totalPlanes; i++) {
             planes.push(new Plane());
         }
@@ -436,11 +580,12 @@ function resetGame() {
     document.getElementById('genDisplay').innerText = generation;
     pipes = [];
     particles = [];
-    pipeCounter = 1; // 파이프 번호 리셋 (원하면 계속 증가하게 해도 됨)
+    pipeCounter = 1;
     
     savedPlanes.sort((a, b) => b.score - a.score);
     let bestOne = savedPlanes[0];
     
+    // 최고 점수 갱신 및 자동 저장
     if (bestOne.score > highScore) {
         highScore = bestOne.score;
         document.getElementById('scoreDisplay').innerText = highScore;
@@ -449,14 +594,14 @@ function resetGame() {
         saveBrainToLocal(bestOne.brain);
     }
 
-    // 다음 세대 개체수 재확인
     totalPlanes = parseInt(document.getElementById('popInput').value) || 100;
-
     planes = [];
+    
+    // 다음 세대 생성 (Elitism: 최고 개체는 그대로, 나머지는 변이)
     for (let i = 0; i < totalPlanes; i++) {
         let p = new Plane(bestOne.brain);
         if (i > 0) { 
-             p.mutate(0.1); 
+             p.mutate(); // CONFIG.mutationRate / Strength 적용됨
         }
         planes.push(p);
     }
@@ -466,9 +611,9 @@ function resetGame() {
 function saveBrainToLocal(brain) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(brain));
     let status = document.getElementById('saveStatus');
-    status.innerText = "저장됨";
+    status.innerText = "자동 저장됨";
     status.style.opacity = 1;
-    setTimeout(() => { status.style.opacity = 0.5; }, 1000);
+    status.style.color = '#2ed573';
 }
 
 function saveBestBrain() {
@@ -479,22 +624,24 @@ function saveBestBrain() {
             currentBest = deadBest;
         }
     }
-    
     if (currentBest) {
         saveBrainToLocal(currentBest.brain);
+        alert(`최고 점수 ${currentBest.score}점의 신경망이 저장되었습니다.`);
     }
 }
 
 function resetBrain() {
-    if(confirm("모든 학습 데이터를 지우고 처음부터 시작하시겠습니까?")) {
+    if(confirm("모든 학습 데이터와 설정을 초기화하시겠습니까?")) {
         localStorage.removeItem(STORAGE_KEY);
         location.reload();
     }
 }
 
 function animate() {
-    for (let n = 0; n < gameSpeed; n++) {
-        // 파이프 생성
+    // 게임 배속 처리 (CONFIG.gameSpeed)
+    for (let n = 0; n < CONFIG.gameSpeed; n++) {
+        
+        // 파이프 생성 로직
         if (pipes.length === 0 || pipes[pipes.length - 1].x < canvas.width - 250) {
             pipes.push(new Pipe(pipeCounter++));
         }
@@ -506,8 +653,10 @@ function animate() {
             p.update();
 
             let crashed = false;
+            // 바닥/천장 충돌
             if (p.y > canvas.height || p.y < 0) crashed = true;
 
+            // 파이프 충돌
             for (let pipe of pipes) {
                 if (p.x + 10 > pipe.x && p.x - 10 < pipe.x + pipe.w) {
                     if (p.y - 5 < pipe.top || p.y + 5 > canvas.height - pipe.bottom) {
@@ -522,6 +671,7 @@ function animate() {
             }
         }
 
+        // 파이프 업데이트
         for (let i = pipes.length - 1; i >= 0; i--) {
             pipes[i].update();
             if (pipes[i].x + pipes[i].w < 0) {
@@ -529,6 +679,7 @@ function animate() {
             }
         }
 
+        // 파티클 업데이트
         for (let i = particles.length - 1; i >= 0; i--) {
             particles[i].update();
             if (particles[i].life <= 0) particles.splice(i, 1);
@@ -536,10 +687,11 @@ function animate() {
 
         if (planes.length === 0) {
             resetGame();
-            break;
+            break; // 리셋 후 현재 프레임 루프 중단
         }
     }
 
+    // 그리기 (배속과 상관없이 한 번만 그림)
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     for (let pipe of pipes) pipe.draw(ctx);
@@ -550,6 +702,7 @@ function animate() {
     let fewSurvivors = planes.length <= 5;
 
     for (let p of planes) {
+        // 최고 점수 개체는 하이라이트
         let isHighScorer = (p.score === currentHighScore) && (p.score > 0);
         p.draw(ctx, isHighScorer, fewSurvivors);
     }
@@ -559,10 +712,7 @@ function animate() {
     requestAnimationFrame(animate);
 }
 
-document.getElementById('speedSlider').addEventListener('input', (e) => {
-    gameSpeed = parseInt(e.target.value);
-});
-
+// 시작
 init();
 animate();
 
