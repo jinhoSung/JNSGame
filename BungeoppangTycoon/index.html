@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>붕어빵 타이쿤: Real Graphics</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #fcebd5;
+            touch-action: none;
+            font-family: 'Apple SD Gothic Neo', sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        // --- 1. 초기 설정 및 상수 ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 게임 상태 변수
+        let money = 0;
+        let clickValue = 1;
+        let autoIncome = 0;
+        let clickUpgradeCost = 10;
+        let autoUpgradeCost = 50;
+        
+        let combo = 0;
+        const maxCombo = 100;
+        let comboMultiplier = 1;
+
+        let gameState = 'MAIN';
+
+        // 이펙트 관리
+        let particles = [];      
+        let fallingBuns = [];    
+        
+        let lastTime = 0;
+        let autoIncomeTimer = 0;
+
+        // 메인 붕어빵 객체
+        const bun = { scale: 1, x: 0, y: 0, radius: 0, rotation: 0 };
+
+        // 황금 붕어빵 객체
+        const goldenBun = {
+            active: false,
+            x: -100, y: -100, radius: 30,
+            speedX: 0, speedY: 0, timer: 0
+        };
+
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        // 리듬 게임 변수
+        let rhythmTimer = 0;
+        let rhythmBeatTimer = 0;
+        let activePadIndex = -1;
+        let rhythmCombo = 0;
+        const pads = [];
+
+        // --- 2. 🎨 붕어빵 그리기 함수 (핵심!) ---
+        function drawFishShape(ctx, size, color, strokeColor) {
+            const w = size;      // 너비 기준
+            const h = size * 0.6; // 높이 비율
+
+            ctx.fillStyle = color;
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = size * 0.04;
+            ctx.lineJoin = 'round';
+
+            // 1. 꼬리 (왼쪽)
+            ctx.beginPath();
+            ctx.moveTo(-w * 0.5, 0);
+            ctx.lineTo(-w * 0.9, -h * 0.6); // 위쪽 꼬리 끝
+            ctx.quadraticCurveTo(-w * 0.8, 0, -w * 0.9, h * 0.6); // 꼬리 안쪽 곡선 -> 아래쪽 꼬리 끝
+            ctx.lineTo(-w * 0.5, 0);
+            ctx.fill();
+            ctx.stroke();
+
+            // 2. 등 지느러미
+            ctx.beginPath();
+            ctx.moveTo(-w * 0.2, -h * 0.45);
+            ctx.quadraticCurveTo(0, -h * 0.7, w * 0.2, -h * 0.45);
+            ctx.fill();
+            ctx.stroke();
+
+            // 3. 배 지느러미
+            ctx.beginPath();
+            ctx.moveTo(-w * 0.2, h * 0.45);
+            ctx.quadraticCurveTo(0, h * 0.7, w * 0.2, h * 0.45);
+            ctx.fill();
+            ctx.stroke();
+
+            // 4. 몸통 (타원형)
+            ctx.beginPath();
+            ctx.ellipse(0, 0, w * 0.6, h * 0.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // 5. 디테일 (눈, 아가미, 비늘)
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = size * 0.03;
+            ctx.fillStyle = strokeColor;
+
+            // 눈 (검은 동그라미 + 흰 하이라이트)
+            ctx.beginPath();
+            ctx.arc(w * 0.35, -h * 0.15, size * 0.05, 0, Math.PI * 2);
+            ctx.fill(); // 눈동자
+
+            // 아가미 (곡선)
+            ctx.beginPath();
+            ctx.arc(w * 0.15, 0, h * 0.3, -Math.PI/3, Math.PI/3);
+            ctx.stroke();
+
+            // 비늘 (몸통 중간)
+            ctx.lineWidth = size * 0.02;
+            ctx.beginPath();
+            ctx.arc(-w * 0.05, -h * 0.1, size * 0.08, 0, Math.PI);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(-w * 0.05, h * 0.1, size * 0.08, 0, Math.PI);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(-w * 0.2, 0, size * 0.08, 0, Math.PI);
+            ctx.stroke();
+        }
+
+
+        // --- 3. 입력 처리 ---
+        function handleInput(x, y) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            if (gameState === 'MAIN') {
+                if (goldenBun.active) {
+                    const dist = Math.hypot(x - goldenBun.x, y - goldenBun.y);
+                    if (dist < goldenBun.radius + 30) {
+                        clickGoldenBun(x, y);
+                        return;
+                    }
+                }
+
+                let btnClicked = false;
+                for (let btn of buttons) {
+                    if (isInside(x, y, btn)) {
+                        btn.action();
+                        btnClicked = true;
+                        break;
+                    }
+                }
+
+                if (!btnClicked) {
+                    clickBun(x, y);
+                }
+
+            } else if (gameState === 'RHYTHM') {
+                pads.forEach((pad, index) => {
+                    const dist = Math.hypot(x - pad.x, y - pad.y);
+                    if (dist < pad.radius + 15) {
+                        hitDrum(index);
+                    }
+                });
+            }
+        }
+
+        canvas.addEventListener('mousedown', e => handleInput(e.clientX, e.clientY));
+        canvas.addEventListener('touchstart', e => {
+            e.preventDefault();
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                handleInput(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+            }
+        }, { passive: false });
+
+
+        // --- 4. 게임 로직 ---
+        function clickBun(x, y) {
+            bun.scale = 0.9; 
+            bun.rotation = (Math.random() - 0.5) * 0.3; 
+
+            const earned = clickValue * comboMultiplier;
+            money += earned;
+            combo = Math.min(combo + 3, maxCombo);
+
+            spawnFloatingText(x, y, `+${earned}`);
+            spawnFallingBun(x, y);
+            playTone(300 + (combo * 2), 'sine', 0.1);
+        }
+
+        function clickGoldenBun(x, y) {
+            goldenBun.active = false;
+            const bonus = clickValue * 100;
+            money += bonus;
+
+            spawnFloatingText(goldenBun.x, goldenBun.y, "LUCKY!!", "#ffeb3b");
+            spawnFloatingText(goldenBun.x, goldenBun.y - 40, `+${bonus}`, "#ff9800");
+            
+            for(let i=0; i<5; i++) spawnFallingBun(x, y, true);
+
+            playTone(1000, 'sine', 0.1);
+            setTimeout(() => playTone(1500, 'square', 0.2), 100);
+        }
+
+        function spawnFallingBun(x, y, isGold = false) {
+            fallingBuns.push({
+                x: x, y: y,
+                vx: (Math.random() - 0.5) * 15, 
+                vy: -10 - Math.random() * 10,
+                gravity: 0.8,
+                rotation: Math.random() * Math.PI * 2,
+                rotationSpeed: (Math.random() - 0.5) * 0.3,
+                scale: 0.4 + Math.random() * 0.3, // 크기 약간 줄임
+                isGold: isGold,
+                life: 1.0
+            });
+        }
+
+        function spawnFloatingText(x, y, text, color = '#e64a19') {
+            particles.push({
+                x: x, y: y, text: text, color: color, life: 1.0, vy: -2 
+            });
+        }
+
+        let buttons = [];
+        function initButtons() {
+            const btnW = Math.min(300, canvas.width - 40);
+            const startY = canvas.height * 0.70; // 버튼 위치 더 내림
+            
+            buttons = [
+                {
+                    text: () => `🎸 타이밍 게임 시작 (10초)`,
+                    x: canvas.width / 2 - btnW / 2, y: startY - 70, w: btnW, h: 50,
+                    color: '#ff5252',
+                    action: startRhythmGame
+                },
+                {
+                    text: () => `반죽 강화 (비용: ${clickUpgradeCost})`,
+                    subText: () => `클릭 +1`,
+                    x: canvas.width / 2 - btnW / 2, y: startY, w: btnW, h: 60,
+                    color: '#8d6e63',
+                    action: () => {
+                        if (money >= clickUpgradeCost) {
+                            money -= clickUpgradeCost;
+                            clickValue++;
+                            clickUpgradeCost = Math.floor(clickUpgradeCost * 1.5);
+                            playTone(600, 'square');
+                        }
+                    }
+                },
+                {
+                    text: () => `알바 고용 (비용: ${autoUpgradeCost})`,
+                    subText: () => `초당 +5`,
+                    x: canvas.width / 2 - btnW / 2, y: startY + 70, w: btnW, h: 60,
+                    color: '#8d6e63',
+                    action: () => {
+                        if (money >= autoUpgradeCost) {
+                            money -= autoUpgradeCost;
+                            autoIncome += 5;
+                            autoUpgradeCost = Math.floor(autoUpgradeCost * 1.5);
+                            playTone(600, 'square');
+                        }
+                    }
+                }
+            ];
+        }
+
+        function startRhythmGame() {
+            gameState = 'RHYTHM';
+            rhythmTimer = 10;
+            rhythmBeatTimer = 0;
+            activePadIndex = -1;
+            rhythmCombo = 0;
+            pads.length = 0;
+            for(let i=0; i<4; i++) {
+                pads.push({
+                    x: (canvas.width / 4) * i + (canvas.width / 8), 
+                    y: canvas.height / 2,
+                    radius: 35
+                });
+            }
+        }
+
+        function hitDrum(index) {
+            if (index === activePadIndex) {
+                rhythmCombo++;
+                let comboBonusMultiplier = 1 + (rhythmCombo * 0.2); 
+                const baseBonus = clickValue * 10 * comboMultiplier;
+                const totalBonus = Math.floor(baseBonus * comboBonusMultiplier);
+
+                money += totalBonus;
+                spawnFloatingText(pads[index].x, pads[index].y - 50, `${rhythmCombo} COMBO!`, "#4caf50");
+                spawnFloatingText(pads[index].x, pads[index].y - 80, `+${totalBonus}`);
+                
+                spawnFallingBun(pads[index].x, pads[index].y); // 파티클
+
+                playTone(880 + (rhythmCombo * 50), 'sine', 0.1);
+                activePadIndex = -1;
+            } else {
+                rhythmCombo = 0;
+                spawnFloatingText(pads[index].x, pads[index].y - 50, "MISS", "#f44336");
+                playTone(150, 'sawtooth');
+            }
+        }
+
+        function playTone(freq, type, duration = 0.1) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.value = freq;
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function isInside(x, y, rect) {
+            return x > rect.x && x < rect.x + rect.w && y > rect.y && y < rect.y + rect.h;
+        }
+
+        function loop(timestamp) {
+            const dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+            update(dt);
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function update(dt) {
+            autoIncomeTimer += dt;
+            if (autoIncomeTimer >= 1) {
+                money += autoIncome;
+                autoIncomeTimer = 0;
+                if (autoIncome > 0 && gameState === 'MAIN') {
+                     spawnFloatingText(bun.x, bun.y - 60, `+${autoIncome}`, '#795548');
+                }
+            }
+
+            if (bun.scale < 1) bun.scale += dt * 3;
+            if (bun.scale > 1) bun.scale = 1;
+            if (bun.rotation > 0) bun.rotation -= dt;
+            if (bun.rotation < 0) bun.rotation += dt;
+            if (Math.abs(bun.rotation) < 0.01) bun.rotation = 0;
+
+            particles.forEach(p => { p.y += p.vy; p.life -= dt * 1.5; });
+            particles = particles.filter(p => p.life > 0);
+
+            fallingBuns.forEach(b => {
+                b.x += b.vx; b.y += b.vy; b.vy += b.gravity; 
+                b.rotation += b.rotationSpeed;
+            });
+            fallingBuns = fallingBuns.filter(b => b.y < canvas.height + 100);
+
+            if (combo > 0) combo -= dt * 15;
+            if (combo < 0) combo = 0;
+            comboMultiplier = combo >= 50 ? 2 : 1;
+
+            if (!goldenBun.active && gameState === 'MAIN') {
+                goldenBun.timer += dt;
+                if (goldenBun.timer > 10 && Math.random() < 0.005) {
+                    goldenBun.active = true;
+                    goldenBun.timer = 0;
+                    const startLeft = Math.random() < 0.5;
+                    goldenBun.x = startLeft ? -50 : canvas.width + 50;
+                    goldenBun.y = Math.random() * (canvas.height / 3) + 100;
+                    goldenBun.speedX = startLeft ? (150 + Math.random()*100) : -(150 + Math.random()*100);
+                    goldenBun.speedY = (Math.random() - 0.5) * 50;
+                }
+            }
+            if (goldenBun.active) {
+                goldenBun.x += goldenBun.speedX * dt;
+                goldenBun.y += goldenBun.speedY * dt;
+                if (goldenBun.x < -100 || goldenBun.x > canvas.width + 100) goldenBun.active = false;
+            }
+
+            if (gameState === 'RHYTHM') {
+                rhythmTimer -= dt;
+                if (rhythmTimer <= 0) {
+                    gameState = 'MAIN';
+                    activePadIndex = -1;
+                    alert(`피버 타임 종료!`);
+                }
+                rhythmBeatTimer += dt;
+                if (rhythmBeatTimer > 0.6) {
+                    activePadIndex = Math.floor(Math.random() * 4);
+                    playTone(440, 'triangle');
+                    rhythmBeatTimer = 0;
+                    setTimeout(() => { activePadIndex = -1; }, 400);
+                }
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = '#fcebd5';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // UI 그리기
+            ctx.fillStyle = '#fff';
+            ctx.roundRect(20, 20, canvas.width - 40, 110, 10);
+            ctx.fill();
+            
+            ctx.fillStyle = '#e67e22';
+            ctx.font = 'bold 30px Apple SD Gothic Neo';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${Math.floor(money).toLocaleString()}원`, canvas.width / 2, 55);
+            
+            ctx.fillStyle = '#d84315';
+            ctx.font = 'bold 16px Apple SD Gothic Neo';
+            ctx.fillText(`클릭당 수익: ${clickValue}원`, canvas.width / 2, 80);
+            ctx.fillStyle = '#5d4037';
+            ctx.font = '14px Apple SD Gothic Neo';
+            ctx.fillText(`초당 자동 수익: ${autoIncome}원`, canvas.width / 2, 100);
+
+            // 콤보
+            const comboW = canvas.width - 80;
+            const gaugeY = 145;
+            ctx.fillStyle = '#ddd';
+            ctx.fillRect(40, gaugeY, comboW, 10);
+            const fillW = (combo / maxCombo) * comboW;
+            ctx.fillStyle = combo >= 50 ? '#f44336' : '#ff9800';
+            ctx.fillRect(40, gaugeY, fillW, 10);
+            if (combo >= 50) {
+                ctx.fillStyle = '#d50000';
+                ctx.font = 'bold 16px sans-serif';
+                ctx.fillText("🔥 HOT TIME (x2) 🔥", canvas.width / 2, gaugeY + 25);
+            }
+
+            if (gameState === 'MAIN') {
+                // 1. 메인 붕어빵 그리기 (함수 사용)
+                ctx.save();
+                ctx.translate(bun.x, bun.y);
+                ctx.scale(bun.scale, bun.scale);
+                ctx.rotate(bun.rotation);
+                
+                // 크기 설정 (반응형)
+                const mainSize = bun.radius * 1.5; 
+                drawFishShape(ctx, mainSize, '#dbb076', '#8d6e63'); // 빵색, 테두리색
+                
+                ctx.restore();
+
+                // 2. 떨어지는 붕어빵들
+                fallingBuns.forEach(b => {
+                    ctx.save();
+                    ctx.translate(b.x, b.y);
+                    ctx.rotate(b.rotation);
+                    ctx.scale(b.scale, b.scale);
+
+                    if (b.isGold) {
+                        // 황금색
+                        drawFishShape(ctx, 40, '#ffd700', '#fff'); 
+                    } else {
+                        // 일반색
+                        drawFishShape(ctx, 40, '#dbb076', '#8d6e63');
+                    }
+                    ctx.restore();
+                });
+
+                // 3. 황금 붕어빵
+                if (goldenBun.active) {
+                    ctx.save();
+                    ctx.translate(goldenBun.x, goldenBun.y);
+                    // 빛나는 효과
+                    ctx.shadowColor = 'gold'; 
+                    ctx.shadowBlur = 20;
+                    
+                    drawFishShape(ctx, goldenBun.radius * 2, '#ffd700', '#fff');
+                    
+                    ctx.shadowBlur = 0;
+                    ctx.restore();
+                }
+
+                // 4. 버튼
+                buttons.forEach(btn => {
+                    ctx.fillStyle = (money < (btn.cost || 0)) ? '#ccc' : btn.color;
+                    ctx.beginPath(); ctx.roundRect(btn.x, btn.y, btn.w, btn.h, 10); ctx.fill();
+                    ctx.fillStyle = 'white'; ctx.font = 'bold 16px Apple SD Gothic Neo';
+                    ctx.fillText(btn.text(), btn.x + btn.w/2, btn.y + btn.h/2 - (btn.subText?5:-5));
+                    if (btn.subText) {
+                        ctx.font = '12px Apple SD Gothic Neo'; ctx.fillStyle = '#eee';
+                        ctx.fillText(btn.subText(), btn.x + btn.w/2, btn.y + btn.h/2 + 15);
+                    }
+                });
+            }
+
+            if (gameState === 'RHYTHM') {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#ffeb3b'; ctx.font = '30px Arial';
+                ctx.fillText(`Time: ${Math.ceil(rhythmTimer)}`, canvas.width/2, 80);
+                
+                if (rhythmCombo > 1) {
+                    ctx.fillStyle = '#4caf50'; ctx.font = 'bold 24px Arial';
+                    ctx.fillText(`${rhythmCombo} COMBO!`, canvas.width/2, 120);
+                }
+                pads.forEach((pad, i) => {
+                    ctx.beginPath(); ctx.arc(pad.x, pad.y, pad.radius, 0, Math.PI * 2);
+                    if (activePadIndex === i) {
+                        ctx.fillStyle = '#ffeb3b'; ctx.shadowColor = '#ffeb3b'; ctx.shadowBlur = 20;
+                    } else {
+                        ctx.fillStyle = '#333'; ctx.shadowBlur = 0;
+                    }
+                    ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = 'white'; ctx.stroke(); ctx.shadowBlur = 0;
+                });
+                ctx.fillStyle = '#fff'; ctx.font = '16px Arial';
+                ctx.fillText("노란색이 되면 터치!", canvas.width/2, canvas.height/2 + 80);
+            }
+
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.font = 'bold 24px Arial';
+                ctx.fillText(p.text, p.x, p.y);
+            });
+            ctx.globalAlpha = 1.0;
+        }
+
+        if (!ctx.roundRect) {
+            ctx.roundRect = function(x, y, w, h, r) {
+                if (w < 2 * r) r = w / 2; if (h < 2 * r) r = h / 2;
+                this.beginPath(); this.moveTo(x + r, y);
+                this.arcTo(x + w, y, x + w, y + h, r); this.arcTo(x + w, y + h, x, y + h, r);
+                this.arcTo(x, y + h, x, y, r); this.arcTo(x, y, x + w, y, r); this.closePath(); return this;
+            }
+        }
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            bun.x = canvas.width / 2; bun.y = canvas.height * 0.45; // 살짝 내림
+            bun.radius = Math.min(canvas.width, canvas.height) * 0.12;
+            initButtons();
+        }
+        
+        window.addEventListener('resize', resize);
+        resize();
+        requestAnimationFrame(loop);
+
+    </script>
+</body>
+</html>
