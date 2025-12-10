@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Self Driving Car - Long Range Sensors</title>
+    <title>AI Self Driving Car - High Res Lidar</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -11,19 +11,19 @@
         canvas { display: block; margin: 0 auto; background: #6b7280; }
         
         input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #60A5FA; cursor: pointer; margin-top: -6px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #EC4899; cursor: pointer; margin-top: -6px; }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #4B5563; border-radius: 2px; }
 
         .ui-panel { transition: transform 0.3s ease-in-out, opacity 0.3s; }
         .ui-hidden { transform: translateX(-120%); opacity: 0; pointer-events: none; }
         
-        @keyframes pulse-blue {
-            0% { box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(96, 165, 250, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(96, 165, 250, 0); }
+        @keyframes pulse-pink {
+            0% { box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(236, 72, 153, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(236, 72, 153, 0); }
         }
         .heartbeat {
-            animation: pulse-blue 2s infinite;
+            animation: pulse-pink 2s infinite;
         }
     </style>
 </head>
@@ -39,10 +39,10 @@
         <div id="uiPanel" class="bg-gray-900/90 backdrop-blur-md text-white p-5 rounded-2xl shadow-2xl w-72 border border-gray-700">
             <div class="flex items-center justify-between mb-4 border-b border-gray-700 pb-2">
                 <div class="flex items-center gap-2">
-                    <i data-lucide="scan-eye" class="text-blue-400"></i>
-                    <h2 class="text-lg font-bold">장거리 센서 (v14)</h2>
+                    <i data-lucide="aperture" class="text-pink-400"></i>
+                    <h2 class="text-lg font-bold">초고해상도 센서 (v17)</h2>
                 </div>
-                <div class="w-3 h-3 bg-blue-500 rounded-full heartbeat" title="시스템 작동 중"></div>
+                <div class="w-3 h-3 bg-pink-500 rounded-full heartbeat" title="시스템 작동 중"></div>
             </div>
 
             <div class="grid grid-cols-2 gap-4 mb-4 text-sm text-gray-300">
@@ -63,7 +63,7 @@
             <div class="mb-4">
                 <div class="flex justify-between mb-1">
                     <span class="text-sm text-gray-400">돌연변이율 (Mutation)</span>
-                    <span id="mutationVal" class="text-sm font-bold text-blue-400">0.2</span>
+                    <span id="mutationVal" class="text-sm font-bold text-pink-400">0.2</span>
                 </div>
                 <input type="range" id="mutationSlider" min="0.0" max="1.0" step="0.05" value="0.2">
             </div>
@@ -73,7 +73,7 @@
                     <span class="text-sm text-gray-400">시뮬레이션 배속</span>
                     <span id="simSpeedVal" class="text-sm font-bold text-yellow-400">1x</span>
                 </div>
-                <input type="range" id="simSpeedSlider" min="1" max="20" value="1" step="1">
+                <input type="range" id="simSpeedSlider" min="1" max="50" value="1" step="1">
             </div>
 
             <div class="grid grid-cols-2 gap-2">
@@ -85,8 +85,8 @@
                 </button>
             </div>
             <p id="statusMsg" class="mt-3 text-xs text-gray-400 text-center leading-relaxed">
-                센서 감지 거리 2배 증가!<br>
-                더 멀리 보고 판단합니다.
+                전방 센서 29개 + 측면 2개<br>
+                빈틈없는 레이저 스캔!
             </p>
         </div>
     </div>
@@ -162,8 +162,8 @@
         class Sensor {
             constructor(car) {
                 this.car = car;
-                this.rayCount = 7; 
-                this.rayLength = 600; // [변경] 시야 거리 2배 증가 (300 -> 600)
+                this.rayCount = 31; // [변경] 19개 -> 31개 (초고밀도)
+                this.rayLength = 800; 
                 this.raySpread = Math.PI / 1.3; 
                 this.rays = [];
                 this.readings = [];
@@ -193,22 +193,67 @@
                 const minOffset = Math.min(...offsets);
                 return touches.find(e => e.offset == minOffset);
             }
+            
             #castRays() {
                 this.rays = [];
                 for (let i = 0; i < this.rayCount; i++) {
-                    const rayAngle = lerp(this.raySpread / 2, -this.raySpread / 2, this.rayCount == 1 ? 0.5 : i / (this.rayCount - 1)) + this.car.angle;
+                    let rayAngle;
+                    let currentLength = this.rayLength;
+
+                    // [요청 반영] 측면 2개는 유지하고, 나머지는 전방 집중
+                    if (i === 0) {
+                        // 0번: 완전 좌측 (90도)
+                        rayAngle = this.car.angle + Math.PI / 2; 
+                        currentLength = 300; 
+                    } else if (i === this.rayCount - 1) {
+                        // 마지막번: 완전 우측 (-90도)
+                        rayAngle = this.car.angle - Math.PI / 2;
+                        currentLength = 300;
+                    } else {
+                        // 나머지 29개: 전방 100도 (약 1.74 rad) 내에 촘촘하게 배치
+                        const spread = (100 * Math.PI) / 180; 
+                        const startAngle = spread / 2;
+                        const endAngle = -spread / 2;
+                        
+                        // i가 1일때 t=0, i가 count-2일때 t=1
+                        const t = (i - 1) / (this.rayCount - 3);
+                        const offset = lerp(startAngle, endAngle, t);
+                        
+                        rayAngle = this.car.angle + offset;
+                    }
+
                     const start = { x: this.car.x, y: this.car.y };
-                    const end = { x: this.car.x - Math.sin(rayAngle) * this.rayLength, y: this.car.y - Math.cos(rayAngle) * this.rayLength };
+                    const end = {
+                        x: this.car.x - Math.sin(rayAngle) * currentLength,
+                        y: this.car.y - Math.cos(rayAngle) * currentLength
+                    };
                     this.rays.push([start, end]);
                 }
             }
+
             draw(ctx) {
                 for (let i = 0; i < this.rayCount; i++) {
                     if (!this.rays[i]) continue;
                     let end = this.rays[i][1];
                     if (this.readings[i]) end = this.readings[i];
-                    ctx.beginPath(); ctx.lineWidth = 2; ctx.strokeStyle = "yellow"; ctx.moveTo(this.rays[i][0].x, this.rays[i][0].y); ctx.lineTo(end.x, end.y); ctx.stroke();
-                    ctx.beginPath(); ctx.lineWidth = 2; ctx.strokeStyle = "black"; ctx.moveTo(this.rays[i][1].x, this.rays[i][1].y); ctx.lineTo(end.x, end.y); ctx.stroke();
+                    
+                    // 전방 센서는 연한 노란색, 측면은 붉은색
+                    ctx.beginPath(); 
+                    ctx.lineWidth = 0.5; // 센서가 많으니 선을 더 얇게
+                    ctx.strokeStyle = (i === 0 || i === this.rayCount - 1) ? "#F87171" : "rgba(255, 255, 0, 0.7)"; 
+                    
+                    ctx.moveTo(this.rays[i][0].x, this.rays[i][0].y); 
+                    ctx.lineTo(end.x, end.y); 
+                    ctx.stroke();
+                    
+                    if (this.readings[i]) {
+                        ctx.beginPath();
+                        ctx.lineWidth = 1;
+                        ctx.strokeStyle = "white";
+                        ctx.moveTo(this.rays[i][1].x, this.rays[i][1].y);
+                        ctx.lineTo(end.x, end.y);
+                        ctx.stroke();
+                    }
                 }
             }
         }
@@ -225,7 +270,8 @@
                 
                 if (controlType != "DUMMY") {
                     this.sensor = new Sensor(this);
-                    this.brain = new NeuralNetwork([this.sensor.rayCount, 12, 4]); 
+                    // [변경] 입력층 31개, 은닉층 20개로 뇌 용량 확장
+                    this.brain = new NeuralNetwork([this.sensor.rayCount, 20, 4]); 
                 }
                 this.controls = { forward: false, left: false, right: false, reverse: false };
                 if (controlType == "DUMMY") this.controls.forward = true;
@@ -383,7 +429,7 @@
         let simulationSpeed = 1;
         let mutationAmount = 0.2; 
         let generationCount = 1;
-        const CAR_COUNT = 100;
+        const CAR_COUNT = 200;
         
         // ** 5차선 설정 **
         const LANE_COUNT = 5;
@@ -393,8 +439,8 @@
         let lastBestY = 0;
         let animationId; 
 
-        // ** v14 저장소 (장거리 센서) **
-        const STORAGE_KEY = "bestBrain_v14_long_sight";
+        // ** v17 저장소 (초고밀도 센서) **
+        const STORAGE_KEY = "bestBrain_v17_super_dense";
 
         function getCarDimensions() {
             const laneWidth = ROAD_WIDTH / LANE_COUNT;
@@ -450,14 +496,12 @@
             const { width, height } = getCarDimensions();
             const TS = 1.0; 
             
-            // 트래픽 생성 - 체인 방식
             traffic = [];
             let currentY = -300; 
             
             for(let i=0; i<8; i++) {
                 const lane = Math.floor(Math.random() * LANE_COUNT);
                 traffic.push(new Car(road.getLaneCenter(lane), currentY, width, height, "DUMMY", TS));
-                
                 currentY -= (400 + Math.random() * 300);
             }
         }
@@ -491,10 +535,8 @@
             resetGame();
         }
 
-        // --- 메인 루프 (안전장치 포함) ---
         function animate(time) {
             try {
-                // 시뮬레이션 로직
                 for(let i=0; i<simulationSpeed; i++) {
                     traffic.forEach(t => t.update(road.borders, []));
                     cars.forEach(c => c.update(road.borders, traffic));
@@ -510,7 +552,6 @@
                         break;
                     }
 
-                    // 트래픽 리스폰 - 체인 방식
                     if(bestCar) {
                         traffic.forEach(t => {
                             if(t.y > bestCar.y + 800) { 
@@ -544,7 +585,6 @@
                     }
                 }
 
-                // 렌더링
                 canvas.height = window.innerHeight;
                 
                 ctx.save();
@@ -563,7 +603,6 @@
 
                 ctx.restore();
 
-                // UI 업데이트
                 if(Math.floor(time) % 10 === 0) {
                     const aliveCount = cars.filter(c => !c.damaged).length;
                     populationDisplay.innerText = `${aliveCount} / ${CAR_COUNT}`;
