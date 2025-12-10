@@ -2,21 +2,30 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 비행기 학습 - 고급 설정 & 저장</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 비행기 학습 - 반응형</title>
     <style>
-        body {
+        /* 기본 설정 */
+        html, body {
             margin: 0;
             padding: 0;
+            width: 100%;
+            height: 100%;
             background-color: #1a1a2e;
             color: #fff;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            overflow: hidden;
+            overflow: hidden; /* 전체 페이지 스크롤 방지 */
+        }
+
+        /* 메인 컨테이너: PC에서는 가로(row), 모바일에서는 세로(column) */
+        #main-container {
             display: flex;
             flex-direction: row;
-            height: 100vh;
+            width: 100%;
+            height: 100%;
         }
         
+        /* 게임 영역 */
         #game-area {
             flex-grow: 1;
             position: relative;
@@ -24,25 +33,55 @@
             justify-content: center;
             align-items: center;
             background: linear-gradient(to bottom, #0f0c29, #302b63, #24243e);
+            overflow: hidden;
+            padding: 10px; /* 여백 조금 줌 */
+            box-sizing: border-box;
         }
 
+        /* 캔버스: 논리적 크기는 고정이지만 스타일로 크기 조절 */
         canvas {
             box-shadow: 0 0 20px rgba(0,0,0,0.5);
             border-radius: 4px;
+            /* JS로 동적 크기 조절됨 */
         }
 
+        /* 사이드바 컨트롤 패널 */
         #sidebar {
-            width: 340px; /* 너비 약간 증가 */
-            background: rgba(22, 33, 62, 0.95);
+            width: 340px;
+            min-width: 300px; /* 너무 작아지지 않게 */
+            background: rgba(22, 33, 62, 0.98);
             border-left: 1px solid #30475e;
             padding: 20px;
             box-sizing: border-box;
-            overflow-y: auto;
+            overflow-y: auto; /* 내용 넘치면 스크롤 */
             display: flex;
             flex-direction: column;
             gap: 15px;
+            z-index: 10;
         }
 
+        /* 모바일용 스타일 (화면 너비 900px 이하) */
+        @media (max-width: 900px) {
+            #main-container {
+                flex-direction: column;
+            }
+
+            #game-area {
+                flex: 1; /* 남는 공간 차지 (보통 위쪽 60~70%) */
+                min-height: 200px;
+            }
+
+            #sidebar {
+                width: 100%;
+                height: 40%; /* 화면의 아래쪽 40% 차지 */
+                min-height: 250px;
+                border-left: none;
+                border-top: 1px solid #30475e;
+                padding: 15px;
+            }
+        }
+
+        /* UI 요소 스타일 */
         h2, h3 {
             margin: 0 0 10px 0;
             color: #00ffcc;
@@ -59,6 +98,7 @@
             background: #1f2a40;
             padding: 12px;
             border-radius: 8px;
+            flex-shrink: 0; /* 스크롤 시 찌그러짐 방지 */
         }
 
         .stat-row {
@@ -79,21 +119,32 @@
             color: #d1d5db;
         }
 
+        /* 슬라이더 터치 영역 확대 */
         input[type="range"] {
             width: 45%;
+            height: 15px; /* 터치하기 편하게 높이 증가 (보이는 건 CSS로 처리) */
+            -webkit-appearance: none; /* 기본 스타일 제거 */
+            background: transparent;
+        }
+        
+        /* 슬라이더 트랙 커스텀 */
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
             height: 4px;
             background: #30475e;
             border-radius: 2px;
-            appearance: none;
-            outline: none;
         }
+        
+        /* 슬라이더 썸(손잡이) 커스텀 */
         input[type="range"]::-webkit-slider-thumb {
-            appearance: none;
-            width: 14px;
-            height: 14px;
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
             background: #00ffcc;
             border-radius: 50%;
             cursor: pointer;
+            margin-top: -8px; /* 트랙 중앙 정렬 */
+            box-shadow: 0 0 5px rgba(0,255,204,0.5);
         }
 
         input[type="number"] {
@@ -111,20 +162,24 @@
             grid-template-columns: 1fr 1fr;
             gap: 10px;
             margin-top: 10px;
+            flex-shrink: 0;
+            padding-bottom: 20px; /* 모바일 하단 여백 */
         }
 
         button {
             background: #ff4757;
             color: white;
             border: none;
-            padding: 10px;
+            padding: 12px;
             border-radius: 5px;
             cursor: pointer;
             font-weight: bold;
             transition: 0.2s;
             width: 100%;
+            font-size: 0.9rem;
         }
         button:hover { opacity: 0.9; }
+        button:active { transform: scale(0.98); }
         button.save-btn { background: #2ed573; }
         button.reset-btn { background: #535c68; }
 
@@ -142,6 +197,7 @@
 </head>
 <body>
 
+<div id="main-container">
     <div id="game-area">
         <canvas id="gameCanvas"></canvas>
     </div>
@@ -200,7 +256,7 @@
             </label>
         </div>
 
-        <!-- 4. 장애물 설정 (확장됨) -->
+        <!-- 4. 장애물 설정 -->
         <div class="control-group">
             <h3>🚧 장애물 (Obstacles)</h3>
             <label>
@@ -213,22 +269,17 @@
                 <input type="range" id="pipeSpeed" min="1" max="10" step="1" value="3">
                 <span class="value-display" id="val_pipeSpeed">3</span>
             </label>
-            
             <hr style="border: 0; border-top: 1px solid #30475e; margin: 10px 0;">
-            
             <label>
                 등장 간격 (Distance)
                 <input type="range" id="pipeDistance" min="150" max="400" step="10" value="250">
                 <span class="value-display" id="val_pipeDistance">250</span>
             </label>
-            <span class="hint">낮을수록 장애물이 촘촘하게(자주) 나옵니다.</span>
-
             <label>
                 특수 장애물 확률 (Complex)
                 <input type="range" id="specialChance" min="0" max="1.0" step="0.1" value="0.3">
                 <span class="value-display" id="val_specialChance">0.3</span>
             </label>
-            <span class="hint">움직이거나 변형되는 장애물의 등장 빈도입니다.</span>
         </div>
 
         <!-- 버튼 -->
@@ -237,10 +288,51 @@
             <button class="reset-btn" onclick="resetBrain()">🗑️ 초기화</button>
         </div>
     </div>
+</div>
 
 <script>
 // ==========================================
-// 0. 전역 설정 (Config)
+// 0. 화면 대응 (Responsive Logic)
+// ==========================================
+function resizeCanvas() {
+    const container = document.getElementById('game-area');
+    const canvas = document.getElementById('gameCanvas');
+    
+    // 게임의 내부 해상도 (논리적 크기)
+    const GAME_WIDTH = 800;
+    const GAME_HEIGHT = 500;
+    const TARGET_RATIO = GAME_WIDTH / GAME_HEIGHT;
+
+    // 현재 컨테이너 크기
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    const containerRatio = containerWidth / containerHeight;
+
+    let finalWidth, finalHeight;
+
+    // 화면 비율에 맞춰 꽉 차게 스케일링 (contain 방식)
+    if (containerRatio > TARGET_RATIO) {
+        // 컨테이너가 더 납작함 -> 높이에 맞춤
+        finalHeight = containerHeight;
+        finalWidth = finalHeight * TARGET_RATIO;
+    } else {
+        // 컨테이너가 더 홀쭉함 -> 너비에 맞춤
+        finalWidth = containerWidth;
+        finalHeight = finalWidth / TARGET_RATIO;
+    }
+
+    // 약간의 여백(padding) 고려해서 95% 크기로 설정
+    canvas.style.width = (finalWidth * 0.95) + 'px';
+    canvas.style.height = (finalHeight * 0.95) + 'px';
+}
+
+// 초기 로드 및 리사이즈 이벤트 연결
+window.addEventListener('load', resizeCanvas);
+window.addEventListener('resize', resizeCanvas);
+
+
+// ==========================================
+// 1. 전역 설정 (Config)
 // ==========================================
 const CONFIG = {
     mutationRate: 0.1,
@@ -282,7 +374,7 @@ inputs.forEach(item => bindInput(item[0], item[1], item[2]));
 
 
 // ==========================================
-// 1. 신경망 (Neural Network)
+// 2. 신경망 (Neural Network)
 // ==========================================
 class NeuralNetwork {
     constructor(inputNodes, hiddenNodes, outputNodes) {
@@ -356,11 +448,12 @@ class NeuralNetwork {
 }
 
 // ==========================================
-// 2. 게임 엔티티 (업데이트됨)
+// 3. 게임 엔티티
 // ==========================================
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// 내부 해상도는 고정 (물리 엔진 일관성 유지)
 canvas.width = 800;
 canvas.height = 500;
 
@@ -446,7 +539,6 @@ class Pipe {
         // 장애물 유형별 동작
         if (this.type === 'moving') {
             this.top += this.moveSpeed * this.moveDir;
-            // 화면 밖으로 나가지 않게 반전
             if (this.top < 20 || this.top > canvas.height / 2 + 50) {
                 this.moveDir *= -1;
             }
@@ -454,27 +546,20 @@ class Pipe {
         } 
         else if (this.type === 'sine') {
             this.angle += 0.05;
-            // 기준점(baseTop)을 중심으로 위아래 50px 진동
             this.top = this.baseTop + Math.sin(this.angle) * 50;
             this.updateBottom();
         }
-        // Narrow는 움직이지 않지만 간격이 좁음 (생성시 처리됨)
     }
 
     draw(ctx) {
         ctx.fillStyle = this.color;
-        
-        // 윗 파이프
         ctx.fillRect(this.x, 0, this.w, this.top);
-        // 아랫 파이프
         ctx.fillRect(this.x, canvas.height - this.bottom, this.w, this.bottom);
         
-        // 파이프 장식
         ctx.fillStyle = 'rgba(0,0,0,0.2)';
         ctx.fillRect(this.x + 40, 0, 10, this.top);
         ctx.fillRect(this.x + 40, canvas.height - this.bottom, 10, this.bottom);
         
-        // 특수 장애물 표시
         if(this.type !== 'normal') {
             ctx.fillStyle = '#fff';
             ctx.font = '10px Arial';
@@ -523,15 +608,10 @@ class Plane {
 
         if (closest != null) {
             let inputs = [];
-            // 입력 1: 내 높이
             inputs[0] = this.y / canvas.height;
-            // 입력 2: 내 속도
             inputs[1] = this.velocity / 10;
-            // 입력 3: 파이프까지 거리
             inputs[2] = closest.x / canvas.width;
-            // 입력 4: 위 파이프 끝점
             inputs[3] = closest.top / canvas.height;
-            // 입력 5: 아래 파이프 시작점
             inputs[4] = (canvas.height - closest.bottom) / canvas.height;
 
             let output = this.brain.predict(inputs);
@@ -560,7 +640,6 @@ class Plane {
     }
 
     draw(ctx, isHighScorer, fewSurvivors) {
-        // 꼬리
         ctx.beginPath();
         if (this.trail.length > 0) {
             ctx.moveTo(this.trail[0].x, this.trail[0].y);
@@ -572,7 +651,6 @@ class Plane {
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // 본체
         ctx.fillStyle = this.color;
         if (isHighScorer || fewSurvivors) {
             ctx.shadowBlur = 15;
@@ -594,7 +672,7 @@ class Plane {
 }
 
 // ==========================================
-// 3. 게임 관리 (Game Manager)
+// 4. 게임 관리 (Game Manager)
 // ==========================================
 let totalPlanes = 100;
 let planes = [];
@@ -605,7 +683,7 @@ let generation = 1;
 let highScore = 0;
 let pipeCounter = 1;
 
-const STORAGE_KEY = 'MyAI_Flyer_Pro_Brain'; // 키 변경 (설정 구조 바뀜)
+const STORAGE_KEY = 'MyAI_Flyer_Pro_Brain'; 
 
 function init() {
     totalPlanes = parseInt(document.getElementById('popInput').value) || 100;
@@ -628,6 +706,8 @@ function init() {
             planes.push(new Plane());
         }
     }
+    // 초기 캔버스 리사이즈 실행
+    resizeCanvas();
 }
 
 function createExplosion(x, y, color) {
@@ -699,23 +779,18 @@ function resetBrain() {
 function animate() {
     for (let n = 0; n < CONFIG.gameSpeed; n++) {
         
-        // 파이프 생성 로직 (거리 설정 반영)
-        // 마지막 파이프의 X좌표가 '전체 너비 - 등장간격' 보다 작아지면 생성
         if (pipes.length === 0 || pipes[pipes.length - 1].x < canvas.width - CONFIG.pipeDistance) {
             pipes.push(new Pipe(pipeCounter++));
         }
 
-        // 비행기 업데이트
         for (let i = planes.length - 1; i >= 0; i--) {
             let p = planes[i];
             p.think(pipes);
             p.update();
 
             let crashed = false;
-            // 바닥/천장 충돌
             if (p.y > canvas.height || p.y < 0) crashed = true;
 
-            // 파이프 충돌
             for (let pipe of pipes) {
                 if (p.x + 10 > pipe.x && p.x - 10 < pipe.x + pipe.w) {
                     if (p.y - 5 < pipe.top || p.y + 5 > canvas.height - pipe.bottom) {
@@ -730,7 +805,6 @@ function animate() {
             }
         }
 
-        // 파이프 업데이트
         for (let i = pipes.length - 1; i >= 0; i--) {
             pipes[i].update();
             if (pipes[i].x + pipes[i].w < 0) {
@@ -738,7 +812,6 @@ function animate() {
             }
         }
 
-        // 파티클 업데이트
         for (let i = particles.length - 1; i >= 0; i--) {
             particles[i].update();
             if (particles[i].life <= 0) particles.splice(i, 1);
