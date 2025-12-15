@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>운빨 솔로 디펜스 v7.5</title>
+    <title>운빨 솔로 디펜스 v7.7 (대기시간 통일)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -378,7 +378,9 @@
         let timeScale = 1;
         let isAutoMerge = false;
         let autoMergeTimer = 0;
-        let isPaused = false; 
+        let isPaused = false;
+        
+        let shakeAmount = 0; // 화면 흔들림 강도
 
         const SAVE_KEY = 'lucky_defense_solo_v4';
 
@@ -462,6 +464,12 @@
         function update(deltaTime) {
             const scaledDelta = deltaTime * timeScale; 
 
+            // 화면 흔들림 감쇠
+            if (shakeAmount > 0) {
+                shakeAmount -= (scaledDelta / 1000) * 20; // 1초에 20 감소
+                if (shakeAmount < 0) shakeAmount = 0;
+            }
+
             if (waveTimer > 0) {
                 waveTimer -= scaledDelta / 1000;
                 if (waveTimer <= 0) {
@@ -492,7 +500,12 @@
             for(let i=effects.length-1; i>=0; i--) {
                 let fx = effects[i];
                 fx.life -= deltaTime;
-                fx.y -= (0.05 * deltaTime);
+                if(fx.type === 'text') {
+                    fx.y -= (0.05 * deltaTime);
+                } else if(fx.type === 'particle') {
+                    fx.x += fx.vx * (deltaTime/16);
+                    fx.y += fx.vy * (deltaTime/16);
+                }
                 if(fx.life <= 0) effects.splice(i, 1);
             }
 
@@ -509,6 +522,20 @@
                 
                 if (enemy.hp <= 0) { 
                     gold += (2 + Math.floor(wave * 0.2)); 
+                    
+                    // 사망 이펙트
+                    let pColor = '#CFD8DC';
+                    if(enemy.type === 'fast') pColor = '#FFF176';
+                    else if(enemy.type === 'tank') pColor = '#8D6E63';
+                    else if(enemy.type === 'boss') pColor = '#E91E63';
+                    
+                    createExplosion(enemy.x, enemy.y, pColor, enemy.type === 'boss' ? 30 : 8);
+                    
+                    if(enemy.type === 'boss') {
+                        addShake(10); // 보스 사망시 화면 흔들림
+                        spawnFloatingText(enemy.x, enemy.y, "BOSS KILL!", "#FF1744");
+                    }
+
                     enemies.splice(i, 1); 
                     updateUI(); 
                 }
@@ -544,11 +571,53 @@
             for (let i = projectiles.length - 1; i >= 0; i--) {
                 let p = projectiles[i];
                 moveProjectile(p, scaledDelta);
-                if (p.hit) projectiles.splice(i, 1);
+                if (p.hit) {
+                    // 타격 이펙트 (히트 시 작은 스파크)
+                    createExplosion(p.x, p.y, p.color, 3);
+                    projectiles.splice(i, 1);
+                }
             }
             
             updateUI(); 
         }
+
+        // --- 이펙트 관련 함수 ---
+        function addShake(amount) {
+            shakeAmount = amount;
+        }
+
+        function createExplosion(x, y, color, count) {
+            for(let i=0; i<count; i++) {
+                let angle = Math.random() * Math.PI * 2;
+                let speed = Math.random() * 3 + 1;
+                effects.push({
+                    type: 'particle',
+                    x: x, y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    color: color,
+                    life: 400 + Math.random() * 200,
+                    size: Math.random() * 3 + 2
+                });
+            }
+        }
+
+        function createSparkle(x, y, color) {
+            // 위로 올라가는 반짝이 효과
+            for(let i=0; i<10; i++) {
+                effects.push({
+                    type: 'particle',
+                    x: x + (Math.random() - 0.5) * TILE_SIZE,
+                    y: y + (Math.random() - 0.5) * TILE_SIZE,
+                    vx: (Math.random() - 0.5) * 0.5,
+                    vy: -Math.random() * 2 - 1,
+                    color: color,
+                    life: 600 + Math.random() * 300,
+                    size: Math.random() * 2 + 1
+                });
+            }
+        }
+        // -------------------------
 
         function togglePause() {
             isPaused = !isPaused;
@@ -600,12 +669,15 @@
             units = units.filter(u => u !== u1 && u !== u2);
             createUnit(c, r, newType, newTier);
             
+            // 합성 이펙트
+            createSparkle(GRID_OFFSET_X + c*TILE_SIZE + TILE_SIZE/2, GRID_OFFSET_Y + r*TILE_SIZE + TILE_SIZE/2, TIER_COLORS[newTier]);
+            
             if(newTier === 5) showPopup(`🔥불멸 [${newType}] 강림!🔥`);
             else if(!isAutoMerge) showPopup(`합성! [${TIERS[newTier]}] 성공 ✨`); 
         }
 
         function spawnFloatingText(x, y, text, color='#FFD700') {
-            effects.push({ x: x, y: y, text: text, color: color, life: 800 });
+            effects.push({ type: 'text', x: x, y: y, text: text, color: color, life: 800 });
         }
 
         function resetCooldown(unit) {
@@ -621,7 +693,17 @@
         }
 
         function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save(); // 화면 흔들림 적용 전 상태 저장
+
+            // 화면 흔들림 적용
+            if (shakeAmount > 0) {
+                let dx = (Math.random() - 0.5) * shakeAmount;
+                let dy = (Math.random() - 0.5) * shakeAmount;
+                ctx.translate(dx, dy);
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // 흔들림 고려하여 클리어는 transform 영향 안받게 할수도 있지만, 전체 지우고 다시 그리는게 깔끔
+
             ctx.fillStyle = 'rgba(0,0,0,0.15)';
             ctx.fillRect(GRID_OFFSET_X - 5, GRID_OFFSET_Y - 5, GRID_COLS*TILE_SIZE + 10, GRID_ROWS*TILE_SIZE + 10);
             ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
@@ -683,14 +765,23 @@
             });
 
             effects.forEach(fx => {
-                ctx.globalAlpha = Math.max(0, fx.life / 800);
-                ctx.fillStyle = fx.color;
-                ctx.font = `bold ${TILE_SIZE*0.35}px Jua`;
-                ctx.textAlign = 'center';
-                ctx.lineWidth = 3;
-                ctx.strokeText(fx.text, fx.x, fx.y);
-                ctx.fillText(fx.text, fx.x, fx.y);
-                ctx.globalAlpha = 1.0;
+                if(fx.type === 'text') {
+                    ctx.globalAlpha = Math.max(0, fx.life / 800);
+                    ctx.fillStyle = fx.color;
+                    ctx.font = `bold ${TILE_SIZE*0.35}px Jua`;
+                    ctx.textAlign = 'center';
+                    ctx.lineWidth = 3;
+                    ctx.strokeText(fx.text, fx.x, fx.y);
+                    ctx.fillText(fx.text, fx.x, fx.y);
+                    ctx.globalAlpha = 1.0;
+                } else if (fx.type === 'particle') {
+                    ctx.globalAlpha = Math.max(0, fx.life / 600);
+                    ctx.fillStyle = fx.color;
+                    ctx.beginPath();
+                    ctx.arc(fx.x, fx.y, fx.size, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                }
             });
 
             if(draggingUnit) {
@@ -709,6 +800,8 @@
                 ctx.fillText('🗑️', TRASH_ZONE.x, TRASH_ZONE.y);
                 drawUnit(draggingUnit, draggingUnit.dragX, draggingUnit.dragY);
             }
+            
+            ctx.restore(); // 화면 흔들림 해제
         }
 
         function drawUnit(unit, x, y) {
@@ -792,11 +885,15 @@
             else if(rand < rates.c + rates.r) { tier = 1; showPopup("희귀 소환! 💙"); }
             else if(rand < rates.c + rates.r + rates.e) { tier = 2; showPopup("영웅 소환! 💜"); }
             else if(rand < rates.c + rates.r + rates.e + rates.l) { tier = 3; showPopup("전설 소환! 🧡"); }
-            else { tier = 4; showPopup("⚡신화 소환!⚡"); }
+            else { tier = 4; showPopup("⚡신화 소환!⚡"); addShake(5); } // 신화 소환시 흔들림 추가
 
             let slot = emptySlots[Math.floor(Math.random()*emptySlots.length)];
             let type = UNIT_TYPES[Math.floor(Math.random()*UNIT_TYPES.length)];
             createUnit(slot.c, slot.r, type, tier);
+            
+            // 소환 이펙트
+            createSparkle(GRID_OFFSET_X + slot.c*TILE_SIZE + TILE_SIZE/2, GRID_OFFSET_Y + slot.r*TILE_SIZE + TILE_SIZE/2, '#FFFFFF');
+
             updateUI();
         }
 
@@ -919,6 +1016,11 @@
             units = units.filter(u => !ingredients.includes(u));
             let pos = { c: ingredients[0].col, r: ingredients[0].row };
             createUnit(pos.c, pos.r, r.result, 4); 
+            
+            // 조합 이펙트
+            createSparkle(GRID_OFFSET_X + pos.c*TILE_SIZE + TILE_SIZE/2, GRID_OFFSET_Y + pos.r*TILE_SIZE + TILE_SIZE/2, '#E040FB');
+            addShake(10); // 조합시 화면 흔들림
+
             showPopup(`✨${r.name} 소환 성공!✨`);
             closeCombineModal();
         }
@@ -945,6 +1047,11 @@
             waveTimer = WAVE_DURATION; 
             enemiesToSpawn = 12 + Math.floor(wave * 2.5);
             showPopup(`⚔️ Wave ${wave} 전투 시작! ⚔️`);
+            
+            if(wave % 10 === 0) {
+                addShake(15); // 보스 웨이브 시작 시 강한 흔들림
+                spawnFloatingText(canvas.width/2, canvas.height/2, "WARNING: BOSS", "#FF0000");
+            }
             updateUI();
         }
 
@@ -1027,10 +1134,13 @@
             return targets;
         }
         function fireGlobalAttack(unit) {
+            addShake(5); // 전체 공격시 흔들림
             enemies.forEach(e => {
                 let dmg = unit.damage * (1 + (classLv.mag - 1) * 0.1); 
                 e.hp -= dmg;
                 projectiles.push({ x: e.x, y: e.y - 20, target: null, damage: 0, speed: 0, hit: true, color: '#D50000', size: 10, timer: 10 });
+                // 이펙트 추가
+                createExplosion(e.x, e.y, '#D50000', 5);
             });
         }
         function fireProjectile(unit, target) {
@@ -1042,7 +1152,10 @@
             else if(info.type === 'mag') { dmg *= (1 + (classLv.mag - 1) * 0.1); shape = 'star'; }
             
             if(unit.type === '야만인' && Math.random() < (0.1 + unit.tier*0.02)) { effect='stun'; color='#FFF'; }
-            if(unit.type === '궁수' && Math.random() < 0.2) { dmg *= (2.5 + unit.tier * 0.5); color='#F44336'; }
+            if(unit.type === '궁수' && Math.random() < 0.2) { 
+                dmg *= (2.5 + unit.tier * 0.5); color='#F44336'; 
+                spawnFloatingText(target.x, target.y - 20, "CRIT!", "#F44336");
+            }
             if(unit.type === '얼음법사' || unit.type === '대마법사') { effect='slow'; color='#29B6F6'; }
             if(unit.type === '산적' && Math.random() < (0.05 + unit.tier*0.01) * (classLv.sup*0.5)) { 
                 gold += 10; updateUI(); 
@@ -1182,10 +1295,11 @@
                 tIcon.innerText = "⏳";
                 
                 skipBtn.classList.add('prep-mode');
-                skipTxt.innerText = "⚔️ 전투 시작";
+                skipTxt.innerText = "⏩ 스킵"; // 여기를 '스킵'으로 통일
                 
                 if (wave === 1) {
-                    skipRewardBox.style.display = "none"; // 1웨이브는 보상 없음
+                    skipRewardBox.style.display = "inline"; // 1웨이브도 보상 박스는 보여주되
+                    skipReward.innerText = "0"; // 0원으로 표시
                 } else {
                     skipRewardBox.style.display = "inline";
                     skipReward.innerText = Math.floor(waveTimer) * 5;
