@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>운빨 솔로 디펜스 v4.6</title>
+    <title>운빨 솔로 디펜스 v4.8 (조합 버그 수정)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -40,10 +40,7 @@
         .info-label { font-size: 12px; color: #bbb; }
         .info-value { font-size: 1.3rem; color: #FFD700; text-shadow: 1px 1px 2px #000; }
         
-        /* 계열 강화 바 */
-        .class-upgrade-bar {
-            display: flex; gap: 5px; justify-content: space-between; margin-top: 5px;
-        }
+        .class-upgrade-bar { display: flex; gap: 5px; justify-content: space-between; margin-top: 5px; }
         .class-btn {
             flex: 1; border: 1px solid #555; border-radius: 8px;
             background: rgba(255,255,255,0.1); color: #ddd;
@@ -88,7 +85,7 @@
 
         .btn-upgrade { width: 22%; height: 100%; max-height: 80px; background: linear-gradient(135deg, #673AB7, #512DA8); display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 0.9rem; border: 1px solid #9575CD; }
         .btn-summon { flex: 1; height: 100%; max-height: 95px; background: linear-gradient(135deg, #FFC107, #FF8F00); font-size: 1.6rem; color: #3E2723; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid #FFE082; }
-        .btn-combine { width: 22%; height: 100%; max-height: 80px; background: linear-gradient(135deg, #009688, #00695C); display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 0.95rem; border: 1px solid #4DB6AC; }
+        .btn-combine { width: 22%; height: 100%; max-height: 80px; background: linear-gradient(135deg, #009688, #00695C); display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 0.9rem; border: 1px solid #4DB6AC; }
         .btn-gamble { width: 18%; height: 100%; max-height: 70px; background: linear-gradient(135deg, #2196F3, #1565C0); display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 0.8rem; border: 1px solid #64B5F6; margin-bottom: 5px;}
 
         .btn-wave {
@@ -124,27 +121,26 @@
         .btn-do-combine:disabled { background: #444; color: #888; cursor: not-allowed; }
         .btn-close { margin-top: 10px; padding: 10px; background: #D32F2F; color: white; border: none; border-radius: 8px; font-family: 'Jua'; cursor: pointer; }
 
-        /* 메시지 & 툴팁 */
         #message-area { position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; text-align: center; width: 100%; z-index: 50; }
         .pop-text { font-size: 2rem; font-weight: bold; color: #fff; text-shadow: 3px 3px 0 #000, 0 0 15px gold; opacity: 0; transition: opacity 0.3s, transform 0.3s; }
         .pop-text.show { opacity: 1; transform: translateY(-40px); }
         
         .tooltip {
             position: absolute; bottom: 180px; left: 50%; transform: translateX(-50%);
-            background: rgba(20,20,20,0.95); padding: 12px; border-radius: 8px;
-            font-size: 0.9rem; display: none; width: 85%; text-align: center; z-index: 200;
+            background: rgba(20,20,20,0.95); padding: 15px; border-radius: 8px;
+            font-size: 0.95rem; display: none; width: 90%; text-align: center; z-index: 200;
             border: 2px solid #FFD700; pointer-events: none; white-space: pre-line;
             box-shadow: 0 5px 20px rgba(0,0,0,0.8);
         }
 
         .luck-tooltip {
             position: absolute; bottom: 100px; left: 10px;
-            background: rgba(0,0,0,0.9); padding: 10px; border-radius: 8px;
-            border: 1px solid #7E57C2; color: white; font-size: 0.8rem;
+            background: rgba(0,0,0,0.95); padding: 12px; border-radius: 8px;
+            border: 1px solid #7E57C2; color: white; font-size: 0.85rem;
             z-index: 200; display: none; pointer-events: none; text-align: left;
+            line-height: 1.6;
         }
 
-        /* 등급 텍스트 색상 */
         .c-rare { color: #42A5F5; } .c-hero { color: #BA68C8; } .c-legend { color: #FF9800; } .c-myth { color: #FF5252; } .c-immortal { color: #E040FB; }
     </style>
 </head>
@@ -166,7 +162,6 @@
                 </div>
             </div>
             
-            <!-- 계열 강화 UI -->
             <div class="class-upgrade-bar">
                 <button class="class-btn cb-phy" onclick="upgradeClass('phy')">
                     ⚔️ 물리 Lv.<span id="lv-phy">1</span>
@@ -206,7 +201,7 @@
                 
                 <button class="game-btn btn-summon" onclick="summonUnit()">
                     🎲 소환
-                    <span style="font-size:0.65em; margin-top:5px; opacity:0.8;">10 G</span>
+                    <span style="font-size:0.65em; margin-top:5px; opacity:0.8;" id="summon-cost-display">10 G</span>
                 </button>
                 
                 <button class="game-btn btn-combine" onclick="openCombineModal()">
@@ -215,16 +210,14 @@
                 </button>
 
                 <button class="game-btn btn-gamble" onclick="gamble()">
-                    🎰도박<br>50G
+                    🎰도박<br><span id="gamble-cost-display">50G</span>
                 </button>
             </div>
         </div>
 
-        <!-- 조합소 모달 -->
         <div id="combine-modal">
             <div class="modal-header">🏰 히든 영웅 조합소</div>
             <div class="recipe-list" id="recipe-list">
-                <!-- JS 생성 -->
             </div>
             <button class="btn-close" onclick="closeCombineModal()">닫기</button>
         </div>
@@ -235,39 +228,35 @@
         const ctx = canvas.getContext('2d');
         const canvasContainer = document.getElementById('canvas-container');
 
-        // --- 그리드 ---
         const GRID_COLS = 6; const GRID_ROWS = 5;
         let TILE_SIZE = 0, GRID_OFFSET_X = 0, GRID_OFFSET_Y = 0;
         let PATH_POINTS = [];
         let TRASH_ZONE = { x: 0, y: 0, r: 0 };
 
-        // --- 유닛 데이터 ---
-        // type: phy(물리), mag(마법), sup(보조)
         const UNIT_DATA = {
-            '야만인': { color: '#BCAAA4', icon: '🪓', desc: '10% 확률로 1.5초 기절', type: 'phy' },
-            '궁수': { color: '#81D4FA', icon: '🏹', desc: '치명타 2.5배 (20%)', type: 'phy' },
-            '얼음법사': { color: '#90CAF9', icon: '🧊', desc: '공격 시 슬로우 40%', type: 'mag' },
-            '산적': { color: '#A1887F', icon: '💰', desc: '공격 시 5% 확률로 10골드', type: 'sup' },
-            '전기로봇': { color: '#FFF59D', icon: '⚡', desc: '3인 동시 공격', type: 'mag' },
-            '닌자': { color: '#424242', icon: '🥷', desc: '체력 30%이하 3배 피해', type: 'phy' }
+            '야만인': { color: '#BCAAA4', icon: '🪓', desc: '10% 확률로 기절 (등급↑)', type: 'phy' },
+            '궁수': { color: '#81D4FA', icon: '🏹', desc: '치명타 2.5배 (등급↑)', type: 'phy' },
+            '얼음법사': { color: '#90CAF9', icon: '🧊', desc: '공격 시 슬로우 40% (등급↑)', type: 'mag' },
+            '산적': { color: '#A1887F', icon: '💰', desc: '5% 확률로 10골드 (등급↑)', type: 'sup' },
+            '전기로봇': { color: '#FFF59D', icon: '⚡', desc: '3인 동시 공격 (등급↑)', type: 'mag' },
+            '닌자': { color: '#424242', icon: '🥷', desc: '체력 30%이하 3배 피해 (등급↑)', type: 'phy' }
         };
         const UNIT_TYPES = Object.keys(UNIT_DATA);
         
-        // --- 히든 영웅 데이터 (16종) ---
         const HIDDEN_DATA = {
             '개구리왕자': { color: '#69F0AE', icon: '🐸', desc: '초고속 공속 (5배)', type: 'phy' },
             '마신': { color: '#D50000', icon: '👿', desc: '전체 화면 광역 피해', type: 'mag' },
-            '드래곤': { color: '#FFAB00', icon: '🐲', desc: '강력한 한방 & 스턴', type: 'phy' },
+            '드래곤': { color: '#FFAB00', icon: '🐲', desc: '강력한 한방 & 스턴 (등급↑)', type: 'phy' },
             '성기사': { color: '#FFD54F', icon: '🛡️', desc: '범위 스턴 & 높은 깡딜', type: 'phy' },
             '저격수': { color: '#81C784', icon: '🔫', desc: '사거리 무한 & 단일 극딜', type: 'phy' },
             '대마법사': { color: '#7E57C2', icon: '🧙‍♂️', desc: '광역 슬로우 & 지속딜', type: 'mag' },
-            '연금술사': { color: '#F4511E', icon: '⚗️', desc: '10% 확률로 골드 복사', type: 'sup' },
-            '강령술사': { color: '#4A148C', icon: '💀', desc: '적에게 부식(도트뎀) 부여', type: 'mag' },
+            '연금술사': { color: '#F4511E', icon: '⚗️', desc: '골드 복사 확률 증가 (등급↑)', type: 'sup' },
+            '강령술사': { color: '#4A148C', icon: '💀', desc: '부식 데미지 부여', type: 'mag' },
             '무사': { color: '#E0E0E0', icon: '⚔️', desc: '50% 확률로 치명타', type: 'phy' },
             '제우스': { color: '#FFFF00', icon: '🌩️', desc: '5명 연쇄 번개 공격', type: 'mag' },
             '골렘': { color: '#795548', icon: '🗿', desc: '광역 스플래시 공격', type: 'phy' },
             '뱀파이어': { color: '#B71C1C', icon: '🧛', desc: '공속 빠름 & 적 처치시 공속버프', type: 'mag' },
-            '공학자': { color: '#607D8B', icon: '🔧', desc: '주변 아군 공속 +20% (오라)', type: 'sup' },
+            '공학자': { color: '#607D8B', icon: '🔧', desc: '주변 아군 공속 +20%', type: 'sup' },
             '도박사': { color: '#3F51B5', icon: '🃏', desc: '랜덤 데미지 (1~10배)', type: 'sup' },
             '메두사': { color: '#004D40', icon: '🐍', desc: '3초간 적 석화(정지)', type: 'mag' },
             '피닉스': { color: '#FF5722', icon: '🦅', desc: '라인 전체 화상 공격', type: 'mag' }
@@ -276,98 +265,66 @@
         const TIERS = ['일반', '희귀', '영웅', '전설', '신화', '불멸'];
         const TIER_COLORS = ['#B0BEC5', '#29B6F6', '#AB47BC', '#FF7043', '#FF1744', '#D500F9'];
 
-        // --- 레시피 (조합식) ---
-        // 모든 재료는 전설(3티어) 기준
+        // --- 레시피 (조합식) 버그 수정: t -> tier ---
         const RECIPES = [
-            { id: 'frog', name: '개구리왕자', cost: 3, result: '개구리왕자', req: [{type:'야만인',t:3}, {type:'궁수',t:3}] },
-            { id: 'demon', name: '마신', cost: 5, result: '마신', req: [{type:'닌자',t:3}, {type:'전기로봇',t:3}] },
-            { id: 'dragon', name: '드래곤', cost: 5, result: '드래곤', req: [{type:'얼음법사',t:3}, {type:'야만인',t:3}] },
-            { id: 'pala', name: '성기사', cost: 3, result: '성기사', req: [{type:'야만인',t:3}, {type:'산적',t:3}] },
-            { id: 'sniper', name: '저격수', cost: 3, result: '저격수', req: [{type:'궁수',t:3}, {type:'닌자',t:3}] },
-            { id: 'arch', name: '대마법사', cost: 3, result: '대마법사', req: [{type:'얼음법사',t:3}, {type:'전기로봇',t:3}] },
-            { id: 'alch', name: '연금술사', cost: 3, result: '연금술사', req: [{type:'산적',t:3}, {type:'얼음법사',t:3}] },
-            { id: 'necro', name: '강령술사', cost: 3, result: '강령술사', req: [{type:'전기로봇',t:3}, {type:'닌자',t:3}] },
-            { id: 'samu', name: '무사', cost: 3, result: '무사', req: [{type:'닌자',t:3}, {type:'야만인',t:3}] },
-            { id: 'zeus', name: '제우스', cost: 4, result: '제우스', req: [{type:'전기로봇',t:3}, {type:'산적',t:3}] },
-            { id: 'golem', name: '골렘', cost: 3, result: '골렘', req: [{type:'야만인',t:3}, {type:'얼음법사',t:3}] },
-            { id: 'vamp', name: '뱀파이어', cost: 3, result: '뱀파이어', req: [{type:'닌자',t:3}, {type:'궁수',t:3}] },
-            { id: 'engi', name: '공학자', cost: 4, result: '공학자', req: [{type:'산적',t:3}, {type:'전기로봇',t:3}] },
-            { id: 'gamb', name: '도박사', cost: 3, result: '도박사', req: [{type:'산적',t:3}, {type:'궁수',t:3}] },
-            { id: 'medu', name: '메두사', cost: 4, result: '메두사', req: [{type:'얼음법사',t:3}, {type:'궁수',t:3}] },
-            { id: 'phoe', name: '피닉스', cost: 5, result: '피닉스', req: [{type:'전기로봇',t:3}, {type:'야만인',t:3}] }
+            { id: 'frog', name: '개구리왕자', cost: 3, result: '개구리왕자', req: [{type:'야만인',tier:3}, {type:'궁수',tier:3}] },
+            { id: 'demon', name: '마신', cost: 5, result: '마신', req: [{type:'닌자',tier:3}, {type:'전기로봇',tier:3}] },
+            { id: 'dragon', name: '드래곤', cost: 5, result: '드래곤', req: [{type:'얼음법사',tier:3}, {type:'야만인',tier:3}] },
+            { id: 'pala', name: '성기사', cost: 3, result: '성기사', req: [{type:'야만인',tier:3}, {type:'산적',tier:3}] },
+            { id: 'sniper', name: '저격수', cost: 3, result: '저격수', req: [{type:'궁수',tier:3}, {type:'닌자',tier:3}] },
+            { id: 'arch', name: '대마법사', cost: 3, result: '대마법사', req: [{type:'얼음법사',tier:3}, {type:'전기로봇',tier:3}] },
+            { id: 'alch', name: '연금술사', cost: 3, result: '연금술사', req: [{type:'산적',tier:3}, {type:'얼음법사',tier:3}] },
+            { id: 'necro', name: '강령술사', cost: 3, result: '강령술사', req: [{type:'전기로봇',tier:3}, {type:'닌자',tier:3}] },
+            { id: 'samu', name: '무사', cost: 3, result: '무사', req: [{type:'닌자',tier:3}, {type:'야만인',tier:3}] },
+            { id: 'zeus', name: '제우스', cost: 4, result: '제우스', req: [{type:'전기로봇',tier:3}, {type:'산적',tier:3}] },
+            { id: 'golem', name: '골렘', cost: 3, result: '골렘', req: [{type:'야만인',tier:3}, {type:'얼음법사',tier:3}] },
+            { id: 'vamp', name: '뱀파이어', cost: 3, result: '뱀파이어', req: [{type:'닌자',tier:3}, {type:'궁수',tier:3}] },
+            { id: 'engi', name: '공학자', cost: 4, result: '공학자', req: [{type:'산적',tier:3}, {type:'전기로봇',tier:3}] },
+            { id: 'gamb', name: '도박사', cost: 3, result: '도박사', req: [{type:'산적',tier:3}, {type:'궁수',tier:3}] },
+            { id: 'medu', name: '메두사', cost: 4, result: '메두사', req: [{type:'얼음법사',tier:3}, {type:'궁수',tier:3}] },
+            { id: 'phoe', name: '피닉스', cost: 5, result: '피닉스', req: [{type:'전기로봇',tier:3}, {type:'야만인',tier:3}] }
         ];
-        // 초기화: unlocked 상태 추가
         RECIPES.forEach(r => r.unlocked = false);
 
-        // --- 확률 테이블 생성 (Lv.1부터 전 등급 확률 부여) ---
         const SUMMON_RATES = [];
         for(let i=1; i<=20; i++) {
             let rate = {}; let cost = 0;
-            
-            // 기본 베이스 확률 (점진적 증가)
-            let baseR = 1 + (i*1.5); // 희귀
-            let baseE = 0.1 + (i*0.5); // 영웅
-            let baseL = 0.05 + (i*0.25); // 전설
-            let baseM = 0.01 + (i*0.1); // 신화 (최대 2% 가량)
+            let baseR = 1 + (i*1.5); 
+            let baseE = 0.1 + (i*0.5); 
+            let baseL = 0.05 + (i*0.25); 
+            let baseM = 0.01 + (i*0.1); 
 
-            // 레벨별 부스트 (기존 로직 유지하되 0 방지)
-            if(i <= 5) {
-                // 초반
-                baseR = (i-1)*10 + 1; // 1~41%
-            } else if(i <= 10) {
-                // 중반
-                baseR = 40 + (i-5)*2; 
-                baseE = (i-5)*3 + 1; 
-            } else if(i <= 15) {
-                // 후반
-                baseR = 50;
-                baseE = 20 + (i-10)*2;
-                baseL = (i-10)*2 + 1;
-            } else {
-                // 극후반
-                baseE = 30 + (i-15);
-                baseL = 10 + (i-15)*3;
-                baseM = (i-15)*0.5 + 0.1;
-            }
+            if(i <= 5) { baseR = (i-1)*10 + 1; }
+            else if(i <= 10) { baseR = 40 + (i-5)*2; baseE = (i-5)*3 + 1; }
+            else if(i <= 15) { baseR = 50; baseE = 20 + (i-10)*2; baseL = (i-10)*2 + 1; }
+            else { baseE = 30 + (i-15); baseL = 10 + (i-15)*3; baseM = (i-15)*0.5 + 0.1; }
 
-            // 합계 계산 및 일반(Common) 확률 역산
-            rate = { 
-                r: Math.min(baseR, 90), 
-                e: Math.min(baseE, 50), 
-                l: Math.min(baseL, 20), 
-                m: Math.min(baseM, 5) 
-            };
-            
+            rate = { r: Math.min(baseR, 90), e: Math.min(baseE, 50), l: Math.min(baseL, 20), m: Math.min(baseM, 5) };
             let totalSpecial = rate.r + rate.e + rate.l + rate.m;
-            if(totalSpecial > 99) { // 오버플로우 방지
+            if(totalSpecial > 99) {
                 let factor = 99 / totalSpecial;
                 rate.r *= factor; rate.e *= factor; rate.l *= factor; rate.m *= factor;
                 totalSpecial = 99;
             }
             rate.c = 100 - totalSpecial;
 
-            // 비용
             if(i <= 5) cost = 50 * i;
             else if(i <= 10) cost = 150 * (i-3);
             else if(i <= 15) cost = 1000 + (i-10)*500;
             else cost = 3000 + (i-15)*1500;
-            
             if(i===20) cost = 'MAX';
             
-            // 소수점 정리
             rate.c = parseFloat(rate.c.toFixed(2));
             rate.r = parseFloat(rate.r.toFixed(2));
             rate.e = parseFloat(rate.e.toFixed(2));
             rate.l = parseFloat(rate.l.toFixed(2));
             rate.m = parseFloat(rate.m.toFixed(2));
-
             SUMMON_RATES.push({ ...rate, cost: cost });
         }
 
-        const SUMMON_COST = 10;
-        const GAMBLE_COST = 50;
+        const BASE_SUMMON_COST = 10;
+        const BASE_GAMBLE_COST = 50;
 
-        // --- 게임 상태 ---
         let gold = 200;
         let stones = 0; 
         let wave = 1;
@@ -375,8 +332,6 @@
         let enemies = [];
         let projectiles = [];
         let summonLevel = 1;
-        
-        // 계열 레벨
         let classLv = { phy: 1, mag: 1, sup: 1 };
         
         let lastTime = 0;
@@ -387,7 +342,9 @@
         let draggingUnit = null;
         let frameCount = 0;
 
-        // --- 리사이징 ---
+        function getSummonCost() { return BASE_SUMMON_COST + Math.floor((wave - 1) * 0.5); }
+        function getGambleCost() { return BASE_GAMBLE_COST + (wave - 1); }
+
         function resizeGame() {
             canvas.width = canvasContainer.clientWidth;
             canvas.height = canvasContainer.clientHeight;
@@ -445,9 +402,9 @@
                 let enemy = enemies[i];
                 if (enemy.stunTimer > 0) enemy.stunTimer -= deltaTime;
                 if (enemy.slowTimer > 0) enemy.slowTimer -= deltaTime;
-                if (enemy.dotTimer > 0) { // 부식(강령술사) 데미지
+                if (enemy.dotTimer > 0) {
                     enemy.dotTimer -= deltaTime;
-                    enemy.hp -= (enemy.maxHp * 0.001); // 초당 일정 체력 비례뎀
+                    enemy.hp -= (enemy.maxHp * 0.001);
                 }
                 
                 moveEnemy(enemy, deltaTime);
@@ -457,12 +414,10 @@
 
             if (enemies.length >= maxEnemies) { alert(`게임 오버! ${wave} 웨이브 기록.`); resetGame(); return; }
 
-            // 유닛 쿨타임 및 공격
             units.forEach(unit => {
                 if (unit === draggingUnit) return;
                 unit.cooldown -= deltaTime;
                 if (unit.cooldown <= 0) {
-                    // 특수 로직
                     if(unit.type === '전기로봇' || unit.type === '제우스') {
                         let cnt = unit.type==='제우스' ? 5 : 3;
                         const targets = findTargets(unit, cnt);
@@ -471,7 +426,6 @@
                         fireGlobalAttack(unit);
                         resetCooldown(unit);
                     } else if(unit.type === '공학자') {
-                         // 오라형이라 공격 안함 (구현 생략하거나 약한 평타)
                          const target = findTarget(unit);
                          if(target) { fireProjectile(unit, target); resetCooldown(unit); }
                     } else {
@@ -490,13 +444,8 @@
 
         function resetCooldown(unit) {
             let baseSpeed = 1000 / (1 + unit.tier * 0.25);
-            let info = UNIT_DATA[unit.type] || HIDDEN_DATA[unit.type];
-            
-            // 보조 계열 업그레이드 효과 (공속 증가)
-            // 1렙: 100%, 2렙: 105%, ...
             let classSpdMult = 1 + (classLv.sup - 1) * 0.05;
 
-            // 히든 유닛 특수 공속
             if(unit.type === '개구리왕자') baseSpeed = 200;
             if(unit.type === '뱀파이어') baseSpeed = 400;
             if(unit.type === '마신') baseSpeed = 1500;
@@ -507,8 +456,6 @@
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // 그리드
             ctx.fillStyle = 'rgba(0,0,0,0.15)';
             ctx.fillRect(GRID_OFFSET_X - 5, GRID_OFFSET_Y - 5, GRID_COLS*TILE_SIZE + 10, GRID_ROWS*TILE_SIZE + 10);
             ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
@@ -518,13 +465,11 @@
                 }
             }
 
-            // 경로
             ctx.beginPath(); ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = TILE_SIZE * 0.45; ctx.lineJoin = 'round';
             ctx.moveTo(PATH_POINTS[0].x, PATH_POINTS[0].y);
             for(let i=1; i<PATH_POINTS.length; i++) ctx.lineTo(PATH_POINTS[i].x, PATH_POINTS[i].y);
             ctx.stroke();
 
-            // 적
             enemies.forEach(e => {
                 if(e.stunTimer > 0) ctx.fillStyle = '#FFEB3B';
                 else if(e.slowTimer > 0) ctx.fillStyle = '#42A5F5';
@@ -539,18 +484,14 @@
                 ctx.fillStyle = pct > 0.5 ? '#76FF03' : '#FF1744'; ctx.fillRect(e.x - r, e.y - r - 8, r*2*pct, 5);
             });
 
-            // 유닛
             units.forEach(u => { if(u !== draggingUnit) drawUnit(u, u.x, u.y); });
 
-            // 투사체
             projectiles.forEach(p => {
                 ctx.fillStyle = p.color;
                 ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
             });
 
-            // 드래그
             if(draggingUnit) {
-                // 사거리 (저격수 예외)
                 if(draggingUnit.type !== '저격수') {
                     ctx.beginPath(); ctx.fillStyle = 'rgba(255,255,255,0.1)';
                     let rangePx = draggingUnit.range * (TILE_SIZE/55);
@@ -598,7 +539,6 @@
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText(data.icon, cx, cy);
             
-            // 계열 표시 (작게)
             ctx.font = `${size*0.25}px sans-serif`;
             ctx.fillStyle = '#fff';
             let typeIcon = data.type === 'phy' ? '⚔️' : (data.type==='mag' ? '🔮' : '⚗️');
@@ -617,39 +557,35 @@
             ctx.lineTo(cx, cy-outerRadius); ctx.closePath();
         }
 
-        // --- 로직: 강화 ---
         function upgradeSummon() {
             if(summonLevel >= 20) { showPopup("최고 레벨입니다!"); return; }
             let cost = SUMMON_RATES[summonLevel-1].cost;
             if(gold < cost) { showPopup("골드가 부족합니다!"); return; }
             gold -= cost; summonLevel++; showPopup(`행운 강화 Lv.${summonLevel} 성공!`); updateUI();
-            
-            // 툴팁 갱신
             if(document.getElementById('luck-tooltip').style.display === 'block') showLuckInfo();
         }
 
         function upgradeClass(type) {
-            // 비용: 100 * 레벨
             let cost = classLv[type] * 100;
             if(gold < cost) { showPopup("골드가 부족합니다!"); return; }
-            gold -= cost;
-            classLv[type]++;
+            gold -= cost; classLv[type]++;
             let name = type==='phy'?'물리':(type==='mag'?'마법':'보조');
             showPopup(`${name} 계열 Lv.${classLv[type]} 강화!`);
             updateUI();
         }
 
         function summonUnit() {
-            if(gold < SUMMON_COST) { showPopup("골드가 부족합니다!"); return; }
+            let cost = getSummonCost();
+            if(gold < cost) { showPopup("골드가 부족합니다!"); return; }
             let emptySlots = getEmptySlots();
             if(emptySlots.length === 0) { showPopup("자리가 꽉 찼습니다!"); return; }
-            gold -= SUMMON_COST;
+            
+            gold -= cost;
             
             let rates = SUMMON_RATES[summonLevel-1];
             let rand = Math.random() * 100;
             let tier = 0;
             
-            // 누적 확률 체크
             if(rand < rates.c) tier = 0;
             else if(rand < rates.c + rates.r) { tier = 1; showPopup("희귀 소환! 💙"); }
             else if(rand < rates.c + rates.r + rates.e) { tier = 2; showPopup("영웅 소환! 💜"); }
@@ -668,9 +604,6 @@
             
             let mult = Math.pow(2.2, tier);
             if(tier >= 4) mult *= 2; 
-            
-            let info = UNIT_DATA[type] || HIDDEN_DATA[type];
-            // 히든 유닛 스탯 보정
             if(HIDDEN_DATA[type]) mult *= 3;
 
             let rng = 160 + (tier * 15);
@@ -685,23 +618,40 @@
         }
 
         function gamble() {
-            if(gold < GAMBLE_COST) { showPopup("비용 부족!"); return; }
-            gold -= GAMBLE_COST;
+            let cost = getGambleCost();
+            if(gold < cost) { showPopup("비용 부족!"); return; }
+            gold -= cost;
             let rand = Math.random();
             if(rand < 0.45) showPopup("꽝... 💸");
             else if(rand < 0.70) { 
-                let gain = 150 + (summonLevel * 5); 
+                let gain = 150 + (summonLevel * 5) + (wave * 2); 
                 gold += gain; showPopup(`+${gain}G 대박! 🎉`); 
             }
             else if(rand < 0.95) { 
-                summonUnit(); gold += SUMMON_COST; showPopup("유닛 획득! 🎲"); 
+                let emptySlots = getEmptySlots();
+                if(emptySlots.length > 0) {
+                    let rates = SUMMON_RATES[summonLevel-1];
+                    let r2 = Math.random() * 100;
+                    let t = 0;
+                    if(r2 < rates.c) t = 0;
+                    else if(r2 < rates.c+rates.r) t=1;
+                    else if(r2 < rates.c+rates.r+rates.e) t=2;
+                    else t=3; 
+                    
+                    let s = emptySlots[Math.floor(Math.random()*emptySlots.length)];
+                    let ty = UNIT_TYPES[Math.floor(Math.random()*UNIT_TYPES.length)];
+                    createUnit(s.c, s.r, ty, t);
+                    showPopup("유닛 획득! 🎲");
+                } else {
+                    gold += cost; 
+                    showPopup("자리 없음");
+                }
             } else {
                 stones += 1; showPopup("💎 신화석 획득! 💎");
             }
             updateUI();
         }
 
-        // --- 조합 ---
         function openCombineModal() {
             const list = document.getElementById('recipe-list');
             list.innerHTML = '';
@@ -717,6 +667,7 @@
                     `<button class="btn-do-combine" onclick="combineHero('${r.id}')" ${canCombine?'':'disabled'}>${canCombine?'조합 가능!':'재료 부족'}</button>`;
 
                 let reqHtml = r.req.map(req => {
+                    // 버그 수정: req.tier 사용
                     let has = units.some(u => u.type === req.type && u.tier === req.tier);
                     return `<span style="color:${has?'#69F0AE':'#FF5252'}">[전설]${req.type}</span>`;
                 }).join('+');
@@ -763,12 +714,11 @@
             }
             units = units.filter(u => !ingredients.includes(u));
             let pos = { c: ingredients[0].col, r: ingredients[0].row };
-            createUnit(pos.c, pos.r, r.result, 4); // 조합은 신화(Tier 4) 등급 취급 (스탯은 별도)
+            createUnit(pos.c, pos.r, r.result, 4); 
             showPopup(`✨${r.name} 소환 성공!✨`);
             closeCombineModal();
         }
 
-        // --- 전투 ---
         function startNextWave() {
             if(isWaveActive) return;
             wave++;
@@ -817,7 +767,7 @@
         }
         function fireGlobalAttack(unit) {
             enemies.forEach(e => {
-                let dmg = unit.damage * (1 + (classLv.mag - 1) * 0.1); // 마법 계열 적용
+                let dmg = unit.damage * (1 + (classLv.mag - 1) * 0.1); 
                 e.hp -= dmg;
                 projectiles.push({ x: e.x, y: e.y - 20, target: null, damage: 0, speed: 0, hit: true, color: '#D50000', size: 10, timer: 10 });
             });
@@ -827,20 +777,17 @@
             let info = UNIT_DATA[unit.type] || HIDDEN_DATA[unit.type];
             let dmg = unit.damage;
 
-            // 계열 강화 적용 (레벨당 10% 증뎀)
             if(info.type === 'phy') dmg *= (1 + (classLv.phy - 1) * 0.1);
             else if(info.type === 'mag') dmg *= (1 + (classLv.mag - 1) * 0.1);
             
-            // 특성
-            if(unit.type === '야만인' && Math.random()<0.1) { effect='stun'; color='#FFF'; }
-            if(unit.type === '궁수' && Math.random()<0.2) { dmg*=2.5; color='#F44336'; }
+            // --- 등급별 능력치 스케일링 적용 ---
+            if(unit.type === '야만인' && Math.random() < (0.1 + unit.tier*0.02)) { effect='stun'; color='#FFF'; }
+            if(unit.type === '궁수' && Math.random() < 0.2) { dmg *= (2.5 + unit.tier * 0.5); color='#F44336'; }
             if(unit.type === '얼음법사' || unit.type === '대마법사') { effect='slow'; color='#29B6F6'; }
-            if(unit.type === '산적' && Math.random() < 0.05 * (classLv.sup*0.5)) { // 보조렙 높으면 확률증가
-                gold += 10; updateUI(); 
-            }
-            if(unit.type === '연금술사' && Math.random() < 0.1) { gold += 50; updateUI(); }
-            if(unit.type === '닌자' && target.hp/target.maxHp<=0.3) { dmg*=3; color='#D32F2F'; }
-            if(unit.type === '드래곤' && Math.random()<0.3) { effect='stun'; color='#FFAB00'; pSize=8; }
+            if(unit.type === '산적' && Math.random() < (0.05 + unit.tier*0.01) * (classLv.sup*0.5)) { gold += 10; updateUI(); }
+            if(unit.type === '닌자' && target.hp/target.maxHp <= (0.3 + unit.tier*0.05)) { dmg *= 3; color='#D32F2F'; }
+            if(unit.type === '연금술사' && Math.random() < (0.1 + unit.tier*0.02)) { gold += 50; updateUI(); }
+            if(unit.type === '드래곤' && Math.random() < (0.3 + unit.tier*0.05)) { effect='stun'; color='#FFAB00'; pSize=8; }
             if(unit.type === '강령술사') { effect='dot'; color='#7B1FA2'; }
             if(unit.type === '무사' && Math.random()<0.5) { dmg*=2; color='#E0E0E0'; }
             if(unit.type === '메두사') { effect='stun'; color='#004D40'; }
@@ -865,7 +812,6 @@
             } else { p.x += (dx/dist)*move; p.y += (dy/dist)*move; }
         }
 
-        // --- 입력 ---
         function getGridPos(cx, cy) {
             let rect = canvas.getBoundingClientRect();
             let x = cx - rect.left; let y = cy - rect.top;
@@ -883,7 +829,15 @@
                     let rect = canvas.getBoundingClientRect();
                     u.dragX = e.clientX - rect.left; u.dragY = e.clientY - rect.top;
                     let info = UNIT_DATA[u.type] || HIDDEN_DATA[u.type];
-                    showTooltip(`<span style="color:${info.color}; font-size:1.1em; font-weight:bold;">${u.type}</span> <span style="color:${TIER_COLORS[u.tier]}">[${TIERS[u.tier]}]</span><br>${info.desc}<br>타입: ${info.type.toUpperCase()}`);
+                    
+                    let statText = "";
+                    if(u.type==='야만인') statText = `기절: ${Math.round((0.1+u.tier*0.02)*100)}%`;
+                    else if(u.type==='궁수') statText = `치명타: ${2.5 + u.tier*0.5}배`;
+                    else if(u.type==='닌자') statText = `처형: ${Math.round((0.3+u.tier*0.05)*100)}%이하`;
+                    else if(u.type==='산적') statText = `강탈: ${Math.round((0.05+u.tier*0.01)*100)}%`;
+                    else if(u.type==='드래곤') statText = `스턴: ${Math.round((0.3+u.tier*0.05)*100)}%`;
+                    
+                    showTooltip(`<span style="color:${info.color}; font-size:1.1em; font-weight:bold;">${u.type}</span> <span style="color:${TIER_COLORS[u.tier]}">[${TIERS[u.tier]}]</span><br>${info.desc}<br><span style="color:#FFEB3B">${statText}</span>`);
                 }
             }
         }
@@ -892,7 +846,7 @@
             hideTooltip();
             if(!draggingUnit) return;
             let dist = Math.hypot(draggingUnit.dragX - TRASH_ZONE.x, draggingUnit.dragY - TRASH_ZONE.y);
-            if(dist < TRASH_ZONE.r * 1.5) { units = units.filter(u => u !== draggingUnit); gold += Math.floor(SUMMON_COST/2); showPopup("판매 완료 (+5G)"); updateUI(); draggingUnit = null; return; }
+            if(dist < TRASH_ZONE.r * 1.5) { units = units.filter(u => u !== draggingUnit); gold += Math.floor(getSummonCost()/2); showPopup("판매 완료"); updateUI(); draggingUnit = null; return; }
             let pos = getGridPos(e.clientX, e.clientY);
             if(pos) {
                 let target = getUnitAt(pos.c, pos.r);
@@ -937,7 +891,9 @@
             let rate = SUMMON_RATES[summonLevel-1];
             document.getElementById('upgrade-cost').innerText = rate.cost;
 
-            // 계열 강화 UI
+            document.getElementById('summon-cost-display').innerText = getSummonCost() + " G";
+            document.getElementById('gamble-cost-display').innerText = getGambleCost() + "G";
+
             document.getElementById('lv-phy').innerText = classLv.phy;
             document.getElementById('cost-phy').innerText = (classLv.phy * 100) + 'G';
             document.getElementById('lv-mag').innerText = classLv.mag;
@@ -946,7 +902,6 @@
             document.getElementById('cost-sup').innerText = (classLv.sup * 100) + 'G';
         }
 
-        // 툴팁 관련
         function showLuckInfo() {
             let cur = SUMMON_RATES[summonLevel-1];
             let next = (summonLevel < 20) ? SUMMON_RATES[summonLevel] : cur;
