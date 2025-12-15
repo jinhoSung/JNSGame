@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>운빨 솔로 디펜스 v5.0 (편의성 업데이트)</title>
+    <title>운빨 솔로 디펜스 v5.1 (배속&이펙트)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -29,7 +29,7 @@
 
         /* --- 상단 UI --- */
         #top-ui {
-            flex: 0 0 130px; /* 공간 늘림 */
+            flex: 0 0 130px;
             background: rgba(0,0,0,0.85);
             padding: 5px 15px; z-index: 10;
             display: flex; flex-direction: column; justify-content: center;
@@ -40,16 +40,14 @@
         .info-label { font-size: 12px; color: #bbb; }
         .info-value { font-size: 1.3rem; color: #FFD700; text-shadow: 1px 1px 2px #000; }
         
-        /* 기능 버튼 바 (배속/오토) */
-        .utility-bar {
-            display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 5px;
-        }
+        .utility-bar { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 5px; }
         .util-btn {
             background: #424242; border: 1px solid #757575; color: white;
             padding: 4px 12px; border-radius: 15px; font-family: 'Jua'; cursor: pointer;
             font-size: 0.9rem; transition: background 0.2s;
         }
         .util-btn.active { background: #FFC107; color: black; border-color: #FF6F00; font-weight: bold; }
+        .util-btn.active-x3 { background: #FF5252; color: white; border-color: #D50000; font-weight: bold; }
 
         .class-upgrade-bar { display: flex; gap: 5px; justify-content: space-between; margin-top: 2px; }
         .class-btn {
@@ -108,7 +106,6 @@
         }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
 
-        /* 조합소 모달 */
         #combine-modal {
             display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 95%; height: 85%; background: rgba(30, 30, 30, 0.98);
@@ -132,7 +129,6 @@
         .btn-do-combine:disabled { background: #444; color: #888; cursor: not-allowed; }
         .btn-close { margin-top: 10px; padding: 10px; background: #D32F2F; color: white; border: none; border-radius: 8px; font-family: 'Jua'; cursor: pointer; }
 
-        /* 메시지 & 툴팁 */
         #message-area { position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; text-align: center; width: 100%; z-index: 50; }
         .pop-text { font-size: 2rem; font-weight: bold; color: #fff; text-shadow: 3px 3px 0 #000, 0 0 15px gold; opacity: 0; transition: opacity 0.3s, transform 0.3s; }
         .pop-text.show { opacity: 1; transform: translateY(-40px); }
@@ -347,6 +343,7 @@
         let units = [];
         let enemies = [];
         let projectiles = [];
+        let effects = []; // 시각 효과(플로팅 텍스트)
         let summonLevel = 1;
         let classLv = { phy: 1, mag: 1, sup: 1 };
         
@@ -358,12 +355,10 @@
         let draggingUnit = null;
         let frameCount = 0;
 
-        // --- 편의성 변수 ---
         let timeScale = 1;
         let isAutoMerge = false;
         let autoMergeTimer = 0;
 
-        // --- 저장 시스템 ---
         const SAVE_KEY = 'lucky_defense_solo_v4';
 
         function saveGame() {
@@ -433,13 +428,13 @@
             const deltaTime = timestamp - lastTime;
             lastTime = timestamp;
             frameCount++;
-            update(deltaTime); // deltaTime passed as is, scaled inside update
+            update(deltaTime); 
             draw();
             requestAnimationFrame(gameLoop);
         }
 
         function update(deltaTime) {
-            const scaledDelta = deltaTime * timeScale; // 배속 적용
+            const scaledDelta = deltaTime * timeScale; 
 
             if (isWaveActive && enemiesToSpawn > 0) {
                 let spawnInterval = Math.max(150, 700 - (wave * 20)); 
@@ -449,13 +444,20 @@
                 endWave();
             }
 
-            // 자동 합성 로직 (0.5초마다 체크)
             if(isAutoMerge) {
-                autoMergeTimer += deltaTime; // 실제 시간 기준
+                autoMergeTimer += deltaTime; 
                 if(autoMergeTimer > 500) {
                     performAutoMerge();
                     autoMergeTimer = 0;
                 }
+            }
+
+            // Effects update (floating text)
+            for(let i=effects.length-1; i>=0; i--) {
+                let fx = effects[i];
+                fx.life -= deltaTime; // 실제 시간 기준
+                fx.y -= (0.05 * deltaTime); // 위로 떠오름
+                if(fx.life <= 0) effects.splice(i, 1);
             }
 
             for (let i = enemies.length - 1; i >= 0; i--) {
@@ -502,12 +504,14 @@
             }
         }
 
-        // --- 기능: 배속 및 오토 ---
         function toggleSpeed() {
-            timeScale = (timeScale === 1) ? 2 : 1;
+            if(timeScale === 1) timeScale = 2;
+            else if(timeScale === 2) timeScale = 3;
+            else timeScale = 1;
+            
             const btn = document.getElementById('btn-speed');
-            btn.innerText = timeScale === 1 ? '⏩ x1' : '⏩ x2';
-            btn.classList.toggle('active', timeScale === 2);
+            btn.innerText = `⏩ x${timeScale}`;
+            btn.className = `util-btn ${timeScale >= 2 ? 'active' : ''} ${timeScale === 3 ? 'active-x3' : ''}`;
         }
 
         function toggleAutoMerge() {
@@ -518,20 +522,18 @@
         }
 
         function performAutoMerge() {
-            // 드래그 중인 유닛은 제외
             for(let i=0; i<units.length; i++) {
                 let u1 = units[i];
                 if(u1 === draggingUnit) continue;
-                if(u1.tier >= 5) continue; // 불멸(5) 이상 합성 불가
+                if(u1.tier >= 5) continue; 
 
                 for(let j=i+1; j<units.length; j++) {
                     let u2 = units[j];
                     if(u2 === draggingUnit) continue;
 
-                    // 같은 타입, 같은 티어이면 합성
                     if(u1.type === u2.type && u1.tier === u2.tier) {
                         processMerge(u1, u2);
-                        return; // 한 번에 하나씩 (오류 방지 및 연출)
+                        return; 
                     }
                 }
             }
@@ -540,19 +542,24 @@
         function processMerge(u1, u2) {
             let newTier = u1.tier + 1;
             let newType = u1.type;
-            let c = u2.col; let r = u2.row; // u2 위치에 생성 (혹은 빈 곳)
+            let c = u2.col; let r = u2.row; 
 
-            // 유닛 목록에서 제거
             units = units.filter(u => u !== u1 && u !== u2);
-            
-            // 새 유닛 생성
             createUnit(c, r, newType, newTier);
             
             if(newTier === 5) showPopup(`🔥불멸 [${newType}] 강림!🔥`);
-            else if(!isAutoMerge) showPopup(`합성! [${TIERS[newTier]}] 성공 ✨`); // 오토일 땐 팝업 너무 많아서 생략 가능하나 일단 둠
+            else if(!isAutoMerge) showPopup(`합성! [${TIERS[newTier]}] 성공 ✨`); 
         }
 
-        // -----------------------
+        function spawnFloatingText(x, y, text, color='#FFD700') {
+            effects.push({
+                x: x,
+                y: y,
+                text: text,
+                color: color,
+                life: 1000 // 1초 유지
+            });
+        }
 
         function resetCooldown(unit) {
             let baseSpeed = 1000 / (1 + unit.tier * 0.25);
@@ -601,6 +608,16 @@
             projectiles.forEach(p => {
                 ctx.fillStyle = p.color;
                 ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+            });
+
+            // 시각 효과 그리기 (Floating Text)
+            effects.forEach(fx => {
+                ctx.globalAlpha = Math.max(0, fx.life / 1000); // 서서히 투명해짐
+                ctx.fillStyle = fx.color;
+                ctx.font = `bold ${TILE_SIZE*0.3}px Jua`;
+                ctx.textAlign = 'center';
+                ctx.fillText(fx.text, fx.x, fx.y);
+                ctx.globalAlpha = 1.0;
             });
 
             if(draggingUnit) {
@@ -897,9 +914,21 @@
             if(unit.type === '야만인' && Math.random() < (0.1 + unit.tier*0.02)) { effect='stun'; color='#FFF'; }
             if(unit.type === '궁수' && Math.random() < 0.2) { dmg *= (2.5 + unit.tier * 0.5); color='#F44336'; }
             if(unit.type === '얼음법사' || unit.type === '대마법사') { effect='slow'; color='#29B6F6'; }
-            if(unit.type === '산적' && Math.random() < (0.05 + unit.tier*0.01) * (classLv.sup*0.5)) { gold += 10; updateUI(); }
+            
+            // 산적: 강탈 이펙트 추가
+            if(unit.type === '산적' && Math.random() < (0.05 + unit.tier*0.01) * (classLv.sup*0.5)) { 
+                gold += 10; updateUI(); 
+                spawnFloatingText(unit.x + TILE_SIZE/2, unit.y, "+10G"); // 이펙트
+            }
+            
             if(unit.type === '닌자' && target.hp/target.maxHp <= (0.3 + unit.tier*0.05)) { dmg *= 3; color='#D32F2F'; }
-            if(unit.type === '연금술사' && Math.random() < (0.1 + unit.tier*0.02)) { gold += 50; updateUI(); }
+            
+            // 연금술사: 골드복사 이펙트 추가
+            if(unit.type === '연금술사' && Math.random() < (0.1 + unit.tier*0.02)) { 
+                gold += 50; updateUI(); 
+                spawnFloatingText(unit.x + TILE_SIZE/2, unit.y, "+50G", "#00E676"); // 이펙트
+            }
+            
             if(unit.type === '드래곤' && Math.random() < (0.3 + unit.tier*0.05)) { effect='stun'; color='#FFAB00'; pSize=8; }
             if(unit.type === '강령술사') { effect='dot'; color='#7B1FA2'; }
             if(unit.type === '무사' && Math.random()<0.5) { dmg*=2; color='#E0E0E0'; }
@@ -965,22 +994,11 @@
                 let target = getUnitAt(pos.c, pos.r);
                 if(target && target !== draggingUnit) {
                     if(target.type === draggingUnit.type && target.tier === draggingUnit.tier) {
-                        // 수동 합성 로직 (Auto Merge와 동일한 처리 함수 사용)
-                        if(target.tier < 5) {
+                        if(target.tier < 5) { 
                             processMerge(draggingUnit, target);
                         } else { showPopup("최고 등급입니다!"); returnUnit(); }
-                    } else { 
-                        // 자리 교체
-                        let tmpC = draggingUnit.col; let tmpR = draggingUnit.row; 
-                        draggingUnit.col = target.col; draggingUnit.row = target.row; 
-                        target.col = tmpC; target.row = tmpR; 
-                        updateUnitPos(draggingUnit); updateUnitPos(target); 
-                    }
-                } else { 
-                    // 이동
-                    draggingUnit.col = pos.c; draggingUnit.row = pos.r; 
-                    updateUnitPos(draggingUnit); 
-                }
+                    } else { let tmpC = draggingUnit.col; let tmpR = draggingUnit.row; draggingUnit.col = target.col; draggingUnit.row = target.row; target.col = tmpC; target.row = tmpR; updateUnitPos(draggingUnit); updateUnitPos(target); }
+                } else { draggingUnit.col = pos.c; draggingUnit.row = pos.r; updateUnitPos(draggingUnit); }
             } else returnUnit();
             draggingUnit = null;
         }
@@ -999,7 +1017,7 @@
             updateUI(); 
         }
         function resetGame() {
-            gold = 200; wave = 1; units = []; enemies = []; projectiles = []; summonLevel = 1; stones = stones; // stones 유지
+            gold = 200; wave = 1; units = []; enemies = []; projectiles = []; summonLevel = 1; stones = stones; 
             classLv = { phy: 1, mag: 1, sup: 1 };
             isWaveActive = false; document.getElementById('start-wave-btn').style.display = 'block';
             updateUI();
