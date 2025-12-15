@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>운빨 솔로 디펜스 v8.0 (유물 추가)</title>
+    <title>운빨 솔로 디펜스 v8.2 (최적화)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -56,6 +56,7 @@
         .util-btn.active-x3 { background: #FF5252; color: white; border-color: #D50000; }
         .util-btn.paused { background: #2196F3; border-color: #64B5F6; }
         .util-btn.artifact { background: #9C27B0; border-color: #E1BEE7; }
+        .util-btn.fx-off { background: #616161; color: #aaa; border-color: #424242; }
 
         /* 스킵 버튼 */
         .btn-skip {
@@ -199,6 +200,7 @@
                     <span id="skip-reward-box" style="font-size:0.8em;">(+<span id="skip-reward">0</span>G)</span>
                 </button>
                 <div class="util-right">
+                    <button id="btn-fx" class="util-btn active" onclick="toggleFx()">✨ FX On</button>
                     <button class="util-btn artifact" onclick="openArtifactModal()">📦</button>
                     <button id="btn-pause" class="util-btn" onclick="togglePause()">⏸️</button>
                     <button id="btn-auto-merge" class="util-btn" onclick="toggleAutoMerge()">🤖 Auto Off</button>
@@ -286,6 +288,16 @@
             <div class="modal-header">📦 보유 유물</div>
             <div class="recipe-list" id="artifact-list"></div>
             <button class="btn-close" onclick="closeModal('artifact-modal')">닫기</button>
+        </div>
+
+        <!-- 게임 오버 모달 -->
+        <div id="game-over-modal" class="game-modal" style="border-color: #D50000; text-align: center;">
+            <div class="modal-header" style="color: #FF5252; font-size: 2rem;">☠️ GAME OVER ☠️</div>
+            <div style="margin: 20px 0; font-size: 1.2rem; color: #ddd;">
+                <div>최종 웨이브: <span id="go-wave" style="color: #FFD700; font-weight: bold;"></span></div>
+                <div style="font-size: 0.9rem; margin-top: 5px;">인구수 초과!</div>
+            </div>
+            <button class="btn-do-combine" onclick="retryGame()" style="background: #D32F2F; width: 60%; margin: 0 auto; display: block;">다시 도전</button>
         </div>
     </div>
 
@@ -421,6 +433,7 @@
         let enemiesToSpawn = 0;
         let waveTimer = 0;
         let isPrep = false; // 준비 시간 여부
+        let isFxOn = true; // 이펙트 On/Off
         
         let draggingUnit = null;
         let frameCount = 0;
@@ -560,11 +573,13 @@
                     let bonusGold = (2 + Math.floor(wave * 0.2)) * (1 + getArtifactVal('gold'));
                     gold += Math.floor(bonusGold); 
                     
-                    let pColor = '#CFD8DC';
-                    if(enemy.type === 'fast') pColor = '#FFF176';
-                    else if(enemy.type === 'tank') pColor = '#8D6E63';
-                    else if(enemy.type === 'boss') pColor = '#E91E63';
-                    createExplosion(enemy.x, enemy.y, pColor, enemy.type === 'boss' ? 30 : 8);
+                    if (isFxOn) {
+                        let pColor = '#CFD8DC';
+                        if(enemy.type === 'fast') pColor = '#FFF176';
+                        else if(enemy.type === 'tank') pColor = '#8D6E63';
+                        else if(enemy.type === 'boss') pColor = '#E91E63';
+                        createExplosion(enemy.x, enemy.y, pColor, enemy.type === 'boss' ? 30 : 8);
+                    }
                     
                     if(enemy.type === 'boss') { addShake(10); spawnFloatingText(enemy.x, enemy.y, "BOSS KILL!", "#FF1744"); }
                     enemies.splice(i, 1); updateUI(); 
@@ -572,8 +587,8 @@
             }
 
             if (enemies.length > MAX_ENEMIES_LIMIT) {
-                alert(`게임 오버! 적이 너무 많습니다 (${enemies.length}).\n${wave} 웨이브 기록.`);
-                resetGame(); return;
+                showGameOver();
+                return;
             }
 
             units.forEach(unit => {
@@ -596,20 +611,41 @@
 
             for (let i = projectiles.length - 1; i >= 0; i--) {
                 let p = projectiles[i]; moveProjectile(p, scaledDelta);
-                if (p.hit) { createExplosion(p.x, p.y, p.color, 3); projectiles.splice(i, 1); }
+                if (p.hit) { 
+                    if(isFxOn) createExplosion(p.x, p.y, p.color, 3); 
+                    projectiles.splice(i, 1); 
+                }
             }
             updateUI(); 
         }
 
         // --- 이펙트 관련 함수 ---
-        function addShake(amount) { shakeAmount = amount; }
+        function toggleFx() {
+            isFxOn = !isFxOn;
+            const btn = document.getElementById('btn-fx');
+            if(isFxOn) {
+                btn.innerText = "✨ FX On";
+                btn.classList.remove('fx-off');
+                btn.classList.add('active');
+            } else {
+                btn.innerText = "🌑 FX Off";
+                btn.classList.remove('active');
+                btn.classList.add('fx-off');
+            }
+        }
+
+        function addShake(amount) { if(isFxOn) shakeAmount = amount; }
+        
         function createExplosion(x, y, color, count) {
+            if(!isFxOn) return;
             for(let i=0; i<count; i++) {
                 let angle = Math.random() * Math.PI * 2; let speed = Math.random() * 3 + 1;
                 effects.push({ type: 'particle', x: x, y: y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, color: color, life: 400 + Math.random() * 200, size: Math.random() * 3 + 2 });
             }
         }
+        
         function createSparkle(x, y, color) {
+            if(!isFxOn) return;
             for(let i=0; i<10; i++) {
                 effects.push({ type: 'particle', x: x + (Math.random() - 0.5) * TILE_SIZE, y: y + (Math.random() - 0.5) * TILE_SIZE, vx: (Math.random() - 0.5) * 0.5, vy: -Math.random() * 2 - 1, color: color, life: 600 + Math.random() * 300, size: Math.random() * 2 + 1 });
             }
@@ -673,7 +709,7 @@
 
         function draw() {
             ctx.save();
-            if (shakeAmount > 0) { let dx = (Math.random() - 0.5) * shakeAmount; let dy = (Math.random() - 0.5) * shakeAmount; ctx.translate(dx, dy); }
+            if (isFxOn && shakeAmount > 0) { let dx = (Math.random() - 0.5) * shakeAmount; let dy = (Math.random() - 0.5) * shakeAmount; ctx.translate(dx, dy); }
             ctx.clearRect(0, 0, canvas.width, canvas.height); 
             ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(GRID_OFFSET_X - 5, GRID_OFFSET_Y - 5, GRID_COLS*TILE_SIZE + 10, GRID_ROWS*TILE_SIZE + 10);
             ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
@@ -718,7 +754,7 @@
                 if(fx.type === 'text') {
                     ctx.globalAlpha = Math.max(0, fx.life / 800); ctx.fillStyle = fx.color; ctx.font = `bold ${TILE_SIZE*0.35}px Jua`;
                     ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeText(fx.text, fx.x, fx.y); ctx.fillText(fx.text, fx.x, fx.y); ctx.globalAlpha = 1.0;
-                } else if (fx.type === 'particle') {
+                } else if (isFxOn && fx.type === 'particle') {
                     ctx.globalAlpha = Math.max(0, fx.life / 600); ctx.fillStyle = fx.color; ctx.beginPath(); ctx.arc(fx.x, fx.y, fx.size, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1.0;
                 }
             });
@@ -748,7 +784,7 @@
             const size = TILE_SIZE * 0.85;
             let data = UNIT_DATA[unit.type] || HIDDEN_DATA[unit.type];
             ctx.fillStyle = data.color; ctx.lineWidth = 3;
-            if(unit.tier >= 4) { let hue = (frameCount * 3) % 360; ctx.strokeStyle = `hsl(${hue}, 100%, 70%)`; ctx.shadowBlur = 10; ctx.shadowColor = ctx.strokeStyle; } 
+            if(isFxOn && unit.tier >= 4) { let hue = (frameCount * 3) % 360; ctx.strokeStyle = `hsl(${hue}, 100%, 70%)`; ctx.shadowBlur = 10; ctx.shadowColor = ctx.strokeStyle; } 
             else { ctx.strokeStyle = TIER_COLORS[unit.tier]; ctx.shadowBlur = 0; }
 
             ctx.beginPath();
@@ -1121,8 +1157,20 @@
             gold = 200; wave = 0; units = []; enemies = []; projectiles = []; summonLevel = 1; stones = stones; 
             classLv = { phy: 1, mag: 1, sup: 1 };
             waveTimer = 0;
+            isPaused = false;
             startNextWave();
             updateUI();
+        }
+
+        function showGameOver() {
+            isPaused = true;
+            document.getElementById('go-wave').innerText = wave;
+            document.getElementById('game-over-modal').classList.add('open');
+        }
+
+        function retryGame() {
+            closeModal('game-over-modal');
+            resetGame();
         }
 
         function updateUI() {
