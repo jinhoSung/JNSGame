@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>운빨 솔로 디펜스 v4 (조합 업데이트)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
+
+        * { box-sizing: border-box; touch-action: none; }
+
+        body {
+            margin: 0; padding: 0;
+            background-color: #0f0f0f;
+            display: flex; align-items: center; justify-content: center;
+            height: 100vh;
+            color: white; font-family: 'Jua', sans-serif;
+            overflow: hidden; user-select: none;
+        }
+
+        #game-wrapper {
+            position: relative; width: 100%; height: 100%;
+            max-width: 600px;
+            background-color: #4CAF50;
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 0 40px rgba(0,0,0,0.9);
+        }
+
+        /* --- UI --- */
+        #top-ui {
+            flex: 0 0 115px;
+            background: rgba(0,0,0,0.8);
+            padding: 8px 15px; z-index: 10;
+            display: flex; flex-direction: column; justify-content: center;
+            border-bottom: 2px solid #333;
+        }
+
+        .top-row { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 6px; }
+        .info-label { font-size: 13px; color: #bbb; }
+        .info-value { font-size: 1.4rem; color: #FFD700; text-shadow: 1px 1px 2px #000; }
+        
+        /* 특수 재화 표시 */
+        .mythic-stone {
+            display: flex; align-items: center; gap: 5px;
+            background: rgba(100, 0, 255, 0.3); padding: 5px 10px; border-radius: 15px; border: 1px solid #7C4DFF;
+        }
+        .mythic-stone span { font-size: 1.2rem; color: #E040FB; text-shadow: 0 0 5px #E040FB; }
+
+        #canvas-container { flex: 1; position: relative; width: 100%; overflow: hidden; background-color: #66BB6A; }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        #bottom-ui {
+            flex: 0 0 160px;
+            background-color: #3E2723;
+            padding: 10px;
+            display: flex; flex-direction: column; justify-content: space-between;
+            border-top: 4px solid #281A16; z-index: 10;
+        }
+
+        #resources { display: flex; justify-content: space-between; padding: 0 5px; margin-bottom: 5px; font-size: 1.1rem; color: #FFD700; }
+        #buttons { display: flex; justify-content: space-between; align-items: flex-end; height: 100%; gap: 6px; }
+
+        .game-btn {
+            border: none; border-radius: 14px; color: white;
+            font-family: 'Jua', sans-serif; cursor: pointer;
+            position: relative; box-shadow: 0 5px 0 rgba(0,0,0,0.5);
+            transition: transform 0.1s; padding: 0; overflow: hidden;
+        }
+        .game-btn:active { transform: translateY(5px); box-shadow: none; }
+
+        /* 버튼 스타일 */
+        .btn-upgrade { width: 22%; height: 100%; max-height: 80px; background: linear-gradient(135deg, #673AB7, #512DA8); display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 0.9rem; border: 1px solid #9575CD; }
+        .btn-summon { flex: 1; height: 100%; max-height: 95px; background: linear-gradient(135deg, #FFC107, #FF8F00); font-size: 1.6rem; color: #3E2723; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid #FFE082; }
+        .btn-combine { width: 22%; height: 100%; max-height: 80px; background: linear-gradient(135deg, #009688, #00695C); display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 0.95rem; border: 1px solid #4DB6AC; }
+        .btn-gamble { width: 18%; height: 100%; max-height: 70px; background: linear-gradient(135deg, #2196F3, #1565C0); display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 0.8rem; border: 1px solid #64B5F6; margin-bottom: 5px;}
+
+        .btn-wave {
+            position: absolute; top: 20px; right: 20px;
+            background: #D32F2F; padding: 10px 20px; border-radius: 30px;
+            border: 3px solid white; font-weight: bold; font-size: 1.1rem;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.4); z-index: 20;
+            animation: pulse 2s infinite; cursor: pointer;
+        }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+
+        /* 조합소 모달 */
+        #combine-modal {
+            display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 90%; max-height: 80%; background: rgba(30, 30, 30, 0.95);
+            border: 2px solid #FFD700; border-radius: 15px; z-index: 100;
+            flex-direction: column; padding: 20px; color: white;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        }
+        #combine-modal.open { display: flex; }
+        .modal-header { font-size: 1.5rem; text-align: center; margin-bottom: 15px; color: #FFD700; }
+        .recipe-list { overflow-y: auto; flex: 1; }
+        .recipe-card {
+            background: rgba(255, 255, 255, 0.1); margin-bottom: 10px; padding: 10px; border-radius: 8px;
+            display: flex; flex-direction: column; gap: 5px; border: 1px solid #555;
+        }
+        .recipe-header { display: flex; justify-content: space-between; align-items: center; }
+        .recipe-name { font-size: 1.2rem; font-weight: bold; color: #E040FB; }
+        .recipe-cost { font-size: 0.9rem; color: #aaa; }
+        .recipe-req { display: flex; gap: 10px; font-size: 0.9rem; color: #ddd; align-items: center; margin-top: 5px;}
+        .req-item { display: flex; align-items: center; gap: 3px; }
+        .btn-buy-recipe {
+            padding: 8px; border: none; border-radius: 5px; background: #6200EA; color: white; font-family: 'Jua'; cursor: pointer;
+        }
+        .btn-do-combine {
+            padding: 8px; border: none; border-radius: 5px; background: #00C853; color: white; font-family: 'Jua'; cursor: pointer;
+        }
+        .btn-do-combine:disabled { background: #555; color: #aaa; cursor: not-allowed; }
+        .btn-close { margin-top: 10px; padding: 10px; background: #D32F2F; color: white; border: none; border-radius: 8px; font-family: 'Jua'; cursor: pointer; }
+
+        /* 메시지 & 툴팁 */
+        #message-area { position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; text-align: center; width: 100%; z-index: 50; }
+        .pop-text { font-size: 2.2rem; font-weight: bold; color: #fff; text-shadow: 3px 3px 0 #000, 0 0 15px gold; opacity: 0; transition: opacity 0.3s, transform 0.3s; }
+        .pop-text.show { opacity: 1; transform: translateY(-40px); }
+        .tooltip { position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%); background: rgba(20,20,20,0.95); padding: 15px; border-radius: 12px; font-size: 0.95rem; display: none; width: 90%; text-align: center; z-index: 100; border: 2px solid #555; pointer-events: none; }
+
+        /* 등급 색상 클래스 */
+        .c-legend { color: #FF7043; }
+        .c-myth { color: #FF5252; }
+    </style>
+</head>
+<body>
+
+    <div id="game-wrapper">
+        <div id="top-ui">
+            <div class="top-row">
+                <div class="info-group">
+                    <div class="info-label">WAVE</div>
+                    <div class="info-value" id="wave-display">1</div>
+                </div>
+                <div class="mythic-stone">
+                    💎 <span id="stone-display">0</span>
+                </div>
+                <div class="info-group">
+                    <div class="info-label">적 숫자</div>
+                    <div class="info-value" style="color:#FF5252"><span id="enemy-count">0</span> / 60</div>
+                </div>
+            </div>
+            <div style="text-align:center; font-size:0.8rem; color:#aaa;" id="chance-text">일반 소환 확률: 신화 0%</div>
+        </div>
+
+        <div id="canvas-container">
+            <canvas id="gameCanvas"></canvas>
+            <button id="start-wave-btn" class="btn-wave" onclick="startNextWave()">🔥 전투 시작</button>
+            <div id="message-area"><div id="popup-msg" class="pop-text"></div></div>
+            <div id="unit-tooltip" class="tooltip"></div>
+        </div>
+
+        <div id="bottom-ui">
+            <div id="resources">
+                <span style="color:#ccc;">행운 Lv.<span id="summon-level">1</span></span>
+                <span>💰 <span id="gold-display">200</span></span>
+            </div>
+            <div id="buttons">
+                <button class="game-btn btn-upgrade" onclick="upgradeSummon()">
+                    ☘️행운
+                    <span style="font-size:0.75em; color:#FFEB3B; margin-top:2px;" id="upgrade-cost">50G</span>
+                </button>
+                
+                <button class="game-btn btn-summon" onclick="summonUnit()">
+                    🎲 소환
+                    <span style="font-size:0.65em; margin-top:5px; opacity:0.8;">10 G</span>
+                </button>
+                
+                <button class="game-btn btn-combine" onclick="openCombineModal()">
+                    🏰 조합
+                    <span style="font-size:0.65em; margin-top:5px; opacity:0.8;">Special</span>
+                </button>
+
+                <button class="game-btn btn-gamble" onclick="gamble()">
+                    🎰도박<br>50G
+                </button>
+            </div>
+        </div>
+
+        <!-- 조합소 모달 -->
+        <div id="combine-modal">
+            <div class="modal-header">🏰 영웅 조합소</div>
+            <div class="recipe-list" id="recipe-list">
+                <!-- JS로 생성됨 -->
+            </div>
+            <button class="btn-close" onclick="closeCombineModal()">닫기</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const canvasContainer = document.getElementById('canvas-container');
+
+        // --- 그리드 ---
+        const GRID_COLS = 6; const GRID_ROWS = 5;
+        let TILE_SIZE = 0, GRID_OFFSET_X = 0, GRID_OFFSET_Y = 0;
+        let PATH_POINTS = [];
+        let TRASH_ZONE = { x: 0, y: 0, r: 0 };
+
+        // --- 유닛 데이터 ---
+        // 일반 유닛 (랜덤 소환용)
+        const UNIT_DATA = {
+            '야만인': { color: '#BCAAA4', icon: '🪓', desc: '1.5초 기절 (10%)', type: 'phy' },
+            '궁수': { color: '#81D4FA', icon: '🏹', desc: '치명타 2.5배 (20%)', type: 'phy' },
+            '얼음법사': { color: '#90CAF9', icon: '🧊', desc: '슬로우 40%', type: 'mag' },
+            '산적': { color: '#A1887F', icon: '💰', desc: '공격 시 10골드 (5%)', type: 'phy' },
+            '전기로봇': { color: '#FFF59D', icon: '⚡', desc: '3인 동시 공격', type: 'mag' },
+            '닌자': { color: '#424242', icon: '🥷', desc: '체력 30%이하 3배 피해', type: 'phy' }
+        };
+        const UNIT_TYPES = Object.keys(UNIT_DATA);
+        
+        // --- 히든/조합 영웅 데이터 ---
+        // 이들은 소환으로 나오지 않고 조합으로만 등장 (Tier 5 취급)
+        const HIDDEN_DATA = {
+            '개구리왕자': { color: '#69F0AE', icon: '🐸', desc: '공속이 미친듯이 빠름 (5배)', type: 'phy' },
+            '마신': { color: '#D50000', icon: '👿', desc: '전체 화면 광역 딜', type: 'mag' },
+            '드래곤': { color: '#FFAB00', icon: '🐲', desc: '강력한 한방 & 스턴', type: 'phy' }
+        };
+
+        const TIERS = ['일반', '희귀', '영웅', '전설', '신화', '불멸'];
+        const TIER_COLORS = ['#B0BEC5', '#29B6F6', '#AB47BC', '#FF7043', '#FF1744', '#D500F9'];
+
+        // --- 레시피 데이터 ---
+        // ingredients: 필요한 재료 (전설 등급, Tier=3)
+        const RECIPES = [
+            { 
+                id: 'frog', name: '개구리왕자', unlocked: false, cost: 5, 
+                result: '개구리왕자', 
+                req: [ {type:'야만인', tier:3}, {type:'궁수', tier:3} ] 
+            },
+            { 
+                id: 'demon', name: '마신', unlocked: false, cost: 10, 
+                result: '마신', 
+                req: [ {type:'닌자', tier:3}, {type:'산적', tier:3} ] 
+            },
+            { 
+                id: 'dragon', name: '드래곤', unlocked: false, cost: 15, 
+                result: '드래곤', 
+                req: [ {type:'전기로봇', tier:3}, {type:'얼음법사', tier:3} ] 
+            }
+        ];
+
+        // --- 소환 확률 (20단계) ---
+        const SUMMON_RATES = [];
+        for(let i=1; i<=20; i++) {
+            let rate = {}; let cost = 0;
+            if(i <= 5) { rate = { c: 100 - (i-1)*10, r: (i-1)*10, e: 0, l: 0, m: 0 }; cost = 50 * i; }
+            else if(i <= 10) { rate = { c: 60 - (i-5)*6, r: 40 - (i-5)*2, e: (i-5)*8, l: 0, m: 0 }; cost = 150 * (i-3); }
+            else if(i <= 15) { rate = { c: 30 - (i-10)*4, r: 30 - (i-10)*2, e: 40 - (i-10)*2, l: (i-10)*8, m: 0 }; cost = 1000 + (i-10)*500; }
+            else { 
+                let myth = (i-15) * 0.5; // 최대 2.5%
+                let leg = 40 - (i-15)*2; 
+                let epic = 30 - (i-15)*2;
+                rate = { c: 5, r: 10, e: epic, l: leg, m: myth };
+                let total = rate.c + rate.r + rate.e + rate.l + rate.m;
+                if(total < 100) rate.c += (100 - total);
+                cost = 3000 + (i-15)*1500; 
+            }
+            if(i===20) cost = 'MAX';
+            SUMMON_RATES.push({ ...rate, cost: cost });
+        }
+
+        const SUMMON_COST = 10;
+        const GAMBLE_COST = 50;
+
+        // --- 게임 상태 ---
+        let gold = 200;
+        let stones = 0; // 신화석
+        let wave = 1;
+        let units = [];
+        let enemies = [];
+        let projectiles = [];
+        let summonLevel = 1;
+        
+        let lastTime = 0;
+        let enemySpawnTimer = 0;
+        let enemiesToSpawn = 0;
+        let isWaveActive = false;
+        let maxEnemies = 60;
+        let draggingUnit = null;
+        let frameCount = 0;
+
+        // --- 리사이징 ---
+        function resizeGame() {
+            canvas.width = canvasContainer.clientWidth;
+            canvas.height = canvasContainer.clientHeight;
+            const maxTileW = canvas.width / (GRID_COLS + 1.2);
+            const maxTileH = canvas.height / (GRID_ROWS + 2.5);
+            TILE_SIZE = Math.floor(Math.min(maxTileW, maxTileH));
+            GRID_OFFSET_X = (canvas.width - GRID_COLS * TILE_SIZE) / 2;
+            GRID_OFFSET_Y = (canvas.height - GRID_ROWS * TILE_SIZE) / 2;
+
+            const margin = TILE_SIZE * 0.6;
+            PATH_POINTS = [
+                { x: -50, y: GRID_OFFSET_Y - margin }, 
+                { x: GRID_OFFSET_X + GRID_COLS * TILE_SIZE + margin, y: GRID_OFFSET_Y - margin },
+                { x: GRID_OFFSET_X + GRID_COLS * TILE_SIZE + margin, y: GRID_OFFSET_Y + GRID_ROWS * TILE_SIZE + margin },
+                { x: GRID_OFFSET_X - margin, y: GRID_OFFSET_Y + GRID_ROWS * TILE_SIZE + margin },
+                { x: GRID_OFFSET_X - margin, y: GRID_OFFSET_Y - margin },
+                { x: canvas.width + 50, y: GRID_OFFSET_Y - margin }
+            ];
+            TRASH_ZONE = { x: canvas.width - TILE_SIZE * 0.9, y: canvas.height - TILE_SIZE * 0.9, r: TILE_SIZE * 0.6 };
+            units.forEach(u => { u.x = GRID_OFFSET_X + u.col * TILE_SIZE; u.y = GRID_OFFSET_Y + u.row * TILE_SIZE; });
+        }
+
+        function init() {
+            window.addEventListener('resize', resizeGame);
+            resizeGame();
+            canvas.addEventListener('mousedown', onMouseDown);
+            canvas.addEventListener('mousemove', onMouseMove);
+            canvas.addEventListener('mouseup', onMouseUp);
+            canvas.addEventListener('touchstart', (e) => { if(e.touches.length>1) return; e.preventDefault(); onMouseDown({clientX: e.touches[0].clientX, clientY: e.touches[0].clientY}); }, {passive: false});
+            canvas.addEventListener('touchmove', (e) => { e.preventDefault(); onMouseMove({clientX: e.touches[0].clientX, clientY: e.touches[0].clientY}); }, {passive: false});
+            canvas.addEventListener('touchend', (e) => { onMouseUp({clientX: e.changedTouches?e.changedTouches[0].clientX : 0, clientY: e.changedTouches?e.changedTouches[0].clientY : 0}); });
+            updateUI();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function gameLoop(timestamp) {
+            const deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
+            frameCount++;
+            update(deltaTime);
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function update(deltaTime) {
+            if (isWaveActive && enemiesToSpawn > 0) {
+                let spawnInterval = Math.max(150, 700 - (wave * 20)); 
+                enemySpawnTimer += deltaTime;
+                if (enemySpawnTimer > spawnInterval) { spawnEnemy(); enemySpawnTimer = 0; enemiesToSpawn--; }
+            } else if (isWaveActive && enemiesToSpawn === 0 && enemies.length === 0) {
+                endWave();
+            }
+
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                let enemy = enemies[i];
+                if (enemy.stunTimer > 0) enemy.stunTimer -= deltaTime;
+                if (enemy.slowTimer > 0) enemy.slowTimer -= deltaTime;
+                moveEnemy(enemy, deltaTime);
+                if (enemy.reachedEnd) { enemies.splice(i, 1); }
+                else if (enemy.hp <= 0) { gold += (2 + Math.floor(wave * 0.2)); enemies.splice(i, 1); updateUI(); }
+            }
+
+            if (enemies.length >= maxEnemies) { alert(`게임 오버! ${wave} 웨이브 기록.`); resetGame(); return; }
+
+            units.forEach(unit => {
+                if (unit === draggingUnit) return;
+                unit.cooldown -= deltaTime;
+                if (unit.cooldown <= 0) {
+                    if(unit.type === '전기로봇') {
+                        const targets = findTargets(unit, 3);
+                        if(targets.length > 0) { targets.forEach(t => fireProjectile(unit, t)); resetCooldown(unit); }
+                    } else if(unit.type === '마신') {
+                        fireGlobalAttack(unit);
+                        resetCooldown(unit);
+                    } else {
+                        const target = findTarget(unit);
+                        if (target) { fireProjectile(unit, target); resetCooldown(unit); }
+                    }
+                }
+            });
+
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                let p = projectiles[i];
+                moveProjectile(p, deltaTime);
+                if (p.hit) projectiles.splice(i, 1);
+            }
+        }
+
+        function resetCooldown(unit) {
+            let baseSpeed = 1000 / (1 + unit.tier * 0.3);
+            if(unit.type === '산적') baseSpeed *= 1.2;
+            
+            // 히든 유닛 특수 공속
+            if(unit.type === '개구리왕자') baseSpeed = 200; // 초고속
+            if(unit.type === '마신') baseSpeed = 1500; // 느림 (광역이니까)
+            
+            unit.cooldown = baseSpeed;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 그리드
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            ctx.fillRect(GRID_OFFSET_X - 5, GRID_OFFSET_Y - 5, GRID_COLS*TILE_SIZE + 10, GRID_ROWS*TILE_SIZE + 10);
+            ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
+            for(let c=0; c<GRID_COLS; c++) {
+                for(let r=0; r<GRID_ROWS; r++) {
+                    ctx.strokeRect(GRID_OFFSET_X + c*TILE_SIZE, GRID_OFFSET_Y + r*TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
+            }
+
+            // 경로
+            ctx.beginPath(); ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = TILE_SIZE * 0.45; ctx.lineJoin = 'round';
+            ctx.moveTo(PATH_POINTS[0].x, PATH_POINTS[0].y);
+            for(let i=1; i<PATH_POINTS.length; i++) ctx.lineTo(PATH_POINTS[i].x, PATH_POINTS[i].y);
+            ctx.stroke();
+
+            // 적
+            enemies.forEach(e => {
+                if(e.stunTimer > 0) ctx.fillStyle = '#FFEB3B';
+                else if(e.slowTimer > 0) ctx.fillStyle = '#42A5F5';
+                else ctx.fillStyle = '#CFD8DC';
+                let r = TILE_SIZE * 0.22;
+                ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#222'; ctx.lineWidth = 1; ctx.stroke();
+                let pct = Math.max(0, e.hp / e.maxHp);
+                ctx.fillStyle = '#263238'; ctx.fillRect(e.x - r, e.y - r - 8, r*2, 5);
+                ctx.fillStyle = pct > 0.5 ? '#76FF03' : '#FF1744'; ctx.fillRect(e.x - r, e.y - r - 8, r*2*pct, 5);
+            });
+
+            // 유닛
+            units.forEach(u => { if(u !== draggingUnit) drawUnit(u, u.x, u.y); });
+
+            // 투사체
+            projectiles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+            });
+
+            // 드래그
+            if(draggingUnit) {
+                ctx.beginPath(); ctx.fillStyle = 'rgba(255,255,255,0.1)';
+                let rangePx = draggingUnit.range * (TILE_SIZE/55);
+                ctx.arc(draggingUnit.dragX, draggingUnit.dragY, rangePx, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.setLineDash([5,5]); ctx.stroke(); ctx.setLineDash([]);
+                
+                let dist = Math.hypot(draggingUnit.dragX - TRASH_ZONE.x, draggingUnit.dragY - TRASH_ZONE.y);
+                let isHover = dist < TRASH_ZONE.r * 1.5;
+                ctx.fillStyle = isHover ? '#D32F2F' : 'rgba(0,0,0,0.6)';
+                ctx.beginPath(); ctx.arc(TRASH_ZONE.x, TRASH_ZONE.y, isHover ? TRASH_ZONE.r*1.1 : TRASH_ZONE.r, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'white'; ctx.font = `${TILE_SIZE*0.4}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+                ctx.fillText('🗑️', TRASH_ZONE.x, TRASH_ZONE.y);
+                drawUnit(draggingUnit, draggingUnit.dragX, draggingUnit.dragY);
+            }
+        }
+
+        function drawUnit(unit, x, y) {
+            const cx = x + (unit === draggingUnit ? 0 : TILE_SIZE/2);
+            const cy = y + (unit === draggingUnit ? 0 : TILE_SIZE/2);
+            const size = TILE_SIZE * 0.85;
+
+            // 데이터 소스 분기
+            let data = UNIT_DATA[unit.type] || HIDDEN_DATA[unit.type];
+            
+            ctx.fillStyle = data.color;
+            ctx.lineWidth = 3;
+
+            // 불멸/히든 이펙트
+            if(unit.tier >= 4) {
+                let hue = (frameCount * 3) % 360;
+                ctx.strokeStyle = `hsl(${hue}, 100%, 70%)`;
+                ctx.shadowBlur = 10; ctx.shadowColor = ctx.strokeStyle;
+            } else {
+                ctx.strokeStyle = TIER_COLORS[unit.tier];
+                ctx.shadowBlur = 0;
+            }
+
+            // 모양 그리기
+            ctx.beginPath();
+            if(unit.tier === 0) ctx.arc(cx, cy, size/2, 0, Math.PI*2);
+            else if(unit.tier === 1) ctx.rect(cx - size/2, cy - size/2, size, size);
+            else if(unit.tier === 2) drawPolygon(ctx, cx, cy, size/2, 6);
+            else if(unit.tier === 3) drawPolygon(ctx, cx, cy, size/2, 4, Math.PI/4);
+            else drawStar(ctx, cx, cy, 5, size/2, size/4); // 신화 이상
+            ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
+
+            ctx.fillStyle = 'white'; ctx.font = `${size*0.5}px sans-serif`;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(data.icon, cx, cy);
+        }
+
+        function drawPolygon(ctx, x, y, radius, sides, rotateAngle = 0) {
+            if (sides < 3) return;
+            var a = (Math.PI * 2)/sides;
+            ctx.moveTo(x + radius*Math.cos(rotateAngle), y + radius*Math.sin(rotateAngle));
+            for (var i = 1; i < sides; i++) ctx.lineTo(x + radius*Math.cos(a*i + rotateAngle), y + radius*Math.sin(a*i + rotateAngle));
+            ctx.closePath();
+        }
+        function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
+            let rot = Math.PI / 2 * 3; let x = cx; let y = cy; let step = Math.PI / spikes;
+            ctx.moveTo(cx, cy - outerRadius);
+            for (let i = 0; i < spikes; i++) {
+                x = cx + Math.cos(rot) * outerRadius; y = cy + Math.sin(rot) * outerRadius; ctx.lineTo(x, y); rot += step;
+                x = cx + Math.cos(rot) * innerRadius; y = cy + Math.sin(rot) * innerRadius; ctx.lineTo(x, y); rot += step;
+            }
+            ctx.lineTo(cx, cy - outerRadius); ctx.closePath();
+        }
+
+        // --- 로직 ---
+        function upgradeSummon() {
+            if(summonLevel >= 20) { showPopup("최고 레벨입니다!"); return; }
+            let cost = SUMMON_RATES[summonLevel-1].cost;
+            if(gold < cost) { showPopup("골드가 부족합니다!"); return; }
+            gold -= cost; summonLevel++; showPopup(`행운 강화 Lv.${summonLevel} 성공!`); updateUI();
+        }
+
+        function summonUnit() {
+            if(gold < SUMMON_COST) { showPopup("골드가 부족합니다!"); return; }
+            let emptySlots = getEmptySlots();
+            if(emptySlots.length === 0) { showPopup("자리가 꽉 찼습니다!"); return; }
+            gold -= SUMMON_COST;
+            
+            let rates = SUMMON_RATES[summonLevel-1];
+            let rand = Math.random() * 100;
+            let tier = 0;
+            
+            if(rand < rates.c) tier = 0;
+            else if(rand < rates.c + rates.r) { tier = 1; showPopup("희귀 소환! 💙"); }
+            else if(rand < rates.c + rates.r + rates.e) { tier = 2; showPopup("영웅 소환! 💜"); }
+            else if(rand < rates.c + rates.r + rates.e + rates.l) { tier = 3; showPopup("전설 소환! 🧡"); }
+            else { tier = 4; showPopup("⚡신화 소환!⚡"); }
+
+            let slot = emptySlots[Math.floor(Math.random()*emptySlots.length)];
+            let type = UNIT_TYPES[Math.floor(Math.random()*UNIT_TYPES.length)];
+            createUnit(slot.c, slot.r, type, tier);
+            updateUI();
+        }
+
+        function createUnit(col, row, type, tier) {
+            const x = GRID_OFFSET_X + col * TILE_SIZE;
+            const y = GRID_OFFSET_Y + row * TILE_SIZE;
+            
+            // 데미지 계산
+            let mult = Math.pow(2.2, tier);
+            if(tier >= 4) mult *= 2; // 신화 이상 보너스
+            
+            // 히든 유닛 스탯 보정
+            if(HIDDEN_DATA[type]) {
+                mult *= 3; // 히든은 더 셈
+            }
+
+            units.push({
+                col, row, x, y, type, tier,
+                damage: 10 * mult,
+                range: 160 + (tier * 15),
+                cooldown: 0
+            });
+        }
+
+        function gamble() {
+            if(gold < GAMBLE_COST) { showPopup("비용 부족!"); return; }
+            gold -= GAMBLE_COST;
+            let rand = Math.random();
+            if(rand < 0.45) showPopup("꽝... 💸");
+            else if(rand < 0.70) { 
+                let gain = 150 + (summonLevel * 5); 
+                gold += gain; showPopup(`+${gain}G 대박! 🎉`); 
+            }
+            else if(rand < 0.95) { 
+                summonUnit(); gold += SUMMON_COST; showPopup("유닛 획득! 🎲"); 
+            } else {
+                stones += 1; showPopup("💎 신화석 획득! 💎");
+            }
+            updateUI();
+        }
+
+        // --- 조합 시스템 ---
+        function openCombineModal() {
+            const list = document.getElementById('recipe-list');
+            list.innerHTML = '';
+            
+            RECIPES.forEach(r => {
+                const canUnlock = !r.unlocked && stones >= r.cost;
+                const canCombine = r.unlocked && checkIngredients(r.req);
+                
+                let btnHtml = '';
+                if(!r.unlocked) {
+                    btnHtml = `<button class="btn-buy-recipe" onclick="unlockRecipe('${r.id}')" ${canUnlock ? '' : 'disabled'}>
+                                해금 (💎${r.cost})
+                               </button>`;
+                } else {
+                    btnHtml = `<button class="btn-do-combine" onclick="combineHero('${r.id}')" ${canCombine ? '' : 'disabled'}>
+                                ${canCombine ? '조합 가능!' : '재료 부족'}
+                               </button>`;
+                }
+
+                let reqHtml = r.req.map(req => {
+                    // 보유 여부 체크
+                    let has = units.some(u => u.type === req.type && u.tier === req.tier);
+                    let color = has ? '#69F0AE' : '#FF5252';
+                    return `<div class="req-item" style="color:${color}">
+                                <span>[전설]</span><span>${req.type}</span>
+                            </div>`;
+                }).join(' + ');
+
+                let item = document.createElement('div');
+                item.className = 'recipe-card';
+                item.innerHTML = `
+                    <div class="recipe-header">
+                        <div class="recipe-name">${r.name}</div>
+                        ${btnHtml}
+                    </div>
+                    <div style="font-size:0.8rem; color:#bbb;">${HIDDEN_DATA[r.result].desc}</div>
+                    <div class="recipe-req">${reqHtml}</div>
+                `;
+                list.appendChild(item);
+            });
+            
+            document.getElementById('combine-modal').classList.add('open');
+        }
+
+        function closeCombineModal() { document.getElementById('combine-modal').classList.remove('open'); }
+
+        function unlockRecipe(id) {
+            let r = RECIPES.find(x => x.id === id);
+            if(r && stones >= r.cost) {
+                stones -= r.cost;
+                r.unlocked = true;
+                showPopup(`${r.name} 해금 완료!`);
+                updateUI();
+                openCombineModal(); // 리프레시
+            }
+        }
+
+        function checkIngredients(reqs) {
+            // 단순 체크: 재료가 다 있는지 (중복 재료 처리 필요하지만, 여기선 단순 1:1 체크)
+            // 실제 소비를 위해선 정확한 매칭 필요.
+            // 여기선 편의상 타입/티어 일치하는 유닛 갯수를 셉니다.
+            let tempUnits = [...units];
+            for(let req of reqs) {
+                let idx = tempUnits.findIndex(u => u.type === req.type && u.tier === req.tier);
+                if(idx === -1) return false;
+                tempUnits.splice(idx, 1); // 가상 소비
+            }
+            return true;
+        }
+
+        function combineHero(id) {
+            let r = RECIPES.find(x => x.id === id);
+            if(!r) return;
+            
+            // 재료 소비
+            let ingredients = [];
+            let tempUnits = [...units];
+            
+            for(let req of r.req) {
+                let u = units.find(unit => unit.type === req.type && unit.tier === req.tier && !ingredients.includes(unit));
+                if(u) ingredients.push(u);
+                else { showPopup("재료가 부족합니다."); return; }
+            }
+
+            // 재료 삭제
+            units = units.filter(u => !ingredients.includes(u));
+            
+            // 결과물 생성 (첫번째 재료 위치에)
+            let pos = { c: ingredients[0].col, r: ingredients[0].row };
+            createUnit(pos.c, pos.r, r.result, 4); // 신화(4) 등급보다 높게 설정 가능하지만 일단 4로
+            // 히든 유닛은 Tier 4(신화)로 표기되지만 능력치는 훨씬 높음
+            
+            showPopup(`✨${r.name} 소환 성공!✨`);
+            closeCombineModal();
+        }
+
+        // --- 전투 ---
+        function startNextWave() {
+            if(isWaveActive) return;
+            wave++;
+            enemiesToSpawn = 12 + Math.floor(wave * 2.5);
+            isWaveActive = true;
+            document.getElementById('start-wave-btn').style.display = 'none';
+            updateUI();
+        }
+
+        function spawnEnemy() {
+            let start = PATH_POINTS[0];
+            let hp = 120 * Math.pow(1.3, wave-1);
+            let spd = 100 + (wave * 2.5);
+            enemies.push({ x: start.x, y: start.y, pathIndex: 0, hp, maxHp: hp, speed: spd, reachedEnd: false, stunTimer: 0, slowTimer: 0 });
+            updateUI();
+        }
+
+        function moveEnemy(enemy, deltaTime) {
+            if(enemy.stunTimer > 0) return;
+            let target = PATH_POINTS[enemy.pathIndex+1];
+            if(!target) { enemy.reachedEnd = true; return; }
+            let dx = target.x - enemy.x; let dy = target.y - enemy.y;
+            let dist = Math.hypot(dx, dy);
+            let spd = enemy.speed;
+            if(enemy.slowTimer > 0) spd *= 0.6;
+            let move = (spd * deltaTime) / 1000;
+            if(dist < move) { enemy.x = target.x; enemy.y = target.y; enemy.pathIndex++; }
+            else { enemy.x += (dx/dist)*move; enemy.y += (dy/dist)*move; }
+        }
+
+        function findTarget(unit) {
+            let rangePx = unit.range * (TILE_SIZE/55);
+            let cx = unit.x + TILE_SIZE/2; let cy = unit.y + TILE_SIZE/2;
+            let closest = null; let minD = 9999;
+            for(let e of enemies) {
+                let d = Math.hypot(e.x - cx, e.y - cy);
+                if(d <= rangePx && d < minD) { minD = d; closest = e; }
+            }
+            return closest;
+        }
+        function findTargets(unit, count) {
+            let rangePx = unit.range * (TILE_SIZE/55);
+            let cx = unit.x + TILE_SIZE/2; let cy = unit.y + TILE_SIZE/2;
+            let targets = [];
+            for(let e of enemies) {
+                if(Math.hypot(e.x - cx, e.y - cy) <= rangePx) { targets.push(e); if(targets.length>=count) break; }
+            }
+            return targets;
+        }
+
+        function fireGlobalAttack(unit) {
+            enemies.forEach(e => {
+                e.hp -= unit.damage;
+                // 이펙트 생성 (각 적 위치에)
+                projectiles.push({ x: e.x, y: e.y - 20, target: null, damage: 0, speed: 0, hit: true, color: '#D50000', size: 10, timer: 10 });
+            });
+        }
+
+        function fireProjectile(unit, target) {
+            let color = '#FFFF00'; let effect = null; let dmg = unit.damage; let pSize = 5;
+            let data = UNIT_DATA[unit.type] || HIDDEN_DATA[unit.type];
+            
+            if(unit.type === '야만인') { if(Math.random()<0.1) { effect='stun'; color='#FFF'; } }
+            else if(unit.type === '궁수') { if(Math.random()<0.2) { dmg*=2.5; color='#F44336'; } }
+            else if(unit.type === '얼음법사') { effect='slow'; color='#29B6F6'; }
+            else if(unit.type === '산적') { if(Math.random()<0.05) { gold+=10; updateUI(); } }
+            else if(unit.type === '닌자') { if(target.hp/target.maxHp<=0.3) { dmg*=3; color='#D32F2F'; } }
+            else if(unit.type === '드래곤') { if(Math.random()<0.3) effect='stun'; color='#FFAB00'; pSize=8; }
+
+            projectiles.push({ x: unit.x+TILE_SIZE/2, y: unit.y+TILE_SIZE/2, target: target, damage: dmg, speed: 700, hit: false, effect: effect, color: color, size: pSize });
+        }
+
+        function moveProjectile(p, deltaTime) {
+            if(p.timer) { p.timer--; if(p.timer<=0) p.hit=true; return; } // 이펙트용
+            if(!p.target || !enemies.includes(p.target)) { p.hit = true; return; }
+            let dx = p.target.x - p.x; let dy = p.target.y - p.y;
+            let dist = Math.hypot(dx, dy);
+            let move = (p.speed * deltaTime) / 1000;
+            if(dist < move) {
+                p.x = p.target.x; p.y = p.target.y; p.hit = true;
+                p.target.hp -= p.damage;
+                if(p.effect === 'stun') p.target.stunTimer = 1500;
+                if(p.effect === 'slow') p.target.slowTimer = 2000;
+            } else { p.x += (dx/dist)*move; p.y += (dy/dist)*move; }
+        }
+
+        // --- 입력 ---
+        function getGridPos(cx, cy) {
+            let rect = canvas.getBoundingClientRect();
+            let x = cx - rect.left; let y = cy - rect.top;
+            if(x > GRID_OFFSET_X && x < GRID_OFFSET_X + GRID_COLS*TILE_SIZE && y > GRID_OFFSET_Y && y < GRID_OFFSET_Y + GRID_ROWS*TILE_SIZE) {
+                   return { c: Math.floor((x-GRID_OFFSET_X)/TILE_SIZE), r: Math.floor((y-GRID_OFFSET_Y)/TILE_SIZE) };
+            }
+            return null;
+        }
+
+        function onMouseDown(e) {
+            let pos = getGridPos(e.clientX, e.clientY);
+            if(pos) {
+                let u = getUnitAt(pos.c, pos.r);
+                if(u) {
+                    draggingUnit = u;
+                    let rect = canvas.getBoundingClientRect();
+                    u.dragX = e.clientX - rect.left; u.dragY = e.clientY - rect.top;
+                    let info = UNIT_DATA[u.type] || HIDDEN_DATA[u.type];
+                    showTooltip(`<span style="color:${info.color}; font-size:1.1em; font-weight:bold;">${u.type}</span> <span style="color:${TIER_COLORS[u.tier]}">[${TIERS[u.tier]}]</span><br>${info.desc}`);
+                }
+            }
+        }
+        function onMouseMove(e) {
+            if(draggingUnit) {
+                let rect = canvas.getBoundingClientRect();
+                draggingUnit.dragX = e.clientX - rect.left; draggingUnit.dragY = e.clientY - rect.top;
+            }
+        }
+        function onMouseUp(e) {
+            hideTooltip();
+            if(!draggingUnit) return;
+            
+            let dist = Math.hypot(draggingUnit.dragX - TRASH_ZONE.x, draggingUnit.dragY - TRASH_ZONE.y);
+            if(dist < TRASH_ZONE.r * 1.5) {
+                units = units.filter(u => u !== draggingUnit);
+                gold += Math.floor(SUMMON_COST/2); showPopup("판매 완료 (+5G)");
+                updateUI(); draggingUnit = null; return;
+            }
+
+            let pos = getGridPos(e.clientX, e.clientY);
+            if(pos) {
+                let target = getUnitAt(pos.c, pos.r);
+                if(target && target !== draggingUnit) {
+                    if(target.type === draggingUnit.type && target.tier === draggingUnit.tier) {
+                        if(target.tier < 5) { 
+                            let newTier = target.tier + 1;
+                            let newType = target.type; 
+                            units = units.filter(u => u !== draggingUnit && u !== target);
+                            createUnit(pos.c, pos.r, newType, newTier);
+                            showPopup(`합성! [${TIERS[newTier]}] 성공 ✨`);
+                        } else { showPopup("최고 등급입니다!"); returnUnit(); }
+                    } else { 
+                        let tmpC = draggingUnit.col; let tmpR = draggingUnit.row;
+                        draggingUnit.col = target.col; draggingUnit.row = target.row;
+                        target.col = tmpC; target.row = tmpR;
+                        updateUnitPos(draggingUnit); updateUnitPos(target);
+                    }
+                } else {
+                    draggingUnit.col = pos.c; draggingUnit.row = pos.r;
+                    updateUnitPos(draggingUnit);
+                }
+            } else returnUnit();
+            draggingUnit = null;
+        }
+
+        function getUnitAt(c, r) { return units.find(u => u.col === c && u.row === r); }
+        function getEmptySlots() { 
+            let slots = [];
+            for(let c=0; c<GRID_COLS; c++) for(let r=0; r<GRID_ROWS; r++) if(!getUnitAt(c,r)) slots.push({c,r});
+            return slots;
+        }
+        function updateUnitPos(u) { u.x = GRID_OFFSET_X + u.col*TILE_SIZE; u.y = GRID_OFFSET_Y + u.row*TILE_SIZE; }
+        function returnUnit() { updateUnitPos(draggingUnit); }
+        function endWave() { 
+            isWaveActive = false; document.getElementById('start-wave-btn').style.display = 'block'; 
+            gold += (50 + wave * 5); 
+            // 10웨이브 마다 신화석 확정 지급
+            if(wave % 10 === 0) { stones++; showPopup(`Wave ${wave} 클리어!<br>💎신화석 획득!`); }
+            else showPopup(`Wave ${wave} 클리어!`); 
+            updateUI(); 
+        }
+        function resetGame() {
+            gold = 200; wave = 1; units = []; enemies = []; projectiles = []; summonLevel = 1; stones = 0;
+            isWaveActive = false; document.getElementById('start-wave-btn').style.display = 'block';
+            updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById('gold-display').innerText = gold;
+            document.getElementById('stone-display').innerText = stones;
+            document.getElementById('wave-display').innerText = wave;
+            document.getElementById('enemy-count').innerText = enemies.length;
+            document.getElementById('summon-level').innerText = summonLevel;
+            
+            let rate = SUMMON_RATES[summonLevel-1];
+            document.getElementById('upgrade-cost').innerText = rate.cost;
+
+            let mRate = rate.m > 0 ? `<span class="c-myth"> 신화 ${rate.m}%</span>` : '';
+            document.getElementById('chance-text').innerHTML = `소환 확률: <span class="c-legend">전설 ${rate.l}%</span> ${mRate}`;
+        }
+
+        function showPopup(txt) { let el = document.getElementById('popup-msg'); el.innerHTML = txt; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'), 1500); }
+        function showTooltip(txt) { let el = document.getElementById('unit-tooltip'); el.innerHTML = txt; el.style.display = 'block'; }
+        function hideTooltip() { document.getElementById('unit-tooltip').style.display = 'none'; }
+
+        init();
+    </script>
+</body>
+</html>
