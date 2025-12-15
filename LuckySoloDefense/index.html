@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>운빨 솔로 디펜스 v7.10 (대기시간 로직 수정)</title>
+    <title>운빨 솔로 디펜스 v8.0 (유물 추가)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -55,6 +55,7 @@
         .util-btn.active { background: #FFC107; color: black; border-color: #FF6F00; }
         .util-btn.active-x3 { background: #FF5252; color: white; border-color: #D50000; }
         .util-btn.paused { background: #2196F3; border-color: #64B5F6; }
+        .util-btn.artifact { background: #9C27B0; border-color: #E1BEE7; }
 
         /* 스킵 버튼 */
         .btn-skip {
@@ -136,14 +137,22 @@
         @keyframes blink { 50% { opacity: 0.5; } }
 
         /* 모달 & 툴팁 */
-        #combine-modal { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 95%; height: 85%; background: rgba(30, 30, 30, 0.98); border: 2px solid #FFD700; border-radius: 15px; z-index: 100; flex-direction: column; padding: 15px; color: white; box-shadow: 0 0 50px rgba(0,0,0,0.9); }
-        #combine-modal.open { display: flex; }
+        .game-modal { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 95%; height: 85%; background: rgba(30, 30, 30, 0.98); border: 2px solid #FFD700; border-radius: 15px; z-index: 100; flex-direction: column; padding: 15px; color: white; box-shadow: 0 0 50px rgba(0,0,0,0.9); }
+        .game-modal.open { display: flex; }
         .modal-header { font-size: 1.4rem; text-align: center; margin-bottom: 10px; color: #FFD700; }
         .recipe-list { overflow-y: auto; flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         .recipe-card { background: rgba(255, 255, 255, 0.08); padding: 8px; border-radius: 6px; display: flex; flex-direction: column; gap: 3px; border: 1px solid #555; position: relative; }
         .recipe-name { font-size: 1rem; font-weight: bold; color: #E040FB; display: flex; justify-content: space-between;}
         .recipe-desc { font-size: 0.75rem; color: #bbb; margin-bottom: 5px; height: 30px; overflow: hidden; }
         .recipe-req { display: flex; gap: 5px; font-size: 0.75rem; color: #ddd; align-items: center; flex-wrap: wrap; }
+        
+        .artifact-card { background: rgba(0, 0, 0, 0.4); border: 1px solid #7B1FA2; padding: 10px; border-radius: 8px; display: flex; align-items: center; gap: 10px; }
+        .artifact-icon { font-size: 2rem; background: rgba(255,255,255,0.1); border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
+        .artifact-info { flex: 1; }
+        .artifact-name { font-weight: bold; color: #E1BEE7; }
+        .artifact-stat { font-size: 0.85rem; color: #9E9E9E; }
+        .artifact-count { font-size: 1.2rem; font-weight: bold; color: #FFD700; }
+
         .btn-buy-recipe { width: 100%; padding: 5px; margin-top: 5px; border: none; border-radius: 4px; background: #6200EA; color: white; font-family: 'Jua'; cursor: pointer; font-size: 0.9rem;}
         .btn-do-combine { width: 100%; padding: 5px; margin-top: 5px; border: none; border-radius: 4px; background: #00C853; color: white; font-family: 'Jua'; cursor: pointer; font-size: 0.9rem;}
         .btn-do-combine:disabled { background: #444; color: #888; cursor: not-allowed; }
@@ -151,30 +160,16 @@
 
         /* 메시지 영역 수정: 중첩 가능하도록 */
         #message-area { 
-            position: absolute; 
-            top: 25%; 
-            left: 50%; 
-            transform: translateX(-50%); 
-            pointer-events: none; 
-            display: flex; 
-            flex-direction: column-reverse; /* 최신 메시지가 아래에 쌓이거나 위로 올라가게 조정 */
-            align-items: center;
-            width: 100%; 
-            height: 0;
-            overflow: visible;
-            z-index: 999; 
+            position: absolute; top: 25%; left: 50%; transform: translateX(-50%); 
+            pointer-events: none; display: flex; flex-direction: column-reverse; 
+            align-items: center; width: 100%; height: 0; overflow: visible; z-index: 999; 
         }
         
         .pop-text { 
-            font-size: 2rem; 
-            font-weight: bold; 
-            color: #fff; 
+            font-size: 2rem; font-weight: bold; color: #fff; 
             text-shadow: 2px 2px 0 #000, 0 0 10px gold; 
-            opacity: 0; 
-            margin-bottom: 5px;
-            animation: popupFloat 1.5s forwards; 
-            flex-shrink: 0;
-            white-space: nowrap;
+            opacity: 0; margin-bottom: 5px; animation: popupFloat 1.5s forwards; 
+            flex-shrink: 0; white-space: nowrap;
         }
 
         @keyframes popupFloat {
@@ -204,6 +199,7 @@
                     <span id="skip-reward-box" style="font-size:0.8em;">(+<span id="skip-reward">0</span>G)</span>
                 </button>
                 <div class="util-right">
+                    <button class="util-btn artifact" onclick="openArtifactModal()">📦</button>
                     <button id="btn-pause" class="util-btn" onclick="togglePause()">⏸️</button>
                     <button id="btn-auto-merge" class="util-btn" onclick="toggleAutoMerge()">🤖 Auto Off</button>
                     <button id="btn-speed" class="util-btn" onclick="toggleSpeed()">⏩ x1</button>
@@ -278,11 +274,18 @@
             </div>
         </div>
 
-        <div id="combine-modal">
+        <!-- 조합 모달 -->
+        <div id="combine-modal" class="game-modal">
             <div class="modal-header">🏰 히든 영웅 조합소</div>
-            <div class="recipe-list" id="recipe-list">
-            </div>
-            <button class="btn-close" onclick="closeCombineModal()">닫기</button>
+            <div class="recipe-list" id="recipe-list"></div>
+            <button class="btn-close" onclick="closeModal('combine-modal')">닫기</button>
+        </div>
+
+        <!-- 유물 모달 -->
+        <div id="artifact-modal" class="game-modal">
+            <div class="modal-header">📦 보유 유물</div>
+            <div class="recipe-list" id="artifact-list"></div>
+            <button class="btn-close" onclick="closeModal('artifact-modal')">닫기</button>
         </div>
     </div>
 
@@ -324,6 +327,18 @@
             '메두사': { color: '#004D40', icon: '🐍', desc: '3초간 적 석화(정지)', type: 'mag' },
             '피닉스': { color: '#FF5722', icon: '🦅', desc: '라인 전체 화상 공격', type: 'mag' }
         };
+
+        const ARTIFACT_DATA = {
+            'sword': { name: '용기의 검', icon: '⚔️', desc: '물리 공격력 +10%', type: 'phyDmg', val: 0.1 },
+            'crystal': { name: '마나 수정', icon: '🔮', desc: '마법 공격력 +10%', type: 'magDmg', val: 0.1 },
+            'coin': { name: '행운의 동전', icon: '💰', desc: '골드 획득량 +10%', type: 'gold', val: 0.1 },
+            'feather': { name: '바람의 깃털', icon: '🏹', desc: '공격 속도 +5%', type: 'spd', val: 0.05 },
+            'skull': { name: '거인 학살자', icon: '💀', desc: '보스 피해량 +20%', type: 'bossDmg', val: 0.2 },
+            'hourglass': { name: '시간의 모래', icon: '⏳', desc: '쿨타임 감소 +5%', type: 'cdr', val: 0.05 },
+            'dice': { name: '도박사의 주사위', icon: '🎲', desc: '치명타 확률 +5%', type: 'crit', val: 0.05 },
+            'relic': { name: '고대 유물', icon: '💎', desc: '웨이브 시작 시 +30G', type: 'startGold', val: 30 }
+        };
+        const ARTIFACT_KEYS = Object.keys(ARTIFACT_DATA);
 
         const TIERS = ['일반', '희귀', '영웅', '전설', '신화', '불멸'];
         const TIER_COLORS = ['#B0BEC5', '#29B6F6', '#AB47BC', '#FF7043', '#FF1744', '#D500F9'];
@@ -398,6 +413,8 @@
         let effects = []; 
         let summonLevel = 1;
         let classLv = { phy: 1, mag: 1, sup: 1 };
+        let artifacts = {}; // { sword: 2, coin: 5 ... }
+        ARTIFACT_KEYS.forEach(k => artifacts[k] = 0);
         
         let lastTime = 0;
         let enemySpawnTimer = 0;
@@ -415,12 +432,13 @@
         
         let shakeAmount = 0; // 화면 흔들림 강도
 
-        const SAVE_KEY = 'lucky_defense_solo_v4';
+        const SAVE_KEY = 'lucky_defense_solo_v5_art';
 
         function saveGame() {
             const data = {
                 stones: stones,
-                unlockedRecipes: RECIPES.filter(r => r.unlocked).map(r => r.id)
+                unlockedRecipes: RECIPES.filter(r => r.unlocked).map(r => r.id),
+                artifacts: artifacts
             };
             localStorage.setItem(SAVE_KEY, JSON.stringify(data));
         }
@@ -431,24 +449,31 @@
                 try {
                     const data = JSON.parse(json);
                     if(data.stones !== undefined) stones = data.stones;
-                    if(data.unlockedRecipes && Array.isArray(data.unlockedRecipes)) {
+                    if(data.unlockedRecipes) {
                         data.unlockedRecipes.forEach(id => {
                             const r = RECIPES.find(recipe => recipe.id === id);
                             if(r) r.unlocked = true;
                         });
                     }
+                    if(data.artifacts) artifacts = { ...artifacts, ...data.artifacts };
                 } catch(e) {}
             }
         }
 
         function getSummonCost() { return BASE_SUMMON_COST + Math.max(0, Math.floor((wave - 1) * 0.5)); }
         function getGambleCost() { return BASE_GAMBLE_COST + Math.max(0, (wave - 1)); }
+        function getArtifactVal(type) {
+            let total = 0;
+            for(let k in artifacts) {
+                if(ARTIFACT_DATA[k].type === type) total += ARTIFACT_DATA[k].val * artifacts[k];
+            }
+            return total;
+        }
 
         function resizeGame() {
             canvas.width = canvasContainer.clientWidth;
             canvas.height = canvasContainer.clientHeight;
             
-            // 화면 잘림 방지를 위해 여백 계수 증가 (1.2 -> 2.5, 2.5 -> 4.0)
             const maxTileW = canvas.width / (GRID_COLS + 2.5);
             const maxTileH = canvas.height / (GRID_ROWS + 4.0);
             
@@ -480,7 +505,7 @@
             canvas.addEventListener('touchmove', (e) => { e.preventDefault(); onMouseMove({clientX: e.touches[0].clientX, clientY: e.touches[0].clientY}); }, {passive: false});
             canvas.addEventListener('touchend', (e) => { onMouseUp({clientX: e.changedTouches?e.changedTouches[0].clientX : 0, clientY: e.changedTouches?e.changedTouches[0].clientY : 0}); });
             
-            startNextWave(); // 1웨이브 준비 시작
+            startNextWave(); 
             updateUI();
             requestAnimationFrame(gameLoop);
         }
@@ -488,37 +513,23 @@
         function gameLoop(timestamp) {
             const deltaTime = timestamp - lastTime;
             lastTime = timestamp;
-            
-            if(!isPaused) {
-                frameCount++;
-                update(deltaTime); 
-            }
+            if(!isPaused) { frameCount++; update(deltaTime); }
             draw();
             requestAnimationFrame(gameLoop);
         }
 
         function update(deltaTime) {
             const scaledDelta = deltaTime * timeScale; 
-
-            // 화면 흔들림 감쇠
-            if (shakeAmount > 0) {
-                shakeAmount -= (scaledDelta / 1000) * 20; // 1초에 20 감소
-                if (shakeAmount < 0) shakeAmount = 0;
-            }
+            if (shakeAmount > 0) { shakeAmount -= (scaledDelta / 1000) * 20; if (shakeAmount < 0) shakeAmount = 0; }
 
             if (waveTimer > 0) {
                 waveTimer -= scaledDelta / 1000;
                 if (waveTimer <= 0) {
                     waveTimer = 0;
-                    if(isPrep) {
-                        startBattle(); // 준비 시간 종료 -> 전투 시작
-                    } else {
-                        startNextWave(); // 전투 시간 종료 -> 다음 웨이브 준비
-                    }
+                    if(isPrep) startBattle(); else startNextWave();
                 }
             }
 
-            // 전투 중에만 적 스폰
             if (!isPrep && enemiesToSpawn > 0) {
                 let spawnInterval = Math.max(150, 700 - (wave * 20)); 
                 enemySpawnTimer += scaledDelta;
@@ -527,21 +538,13 @@
 
             if(isAutoMerge) {
                 autoMergeTimer += deltaTime; 
-                if(autoMergeTimer > 500) {
-                    performAutoMerge();
-                    autoMergeTimer = 0;
-                }
+                if(autoMergeTimer > 500) { performAutoMerge(); autoMergeTimer = 0; }
             }
 
             for(let i=effects.length-1; i>=0; i--) {
-                let fx = effects[i];
-                fx.life -= deltaTime;
-                if(fx.type === 'text') {
-                    fx.y -= (0.05 * deltaTime);
-                } else if(fx.type === 'particle') {
-                    fx.x += fx.vx * (deltaTime/16);
-                    fx.y += fx.vy * (deltaTime/16);
-                }
+                let fx = effects[i]; fx.life -= deltaTime;
+                if(fx.type === 'text') fx.y -= (0.05 * deltaTime);
+                else if(fx.type === 'particle') { fx.x += fx.vx * (deltaTime/16); fx.y += fx.vy * (deltaTime/16); }
                 if(fx.life <= 0) effects.splice(i, 1);
             }
 
@@ -549,38 +552,28 @@
                 let enemy = enemies[i];
                 if (enemy.stunTimer > 0) enemy.stunTimer -= scaledDelta;
                 if (enemy.slowTimer > 0) enemy.slowTimer -= scaledDelta;
-                if (enemy.dotTimer > 0) {
-                    enemy.dotTimer -= scaledDelta;
-                    enemy.hp -= (enemy.maxHp * 0.001);
-                }
+                if (enemy.dotTimer > 0) { enemy.dotTimer -= scaledDelta; enemy.hp -= (enemy.maxHp * 0.001); }
                 
                 moveEnemy(enemy, scaledDelta);
                 
                 if (enemy.hp <= 0) { 
-                    gold += (2 + Math.floor(wave * 0.2)); 
+                    let bonusGold = (2 + Math.floor(wave * 0.2)) * (1 + getArtifactVal('gold'));
+                    gold += Math.floor(bonusGold); 
                     
-                    // 사망 이펙트
                     let pColor = '#CFD8DC';
                     if(enemy.type === 'fast') pColor = '#FFF176';
                     else if(enemy.type === 'tank') pColor = '#8D6E63';
                     else if(enemy.type === 'boss') pColor = '#E91E63';
-                    
                     createExplosion(enemy.x, enemy.y, pColor, enemy.type === 'boss' ? 30 : 8);
                     
-                    if(enemy.type === 'boss') {
-                        addShake(10); // 보스 사망시 화면 흔들림
-                        spawnFloatingText(enemy.x, enemy.y, "BOSS KILL!", "#FF1744");
-                    }
-
-                    enemies.splice(i, 1); 
-                    updateUI(); 
+                    if(enemy.type === 'boss') { addShake(10); spawnFloatingText(enemy.x, enemy.y, "BOSS KILL!", "#FF1744"); }
+                    enemies.splice(i, 1); updateUI(); 
                 }
             }
 
             if (enemies.length > MAX_ENEMIES_LIMIT) {
                 alert(`게임 오버! 적이 너무 많습니다 (${enemies.length}).\n${wave} 웨이브 기록.`);
-                resetGame();
-                return;
+                resetGame(); return;
             }
 
             units.forEach(unit => {
@@ -592,65 +585,33 @@
                         const targets = findTargets(unit, cnt);
                         if(targets.length > 0) { targets.forEach(t => fireProjectile(unit, t)); resetCooldown(unit); }
                     } else if(unit.type === '마신' || unit.type === '피닉스') {
-                        fireGlobalAttack(unit);
-                        resetCooldown(unit);
+                        fireGlobalAttack(unit); resetCooldown(unit);
                     } else if(unit.type === '공학자') {
-                         const target = findTarget(unit);
-                         if(target) { fireProjectile(unit, target); resetCooldown(unit); }
+                         const target = findTarget(unit); if(target) { fireProjectile(unit, target); resetCooldown(unit); }
                     } else {
-                        const target = findTarget(unit);
-                        if (target) { fireProjectile(unit, target); resetCooldown(unit); }
+                        const target = findTarget(unit); if (target) { fireProjectile(unit, target); resetCooldown(unit); }
                     }
                 }
             });
 
             for (let i = projectiles.length - 1; i >= 0; i--) {
-                let p = projectiles[i];
-                moveProjectile(p, scaledDelta);
-                if (p.hit) {
-                    // 타격 이펙트 (히트 시 작은 스파크)
-                    createExplosion(p.x, p.y, p.color, 3);
-                    projectiles.splice(i, 1);
-                }
+                let p = projectiles[i]; moveProjectile(p, scaledDelta);
+                if (p.hit) { createExplosion(p.x, p.y, p.color, 3); projectiles.splice(i, 1); }
             }
-            
             updateUI(); 
         }
 
         // --- 이펙트 관련 함수 ---
-        function addShake(amount) {
-            shakeAmount = amount;
-        }
-
+        function addShake(amount) { shakeAmount = amount; }
         function createExplosion(x, y, color, count) {
             for(let i=0; i<count; i++) {
-                let angle = Math.random() * Math.PI * 2;
-                let speed = Math.random() * 3 + 1;
-                effects.push({
-                    type: 'particle',
-                    x: x, y: y,
-                    vx: Math.cos(angle) * speed,
-                    vy: Math.sin(angle) * speed,
-                    color: color,
-                    life: 400 + Math.random() * 200,
-                    size: Math.random() * 3 + 2
-                });
+                let angle = Math.random() * Math.PI * 2; let speed = Math.random() * 3 + 1;
+                effects.push({ type: 'particle', x: x, y: y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, color: color, life: 400 + Math.random() * 200, size: Math.random() * 3 + 2 });
             }
         }
-
         function createSparkle(x, y, color) {
-            // 위로 올라가는 반짝이 효과
             for(let i=0; i<10; i++) {
-                effects.push({
-                    type: 'particle',
-                    x: x + (Math.random() - 0.5) * TILE_SIZE,
-                    y: y + (Math.random() - 0.5) * TILE_SIZE,
-                    vx: (Math.random() - 0.5) * 0.5,
-                    vy: -Math.random() * 2 - 1,
-                    color: color,
-                    life: 600 + Math.random() * 300,
-                    size: Math.random() * 2 + 1
-                });
+                effects.push({ type: 'particle', x: x + (Math.random() - 0.5) * TILE_SIZE, y: y + (Math.random() - 0.5) * TILE_SIZE, vx: (Math.random() - 0.5) * 0.5, vy: -Math.random() * 2 - 1, color: color, life: 600 + Math.random() * 300, size: Math.random() * 2 + 1 });
             }
         }
         // -------------------------
@@ -661,128 +622,82 @@
             document.getElementById('btn-pause').classList.toggle('paused', isPaused);
             document.getElementById('btn-pause').innerText = isPaused ? '▶️' : '⏸️';
         }
-
         function toggleSpeed() {
-            if(timeScale === 1) timeScale = 2;
-            else if(timeScale === 2) timeScale = 3;
-            else timeScale = 1;
-            
+            if(timeScale === 1) timeScale = 2; else if(timeScale === 2) timeScale = 3; else timeScale = 1;
             const btn = document.getElementById('btn-speed');
             btn.innerText = `⏩ x${timeScale}`;
             btn.className = `util-btn ${timeScale >= 2 ? 'active' : ''} ${timeScale === 3 ? 'active-x3' : ''}`;
         }
-
         function toggleAutoMerge() {
             isAutoMerge = !isAutoMerge;
             const btn = document.getElementById('btn-auto-merge');
             btn.innerText = isAutoMerge ? '🤖 On' : '🤖 Off';
             btn.classList.toggle('active', isAutoMerge);
         }
-
         function performAutoMerge() {
             for(let i=0; i<units.length; i++) {
                 let u1 = units[i];
                 if(u1 === draggingUnit) continue;
                 if(u1.tier >= 5) continue; 
-
                 for(let j=i+1; j<units.length; j++) {
                     let u2 = units[j];
                     if(u2 === draggingUnit) continue;
-
-                    if(u1.type === u2.type && u1.tier === u2.tier) {
-                        processMerge(u1, u2);
-                        return; 
-                    }
+                    if(u1.type === u2.type && u1.tier === u2.tier) { processMerge(u1, u2); return; }
                 }
             }
         }
-
         function processMerge(u1, u2) {
-            let newTier = u1.tier + 1;
-            let newType = u1.type;
-            let c = u2.col; let r = u2.row; 
-
+            let newTier = u1.tier + 1; let newType = u1.type; let c = u2.col; let r = u2.row; 
             units = units.filter(u => u !== u1 && u !== u2);
             createUnit(c, r, newType, newTier);
-            
-            // 합성 이펙트
             createSparkle(GRID_OFFSET_X + c*TILE_SIZE + TILE_SIZE/2, GRID_OFFSET_Y + r*TILE_SIZE + TILE_SIZE/2, TIER_COLORS[newTier]);
-            
             if(newTier === 5) showPopup(`🔥불멸 [${newType}] 강림!🔥`);
             else if(!isAutoMerge) showPopup(`합성! [${TIERS[newTier]}] 성공 ✨`); 
         }
-
-        function spawnFloatingText(x, y, text, color='#FFD700') {
-            effects.push({ type: 'text', x: x, y: y, text: text, color: color, life: 800 });
-        }
+        function spawnFloatingText(x, y, text, color='#FFD700') { effects.push({ type: 'text', x: x, y: y, text: text, color: color, life: 800 }); }
 
         function resetCooldown(unit) {
             let baseSpeed = 1000 / (1 + unit.tier * 0.25);
-            let classSpdMult = 1 + (classLv.sup - 1) * 0.05;
-
+            let classSpdMult = 1 + (classLv.sup - 1) * 0.05 + getArtifactVal('spd');
             if(unit.type === '개구리왕자') baseSpeed = 200;
             if(unit.type === '뱀파이어') baseSpeed = 400;
             if(unit.type === '마신') baseSpeed = 1500;
             if(unit.type === '저격수') baseSpeed = 2000;
+            
+            // 쿨타임 감소 유물 적용
+            let cdr = Math.min(0.5, getArtifactVal('cdr'));
+            baseSpeed *= (1 - cdr);
 
             unit.cooldown = baseSpeed / classSpdMult;
         }
 
         function draw() {
-            ctx.save(); // 화면 흔들림 적용 전 상태 저장
-
-            // 화면 흔들림 적용
-            if (shakeAmount > 0) {
-                let dx = (Math.random() - 0.5) * shakeAmount;
-                let dy = (Math.random() - 0.5) * shakeAmount;
-                ctx.translate(dx, dy);
-            }
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height); // 흔들림 고려하여 클리어는 transform 영향 안받게 할수도 있지만, 전체 지우고 다시 그리는게 깔끔
-
-            ctx.fillStyle = 'rgba(0,0,0,0.15)';
-            ctx.fillRect(GRID_OFFSET_X - 5, GRID_OFFSET_Y - 5, GRID_COLS*TILE_SIZE + 10, GRID_ROWS*TILE_SIZE + 10);
+            ctx.save();
+            if (shakeAmount > 0) { let dx = (Math.random() - 0.5) * shakeAmount; let dy = (Math.random() - 0.5) * shakeAmount; ctx.translate(dx, dy); }
+            ctx.clearRect(0, 0, canvas.width, canvas.height); 
+            ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(GRID_OFFSET_X - 5, GRID_OFFSET_Y - 5, GRID_COLS*TILE_SIZE + 10, GRID_ROWS*TILE_SIZE + 10);
             ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
-            for(let c=0; c<GRID_COLS; c++) {
-                for(let r=0; r<GRID_ROWS; r++) {
-                    ctx.strokeRect(GRID_OFFSET_X + c*TILE_SIZE, GRID_OFFSET_Y + r*TILE_SIZE, TILE_SIZE, TILE_SIZE);
-                }
-            }
+            for(let c=0; c<GRID_COLS; c++) { for(let r=0; r<GRID_ROWS; r++) { ctx.strokeRect(GRID_OFFSET_X + c*TILE_SIZE, GRID_OFFSET_Y + r*TILE_SIZE, TILE_SIZE, TILE_SIZE); } }
 
-            // 경로 그리기 (폐쇄 루프 - 직사각형)
             if(PATH_POINTS.length > 0) {
-                ctx.beginPath(); 
-                ctx.strokeStyle = 'rgba(255,255,255,0.2)'; 
-                ctx.lineWidth = TILE_SIZE * 0.45; 
-                ctx.lineJoin = 'round';
+                ctx.beginPath(); ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = TILE_SIZE * 0.45; ctx.lineJoin = 'round';
                 ctx.moveTo(PATH_POINTS[0].x, PATH_POINTS[0].y);
                 for(let i=1; i<PATH_POINTS.length; i++) ctx.lineTo(PATH_POINTS[i].x, PATH_POINTS[i].y);
-                ctx.closePath(); // 시작점과 연결
-                ctx.stroke();
+                ctx.closePath(); ctx.stroke();
             }
 
-            // 적 그리기
             enemies.forEach(e => {
                 let color = '#CFD8DC';
-                if(e.type === 'fast') color = '#FFF176';
-                if(e.type === 'tank') color = '#8D6E63';
-                if(e.type === 'boss') color = '#E91E63';
-
-                if(e.stunTimer > 0) color = '#FFEB3B';
-                else if(e.slowTimer > 0) color = '#42A5F5';
-                else if(e.dotTimer > 0) color = '#7B1FA2';
+                if(e.type === 'fast') color = '#FFF176'; else if(e.type === 'tank') color = '#8D6E63'; else if(e.type === 'boss') color = '#E91E63';
+                if(e.stunTimer > 0) color = '#FFEB3B'; else if(e.slowTimer > 0) color = '#42A5F5'; else if(e.dotTimer > 0) color = '#7B1FA2';
                 
-                let r = TILE_SIZE * 0.22;
-                if(e.type === 'boss') r *= 1.5;
-
-                ctx.fillStyle = color;
-                ctx.beginPath(); 
+                let r = TILE_SIZE * 0.22; if(e.type === 'boss') r *= 1.5;
+                ctx.fillStyle = color; ctx.beginPath(); 
                 if(e.type === 'fast') { ctx.moveTo(e.x, e.y - r); ctx.lineTo(e.x + r, e.y + r); ctx.lineTo(e.x - r, e.y + r); } 
                 else if(e.type === 'tank') { ctx.rect(e.x - r, e.y - r, r*2, r*2); } 
                 else if(e.type === 'boss') { drawStar(ctx, e.x, e.y, 5, r, r/2); } 
                 else { ctx.arc(e.x, e.y, r, 0, Math.PI*2); }
-                ctx.fill();
-                ctx.strokeStyle = '#222'; ctx.lineWidth = 1; ctx.stroke();
+                ctx.fill(); ctx.strokeStyle = '#222'; ctx.lineWidth = 1; ctx.stroke();
 
                 let pct = Math.max(0, e.hp / e.maxHp);
                 ctx.fillStyle = '#263238'; ctx.fillRect(e.x - r, e.y - r - 8, r*2, 5);
@@ -792,8 +707,7 @@
             units.forEach(u => { if(u !== draggingUnit) drawUnit(u, u.x, u.y); });
 
             projectiles.forEach(p => {
-                ctx.fillStyle = p.color;
-                ctx.beginPath(); 
+                ctx.fillStyle = p.color; ctx.beginPath(); 
                 if(p.shape === 'arrow') ctx.ellipse(p.x, p.y, p.size*1.5, p.size*0.5, Math.atan2(p.target.y - p.y, p.target.x - p.x), 0, Math.PI*2);
                 else if(p.shape === 'star') drawStar(ctx, p.x, p.y, 4, p.size, p.size/2);
                 else ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); 
@@ -802,21 +716,10 @@
 
             effects.forEach(fx => {
                 if(fx.type === 'text') {
-                    ctx.globalAlpha = Math.max(0, fx.life / 800);
-                    ctx.fillStyle = fx.color;
-                    ctx.font = `bold ${TILE_SIZE*0.35}px Jua`;
-                    ctx.textAlign = 'center';
-                    ctx.lineWidth = 3;
-                    ctx.strokeText(fx.text, fx.x, fx.y);
-                    ctx.fillText(fx.text, fx.x, fx.y);
-                    ctx.globalAlpha = 1.0;
+                    ctx.globalAlpha = Math.max(0, fx.life / 800); ctx.fillStyle = fx.color; ctx.font = `bold ${TILE_SIZE*0.35}px Jua`;
+                    ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeText(fx.text, fx.x, fx.y); ctx.fillText(fx.text, fx.x, fx.y); ctx.globalAlpha = 1.0;
                 } else if (fx.type === 'particle') {
-                    ctx.globalAlpha = Math.max(0, fx.life / 600);
-                    ctx.fillStyle = fx.color;
-                    ctx.beginPath();
-                    ctx.arc(fx.x, fx.y, fx.size, 0, Math.PI*2);
-                    ctx.fill();
-                    ctx.globalAlpha = 1.0;
+                    ctx.globalAlpha = Math.max(0, fx.life / 600); ctx.fillStyle = fx.color; ctx.beginPath(); ctx.arc(fx.x, fx.y, fx.size, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1.0;
                 }
             });
 
@@ -836,27 +739,17 @@
                 ctx.fillText('🗑️', TRASH_ZONE.x, TRASH_ZONE.y);
                 drawUnit(draggingUnit, draggingUnit.dragX, draggingUnit.dragY);
             }
-            
-            ctx.restore(); // 화면 흔들림 해제
+            ctx.restore();
         }
 
         function drawUnit(unit, x, y) {
             const cx = x + (unit === draggingUnit ? 0 : TILE_SIZE/2);
             const cy = y + (unit === draggingUnit ? 0 : TILE_SIZE/2);
             const size = TILE_SIZE * 0.85;
-
             let data = UNIT_DATA[unit.type] || HIDDEN_DATA[unit.type];
-            ctx.fillStyle = data.color;
-            ctx.lineWidth = 3;
-
-            if(unit.tier >= 4) {
-                let hue = (frameCount * 3) % 360;
-                ctx.strokeStyle = `hsl(${hue}, 100%, 70%)`;
-                ctx.shadowBlur = 10; ctx.shadowColor = ctx.strokeStyle;
-            } else {
-                ctx.strokeStyle = TIER_COLORS[unit.tier];
-                ctx.shadowBlur = 0;
-            }
+            ctx.fillStyle = data.color; ctx.lineWidth = 3;
+            if(unit.tier >= 4) { let hue = (frameCount * 3) % 360; ctx.strokeStyle = `hsl(${hue}, 100%, 70%)`; ctx.shadowBlur = 10; ctx.shadowColor = ctx.strokeStyle; } 
+            else { ctx.strokeStyle = TIER_COLORS[unit.tier]; ctx.shadowBlur = 0; }
 
             ctx.beginPath();
             if(unit.tier === 0) ctx.arc(cx, cy, size/2, 0, Math.PI*2);
@@ -866,12 +759,8 @@
             else drawStar(ctx, cx, cy, 5, size/2, size/4); 
             ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
 
-            ctx.fillStyle = 'white'; ctx.font = `${size*0.5}px sans-serif`;
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(data.icon, cx, cy);
-            
-            ctx.font = `${size*0.25}px sans-serif`;
-            ctx.fillStyle = '#fff';
+            ctx.fillStyle = 'white'; ctx.font = `${size*0.5}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(data.icon, cx, cy);
+            ctx.font = `${size*0.25}px sans-serif`; ctx.fillStyle = '#fff';
             let typeIcon = data.type === 'phy' ? '⚔️' : (data.type==='mag' ? '🔮' : '⚗️');
             ctx.fillText(typeIcon, cx + size/3, cy + size/3);
         }
@@ -912,76 +801,64 @@
             if(emptySlots.length === 0) { showPopup("자리가 꽉 찼습니다!"); return; }
             
             gold -= cost;
-            
             let rates = SUMMON_RATES[summonLevel-1];
             let rand = Math.random() * 100;
             let tier = 0;
-            
-            if(rand < rates.c) tier = 0;
-            else if(rand < rates.c + rates.r) { tier = 1; showPopup("희귀 소환! 💙"); }
-            else if(rand < rates.c + rates.r + rates.e) { tier = 2; showPopup("영웅 소환! 💜"); }
-            else if(rand < rates.c + rates.r + rates.e + rates.l) { tier = 3; showPopup("전설 소환! 🧡"); }
-            else { tier = 4; showPopup("⚡신화 소환!⚡"); addShake(5); } // 신화 소환시 흔들림 추가
+            if(rand < rates.c) tier = 0; else if(rand < rates.c + rates.r) { tier = 1; showPopup("희귀 소환! 💙"); } else if(rand < rates.c + rates.r + rates.e) { tier = 2; showPopup("영웅 소환! 💜"); } else if(rand < rates.c + rates.r + rates.e + rates.l) { tier = 3; showPopup("전설 소환! 🧡"); } else { tier = 4; showPopup("⚡신화 소환!⚡"); addShake(5); } 
 
             let slot = emptySlots[Math.floor(Math.random()*emptySlots.length)];
             let type = UNIT_TYPES[Math.floor(Math.random()*UNIT_TYPES.length)];
             createUnit(slot.c, slot.r, type, tier);
-            
-            // 소환 이펙트
             createSparkle(GRID_OFFSET_X + slot.c*TILE_SIZE + TILE_SIZE/2, GRID_OFFSET_Y + slot.r*TILE_SIZE + TILE_SIZE/2, '#FFFFFF');
-
             updateUI();
         }
 
         function createUnit(col, row, type, tier) {
-            const x = GRID_OFFSET_X + col * TILE_SIZE;
-            const y = GRID_OFFSET_Y + row * TILE_SIZE;
-            
+            const x = GRID_OFFSET_X + col * TILE_SIZE; const y = GRID_OFFSET_Y + row * TILE_SIZE;
             let mult = Math.pow(2.2, tier);
-            if(tier >= 4) mult *= 2; 
-            if(HIDDEN_DATA[type]) mult *= 3;
-
-            let rng = 160 + (tier * 15);
-            if(type === '저격수') rng = 9999;
-
-            units.push({
-                col, row, x, y, type, tier,
-                damage: 10 * mult,
-                range: rng,
-                cooldown: 0
-            });
+            if(tier >= 4) mult *= 2; if(HIDDEN_DATA[type]) mult *= 3;
+            let rng = 160 + (tier * 15); if(type === '저격수') rng = 9999;
+            units.push({ col, row, x, y, type, tier, damage: 10 * mult, range: rng, cooldown: 0 });
         }
 
         function gamble() {
             let cost = getGambleCost();
             if(gold < cost) { showPopup("비용 부족!"); return; }
             gold -= cost;
-            let rand = Math.random();
-            if(rand < 0.45) showPopup("꽝... 💸");
-            else if(rand < 0.70) { 
+            
+            // 확률: 꽝 35, 골드 25, 유닛 25, 유물 10, 신화석 5
+            let rand = Math.random() * 100;
+            
+            if(rand < 35) {
+                showPopup("꽝... 💸");
+            } else if(rand < 60) {
+                // 골드
                 let gain = 150 + (summonLevel * 5) + (wave * 2); 
                 gold += gain; showPopup(`+${gain}G 대박! 🎉`); 
-            }
-            else if(rand < 0.95) { 
+            } else if(rand < 85) {
+                // 유닛
                 let emptySlots = getEmptySlots();
                 if(emptySlots.length > 0) {
                     let rates = SUMMON_RATES[summonLevel-1];
                     let r2 = Math.random() * 100;
                     let t = 0;
-                    if(r2 < rates.c) t = 0;
-                    else if(r2 < rates.c+rates.r) t=1;
-                    else if(r2 < rates.c+rates.r+rates.e) t=2;
-                    else t=3; 
-                    
+                    if(r2 < rates.c) t = 0; else if(r2 < rates.c+rates.r) t=1; else if(r2 < rates.c+rates.r+rates.e) t=2; else t=3; 
                     let s = emptySlots[Math.floor(Math.random()*emptySlots.length)];
                     let ty = UNIT_TYPES[Math.floor(Math.random()*UNIT_TYPES.length)];
                     createUnit(s.c, s.r, ty, t);
                     showPopup("유닛 획득! 🎲");
                 } else {
-                    gold += cost; 
-                    showPopup("자리 없음");
+                    gold += cost; showPopup("자리 없음");
                 }
+            } else if(rand < 95) {
+                // 유물
+                let key = ARTIFACT_KEYS[Math.floor(Math.random() * ARTIFACT_KEYS.length)];
+                artifacts[key]++;
+                let art = ARTIFACT_DATA[key];
+                showPopup(`${art.icon} ${art.name} 획득!`);
+                saveGame();
             } else {
+                // 신화석
                 stones += 1; showPopup("💎 신화석 획득! 💎");
                 saveGame();
             }
@@ -991,7 +868,6 @@
         function openCombineModal() {
             const list = document.getElementById('recipe-list');
             list.innerHTML = '';
-            
             RECIPES.forEach(r => {
                 const canUnlock = !r.unlocked && stones >= r.cost;
                 const canCombine = r.unlocked && checkIngredients(r.req);
@@ -1009,110 +885,87 @@
 
                 let item = document.createElement('div');
                 item.className = 'recipe-card';
-                item.innerHTML = `
-                    <div class="recipe-name"><span>${typeIcon} ${r.name}</span> <span style="font-size:0.8rem">${info.type.toUpperCase()}</span></div>
-                    <div class="recipe-desc">${info.desc}</div>
-                    <div class="recipe-req">${reqHtml}</div>
-                    ${btnHtml}
-                `;
+                item.innerHTML = `<div class="recipe-name"><span>${typeIcon} ${r.name}</span> <span style="font-size:0.8rem">${info.type.toUpperCase()}</span></div><div class="recipe-desc">${info.desc}</div><div class="recipe-req">${reqHtml}</div>${btnHtml}`;
                 list.appendChild(item);
             });
             document.getElementById('combine-modal').classList.add('open');
         }
 
-        function closeCombineModal() { document.getElementById('combine-modal').classList.remove('open'); }
+        function openArtifactModal() {
+            const list = document.getElementById('artifact-list');
+            list.innerHTML = '';
+            ARTIFACT_KEYS.forEach(key => {
+                let art = ARTIFACT_DATA[key];
+                let count = artifacts[key];
+                let item = document.createElement('div');
+                item.className = 'artifact-card';
+                item.innerHTML = `
+                    <div class="artifact-icon">${art.icon}</div>
+                    <div class="artifact-info">
+                        <div class="artifact-name">${art.name}</div>
+                        <div class="artifact-stat">${art.desc}</div>
+                    </div>
+                    <div class="artifact-count">x${count}</div>
+                `;
+                list.appendChild(item);
+            });
+            document.getElementById('artifact-modal').classList.add('open');
+        }
+
+        function closeModal(id) { document.getElementById(id).classList.remove('open'); }
         function unlockRecipe(id) {
             let r = RECIPES.find(x => x.id === id);
-            if(r && stones >= r.cost) {
-                stones -= r.cost; r.unlocked = true;
-                showPopup(`${r.name} 해금 완료!`); 
-                saveGame(); 
-                updateUI(); openCombineModal();
-            }
+            if(r && stones >= r.cost) { stones -= r.cost; r.unlocked = true; showPopup(`${r.name} 해금 완료!`); saveGame(); updateUI(); openCombineModal(); }
         }
         function checkIngredients(reqs) {
             let tempUnits = [...units];
             for(let req of reqs) {
                 let idx = tempUnits.findIndex(u => u.type === req.type && u.tier === req.tier);
-                if(idx === -1) return false;
-                tempUnits.splice(idx, 1);
+                if(idx === -1) return false; tempUnits.splice(idx, 1);
             }
             return true;
         }
         function combineHero(id) {
-            let r = RECIPES.find(x => x.id === id);
-            if(!r) return;
-            let ingredients = [];
-            let tempUnits = [...units];
+            let r = RECIPES.find(x => x.id === id); if(!r) return;
+            let ingredients = []; let tempUnits = [...units];
             for(let req of r.req) {
                 let u = units.find(unit => unit.type === req.type && unit.tier === req.tier && !ingredients.includes(unit));
-                if(u) ingredients.push(u);
-                else { showPopup("재료가 부족."); return; }
+                if(u) ingredients.push(u); else { showPopup("재료가 부족."); return; }
             }
             units = units.filter(u => !ingredients.includes(u));
             let pos = { c: ingredients[0].col, r: ingredients[0].row };
             createUnit(pos.c, pos.r, r.result, 4); 
-            
-            // 조합 이펙트
             createSparkle(GRID_OFFSET_X + pos.c*TILE_SIZE + TILE_SIZE/2, GRID_OFFSET_Y + pos.r*TILE_SIZE + TILE_SIZE/2, '#E040FB');
-            addShake(10); // 조합시 화면 흔들림
-
-            showPopup(`✨${r.name} 소환 성공!✨`);
-            closeCombineModal();
+            addShake(10); showPopup(`✨${r.name} 소환 성공!✨`); closeModal('combine-modal');
         }
 
         function startNextWave() {
             wave++;
-            
-            // 1웨이브만 준비 시간(20초) 가짐
             if (wave === 1) {
-                isPrep = true; 
-                waveTimer = 20;
-                showPopup("전투 준비 단계!");
-                updateUI();
+                isPrep = true; waveTimer = 20; showPopup("전투 준비 단계!"); updateUI();
             } else {
-                // 2웨이브부터는 10초 대기 없이 바로 시작
-                gold += (50 + wave * 5); 
+                gold += (50 + wave * 5) + (getArtifactVal('startGold')); 
                 if(wave % 10 === 0) { stones++; showPopup(`Wave ${wave} 돌입!<br>💎신화석 획득!`); saveGame(); }
                 else showPopup(`Wave ${wave} 돌입!`);
-                
                 startBattle();
             }
         }
 
         function startBattle() {
-            isPrep = false; // 전투 시작
-            waveTimer = WAVE_DURATION; 
-            enemiesToSpawn = 12 + Math.floor(wave * 2.5);
+            isPrep = false; waveTimer = WAVE_DURATION; enemiesToSpawn = 12 + Math.floor(wave * 2.5);
             showPopup(`⚔️ Wave ${wave} 전투 시작! ⚔️`);
-            
-            if(wave % 10 === 0) {
-                addShake(15); // 보스 웨이브 시작 시 강한 흔들림
-                spawnFloatingText(canvas.width/2, canvas.height/2, "WARNING: BOSS", "#FF0000");
-            }
+            if(wave % 10 === 0) { addShake(15); spawnFloatingText(canvas.width/2, canvas.height/2, "WARNING: BOSS", "#FF0000"); }
             updateUI();
         }
 
         function skipWave() {
             if(isPrep) {
-                // 준비 시간 스킵 (즉시 전투 시작)
                 let bonus = 0;
-                // 1웨이브가 아니면 보너스 지급
-                if(wave > 1 && waveTimer > 0) {
-                    bonus = Math.floor(waveTimer) * 5; // 준비 시간 스킵 보너스
-                    gold += bonus;
-                    spawnFloatingText(canvas.width/2, canvas.height/2, `Start! +${bonus}G`, '#4CAF50');
-                } else {
-                    spawnFloatingText(canvas.width/2, canvas.height/2, `Start!`, '#FFF');
-                }
+                if(wave > 1 && waveTimer > 0) { bonus = Math.floor(waveTimer) * 5; gold += bonus; spawnFloatingText(canvas.width/2, canvas.height/2, `Start! +${bonus}G`, '#4CAF50'); }
+                else { spawnFloatingText(canvas.width/2, canvas.height/2, `Start!`, '#FFF'); }
                 startBattle();
             } else {
-                // 전투 스킵 (기존 로직: 남은 시간만큼 보상받고 다음 웨이브 준비로)
-                if(waveTimer > 0) {
-                    let bonus = Math.floor(waveTimer) * 2; 
-                    gold += bonus;
-                    spawnFloatingText(canvas.width/2, canvas.height/2, `Skip! +${bonus}G`, '#FFD700');
-                }
+                if(waveTimer > 0) { let bonus = Math.floor(waveTimer) * 2; gold += bonus; spawnFloatingText(canvas.width/2, canvas.height/2, `Skip! +${bonus}G`, '#FFD700'); }
                 startNextWave();
             }
         }
@@ -1120,64 +973,44 @@
         function spawnEnemy() {
             let start = PATH_POINTS[0];
             let hp = 120 * Math.pow(1.3, wave-1);
-            let spd = 60 + (wave * 2); // 속도 감소 적용 (100 -> 60)
+            let spd = 60 + (wave * 2); 
             let type = 'normal';
-            
             if(wave % 10 === 0) { type = 'boss'; hp *= 10; spd *= 0.7; }
             else if(wave % 5 === 0) { type = 'tank'; hp *= 3; spd *= 0.8; }
             else if(wave % 3 === 0) { type = 'fast'; hp *= 0.7; spd *= 1.5; }
-
             enemies.push({ x: start.x, y: start.y, pathIndex: 0, hp, maxHp: hp, speed: spd, reachedEnd: false, stunTimer: 0, slowTimer: 0, dotTimer: 0, type: type });
             updateUI();
         }
 
         function moveEnemy(enemy, deltaTime) {
             if(enemy.stunTimer > 0) return;
-            
-            let currentPt = PATH_POINTS[enemy.pathIndex];
-            let nextIdx = (enemy.pathIndex + 1) % PATH_POINTS.length;
-            let target = PATH_POINTS[nextIdx];
-            
-            let dx = target.x - enemy.x; let dy = target.y - enemy.y;
-            let dist = Math.hypot(dx, dy);
-            let spd = enemy.speed;
-            if(enemy.slowTimer > 0) spd *= 0.6;
+            let currentPt = PATH_POINTS[enemy.pathIndex]; let nextIdx = (enemy.pathIndex + 1) % PATH_POINTS.length; let target = PATH_POINTS[nextIdx];
+            let dx = target.x - enemy.x; let dy = target.y - enemy.y; let dist = Math.hypot(dx, dy);
+            let spd = enemy.speed; if(enemy.slowTimer > 0) spd *= 0.6;
             let move = (spd * deltaTime) / 1000;
-            
-            if(dist < move) { 
-                enemy.x = target.x; enemy.y = target.y; 
-                enemy.pathIndex = nextIdx; 
-            } else { 
-                enemy.x += (dx/dist)*move; enemy.y += (dy/dist)*move; 
-            }
+            if(dist < move) { enemy.x = target.x; enemy.y = target.y; enemy.pathIndex = nextIdx; } 
+            else { enemy.x += (dx/dist)*move; enemy.y += (dy/dist)*move; }
         }
 
         function findTarget(unit) {
             let rangePx = unit.range * (TILE_SIZE/55);
             let cx = unit.x + TILE_SIZE/2; let cy = unit.y + TILE_SIZE/2;
             let closest = null; let minD = 9999;
-            for(let e of enemies) {
-                let d = Math.hypot(e.x - cx, e.y - cy);
-                if(d <= rangePx && d < minD) { minD = d; closest = e; }
-            }
+            for(let e of enemies) { let d = Math.hypot(e.x - cx, e.y - cy); if(d <= rangePx && d < minD) { minD = d; closest = e; } }
             return closest;
         }
         function findTargets(unit, count) {
             let rangePx = unit.range * (TILE_SIZE/55);
             let cx = unit.x + TILE_SIZE/2; let cy = unit.y + TILE_SIZE/2;
             let targets = [];
-            for(let e of enemies) {
-                if(Math.hypot(e.x - cx, e.y - cy) <= rangePx) { targets.push(e); if(targets.length>=count) break; }
-            }
+            for(let e of enemies) { if(Math.hypot(e.x - cx, e.y - cy) <= rangePx) { targets.push(e); if(targets.length>=count) break; } }
             return targets;
         }
         function fireGlobalAttack(unit) {
-            addShake(5); // 전체 공격시 흔들림
-            enemies.forEach(e => {
-                let dmg = unit.damage * (1 + (classLv.mag - 1) * 0.1); 
+            addShake(5); enemies.forEach(e => {
+                let dmg = unit.damage * (1 + (classLv.mag - 1) * 0.1 + getArtifactVal('magDmg')); 
                 e.hp -= dmg;
                 projectiles.push({ x: e.x, y: e.y - 20, target: null, damage: 0, speed: 0, hit: true, color: '#D50000', size: 10, timer: 10 });
-                // 이펙트 추가
                 createExplosion(e.x, e.y, '#D50000', 5);
             });
         }
@@ -1186,29 +1019,34 @@
             let info = UNIT_DATA[unit.type] || HIDDEN_DATA[unit.type];
             let dmg = unit.damage;
 
-            if(info.type === 'phy') { dmg *= (1 + (classLv.phy - 1) * 0.1); shape = 'arrow'; }
-            else if(info.type === 'mag') { dmg *= (1 + (classLv.mag - 1) * 0.1); shape = 'star'; }
+            if(info.type === 'phy') { dmg *= (1 + (classLv.phy - 1) * 0.1 + getArtifactVal('phyDmg')); shape = 'arrow'; }
+            else if(info.type === 'mag') { dmg *= (1 + (classLv.mag - 1) * 0.1 + getArtifactVal('magDmg')); shape = 'star'; }
             
-            if(unit.type === '야만인' && Math.random() < (0.1 + unit.tier*0.02)) { effect='stun'; color='#FFF'; }
-            if(unit.type === '궁수' && Math.random() < 0.2) { 
-                dmg *= (2.5 + unit.tier * 0.5); color='#F44336'; 
-                spawnFloatingText(target.x, target.y - 20, "CRIT!", "#F44336");
+            let critRate = 0;
+            if(unit.type === '궁수') critRate += 0.2;
+            if(unit.type === '무사') critRate += 0.5;
+            critRate += getArtifactVal('crit');
+
+            if(Math.random() < critRate) {
+                let critDmg = (unit.type==='궁수') ? (2.5 + unit.tier * 0.5) : 2.0;
+                dmg *= critDmg; color='#F44336'; spawnFloatingText(target.x, target.y - 20, "CRIT!", "#F44336");
             }
+
+            if(unit.type === '야만인' && Math.random() < (0.1 + unit.tier*0.02)) { effect='stun'; color='#FFF'; }
             if(unit.type === '얼음법사' || unit.type === '대마법사') { effect='slow'; color='#29B6F6'; }
             if(unit.type === '산적' && Math.random() < (0.05 + unit.tier*0.01) * (classLv.sup*0.5)) { 
-                gold += 10; updateUI(); 
-                spawnFloatingText(unit.x+TILE_SIZE/2, unit.y, "+10G");
+                gold += 10; updateUI(); spawnFloatingText(unit.x+TILE_SIZE/2, unit.y, "+10G");
             }
             if(unit.type === '닌자' && target.hp/target.maxHp <= (0.3 + unit.tier*0.05)) { dmg *= 3; color='#D32F2F'; }
             if(unit.type === '연금술사' && Math.random() < (0.1 + unit.tier*0.02)) { 
-                gold += 50; updateUI(); 
-                spawnFloatingText(unit.x+TILE_SIZE/2, unit.y, "+50G", "#00E676");
+                gold += 50; updateUI(); spawnFloatingText(unit.x+TILE_SIZE/2, unit.y, "+50G", "#00E676");
             }
             if(unit.type === '드래곤' && Math.random() < (0.3 + unit.tier*0.05)) { effect='stun'; color='#FFAB00'; pSize=8; }
             if(unit.type === '강령술사') { effect='dot'; color='#7B1FA2'; }
-            if(unit.type === '무사' && Math.random()<0.5) { dmg*=2; color='#E0E0E0'; }
             if(unit.type === '메두사') { effect='stun'; color='#004D40'; }
             if(unit.type === '도박사') { dmg *= (Math.random()*9 + 1); color='#3F51B5'; }
+
+            if(getArtifactVal('bossDmg') > 0 && target.type === 'boss') dmg *= (1 + getArtifactVal('bossDmg'));
 
             if(unit.tier === 5) { pSize += 3; color = '#E040FB'; }
             projectiles.push({ x: unit.x+TILE_SIZE/2, y: unit.y+TILE_SIZE/2, target: target, damage: dmg, speed: 700, hit: false, effect: effect, color: color, size: pSize, shape: shape });
@@ -1246,14 +1084,12 @@
                     let rect = canvas.getBoundingClientRect();
                     u.dragX = e.clientX - rect.left; u.dragY = e.clientY - rect.top;
                     let info = UNIT_DATA[u.type] || HIDDEN_DATA[u.type];
-                    
                     let statText = "";
                     if(u.type==='야만인') statText = `기절: ${Math.round((0.1+u.tier*0.02)*100)}%`;
                     else if(u.type==='궁수') statText = `치명타: ${2.5 + u.tier*0.5}배`;
                     else if(u.type==='닌자') statText = `처형: ${Math.round((0.3+u.tier*0.05)*100)}%이하`;
                     else if(u.type==='산적') statText = `강탈: ${Math.round((0.05+u.tier*0.01)*100)}%`;
                     else if(u.type==='드래곤') statText = `스턴: ${Math.round((0.3+u.tier*0.05)*100)}%`;
-                    
                     showTooltip(`<span style="color:${info.color}; font-size:1.1em; font-weight:bold;">${u.type}</span> <span style="color:${TIER_COLORS[u.tier]}">[${TIERS[u.tier]}]</span><br>${info.desc}<br><span style="color:#FFEB3B">${statText}</span>`);
                 }
             }
@@ -1269,9 +1105,7 @@
                 let target = getUnitAt(pos.c, pos.r);
                 if(target && target !== draggingUnit) {
                     if(target.type === draggingUnit.type && target.tier === draggingUnit.tier) {
-                        if(target.tier < 5) { 
-                            processMerge(draggingUnit, target);
-                        } else { showPopup("최고 등급입니다!"); returnUnit(); }
+                        if(target.tier < 5) { processMerge(draggingUnit, target); } else { showPopup("최고 등급입니다!"); returnUnit(); }
                     } else { let tmpC = draggingUnit.col; let tmpR = draggingUnit.row; draggingUnit.col = target.col; draggingUnit.row = target.row; target.col = tmpC; target.row = tmpR; updateUnitPos(draggingUnit); updateUnitPos(target); }
                 } else { draggingUnit.col = pos.c; draggingUnit.row = pos.r; updateUnitPos(draggingUnit); }
             } else returnUnit();
@@ -1287,7 +1121,6 @@
             gold = 200; wave = 0; units = []; enemies = []; projectiles = []; summonLevel = 1; stones = stones; 
             classLv = { phy: 1, mag: 1, sup: 1 };
             waveTimer = 0;
-            
             startNextWave();
             updateUI();
         }
@@ -1296,17 +1129,13 @@
             document.getElementById('gold-display').innerText = gold;
             document.getElementById('stone-display').innerText = stones;
             document.getElementById('wave-display').innerText = wave;
-            
             let ec = document.getElementById('enemy-count');
             ec.innerText = enemies.length;
-            if(enemies.length > MAX_ENEMIES_LIMIT * 0.8) ec.style.color = '#FF1744';
-            else ec.style.color = '#fff';
+            if(enemies.length > MAX_ENEMIES_LIMIT * 0.8) ec.style.color = '#FF1744'; else ec.style.color = '#fff';
 
             document.getElementById('summon-level').innerText = summonLevel;
-            
             let rate = SUMMON_RATES[summonLevel-1];
             document.getElementById('upgrade-cost').innerText = rate.cost;
-
             document.getElementById('summon-cost-display').innerText = getSummonCost() + " G";
             document.getElementById('gamble-cost-display').innerText = getGambleCost() + "G";
 
@@ -1325,49 +1154,27 @@
             let skipReward = document.getElementById('skip-reward');
             
             document.getElementById('wave-timer').innerText = Math.ceil(waveTimer);
-
-            // 항상 '스킵'으로 표시
             skipTxt.innerText = "⏩ 스킵";
 
             if (isPrep) {
-                // 준비 상태 UI
-                tBox.classList.remove('urgent');
-                tBox.classList.add('prep');
-                tIcon.innerText = "⏳";
+                tBox.classList.remove('urgent'); tBox.classList.add('prep'); tIcon.innerText = "⏳";
                 skipBtn.classList.add('prep-mode');
-                
-                // 보상 박스 표시
                 skipRewardBox.style.display = "inline";
-                
-                if (wave === 1) {
-                    skipReward.innerText = "0"; // 1웨이브 보상 0
-                } else {
-                    skipReward.innerText = Math.floor(waveTimer) * 5;
-                }
+                if (wave === 1) skipReward.innerText = "0"; else skipReward.innerText = Math.floor(waveTimer) * 5;
             } else {
-                // 전투 상태 UI
                 tBox.classList.remove('prep');
-                if(waveTimer < 10) tBox.classList.add('urgent');
-                else tBox.classList.remove('urgent');
+                if(waveTimer < 10) tBox.classList.add('urgent'); else tBox.classList.remove('urgent');
                 tIcon.innerText = "🔥";
-                
                 skipBtn.classList.remove('prep-mode');
                 skipRewardBox.style.display = "inline";
                 skipReward.innerText = Math.floor(waveTimer) * 2;
             }
         }
 
-        // 메시지가 쌓이도록 수정된 함수
         function showPopup(txt) { 
             const area = document.getElementById('message-area');
-            const el = document.createElement('div');
-            el.className = 'pop-text';
-            el.innerHTML = txt;
-            area.appendChild(el); 
-            // 애니메이션 종료 후 제거 (약 1.5초)
-            setTimeout(() => {
-                if(el.parentElement) el.parentElement.removeChild(el);
-            }, 1500);
+            const el = document.createElement('div'); el.className = 'pop-text'; el.innerHTML = txt;
+            area.appendChild(el); setTimeout(() => { if(el.parentElement) el.parentElement.removeChild(el); }, 1500);
         }
 
         function showLuckInfo() {
@@ -1376,24 +1183,10 @@
             let el = document.getElementById('luck-tooltip');
             let mText = cur.m > 0 ? `<div class="c-myth">신화: ${cur.m}%</div>` : '';
             let nextM = next.m > 0 ? `<div class="c-myth">신화: ${next.m}%</div>` : '';
-
-            el.innerHTML = `
-                <div style="margin-bottom:5px; font-weight:bold; color:#FFD700;">현재 (Lv.${summonLevel})</div>
-                <div class="c-rare">희귀: ${cur.r}%</div>
-                <div class="c-hero">영웅: ${cur.e}%</div>
-                <div class="c-legend">전설: ${cur.l}%</div>
-                ${mText}
-                <hr style="border-color:#555; margin:5px 0;">
-                <div style="margin-bottom:5px; font-weight:bold; color:#AAA;">다음 (Lv.${summonLevel < 20 ? summonLevel+1 : 'MAX'})</div>
-                <div class="c-rare">희귀: ${next.r}%</div>
-                <div class="c-hero">영웅: ${next.e}%</div>
-                <div class="c-legend">전설: ${next.l}%</div>
-                ${nextM}
-            `;
+            el.innerHTML = `<div style="margin-bottom:5px; font-weight:bold; color:#FFD700;">현재 (Lv.${summonLevel})</div><div class="c-rare">희귀: ${cur.r}%</div><div class="c-hero">영웅: ${cur.e}%</div><div class="c-legend">전설: ${cur.l}%</div>${mText}<hr style="border-color:#555; margin:5px 0;"><div style="margin-bottom:5px; font-weight:bold; color:#AAA;">다음 (Lv.${summonLevel < 20 ? summonLevel+1 : 'MAX'})</div><div class="c-rare">희귀: ${next.r}%</div><div class="c-hero">영웅: ${next.e}%</div><div class="c-legend">전설: ${next.l}%</div>${nextM}`;
             el.style.display = 'block';
         }
         function hideLuckInfo() { document.getElementById('luck-tooltip').style.display = 'none'; }
-        
         function showTooltip(txt) { let el = document.getElementById('unit-tooltip'); el.innerHTML = txt; el.style.display = 'block'; }
         function hideTooltip() { document.getElementById('unit-tooltip').style.display = 'none'; }
 
