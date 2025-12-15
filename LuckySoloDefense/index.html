@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>운빨 솔로 디펜스 v8.4 (고대 상점 추가)</title>
+    <title>운빨 솔로 디펜스 v8.5 (고대 상점 확장)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -313,6 +313,18 @@
                     <div class="shop-cost">가격: 💎2</div>
                     <button class="btn-do-combine" onclick="buyShopItem('startGold')">구매하기 (현재 Lv.<span id="shop-lv-startGold">0</span>)</button>
                 </div>
+                <div class="shop-card">
+                    <div class="shop-name">⚔️ 전사의 힘</div>
+                    <div class="shop-desc">모든 공격력 +5% (영구)</div>
+                    <div class="shop-cost">가격: 💎5</div>
+                    <button class="btn-do-combine" onclick="buyShopItem('dmgUp')">구매하기 (현재 Lv.<span id="shop-lv-dmgUp">0</span>)</button>
+                </div>
+                <div class="shop-card">
+                    <div class="shop-name">💰 황금 손</div>
+                    <div class="shop-desc">골드 획득 +5% (영구)</div>
+                    <div class="shop-cost">가격: 💎4</div>
+                    <button class="btn-do-combine" onclick="buyShopItem('goldUp')">구매하기 (현재 Lv.<span id="shop-lv-goldUp">0</span>)</button>
+                </div>
             </div>
             <div style="text-align: center; margin-top: 10px; color: #E040FB;">보유 신화석: 💎<span id="shop-stone-display">0</span></div>
             <button class="btn-close" onclick="closeModal('shop-modal')">닫기</button>
@@ -455,7 +467,7 @@
         let classLv = { phy: 1, mag: 1, sup: 1 };
         let artifacts = {}; // { sword: 2, coin: 5 ... }
         ARTIFACT_KEYS.forEach(k => artifacts[k] = 0);
-        let upgrades = { maxPop: 0, startGold: 0 }; // 상점 업그레이드
+        let upgrades = { maxPop: 0, startGold: 0, dmgUp: 0, goldUp: 0 }; // 상점 업그레이드
         let currentMaxPop = 200;
 
         let lastTime = 0;
@@ -607,7 +619,7 @@
                 moveEnemy(enemy, scaledDelta);
                 
                 if (enemy.hp <= 0) { 
-                    let bonusGold = (2 + Math.floor(wave * 0.2)) * (1 + getArtifactVal('gold'));
+                    let bonusGold = (2 + Math.floor(wave * 0.2)) * (1 + getArtifactVal('gold') + (upgrades.goldUp * 0.05));
                     gold += Math.floor(bonusGold); 
                     
                     if (isFxOn) {
@@ -1016,6 +1028,8 @@
         function openShopModal() {
             document.getElementById('shop-lv-maxPop').innerText = upgrades.maxPop;
             document.getElementById('shop-lv-startGold').innerText = upgrades.startGold;
+            document.getElementById('shop-lv-dmgUp').innerText = upgrades.dmgUp;
+            document.getElementById('shop-lv-goldUp').innerText = upgrades.goldUp;
             document.getElementById('shop-stone-display').innerText = stones;
             document.getElementById('shop-modal').classList.add('open');
         }
@@ -1024,12 +1038,14 @@
             let cost = 0;
             if(type === 'maxPop') cost = 3;
             if(type === 'startGold') cost = 2;
+            if(type === 'dmgUp') cost = 5;
+            if(type === 'goldUp') cost = 4;
 
             if(stones >= cost) {
                 stones -= cost;
                 upgrades[type]++;
                 saveGame();
-                updateMaxPop();
+                if(type === 'maxPop') updateMaxPop();
                 showPopup("구매 완료!");
                 openShopModal(); // UI 갱신
                 updateUI();
@@ -1135,6 +1151,9 @@
         function fireGlobalAttack(unit) {
             addShake(5); enemies.forEach(e => {
                 let dmg = unit.damage * (1 + (classLv.mag - 1) * 0.1 + getArtifactVal('magDmg')); 
+                let globalDmgMult = 1 + (upgrades.dmgUp * 0.05); // 전사의 힘 적용
+                dmg *= globalDmgMult;
+
                 e.hp -= dmg;
                 projectiles.push({ x: e.x, y: e.y - 20, target: null, damage: 0, speed: 0, hit: true, color: '#D50000', size: 10, timer: 10 });
                 createExplosion(e.x, e.y, '#D50000', 5);
@@ -1144,10 +1163,13 @@
             let color = '#FFFF00'; let effect = null; let pSize = 5; let shape = 'circle';
             let info = UNIT_DATA[unit.type] || HIDDEN_DATA[unit.type];
             let dmg = unit.damage;
+            let globalDmgMult = 1 + (upgrades.dmgUp * 0.05); // 전사의 힘 적용
 
             if(info.type === 'phy') { dmg *= (1 + (classLv.phy - 1) * 0.1 + getArtifactVal('phyDmg')); shape = 'arrow'; }
             else if(info.type === 'mag') { dmg *= (1 + (classLv.mag - 1) * 0.1 + getArtifactVal('magDmg')); shape = 'star'; }
             
+            dmg *= globalDmgMult;
+
             let critRate = 0;
             if(unit.type === '궁수') critRate += 0.2;
             if(unit.type === '무사') critRate += 0.5;
