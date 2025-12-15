@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>운빨 솔로 디펜스 v7.0</title>
+    <title>운빨 솔로 디펜스 v7.2 (인구수 200)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -38,7 +38,6 @@
 
         .utility-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
         
-        /* 타이머 디자인 */
         .timer-box {
             font-size: 1.2rem; color: #FFF; 
             background: #333; padding: 2px 10px; border-radius: 10px;
@@ -55,7 +54,6 @@
         .util-btn.active { background: #FFC107; color: black; border-color: #FF6F00; }
         .util-btn.active-x3 { background: #FF5252; color: white; border-color: #D50000; }
 
-        /* 스킵 버튼 (중요) */
         .btn-skip {
             background: linear-gradient(to bottom, #29B6F6, #0288D1);
             border: 2px solid #B3E5FC; color: white;
@@ -153,7 +151,6 @@
                 <div id="timer-box" class="timer-box">
                     ⏳ <span id="wave-timer">40</span>s
                 </div>
-                <!-- 스킵 버튼 -->
                 <button id="btn-skip" class="btn-skip" onclick="skipWave()">
                     ⏩ 스킵 (+<span id="skip-reward">0</span>G)
                 </button>
@@ -172,8 +169,8 @@
                     💎 <span id="stone-display">0</span>
                 </div>
                 <div class="info-group">
-                    <div class="info-label">인구수 (최대 60)</div>
-                    <div class="info-value" style="color:#FF5252"><span id="enemy-count">0</span> / 60</div>
+                    <div class="info-label">인구수 (최대 200)</div>
+                    <div class="info-value" style="color:#FF5252"><span id="enemy-count">0</span> / 200</div>
                 </div>
             </div>
             
@@ -195,7 +192,6 @@
 
         <div id="canvas-container">
             <canvas id="gameCanvas"></canvas>
-            <!-- 시작 버튼은 이제 없음 (자동 시작) -->
             <div id="message-area"><div id="popup-msg" class="pop-text"></div></div>
             <div id="unit-tooltip" class="tooltip"></div>
             <div id="luck-tooltip" class="luck-tooltip"></div>
@@ -338,8 +334,8 @@
 
         const BASE_SUMMON_COST = 10;
         const BASE_GAMBLE_COST = 50;
-        const WAVE_DURATION = 40; // 40초
-        const MAX_ENEMIES_LIMIT = 60; // 인구수 제한
+        const WAVE_DURATION = 40; 
+        const MAX_ENEMIES_LIMIT = 200; // 200으로 상향
 
         let gold = 200;
         let stones = 0; 
@@ -354,7 +350,7 @@
         let lastTime = 0;
         let enemySpawnTimer = 0;
         let enemiesToSpawn = 0;
-        let waveTimer = WAVE_DURATION; // 남은 시간
+        let waveTimer = WAVE_DURATION;
         
         let draggingUnit = null;
         let frameCount = 0;
@@ -425,7 +421,6 @@
             canvas.addEventListener('touchmove', (e) => { e.preventDefault(); onMouseMove({clientX: e.touches[0].clientX, clientY: e.touches[0].clientY}); }, {passive: false});
             canvas.addEventListener('touchend', (e) => { onMouseUp({clientX: e.changedTouches?e.changedTouches[0].clientX : 0, clientY: e.changedTouches?e.changedTouches[0].clientY : 0}); });
             
-            // 첫 웨이브 시작
             startNextWave();
             updateUI();
             requestAnimationFrame(gameLoop);
@@ -443,23 +438,20 @@
         function update(deltaTime) {
             const scaledDelta = deltaTime * timeScale; 
 
-            // 라운드 타이머 (실제 시간 흐름)
             if (waveTimer > 0) {
                 waveTimer -= scaledDelta / 1000;
                 if (waveTimer <= 0) {
                     waveTimer = 0;
-                    startNextWave(); // 시간 다 되면 자동 다음 웨이브
+                    startNextWave(); 
                 }
             }
 
-            // 적 생성 (Wave 시작 시 할당된 enemiesToSpawn 만큼 생성)
             if (enemiesToSpawn > 0) {
                 let spawnInterval = Math.max(150, 700 - (wave * 20)); 
                 enemySpawnTimer += scaledDelta;
                 if (enemySpawnTimer > spawnInterval) { spawnEnemy(); enemySpawnTimer = 0; enemiesToSpawn--; }
             }
 
-            // 자동 합성
             if(isAutoMerge) {
                 autoMergeTimer += deltaTime; 
                 if(autoMergeTimer > 500) {
@@ -468,7 +460,6 @@
                 }
             }
 
-            // 이펙트
             for(let i=effects.length-1; i>=0; i--) {
                 let fx = effects[i];
                 fx.life -= deltaTime;
@@ -476,7 +467,6 @@
                 if(fx.life <= 0) effects.splice(i, 1);
             }
 
-            // 적 로직
             for (let i = enemies.length - 1; i >= 0; i--) {
                 let enemy = enemies[i];
                 if (enemy.stunTimer > 0) enemy.stunTimer -= scaledDelta;
@@ -488,7 +478,6 @@
                 
                 moveEnemy(enemy, scaledDelta);
                 
-                // 죽음 체크
                 if (enemy.hp <= 0) { 
                     gold += (2 + Math.floor(wave * 0.2)); 
                     enemies.splice(i, 1); 
@@ -496,14 +485,12 @@
                 }
             }
 
-            // 패배 조건 (인구수)
             if (enemies.length > MAX_ENEMIES_LIMIT) {
                 alert(`게임 오버! 적이 너무 많습니다 (${enemies.length}).\n${wave} 웨이브 기록.`);
                 resetGame();
                 return;
             }
 
-            // 유닛 로직
             units.forEach(unit => {
                 if (unit === draggingUnit) return;
                 unit.cooldown -= scaledDelta;
@@ -531,7 +518,7 @@
                 if (p.hit) projectiles.splice(i, 1);
             }
             
-            updateUI(); // 매 프레임 UI 업데이트 (타이머)
+            updateUI(); 
         }
 
         function toggleSpeed() {
@@ -611,6 +598,7 @@
             ctx.beginPath(); ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = TILE_SIZE * 0.45; ctx.lineJoin = 'round';
             ctx.moveTo(PATH_POINTS[0].x, PATH_POINTS[0].y);
             for(let i=1; i<PATH_POINTS.length; i++) ctx.lineTo(PATH_POINTS[i].x, PATH_POINTS[i].y);
+            ctx.closePath(); // 닫힌 도형으로
             ctx.stroke();
 
             // 적 그리기
@@ -896,13 +884,10 @@
         // --- 라운드 시스템 (타임어택) ---
         function startNextWave() {
             wave++;
-            waveTimer = WAVE_DURATION; // 시간 초기화
-            
-            // 웨이브 몬스터 설정
+            waveTimer = WAVE_DURATION; 
             enemiesToSpawn = 12 + Math.floor(wave * 2.5);
             
-            // 보상
-            if(wave > 1) { // 첫 웨이브 제외
+            if(wave > 1) { 
                 gold += (50 + wave * 5); 
                 if(wave % 10 === 0) { stones++; showPopup(`Wave ${wave} 시작!<br>💎신화석 획득!`); saveGame(); }
                 else showPopup(`Wave ${wave} 시작!`);
@@ -911,9 +896,8 @@
         }
 
         function skipWave() {
-            // 남은 시간 보상
             if(waveTimer > 0) {
-                let bonus = Math.floor(waveTimer) * 2; // 초당 2골드
+                let bonus = Math.floor(waveTimer) * 2; 
                 gold += bonus;
                 spawnFloatingText(canvas.width/2, canvas.height/2, `Skip! +${bonus}G`, '#FFD700');
             }
@@ -936,23 +920,24 @@
 
         function moveEnemy(enemy, deltaTime) {
             if(enemy.stunTimer > 0) return;
-            let target = PATH_POINTS[enemy.pathIndex+1];
             
-            // 경로 끝 도달 시 (순환 로직)
-            if(!target) { 
-                enemy.pathIndex = 0; // 처음으로 리셋
-                enemy.x = PATH_POINTS[0].x;
-                enemy.y = PATH_POINTS[0].y;
-                return; 
-            }
+            // 순환 이동 로직 (modulo)
+            let currentPt = PATH_POINTS[enemy.pathIndex];
+            let nextIdx = (enemy.pathIndex + 1) % PATH_POINTS.length;
+            let target = PATH_POINTS[nextIdx];
             
             let dx = target.x - enemy.x; let dy = target.y - enemy.y;
             let dist = Math.hypot(dx, dy);
             let spd = enemy.speed;
             if(enemy.slowTimer > 0) spd *= 0.6;
             let move = (spd * deltaTime) / 1000;
-            if(dist < move) { enemy.x = target.x; enemy.y = target.y; enemy.pathIndex++; }
-            else { enemy.x += (dx/dist)*move; enemy.y += (dy/dist)*move; }
+            
+            if(dist < move) { 
+                enemy.x = target.x; enemy.y = target.y; 
+                enemy.pathIndex = nextIdx; // 다음 경로로
+            } else { 
+                enemy.x += (dx/dist)*move; enemy.y += (dy/dist)*move; 
+            }
         }
 
         function findTarget(unit) {
@@ -1086,7 +1071,6 @@
             waveTimer = WAVE_DURATION;
             isWaveActive = false;
             
-            // 첫 웨이브 시작
             startNextWave();
             updateUI();
         }
@@ -1096,7 +1080,6 @@
             document.getElementById('stone-display').innerText = stones;
             document.getElementById('wave-display').innerText = wave;
             
-            // 적 숫자 표시 (빨간색)
             let ec = document.getElementById('enemy-count');
             ec.innerText = enemies.length;
             if(enemies.length > MAX_ENEMIES_LIMIT * 0.8) ec.style.color = '#FF1744';
@@ -1117,13 +1100,11 @@
             document.getElementById('lv-sup').innerText = classLv.sup;
             document.getElementById('cost-sup').innerText = (classLv.sup * 100) + 'G';
 
-            // 타이머 업데이트
             let tBox = document.getElementById('timer-box');
             document.getElementById('wave-timer').innerText = Math.ceil(waveTimer);
             if(waveTimer < 10) tBox.classList.add('urgent');
             else tBox.classList.remove('urgent');
 
-            // 스킵 보상 업데이트
             let reward = Math.floor(waveTimer) * 2;
             document.getElementById('skip-reward').innerText = reward;
         }
