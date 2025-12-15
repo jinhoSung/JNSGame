@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>운빨 솔로 디펜스 v8.3 (이펙트 최적화)</title>
+    <title>운빨 솔로 디펜스 v8.4 (고대 상점 추가)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -56,6 +56,7 @@
         .util-btn.active-x3 { background: #FF5252; color: white; border-color: #D50000; }
         .util-btn.paused { background: #2196F3; border-color: #64B5F6; }
         .util-btn.artifact { background: #9C27B0; border-color: #E1BEE7; }
+        .util-btn.shop { background: #009688; border-color: #80CBC4; }
         .util-btn.fx-off { background: #616161; color: #aaa; border-color: #424242; }
 
         /* 스킵 버튼 */
@@ -154,6 +155,11 @@
         .artifact-stat { font-size: 0.85rem; color: #9E9E9E; }
         .artifact-count { font-size: 1.2rem; font-weight: bold; color: #FFD700; }
 
+        .shop-card { background: rgba(0, 50, 50, 0.4); border: 1px solid #009688; padding: 10px; border-radius: 8px; display: flex; flex-direction: column; gap: 5px; align-items: center; text-align: center; }
+        .shop-name { font-weight: bold; color: #80CBC4; font-size: 1.1rem; }
+        .shop-desc { font-size: 0.8rem; color: #B2DFDB; margin-bottom: 5px; }
+        .shop-cost { color: #E040FB; font-weight: bold; font-size: 0.9rem; }
+
         .btn-buy-recipe { width: 100%; padding: 5px; margin-top: 5px; border: none; border-radius: 4px; background: #6200EA; color: white; font-family: 'Jua'; cursor: pointer; font-size: 0.9rem;}
         .btn-do-combine { width: 100%; padding: 5px; margin-top: 5px; border: none; border-radius: 4px; background: #00C853; color: white; font-family: 'Jua'; cursor: pointer; font-size: 0.9rem;}
         .btn-do-combine:disabled { background: #444; color: #888; cursor: not-allowed; }
@@ -201,6 +207,7 @@
                 </button>
                 <div class="util-right">
                     <button id="btn-fx" class="util-btn active" onclick="toggleFx()">✨ FX On</button>
+                    <button class="util-btn shop" onclick="openShopModal()">🏪</button>
                     <button class="util-btn artifact" onclick="openArtifactModal()">📦</button>
                     <button id="btn-pause" class="util-btn" onclick="togglePause()">⏸️</button>
                     <button id="btn-auto-merge" class="util-btn" onclick="toggleAutoMerge()">🤖 Auto Off</button>
@@ -217,8 +224,8 @@
                     💎 <span id="stone-display">0</span>
                 </div>
                 <div class="info-group">
-                    <div class="info-label">인구수 (최대 200)</div>
-                    <div class="info-value" style="color:#FF5252"><span id="enemy-count">0</span> / 200</div>
+                    <div class="info-label">인구수 (최대 <span id="max-pop-display">200</span>)</div>
+                    <div class="info-value" style="color:#FF5252"><span id="enemy-count">0</span> / <span id="max-pop-val">200</span></div>
                 </div>
             </div>
             
@@ -288,6 +295,27 @@
             <div class="modal-header">📦 보유 유물</div>
             <div class="recipe-list" id="artifact-list"></div>
             <button class="btn-close" onclick="closeModal('artifact-modal')">닫기</button>
+        </div>
+
+        <!-- 상점 모달 -->
+        <div id="shop-modal" class="game-modal">
+            <div class="modal-header">🏪 고대 상점</div>
+            <div class="recipe-list" style="grid-template-columns: 1fr; gap: 10px;">
+                <div class="shop-card">
+                    <div class="shop-name">🏘️ 영토 확장</div>
+                    <div class="shop-desc">최대 인구수 +10 증가 (영구)</div>
+                    <div class="shop-cost">가격: 💎3</div>
+                    <button class="btn-do-combine" onclick="buyShopItem('maxPop')">구매하기 (현재 Lv.<span id="shop-lv-maxPop">0</span>)</button>
+                </div>
+                <div class="shop-card">
+                    <div class="shop-name">💰 부의 축적</div>
+                    <div class="shop-desc">시작 골드 +50 증가 (영구)</div>
+                    <div class="shop-cost">가격: 💎2</div>
+                    <button class="btn-do-combine" onclick="buyShopItem('startGold')">구매하기 (현재 Lv.<span id="shop-lv-startGold">0</span>)</button>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 10px; color: #E040FB;">보유 신화석: 💎<span id="shop-stone-display">0</span></div>
+            <button class="btn-close" onclick="closeModal('shop-modal')">닫기</button>
         </div>
 
         <!-- 게임 오버 모달 -->
@@ -427,7 +455,9 @@
         let classLv = { phy: 1, mag: 1, sup: 1 };
         let artifacts = {}; // { sword: 2, coin: 5 ... }
         ARTIFACT_KEYS.forEach(k => artifacts[k] = 0);
-        
+        let upgrades = { maxPop: 0, startGold: 0 }; // 상점 업그레이드
+        let currentMaxPop = 200;
+
         let lastTime = 0;
         let enemySpawnTimer = 0;
         let enemiesToSpawn = 0;
@@ -451,7 +481,8 @@
             const data = {
                 stones: stones,
                 unlockedRecipes: RECIPES.filter(r => r.unlocked).map(r => r.id),
-                artifacts: artifacts
+                artifacts: artifacts,
+                upgrades: upgrades
             };
             localStorage.setItem(SAVE_KEY, JSON.stringify(data));
         }
@@ -469,8 +500,14 @@
                         });
                     }
                     if(data.artifacts) artifacts = { ...artifacts, ...data.artifacts };
+                    if(data.upgrades) upgrades = { ...upgrades, ...data.upgrades };
                 } catch(e) {}
             }
+            updateMaxPop();
+        }
+
+        function updateMaxPop() {
+            currentMaxPop = 200 + (upgrades.maxPop * 10);
         }
 
         function getSummonCost() { return BASE_SUMMON_COST + Math.max(0, Math.floor((wave - 1) * 0.5)); }
@@ -586,7 +623,7 @@
                 }
             }
 
-            if (enemies.length > MAX_ENEMIES_LIMIT) {
+            if (enemies.length > currentMaxPop) {
                 showGameOver();
                 return;
             }
@@ -638,14 +675,11 @@
         
         function createExplosion(x, y, color, count) {
             if(!isFxOn) return;
-            
-            // [최적화] 화면에 파티클이 너무 많으면 생성 개수를 줄이거나 생략합니다.
             let currentCount = effects.length;
-            if(currentCount > 400) return; // 400개 초과시 아예 생성 안함 (중요 이펙트 제외시 고려 필요하지만 일반 타격은 무시)
-            if(currentCount > 200) count = Math.ceil(count / 4); // 200개 초과시 1/4로 감소
-            else if(currentCount > 100) count = Math.ceil(count / 2); // 100개 초과시 절반으로 감소
-
-            if(count < 1) count = 1; // 최소 1개는 표시하려 노력 (단 400개 넘으면 위에서 리턴)
+            if(currentCount > 400) return; 
+            if(currentCount > 200) count = Math.ceil(count / 4); 
+            else if(currentCount > 100) count = Math.ceil(count / 2); 
+            if(count < 1) count = 1; 
 
             for(let i=0; i<count; i++) {
                 let angle = Math.random() * Math.PI * 2; 
@@ -664,8 +698,6 @@
         
         function createSparkle(x, y, color) {
             if(!isFxOn) return;
-            
-            // [최적화] 소환/합성 이펙트도 파티클 수에 따라 조절
             let count = 10;
             if(effects.length > 300) count = 2;
             else if(effects.length > 150) count = 5;
@@ -981,6 +1013,31 @@
             document.getElementById('artifact-modal').classList.add('open');
         }
 
+        function openShopModal() {
+            document.getElementById('shop-lv-maxPop').innerText = upgrades.maxPop;
+            document.getElementById('shop-lv-startGold').innerText = upgrades.startGold;
+            document.getElementById('shop-stone-display').innerText = stones;
+            document.getElementById('shop-modal').classList.add('open');
+        }
+
+        function buyShopItem(type) {
+            let cost = 0;
+            if(type === 'maxPop') cost = 3;
+            if(type === 'startGold') cost = 2;
+
+            if(stones >= cost) {
+                stones -= cost;
+                upgrades[type]++;
+                saveGame();
+                updateMaxPop();
+                showPopup("구매 완료!");
+                openShopModal(); // UI 갱신
+                updateUI();
+            } else {
+                showPopup("신화석 부족!");
+            }
+        }
+
         function closeModal(id) { document.getElementById(id).classList.remove('open'); }
         function unlockRecipe(id) {
             let r = RECIPES.find(x => x.id === id);
@@ -1187,7 +1244,8 @@
         function returnUnit() { updateUnitPos(draggingUnit); }
         
         function resetGame() {
-            gold = 200; wave = 0; units = []; enemies = []; projectiles = []; summonLevel = 1; stones = stones; 
+            gold = 200 + (upgrades.startGold * 50); // 초기 자금 반영
+            wave = 0; units = []; enemies = []; projectiles = []; summonLevel = 1; stones = stones; 
             classLv = { phy: 1, mag: 1, sup: 1 };
             waveTimer = 0;
             isPaused = false;
@@ -1212,7 +1270,10 @@
             document.getElementById('wave-display').innerText = wave;
             let ec = document.getElementById('enemy-count');
             ec.innerText = enemies.length;
-            if(enemies.length > MAX_ENEMIES_LIMIT * 0.8) ec.style.color = '#FF1744'; else ec.style.color = '#fff';
+            if(enemies.length > currentMaxPop * 0.8) ec.style.color = '#FF1744'; else ec.style.color = '#fff';
+            
+            document.getElementById('max-pop-display').innerText = currentMaxPop;
+            document.getElementById('max-pop-val').innerText = currentMaxPop;
 
             document.getElementById('summon-level').innerText = summonLevel;
             let rate = SUMMON_RATES[summonLevel-1];
