@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>운빨 솔로 디펜스 v4.5</title>
+    <title>운빨 솔로 디펜스 v4.6</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -299,23 +299,68 @@
         // 초기화: unlocked 상태 추가
         RECIPES.forEach(r => r.unlocked = false);
 
-        // --- 확률 테이블 생성 (20단계) ---
+        // --- 확률 테이블 생성 (Lv.1부터 전 등급 확률 부여) ---
         const SUMMON_RATES = [];
         for(let i=1; i<=20; i++) {
             let rate = {}; let cost = 0;
-            if(i <= 5) { rate = { c: 100 - (i-1)*10, r: (i-1)*10, e: 0, l: 0, m: 0 }; cost = 50 * i; }
-            else if(i <= 10) { rate = { c: 60 - (i-5)*6, r: 40 - (i-5)*2, e: (i-5)*8, l: 0, m: 0 }; cost = 150 * (i-3); }
-            else if(i <= 15) { rate = { c: 30 - (i-10)*4, r: 30 - (i-10)*2, e: 40 - (i-10)*2, l: (i-10)*8, m: 0 }; cost = 1000 + (i-10)*500; }
-            else { 
-                let myth = (i-15) * 0.5; // 최대 2.5%
-                let leg = 40 - (i-15)*2; 
-                let epic = 30 - (i-15)*2;
-                rate = { c: 5, r: 10, e: epic, l: leg, m: myth };
-                let total = rate.c + rate.r + rate.e + rate.l + rate.m;
-                if(total < 100) rate.c += (100 - total);
-                cost = 3000 + (i-15)*1500; 
+            
+            // 기본 베이스 확률 (점진적 증가)
+            let baseR = 1 + (i*1.5); // 희귀
+            let baseE = 0.1 + (i*0.5); // 영웅
+            let baseL = 0.05 + (i*0.25); // 전설
+            let baseM = 0.01 + (i*0.1); // 신화 (최대 2% 가량)
+
+            // 레벨별 부스트 (기존 로직 유지하되 0 방지)
+            if(i <= 5) {
+                // 초반
+                baseR = (i-1)*10 + 1; // 1~41%
+            } else if(i <= 10) {
+                // 중반
+                baseR = 40 + (i-5)*2; 
+                baseE = (i-5)*3 + 1; 
+            } else if(i <= 15) {
+                // 후반
+                baseR = 50;
+                baseE = 20 + (i-10)*2;
+                baseL = (i-10)*2 + 1;
+            } else {
+                // 극후반
+                baseE = 30 + (i-15);
+                baseL = 10 + (i-15)*3;
+                baseM = (i-15)*0.5 + 0.1;
             }
+
+            // 합계 계산 및 일반(Common) 확률 역산
+            rate = { 
+                r: Math.min(baseR, 90), 
+                e: Math.min(baseE, 50), 
+                l: Math.min(baseL, 20), 
+                m: Math.min(baseM, 5) 
+            };
+            
+            let totalSpecial = rate.r + rate.e + rate.l + rate.m;
+            if(totalSpecial > 99) { // 오버플로우 방지
+                let factor = 99 / totalSpecial;
+                rate.r *= factor; rate.e *= factor; rate.l *= factor; rate.m *= factor;
+                totalSpecial = 99;
+            }
+            rate.c = 100 - totalSpecial;
+
+            // 비용
+            if(i <= 5) cost = 50 * i;
+            else if(i <= 10) cost = 150 * (i-3);
+            else if(i <= 15) cost = 1000 + (i-10)*500;
+            else cost = 3000 + (i-15)*1500;
+            
             if(i===20) cost = 'MAX';
+            
+            // 소수점 정리
+            rate.c = parseFloat(rate.c.toFixed(2));
+            rate.r = parseFloat(rate.r.toFixed(2));
+            rate.e = parseFloat(rate.e.toFixed(2));
+            rate.l = parseFloat(rate.l.toFixed(2));
+            rate.m = parseFloat(rate.m.toFixed(2));
+
             SUMMON_RATES.push({ ...rate, cost: cost });
         }
 
@@ -604,6 +649,7 @@
             let rand = Math.random() * 100;
             let tier = 0;
             
+            // 누적 확률 체크
             if(rand < rates.c) tier = 0;
             else if(rand < rates.c + rates.r) { tier = 1; showPopup("희귀 소환! 💙"); }
             else if(rand < rates.c + rates.r + rates.e) { tier = 2; showPopup("영웅 소환! 💜"); }
