@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>운빨 솔로 디펜스 v8.2 (최적화)</title>
+    <title>운빨 솔로 디펜스 v8.3 (이펙트 최적화)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -619,7 +619,7 @@
             updateUI(); 
         }
 
-        // --- 이펙트 관련 함수 ---
+        // --- 이펙트 관련 함수 (최적화 적용) ---
         function toggleFx() {
             isFxOn = !isFxOn;
             const btn = document.getElementById('btn-fx');
@@ -638,16 +638,49 @@
         
         function createExplosion(x, y, color, count) {
             if(!isFxOn) return;
+            
+            // [최적화] 화면에 파티클이 너무 많으면 생성 개수를 줄이거나 생략합니다.
+            let currentCount = effects.length;
+            if(currentCount > 400) return; // 400개 초과시 아예 생성 안함 (중요 이펙트 제외시 고려 필요하지만 일반 타격은 무시)
+            if(currentCount > 200) count = Math.ceil(count / 4); // 200개 초과시 1/4로 감소
+            else if(currentCount > 100) count = Math.ceil(count / 2); // 100개 초과시 절반으로 감소
+
+            if(count < 1) count = 1; // 최소 1개는 표시하려 노력 (단 400개 넘으면 위에서 리턴)
+
             for(let i=0; i<count; i++) {
-                let angle = Math.random() * Math.PI * 2; let speed = Math.random() * 3 + 1;
-                effects.push({ type: 'particle', x: x, y: y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, color: color, life: 400 + Math.random() * 200, size: Math.random() * 3 + 2 });
+                let angle = Math.random() * Math.PI * 2; 
+                let speed = Math.random() * 3 + 1;
+                effects.push({ 
+                    type: 'particle', 
+                    x: x, y: y, 
+                    vx: Math.cos(angle) * speed, 
+                    vy: Math.sin(angle) * speed, 
+                    color: color, 
+                    life: 400 + Math.random() * 200, 
+                    size: Math.random() * 3 + 2 
+                });
             }
         }
         
         function createSparkle(x, y, color) {
             if(!isFxOn) return;
-            for(let i=0; i<10; i++) {
-                effects.push({ type: 'particle', x: x + (Math.random() - 0.5) * TILE_SIZE, y: y + (Math.random() - 0.5) * TILE_SIZE, vx: (Math.random() - 0.5) * 0.5, vy: -Math.random() * 2 - 1, color: color, life: 600 + Math.random() * 300, size: Math.random() * 2 + 1 });
+            
+            // [최적화] 소환/합성 이펙트도 파티클 수에 따라 조절
+            let count = 10;
+            if(effects.length > 300) count = 2;
+            else if(effects.length > 150) count = 5;
+
+            for(let i=0; i<count; i++) {
+                effects.push({ 
+                    type: 'particle', 
+                    x: x + (Math.random() - 0.5) * TILE_SIZE, 
+                    y: y + (Math.random() - 0.5) * TILE_SIZE, 
+                    vx: (Math.random() - 0.5) * 0.5, 
+                    vy: -Math.random() * 2 - 1, 
+                    color: color, 
+                    life: 600 + Math.random() * 300, 
+                    size: Math.random() * 2 + 1 
+                });
             }
         }
         // -------------------------
