@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>운빨 솔로 디펜스 v7.7 (대기시간 통일)</title>
+    <title>운빨 솔로 디펜스 v7.9 (메시지 개선)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -149,9 +149,41 @@
         .btn-do-combine:disabled { background: #444; color: #888; cursor: not-allowed; }
         .btn-close { margin-top: 10px; padding: 10px; background: #D32F2F; color: white; border: none; border-radius: 8px; font-family: 'Jua'; cursor: pointer; }
 
-        #message-area { position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; text-align: center; width: 100%; z-index: 50; }
-        .pop-text { font-size: 2rem; font-weight: bold; color: #fff; text-shadow: 3px 3px 0 #000, 0 0 15px gold; opacity: 0; transition: opacity 0.3s, transform 0.3s; }
-        .pop-text.show { opacity: 1; transform: translateY(-40px); }
+        /* 메시지 영역 수정: 중첩 가능하도록 */
+        #message-area { 
+            position: absolute; 
+            top: 25%; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            pointer-events: none; 
+            display: flex; 
+            flex-direction: column-reverse; /* 최신 메시지가 아래에 쌓이거나 위로 올라가게 조정 */
+            align-items: center;
+            width: 100%; 
+            height: 0;
+            overflow: visible;
+            z-index: 999; 
+        }
+        
+        .pop-text { 
+            font-size: 2rem; 
+            font-weight: bold; 
+            color: #fff; 
+            text-shadow: 2px 2px 0 #000, 0 0 10px gold; 
+            opacity: 0; 
+            margin-bottom: 5px;
+            animation: popupFloat 1.5s forwards; 
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+
+        @keyframes popupFloat {
+            0% { opacity: 0; transform: translateY(20px) scale(0.8); }
+            10% { opacity: 1; transform: translateY(0) scale(1.1); }
+            20% { transform: translateY(0) scale(1); }
+            80% { opacity: 1; transform: translateY(-30px); }
+            100% { opacity: 0; transform: translateY(-60px); }
+        }
         
         .tooltip { position: absolute; bottom: 180px; left: 50%; transform: translateX(-50%); background: rgba(20,20,20,0.95); padding: 15px; border-radius: 8px; font-size: 0.95rem; display: none; width: 90%; text-align: center; z-index: 200; border: 2px solid #FFD700; pointer-events: none; white-space: pre-line; box-shadow: 0 5px 20px rgba(0,0,0,0.8); }
         .luck-tooltip { position: absolute; bottom: 100px; left: 10px; background: rgba(0,0,0,0.95); padding: 12px; border-radius: 8px; border: 1px solid #7E57C2; color: white; font-size: 0.85rem; z-index: 200; display: none; pointer-events: none; text-align: left; line-height: 1.6; }
@@ -211,7 +243,8 @@
         <div id="canvas-container">
             <canvas id="gameCanvas"></canvas>
             <div id="pause-overlay">PAUSED</div>
-            <div id="message-area"><div id="popup-msg" class="pop-text"></div></div>
+            <!-- 메시지가 동적으로 추가될 영역 -->
+            <div id="message-area"></div>
             <div id="unit-tooltip" class="tooltip"></div>
             <div id="luck-tooltip" class="luck-tooltip"></div>
         </div>
@@ -414,8 +447,11 @@
         function resizeGame() {
             canvas.width = canvasContainer.clientWidth;
             canvas.height = canvasContainer.clientHeight;
-            const maxTileW = canvas.width / (GRID_COLS + 1.2);
-            const maxTileH = canvas.height / (GRID_ROWS + 2.5);
+            
+            // 화면 잘림 방지를 위해 여백 계수 증가 (1.2 -> 2.5, 2.5 -> 4.0)
+            const maxTileW = canvas.width / (GRID_COLS + 2.5);
+            const maxTileH = canvas.height / (GRID_ROWS + 4.0);
+            
             TILE_SIZE = Math.floor(Math.min(maxTileW, maxTileH));
             GRID_OFFSET_X = (canvas.width - GRID_COLS * TILE_SIZE) / 2;
             GRID_OFFSET_Y = (canvas.height - GRID_ROWS * TILE_SIZE) / 2;
@@ -1288,20 +1324,22 @@
             
             document.getElementById('wave-timer').innerText = Math.ceil(waveTimer);
 
+            // 항상 '스킵'으로 표시
+            skipTxt.innerText = "⏩ 스킵";
+
             if (isPrep) {
                 // 준비 상태 UI
                 tBox.classList.remove('urgent');
                 tBox.classList.add('prep');
                 tIcon.innerText = "⏳";
-                
                 skipBtn.classList.add('prep-mode');
-                skipTxt.innerText = "⏩ 스킵"; // 여기를 '스킵'으로 통일
+                
+                // 보상 박스 표시
+                skipRewardBox.style.display = "inline";
                 
                 if (wave === 1) {
-                    skipRewardBox.style.display = "inline"; // 1웨이브도 보상 박스는 보여주되
-                    skipReward.innerText = "0"; // 0원으로 표시
+                    skipReward.innerText = "0"; // 1웨이브 보상 0
                 } else {
-                    skipRewardBox.style.display = "inline";
                     skipReward.innerText = Math.floor(waveTimer) * 5;
                 }
             } else {
@@ -1312,10 +1350,22 @@
                 tIcon.innerText = "🔥";
                 
                 skipBtn.classList.remove('prep-mode');
-                skipTxt.innerText = "⏩ 스킵";
                 skipRewardBox.style.display = "inline";
                 skipReward.innerText = Math.floor(waveTimer) * 2;
             }
+        }
+
+        // 메시지가 쌓이도록 수정된 함수
+        function showPopup(txt) { 
+            const area = document.getElementById('message-area');
+            const el = document.createElement('div');
+            el.className = 'pop-text';
+            el.innerHTML = txt;
+            area.appendChild(el); 
+            // 애니메이션 종료 후 제거 (약 1.5초)
+            setTimeout(() => {
+                if(el.parentElement) el.parentElement.removeChild(el);
+            }, 1500);
         }
 
         function showLuckInfo() {
@@ -1342,7 +1392,6 @@
         }
         function hideLuckInfo() { document.getElementById('luck-tooltip').style.display = 'none'; }
         
-        function showPopup(txt) { let el = document.getElementById('popup-msg'); el.innerHTML = txt; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'), 1500); }
         function showTooltip(txt) { let el = document.getElementById('unit-tooltip'); el.innerHTML = txt; el.style.display = 'block'; }
         function hideTooltip() { document.getElementById('unit-tooltip').style.display = 'none'; }
 
