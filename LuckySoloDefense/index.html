@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>운빨 솔로 디펜스 v8.6 (UI 최적화)</title>
+    <title>운빨 솔로 디펜스 v8.8 (비용 밸런스 조정)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -13,7 +13,6 @@
             margin: 0; padding: 0;
             background-color: #0f0f0f;
             display: flex; align-items: center; justify-content: center;
-            /* 동적 뷰포트 높이 사용으로 잘림 방지 */
             height: 100vh;
             height: 100dvh; 
             color: white; font-family: 'Jua', sans-serif;
@@ -31,7 +30,7 @@
 
         /* --- 상단 UI --- */
         #top-ui {
-            flex: 0 0 145px; /* 기본 높이 */
+            flex: 0 0 145px;
             background: rgba(0,0,0,0.85);
             padding: 5px 15px; z-index: 10;
             display: flex; flex-direction: column; justify-content: center;
@@ -115,7 +114,7 @@
 
         /* --- 하단 UI --- */
         #bottom-ui {
-            flex: 0 0 160px; /* 기본 높이 */
+            flex: 0 0 160px;
             background-color: #3E2723;
             padding: 10px;
             display: flex; flex-direction: column; justify-content: space-between;
@@ -139,20 +138,16 @@
         .btn-combine { width: 22%; height: 100%; max-height: 80px; background: linear-gradient(135deg, #009688, #00695C); display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 0.9rem; border: 1px solid #4DB6AC; }
         .btn-gamble { width: 18%; height: 100%; max-height: 70px; background: linear-gradient(135deg, #2196F3, #1565C0); display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 0.8rem; border: 1px solid #64B5F6; margin-bottom: 5px;}
 
-        /* 화면이 작을 때(높이 기준) UI 크기 자동 조절 */
         @media (max-height: 800px) {
             #top-ui { flex: 0 0 125px; padding: 3px 10px; }
             #bottom-ui { flex: 0 0 140px; padding: 5px; }
-            
             .info-value { font-size: 1rem; }
             .timer-box { font-size: 0.9rem; width: 90px; }
             .util-btn { padding: 4px 8px; font-size: 0.8rem; }
-            
             .game-btn { border-radius: 10px; box-shadow: 0 3px 0 rgba(0,0,0,0.5); }
             .btn-summon { font-size: 1.3rem; }
             .btn-upgrade, .btn-combine { font-size: 0.8rem; }
             .btn-gamble { font-size: 0.7rem; }
-            
             #resources { font-size: 0.9rem; margin-bottom: 2px; }
         }
 
@@ -169,7 +164,18 @@
         .game-modal { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 95%; height: 85%; background: rgba(30, 30, 30, 0.98); border: 2px solid #FFD700; border-radius: 15px; z-index: 100; flex-direction: column; padding: 15px; color: white; box-shadow: 0 0 50px rgba(0,0,0,0.9); }
         .game-modal.open { display: flex; }
         .modal-header { font-size: 1.4rem; text-align: center; margin-bottom: 10px; color: #FFD700; }
-        .recipe-list { overflow-y: auto; flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        
+        .recipe-list { 
+            overflow-y: auto; 
+            flex: 1; 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 8px; 
+            /* 모바일 스크롤 수정: 전역 touch-action:none을 덮어씀 */
+            touch-action: pan-y; 
+            -webkit-overflow-scrolling: touch;
+        }
+
         .recipe-card { background: rgba(255, 255, 255, 0.08); padding: 8px; border-radius: 6px; display: flex; flex-direction: column; gap: 3px; border: 1px solid #555; position: relative; }
         .recipe-name { font-size: 1rem; font-weight: bold; color: #E040FB; display: flex; justify-content: space-between;}
         .recipe-desc { font-size: 0.75rem; color: #bbb; margin-bottom: 5px; height: 30px; overflow: hidden; }
@@ -549,8 +555,8 @@
             currentMaxPop = 200 + (upgrades.maxPop * 10);
         }
 
-        function getSummonCost() { return BASE_SUMMON_COST + Math.max(0, Math.floor((wave - 1) * 0.5)); }
-        function getGambleCost() { return BASE_GAMBLE_COST + Math.max(0, (wave - 1)); }
+        function getSummonCost() { return BASE_SUMMON_COST + Math.max(0, (wave - 1) * 2); } // 0.5 -> 2 (4배)
+        function getGambleCost() { return BASE_GAMBLE_COST + Math.max(0, (wave - 1) * 4); } // 1 -> 4 (4배)
         function getArtifactVal(type) {
             let total = 0;
             for(let k in artifacts) {
