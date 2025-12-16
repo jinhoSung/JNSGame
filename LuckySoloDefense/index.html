@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>운빨 솔로 디펜스 v8.8 (비용 밸런스 조정)</title>
+    <title>운빨 솔로 디펜스 v8.9</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -171,7 +171,7 @@
             display: grid; 
             grid-template-columns: 1fr 1fr; 
             gap: 8px; 
-            /* 모바일 스크롤 수정: 전역 touch-action:none을 덮어씀 */
+            /* 모바일 스크롤 수정 */
             touch-action: pan-y; 
             -webkit-overflow-scrolling: touch;
         }
@@ -520,6 +520,10 @@
         
         let shakeAmount = 0; // 화면 흔들림 강도
 
+        // 횟수 기반 비용 증가를 위한 변수
+        let summonCount = 0;
+        let gambleCount = 0;
+
         const SAVE_KEY = 'lucky_defense_solo_v5_art';
 
         function saveGame() {
@@ -555,8 +559,10 @@
             currentMaxPop = 200 + (upgrades.maxPop * 10);
         }
 
-        function getSummonCost() { return BASE_SUMMON_COST + Math.max(0, (wave - 1) * 2); } // 0.5 -> 2 (4배)
-        function getGambleCost() { return BASE_GAMBLE_COST + Math.max(0, (wave - 1) * 4); } // 1 -> 4 (4배)
+        // 비용 계산 로직 변경: 횟수 기반
+        function getSummonCost() { return BASE_SUMMON_COST + (summonCount * 1); }
+        function getGambleCost() { return BASE_GAMBLE_COST + (gambleCount * 2); }
+        
         function getArtifactVal(type) {
             let total = 0;
             for(let k in artifacts) {
@@ -947,50 +953,33 @@
             if(emptySlots.length === 0) { showPopup("자리가 꽉 찼습니다!"); return; }
             
             gold -= cost;
+            summonCount++; // 횟수 증가
             
             let rates = SUMMON_RATES[summonLevel-1];
             let rand = Math.random() * 100;
             let tier = 0;
-            
-            if(rand < rates.c) tier = 0;
-            else if(rand < rates.c + rates.r) { tier = 1; showPopup("희귀 소환! 💙"); }
-            else if(rand < rates.c + rates.r + rates.e) { tier = 2; showPopup("영웅 소환! 💜"); }
-            else if(rand < rates.c + rates.r + rates.e + rates.l) { tier = 3; showPopup("전설 소환! 🧡"); }
-            else { tier = 4; showPopup("⚡신화 소환!⚡"); addShake(5); } // 신화 소환시 흔들림 추가
+            if(rand < rates.c) tier = 0; else if(rand < rates.c + rates.r) { tier = 1; showPopup("희귀 소환! 💙"); } else if(rand < rates.c + rates.r + rates.e) { tier = 2; showPopup("영웅 소환! 💜"); } else if(rand < rates.c + rates.r + rates.e + rates.l) { tier = 3; showPopup("전설 소환! 🧡"); } else { tier = 4; showPopup("⚡신화 소환!⚡"); addShake(5); } 
 
             let slot = emptySlots[Math.floor(Math.random()*emptySlots.length)];
             let type = UNIT_TYPES[Math.floor(Math.random()*UNIT_TYPES.length)];
             createUnit(slot.c, slot.r, type, tier);
-            
-            // 소환 이펙트
             createSparkle(GRID_OFFSET_X + slot.c*TILE_SIZE + TILE_SIZE/2, GRID_OFFSET_Y + slot.r*TILE_SIZE + TILE_SIZE/2, '#FFFFFF');
-
             updateUI();
         }
 
         function createUnit(col, row, type, tier) {
-            const x = GRID_OFFSET_X + col * TILE_SIZE;
-            const y = GRID_OFFSET_Y + row * TILE_SIZE;
-            
+            const x = GRID_OFFSET_X + col * TILE_SIZE; const y = GRID_OFFSET_Y + row * TILE_SIZE;
             let mult = Math.pow(2.2, tier);
-            if(tier >= 4) mult *= 2; 
-            if(HIDDEN_DATA[type]) mult *= 3;
-
-            let rng = 160 + (tier * 15);
-            if(type === '저격수') rng = 9999;
-
-            units.push({
-                col, row, x, y, type, tier,
-                damage: 10 * mult,
-                range: rng,
-                cooldown: 0
-            });
+            if(tier >= 4) mult *= 2; if(HIDDEN_DATA[type]) mult *= 3;
+            let rng = 160 + (tier * 15); if(type === '저격수') rng = 9999;
+            units.push({ col, row, x, y, type, tier, damage: 10 * mult, range: rng, cooldown: 0 });
         }
 
         function gamble() {
             let cost = getGambleCost();
             if(gold < cost) { showPopup("비용 부족!"); return; }
             gold -= cost;
+            gambleCount++; // 횟수 증가
             
             // 확률: 꽝 35, 골드 25, 유닛 25, 유물 10, 신화석 5
             let rand = Math.random() * 100;
@@ -1034,7 +1023,6 @@
         function openCombineModal() {
             const list = document.getElementById('recipe-list');
             list.innerHTML = '';
-            
             RECIPES.forEach(r => {
                 const canUnlock = !r.unlocked && stones >= r.cost;
                 const canCombine = r.unlocked && checkIngredients(r.req);
@@ -1052,12 +1040,7 @@
 
                 let item = document.createElement('div');
                 item.className = 'recipe-card';
-                item.innerHTML = `
-                    <div class="recipe-name"><span>${typeIcon} ${r.name}</span> <span style="font-size:0.8rem">${info.type.toUpperCase()}</span></div>
-                    <div class="recipe-desc">${info.desc}</div>
-                    <div class="recipe-req">${reqHtml}</div>
-                    ${btnHtml}
-                `;
+                item.innerHTML = `<div class="recipe-name"><span>${typeIcon} ${r.name}</span> <span style="font-size:0.8rem">${info.type.toUpperCase()}</span></div><div class="recipe-desc">${info.desc}</div><div class="recipe-req">${reqHtml}</div>${btnHtml}`;
                 list.appendChild(item);
             });
             document.getElementById('combine-modal').classList.add('open');
@@ -1136,8 +1119,6 @@
             units = units.filter(u => !ingredients.includes(u));
             let pos = { c: ingredients[0].col, r: ingredients[0].row };
             createUnit(pos.c, pos.r, r.result, 4); 
-            
-            // 조합 이펙트
             createSparkle(GRID_OFFSET_X + pos.c*TILE_SIZE + TILE_SIZE/2, GRID_OFFSET_Y + pos.r*TILE_SIZE + TILE_SIZE/2, '#E040FB');
             addShake(10); showPopup(`✨${r.name} 소환 성공!✨`); closeModal('combine-modal');
         }
@@ -1377,6 +1358,11 @@
             classLv = { phy: 1, mag: 1, sup: 1 };
             waveTimer = 0;
             isPaused = false;
+            
+            // 횟수 초기화
+            summonCount = 0;
+            gambleCount = 0;
+            
             startNextWave();
             updateUI();
         }
@@ -1424,17 +1410,32 @@
             let skipReward = document.getElementById('skip-reward');
             
             document.getElementById('wave-timer').innerText = Math.ceil(waveTimer);
+
+            // 항상 '스킵'으로 표시
             skipTxt.innerText = "⏩ 스킵";
 
             if (isPrep) {
-                tBox.classList.remove('urgent'); tBox.classList.add('prep'); tIcon.innerText = "⏳";
+                // 준비 상태 UI
+                tBox.classList.remove('urgent');
+                tBox.classList.add('prep');
+                tIcon.innerText = "⏳";
+                
                 skipBtn.classList.add('prep-mode');
-                skipRewardBox.style.display = "inline";
-                if (wave === 1) skipReward.innerText = "0"; else skipReward.innerText = Math.floor(waveTimer) * 5;
+                
+                if (wave === 1) {
+                    skipRewardBox.style.display = "inline";
+                    skipReward.innerText = "0"; 
+                } else {
+                    skipRewardBox.style.display = "inline";
+                    skipReward.innerText = Math.floor(waveTimer) * 5;
+                }
             } else {
+                // 전투 상태 UI
                 tBox.classList.remove('prep');
-                if(waveTimer < 10) tBox.classList.add('urgent'); else tBox.classList.remove('urgent');
+                if(waveTimer < 10) tBox.classList.add('urgent');
+                else tBox.classList.remove('urgent');
                 tIcon.innerText = "🔥";
+                
                 skipBtn.classList.remove('prep-mode');
                 skipRewardBox.style.display = "inline";
                 skipReward.innerText = Math.floor(waveTimer) * 2;
@@ -1454,7 +1455,20 @@
             let el = document.getElementById('luck-tooltip');
             let mText = cur.m > 0 ? `<div class="c-myth">신화: ${cur.m}%</div>` : '';
             let nextM = next.m > 0 ? `<div class="c-myth">신화: ${next.m}%</div>` : '';
-            el.innerHTML = `<div style="margin-bottom:5px; font-weight:bold; color:#FFD700;">현재 (Lv.${summonLevel})</div><div class="c-rare">희귀: ${cur.r}%</div><div class="c-hero">영웅: ${cur.e}%</div><div class="c-legend">전설: ${cur.l}%</div>${mText}<hr style="border-color:#555; margin:5px 0;"><div style="margin-bottom:5px; font-weight:bold; color:#AAA;">다음 (Lv.${summonLevel < 20 ? summonLevel+1 : 'MAX'})</div><div class="c-rare">희귀: ${next.r}%</div><div class="c-hero">영웅: ${next.e}%</div><div class="c-legend">전설: ${next.l}%</div>${nextM}`;
+
+            el.innerHTML = `
+                <div style="margin-bottom:5px; font-weight:bold; color:#FFD700;">현재 (Lv.${summonLevel})</div>
+                <div class="c-rare">희귀: ${cur.r}%</div>
+                <div class="c-hero">영웅: ${cur.e}%</div>
+                <div class="c-legend">전설: ${cur.l}%</div>
+                ${mText}
+                <hr style="border-color:#555; margin:5px 0;">
+                <div style="margin-bottom:5px; font-weight:bold; color:#AAA;">다음 (Lv.${summonLevel < 20 ? summonLevel+1 : 'MAX'})</div>
+                <div class="c-rare">희귀: ${next.r}%</div>
+                <div class="c-hero">영웅: ${next.e}%</div>
+                <div class="c-legend">전설: ${next.l}%</div>
+                ${nextM}
+            `;
             el.style.display = 'block';
         }
         function hideLuckInfo() { document.getElementById('luck-tooltip').style.display = 'none'; }
