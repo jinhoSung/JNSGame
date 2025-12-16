@@ -7,18 +7,16 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&family=Gowun+Batang:wght@700&display=swap');
 
-        /* 기본 변수 (리얼 우드 오크) */
         :root {
             --bg: #2d241b; --panel: #3e3226; --text: #e8dcc5; --accent: #e6b8a2; --border: #5c4b3a;
             --font-main: 'Gowun Batang', serif;
         }
 
-        /* --- 테마별 오버라이드 --- */
+        /* 테마별 스타일 */
         body.theme-oak { --bg: #2d241b; --panel: #3e3226; --text: #e8dcc5; --accent: #e6b8a2; }
         body.theme-walnut { --bg: #1a120b; --panel: #2c1e16; --text: #d7ccc8; --accent: #a98467; }
         body.theme-chamjuk { --bg: #2b1b17; --panel: #3e2723; --text: #ffccbc; --accent: #ffab91; }
         body.theme-ebony { --bg: #0f0f0f; --panel: #1a1a1a; --text: #ccc; --accent: #9e9e9e; }
-        
         body.theme-modern { --bg: #0f172a; --panel: #1e293b; --text: #e2e8f0; --accent: #3b82f6; --font-main: 'Noto Sans KR', sans-serif; }
         body.theme-minimal { --bg: #f5f5f5; --panel: #ffffff; --text: #333; --accent: #333; --font-main: 'Noto Sans KR', sans-serif; }
         body.theme-classic { --bg: #fdf6e3; --panel: #eee8d5; --text: #657b83; --accent: #b58900; }
@@ -33,8 +31,8 @@
         header { height: 50px; background: var(--panel); border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 20; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
         .logo { font-weight: 900; font-size: 18px; color: var(--accent); display: flex; align-items: center; gap: 6px; }
         .status-badge { font-size: 13px; font-weight: bold; padding: 4px 12px; border-radius: 20px; background: rgba(0,0,0,0.3); color: var(--text); border: 1px solid rgba(255,255,255,0.1); }
-        .status-badge.active { background: var(--accent); color: #1a1510; font-weight: 800; border-color: transparent; box-shadow: 0 0 10px var(--accent); }
-
+        .status-badge.active { background: var(--accent); color: #000; font-weight: 800; border-color: transparent; box-shadow: 0 0 10px var(--accent); }
+        
         .exit-btn { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: var(--text); font-family: var(--font-main); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; transition: 0.2s; }
         .exit-btn:hover { background: rgba(255,255,255,0.1); border-color: var(--accent); color: var(--accent); }
 
@@ -52,7 +50,6 @@
         .board-container { flex: 1; background: #111; display: flex; align-items: center; justify-content: center; position: relative; padding: 10px; }
         canvas { box-shadow: 0 30px 60px rgba(0,0,0,0.7), 0 10px 20px rgba(0,0,0,0.5); border-radius: 4px; cursor: pointer; max-width: 100%; max-height: 100%; transition: opacity 0.3s; }
 
-        /* 오버레이 */
         .overlay { position: absolute; inset: 0; background: rgba(10, 10, 12, 0.95); z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.3s; padding: 20px; overflow-y: auto; backdrop-filter: blur(10px); }
         .overlay.hidden { opacity: 0; pointer-events: none; }
         .menu-title { font-size: 32px; font-weight: 900; color: var(--accent); margin-bottom: 30px; text-align: center; text-shadow: 0 0 20px rgba(255,255,255,0.1); }
@@ -73,7 +70,6 @@
         .toast { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); background: var(--accent); color: #000; padding: 12px 24px; border-radius: 50px; font-size: 18px; font-weight: bold; opacity: 0; pointer-events: none; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 200; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
         .toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 
-        /* 나무 테마 전용 버튼 스타일 */
         .wood-btn { position: relative; overflow: hidden; }
         .wood-btn::before { content:''; position: absolute; inset: 0; background-size: cover; opacity: 0.3; z-index: 0; }
         .wood-btn span { position: relative; z-index: 1; }
@@ -188,18 +184,13 @@
     const canvas = document.getElementById('gameCanvas'), ctx = canvas.getContext('2d'), wrap = document.getElementById('board-wrap');
     let dpr = window.devicePixelRatio || 1, loopId = null, woodPattern = null;
 
-    // --- 오디오 & 파티클 ---
     const AudioSys={ctx:null,init(){if(!this.ctx)this.ctx=new(window.AudioContext||window.webkitAudioContext)()},play(t){if(!this.ctx)this.init();if(this.ctx.state==='suspended')this.ctx.resume();const n=this.ctx.currentTime,o=this.ctx.createOscillator(),g=this.ctx.createGain();if(t==='move'){o.type='triangle';o.frequency.setValueAtTime(250,n);o.frequency.exponentialRampToValueAtTime(50,n+.15);g.gain.setValueAtTime(.4,n);g.gain.linearRampToValueAtTime(0,n+.15)}else if(t==='capture'){o.type='square';o.frequency.setValueAtTime(150,n);o.frequency.exponentialRampToValueAtTime(40,n+.2);g.gain.setValueAtTime(.5,n);g.gain.linearRampToValueAtTime(0,n+.2)}else{o.type='sine';o.frequency.setValueAtTime(440,n);o.frequency.linearRampToValueAtTime(880,n+.4);g.gain.setValueAtTime(.3,n);g.gain.linearRampToValueAtTime(0,n+.6)}o.connect(g);g.connect(this.ctx.destination);o.start(n);o.stop(n+.6)}};
     class Particles{constructor(){this.p=[]}spawn(x,y,c){for(let i=0;i<12;i++)this.p.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,l:1,c})}up(){for(let i=this.p.length-1;i>=0;i--){this.p[i].x+=this.p[i].vx;this.p[i].y+=this.p[i].vy;this.p[i].l-=.04;if(this.p[i].l<=0)this.p.splice(i,1)}}draw(c){this.p.forEach(k=>{c.globalAlpha=k.l;c.fillStyle=k.c;c.beginPath();c.arc(k.x,k.y,3,0,Math.PI*2);c.fill()});c.globalAlpha=1}}
     const particles = new Particles();
 
-    // --- AI Worker (최적화 + Zobrist Hash) ---
+    // --- AI Worker ---
     const workerCode = `
-    // Zobrist Keys (Random numbers for each piece at each square)
-    // 10*9 squares, 14 piece types (7 cho + 7 han)
     const ZOBRIST = Array.from({length:90}, () => Array.from({length:14}, () => Math.floor(Math.random() * 2147483647)));
-    
-    // Piece Type Map
     const P_MAP = {
         'cho_cha':0, 'cho_po':1, 'cho_ma':2, 'cho_sang':3, 'cho_sa':4, 'cho_jol':5, 'cho_king':6,
         'han_cha':7, 'han_po':8, 'han_ma':9, 'han_sang':10, 'han_sa':11, 'han_jol':12, 'han_king':13
@@ -212,55 +203,49 @@
             self.postMessage(ai.getBestMove());
         }
     };
-
     class JanggiAI {
         constructor(p, d, h) {
             this.pieces = p; this.diff = d; this.history = h; this.turn = 'han';
             this.grid = Array.from({length:10}, () => Array(9).fill(null));
             this.zHash = 0;
-            
-            // Init Grid & Hash
             for(const pc of p) {
                 this.grid[pc.y][pc.x] = pc;
                 this.zHash ^= ZOBRIST[pc.y*9 + pc.x][P_MAP[pc.f+'_'+pc.t]];
             }
-            this.tt = new Map(); // Transposition Table
+            this.tt = new Map();
         }
-        
         getBestMove() {
-            let depth = 2, rand = 0;
-            if(this.diff==='god'){depth=4; rand=0;} // God: Deep search
-            else if(this.diff==='veryhard'){depth=3; rand=0;}
-            else if(this.diff==='hard'){depth=3; rand=10;}
-            else if(this.diff==='normal'){depth=2; rand=30;}
-            else {depth=1; rand=100;}
+            let d = 2, r = 0; // 기본 깊이 2
+            
+            if(this.diff==='god'){ d=3; r=0; } // 기본 3
+            else if(this.diff==='veryhard'){ d=3; r=0; }
+            else if(this.diff==='hard'){ d=2; r=10; }
+            else if(this.diff==='normal'){ d=2; r=50; }
+            else { d=1; r=200; }
 
-            // Iterative Deepening (Simulated: fixed depth for now for stability)
-            const res = this.minimax(depth, -Infinity, Infinity, true, rand);
+            const res = this.minimax(d, -Infinity, Infinity, true, r);
             return res.move;
         }
-
+        
         get(x, y) { if(x<0||x>8||y<0||y>9) return null; return this.grid[y][x]; }
         score(t) { const s={king:10000,cha:13,po:7,ma:5,sang:3,sa:3,jol:2}; return s[t]||0; }
-
+        
         eval() {
             let sc = 0;
             this.pieces.forEach(p => {
                 let v = this.score(p.t);
                 if (this.diff !== 'easy') {
                     if(p.t==='po'&&p.x===4) v+=1.5;
-                    if(p.t==='ma'&&p.x===4&&(p.y===4||p.y===5)) v+=1;
+                    if(p.t==='ma'&&p.x===4&&(p.y===4||p.y===5)) v+=1.0;
                     if(p.t==='jol'&&p.x===4) v+=0.5;
-                    if(p.t==='cha' && this.isAttackedFast(p.x, p.y, p.f)) v-=15; // 보호 로직
+                    if(p.t==='cha' && this.isAttackedFast(p.x, p.y, p.f)) v-=15; 
                 }
-                if(p.f==='han') sc+=v; else sc-=v;
+                if (p.f === 'han') sc += v; else sc -= v;
             });
             return sc;
         }
 
-        // Fast attack check (Only checks simple paths)
         isAttackedFast(x, y, f) {
-            // Check Orthogonal (Cha/Jol/King/Sa)
             const dx=[0,0,1,-1], dy=[1,-1,0,0];
             for(let i=0;i<4;i++){
                 let nx=x+dx[i], ny=y+dy[i];
@@ -277,129 +262,134 @@
         }
 
         minimax(d, a, b, im, rn) {
-            if(this.tt.has(this.zHash) && this.tt.get(this.zHash).d >= d) {
-                // Return TT value if deeper or equal search exists
-                // For simplicity in this demo, just skip TT retrieval to avoid complexity with exact/bounds
-            }
-
-            if (d===0) return this.diff==='god'?this.qui(a,b,im):{s:this.eval()};
+            if (d === 0) return this.diff === 'god' ? this.qui(a, b, im) : { score: this.eval() };
 
             const f = im?'han':'cho';
-            const my = this.pieces.filter(p=>p.f===f);
+            const my = this.pieces.filter(p => p.f === f);
             let bm=null, bs=im?-Infinity:Infinity, am=[];
 
             for(let p of my) {
                 const ms = this.getLegalMoves(p);
                 for(let m of ms) am.push({p, x:m.x, y:m.y});
             }
-            if(!am.length) return {s:im?-100000:100000};
 
-            // Sorting
+            if(!am.length) return { score: im ? -100000 : 100000 };
+
             am.sort((x,y)=>{
                 const tx=this.get(x.x,x.y), ty=this.get(y.x,y.y);
-                return (ty?this.score(ty.t):0)-(tx?this.score(tx.t):0);
+                return (ty?(this.score(ty.t)):0)-(tx?(this.score(tx.t)):0);
             });
 
             for(let m of am) {
                 const bk = this.sim(m);
-                const vo = this.minimax(d-1, a, b, !im, rn);
-                let v = vo.s;
-                this.res(bk);
-                
+                const vo = this.minimax(d - 1, a, b, !im, rn);
+                let v = vo.score;
+                this.restore(bk);
+
                 if(d===1 && rn>0) v += (Math.random()-0.5)*rn;
 
-                if (im) { if(v>bs){bs=v;bm=m} a=Math.max(a,v); }
-                else { if(v<bs){bs=v;bm=m} b=Math.min(b,v); }
-                if(b<=a) break;
+                if (im) {
+                    if (v > bs) { bs=v; bm=m; }
+                    a = Math.max(a, v);
+                } else {
+                    if (v < bs) { bs=v; bm=m; }
+                    b = Math.min(b, v);
+                }
+                if (b <= a) break;
             }
-            
-            // TT Store
-            // this.tt.set(this.zHash, {s:bs, d:d}); 
-            return {s:bs, move:bm};
+            return { score: bs, move: bm };
         }
 
         qui(a, b, im) {
             const sp = this.eval();
-            if(im){if(sp>=b)return{s:b};if(sp>a)a=sp}
-            else{if(sp<=a)return{s:a};if(sp<b)b=sp}
+            if (im) { if (sp >= b) return {score:b}; if (sp > a) a = sp; }
+            else { if (sp <= a) return {score:a}; if (sp < b) b = sp; }
 
             const f = im?'han':'cho';
             const my = this.pieces.filter(p=>p.f===f);
-
-            for(let p of my){
-                const ms = this.getLegalMoves(p);
-                for(let m of ms){
-                    if(this.get(m.x,m.y)){ // Capture
+            
+            for(let p of my) {
+                const moves = this.getLegalMoves(p); 
+                for(let m of moves) {
+                    if(this.get(m.x, m.y)) { 
                         const bk = this.sim({p, x:m.x, y:m.y});
-                        const v = this.qui(a, b, !im).s;
-                        this.res(bk);
-                        if(im){if(v>a)a=v;if(v>=b)return{s:b}}
-                        else{if(v<b)b=v;if(v<=a)return{s:a}}
+                        const v = this.qui(a, b, !im).score;
+                        this.restore(bk);
+                        if (im) { if (v > a) a = v; if (v >= b) return {score:b}; }
+                        else { if (v < b) b = v; if (v <= a) return {score:a}; }
                     }
                 }
             }
-            return {s:im?a:b};
+            return { score: im ? a : b };
         }
 
         sim(m){
             const{p,x,y}=m, ox=p.x, oy=p.y;
-            const t = this.get(x,y);
-            let c=null, ti=-1, prevHash=this.zHash;
-            
-            // XOR out moving piece from old pos
-            this.zHash ^= ZOBRIST[oy*9+ox][P_MAP[p.f+'_'+p.t]];
-
+            const t = this.get(x,y); // O(1)
+            let c = null, ti = -1;
             if(t) {
-                c=t; ti=this.pieces.indexOf(t);
-                this.pieces.splice(ti,1);
-                // XOR out captured piece
-                this.zHash ^= ZOBRIST[y*9+x][P_MAP[c.f+'_'+c.t]];
+                c = t;
+                ti = this.pieces.indexOf(t);
+                this.pieces.splice(ti, 1);
             }
-            
-            // XOR in moving piece to new pos
-            this.zHash ^= ZOBRIST[y*9+x][P_MAP[p.f+'_'+p.t]];
-            
-            this.grid[oy][ox]=null; this.grid[y][x]=p;
+            this.grid[oy][ox] = null;
+            this.grid[y][x] = p;
             p.x=x; p.y=y;
-            return {p,ox,oy,c,ti,ph:prevHash};
+            return {p,ox,oy,c,ti};
         }
 
-        res(b){
-            const{p,ox,oy,c,ti,ph}=b;
-            this.zHash = ph; // Restore hash
-            this.grid[p.y][p.x]=null;
+        restore(b){
+            const{p,ox,oy,c,ti}=b;
+            this.grid[p.y][p.x] = null; // 현재 위치 비움
             p.x=ox; p.y=oy;
-            this.grid[oy][ox]=p;
+            this.grid[oy][ox] = p; // 원위치 복구
             if(c) {
-                this.pieces.splice(ti,0,c);
-                this.grid[c.y][c.x]=c;
+                this.pieces.splice(ti, 0, c);
+                this.grid[c.y][c.x] = c; // 잡힌 말 복구
             }
         }
-
-        // --- Rules ---
-        getLegalMoves(p){ return this.raw(p).filter(m=>{ const b=this.sim({p,x:m.x,y:m.y}); const s=!this.chk(p.f); this.res(b); return s; }); }
-        chk(f){
+        
+        getLegalMoves(p) { return this.raw(p).filter(m=>{ const b=this.sim({p,x:m.x,y:m.y}); const s=!this.chk(p.f); this.restore(b); return s; }); }
+        chk(f) {
             const k = this.pieces.find(p=>p.f===f && p.t==='king');
             if(!k) return true;
-            // Check if ANY enemy can attack King
             const es = this.pieces.filter(p=>p.f!==f);
             for(let e of es) if(this.raw(e).some(m=>m.x===k.x && m.y===k.y)) return true;
             return false;
         }
 
-        raw(p){
+        raw(p) {
             let m=[]; const g=(x,y)=>this.get(x,y);
             const inp=(x,y)=>{if(x<3||x>5)return false;return p.f==='han'?(y>=0&&y<=2):(y>=7&&y<=9)};
             const isc=(x,y)=>(x===4&&(y===1||y===8));
-            const sc=(dx,dy,l=10,j=false)=>{let nx=p.x,ny=p.y,jp=false;for(let i=0;i<l;i++){nx+=dx;ny+=dy;if(nx<0||nx>8||ny<0||ny>9)break;const t=g(nx,ny);if(j){if(!jp){if(t){if(t.t==='po')break;jp=true}}else{if(t){if(t.f!==p.f&&t.t!=='po')m.push({x:nx,y:ny});break}m.push({x:nx,y:ny})}}else{if(t){if(t.f!==p.f)m.push({x:nx,y:ny});break}m.push({x:nx,y:ny})}}};
             
+            const sc=(dx,dy,l=10,j=false)=>{
+                let nx=p.x, ny=p.y, jp=false;
+                for(let i=0;i<l;i++){
+                    nx+=dx; ny+=dy; if(nx<0||nx>8||ny<0||ny>9)break;
+                    const t=g(nx,ny);
+                    if(j){if(!jp){if(t){if(t.t==='po')break;jp=true}}else{if(t){if(t.f!==p.f&&t.t!=='po')m.push({x:nx,y:ny});break}m.push({x:nx,y:ny})}}
+                    else{if(t){if(t.f!==p.f)m.push({x:nx,y:ny});break}m.push({x:nx,y:ny})}
+                }
+            };
+
             if(p.t==='cha')[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>sc(d[0],d[1]));
             if(p.t==='po')[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>sc(d[0],d[1],10,true));
             if(p.t==='jol'){const dy=p.f==='cho'?-1:1;[[0,dy],[1,0],[-1,0]].forEach(d=>sc(d[0],d[1],1));if(inp(p.x,p.y))[[1,dy],[-1,dy]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inp(nx,ny)&&(isc(p.x,p.y)||isc(nx,ny)))sc(d[0],d[1],1)})}
-            if(p.t==='ma'||p.t==='sang'){const r=p.t==='ma'?[[1,-2,0,-1],[-1,-2,0,-1],[1,2,0,1],[-1,2,0,1],[2,-1,1,0],[2,1,1,0],[-2,-1,-1,0],[-2,1,-1,0]]:[[2,-3,0,-1,1,-2],[-2,-3,0,-1,-1,-2],[2,3,0,1,1,2],[-2,3,0,1,-1,2],[3,-2,1,0,2,-1],[3,2,1,0,2,1],[-3,-2,-1,0,-2,-1],[-3,2,-1,0,-2,1]];r.forEach(v=>{if(!g(p.x+v[2],p.y+v[3])&&(p.t==='ma'||!g(p.x+v[4],p.y+v[5]))){const tx=p.x+v[0],ty=p.y+v[1];if(tx>=0&&tx<9&&ty>=0&&ty<10){const t=g(tx,ty);if(!t||t.f!==p.f)m.push({x:tx,y:ty})}}})}
-            if(p.t==='king'||p.t==='sa'){[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inp(nx,ny)){const t=g(nx,ny);if(!t||t.f!==p.f)m.push({x:nx,y:ny})}});[[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inp(nx,ny)&&(isc(p.x,p.y)||isc(nx,ny))){const t=g(nx,ny);if(!t||t.f!==p.f)m.push({x:nx,y:ny})}})}
-            if(p.t==='po'&&inp(p.x,p.y)){[[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1],nnx=p.x+d[0]*2,nny=p.y+d[1]*2;if(inp(nx,ny)&&isc(nx,ny)){const s=g(nx,ny);if(s&&s.t!=='po'&&inp(nnx,nny)){const t=g(nnx,nny);if(!t)m.push({x:nnx,y:nny});else if(t.f!==p.f&&t.t!=='po')m.push({x:nnx,y:nny})}}})}
-            if(p.t==='cha'&&inp(p.x,p.y)){[[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inp(nx,ny)&&(isc(p.x,p.y)||isc(nx,ny))){const t=g(nx,ny);if(!t||t.f!==p.f)m.push({x:nx,y:ny});if(!t&&isc(p.x,p.y)){const nnx=p.x+d[0]*2,nny=p.y+d[1]*2;if(inp(nnx,nny)){const t2=g(nnx,nny);if(!t2||t2.f!==p.f)m.push({x:nnx,y:nny})}}}})}
+            if(p.t==='ma'||p.t==='sang'){
+                const r=p.t==='ma'?[[1,-2,0,-1],[-1,-2,0,-1],[1,2,0,1],[-1,2,0,1],[2,-1,1,0],[2,1,1,0],[-2,-1,-1,0],[-2,1,-1,0]]:[[2,-3,0,-1,1,-2],[-2,-3,0,-1,-1,-2],[2,3,0,1,1,2],[-2,3,0,1,-1,2],[3,-2,1,0,2,-1],[3,2,1,0,2,1],[-3,-2,-1,0,-2,-1],[-3,2,-1,0,-2,1]];
+                r.forEach(v=>{if(!g(p.x+v[2],p.y+v[3])&&(p.t==='ma'||!g(p.x+v[4],p.y+v[5]))){const tx=p.x+v[0],ty=p.y+v[1];if(tx>=0&&tx<9&&ty>=0&&ty<10){const t=g(tx,ty);if(!t||t.f!==p.f)m.push({x:tx,y:ty})}}});
+            }
+            if(p.t==='king'||p.t==='sa'){
+                [[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inp(nx,ny)){const t=g(nx,ny);if(!t||t.f!==p.f)m.push({x:nx,y:ny})}});
+                [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inp(nx,ny)&&(isc(p.x,p.y)||isc(nx,ny))){const t=g(nx,ny);if(!t||t.f!==p.f)m.push({x:nx,y:ny})}});
+            }
+            if(p.t==='po'&&inp(p.x,p.y)){
+                [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1],nnx=p.x+d[0]*2,nny=p.y+d[1]*2;if(inp(nx,ny)&&isc(nx,ny)){const s=g(nx,ny);if(s&&s.t!=='po'&&inp(nnx,nny)){const t=g(nnx,nny);if(!t)m.push({x:nnx,y:nny});else if(t.f!==p.f&&t.t!=='po')m.push({x:nnx,y:nny})}}});
+            }
+            if(p.t==='cha'&&inp(p.x,p.y)){
+                [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inp(nx,ny)&&(isc(p.x,p.y)||isc(nx,ny))){const t=g(nx,ny);if(!t||t.f!==p.f)m.push({x:nx,y:ny});if(!t&&isc(p.x,p.y)){const nnx=p.x+d[0]*2,nny=p.y+d[1]*2;if(inp(nnx,nny)){const t2=g(nnx,nny);if(!t2||t2.f!==p.f)m.push({x:nnx,y:nny})}}}});
+            }
             return m;
         }
     }`;
@@ -490,7 +480,9 @@
                     ctx.fillStyle=g;
                 } else ctx.fillStyle=jtm.pieceBg;
                 
-                ctx.shadowColor='rgba(0,0,0,0.4)';ctx.shadowBlur=5;ctx.shadowOffsetY=3;ctx.fill();ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+                ctx.shadowColor='rgba(0,0,0,0.5)';ctx.shadowBlur=6;ctx.shadowOffsetY=4;
+                if(currentTheme==='mono'){ctx.fillStyle='#fff';ctx.shadowColor='transparent'}
+                ctx.fill();ctx.shadowBlur=0;ctx.shadowOffsetY=0;
 
                 if(currentTheme==='mono'){ctx.strokeStyle='#000';ctx.lineWidth=2;ctx.stroke()}
                 else if(jtm.shape==='octagon'){ctx.strokeStyle=p.f==='cho'?'#1d4ed8':'#b91c1c';ctx.lineWidth=2;ctx.stroke()}
