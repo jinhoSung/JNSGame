@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 장기 & 바둑 (신의 한 수 V2)</title>
+    <title>장기 & 바둑 (AI 지능형 수비 강화)</title>
     <style>
         :root { --bg: #0f172a; --panel: #1e293b; --accent: #f59e0b; --text: #e2e8f0; }
         * { box-sizing: border-box; touch-action: none; user-select: none; -webkit-user-select: none; }
@@ -73,6 +73,7 @@
 
 <div id="main-menu" class="overlay">
     <div class="menu-title">난이도 및 게임 선택</div>
+    
     <div class="diff-select">
         <button class="diff-btn" data-val="easy" onclick="setDifficulty('easy', this)">하수</button>
         <button class="diff-btn" data-val="normal" onclick="setDifficulty('normal', this)">중수</button>
@@ -80,12 +81,13 @@
         <button class="diff-btn" data-val="veryhard" onclick="setDifficulty('veryhard', this)">초고수</button>
         <button class="diff-btn selected" data-val="god" onclick="setDifficulty('god', this)">신의 한 수</button>
     </div>
+
     <div class="btn-grid">
         <button class="menu-btn janggi" onclick="startGame('janggi')">
-            <span style="font-size:24px;font-weight:800">장기</span><span style="font-size:12px;opacity:0.7">실수 없는 AI</span>
+            <span style="font-size:24px;font-weight:800">장기</span><span style="font-size:12px;opacity:0.7">반복수 방지 적용</span>
         </button>
         <button class="menu-btn baduk" onclick="startGame('baduk')">
-            <span style="font-size:24px;font-weight:800">바둑</span><span style="font-size:12px;opacity:0.7">패 & 시뮬레이션</span>
+            <span style="font-size:24px;font-weight:800">바둑</span><span style="font-size:12px;opacity:0.7">패(Ko) 규칙 적용</span>
         </button>
     </div>
 </div>
@@ -123,7 +125,7 @@
     function loop(){if(game){game.draw();particles.update();particles.draw(ctx)}loopId=requestAnimationFrame(loop)}
 
     // ==========================================
-    //  장기 (오프닝 실수 수정됨)
+    //  장기 (강력해진 수비 AI)
     // ==========================================
     class JanggiGame {
         constructor(d){this.diff=d;this.cols=9;this.rows=10;this.pieces=[];this.turn='cho';this.selected=null;this.moves=[];this.lastMove=null;this.history=[];this.stateHistory=new Map();this.setup();this.updateUI();canvas.onclick=e=>this.onClick(e)}
@@ -158,24 +160,46 @@
             let d=1,rn=0;
             switch(this.diff){case'easy':d=1;rn=200;break;case'normal':d=2;rn=50;break;case'hard':d=2;rn=10;break;case'veryhard':d=3;rn=0;break;case'god':d=3;rn=0;break}
             setTimeout(()=>{
-                // 족보 강제 실행 제거 -> Minimax에서 가산점 처리
                 const best=this.minimax(d,-Infinity,Infinity,true,rn);
                 if(best.move)this.execute(best.move.p,best.move.x,best.move.y);else this.endGame(true)
             },50)
         }
 
-        // 오프닝 보너스 점수 확인
+        // [New] 해당 위치가 적에게 공격받는지 확인 (차, 포 등이 노리는지)
+        isUnderAttack(x, y, myFaction) {
+            const enemyPieces = this.pieces.filter(p => p.f !== myFaction);
+            for(let e of enemyPieces) {
+                // 적 기물 e가 (x,y)로 갈 수 있으면 공격받는 것
+                // RawMoves 사용 (재귀 방지)
+                const moves = this.getRawMoves(e);
+                if(moves.some(m => m.x === x && m.y === y)) return true;
+            }
+            return false;
+        }
+
+        // 오프닝 보너스 (조건부: 안전할 때만 부여)
         getOpeningBonus(m) {
             if(this.diff==='easy' || this.history.length > 8) return 0;
-            const h = this.history.length; // 현재 턴 (홀수: 한의 차례)
+            const h = this.history.length;
             const {p,x,y} = m;
-            // 1수: 우변 마 진출 (7,0 -> 6,2)
+            
+            // 1. 그 자리가 공격받으면 절대 안 됨 (안전장치)
+            if(this.isUnderAttack(x, y, p.f)) return -500; // 오히려 감점
+
+            // 2. 이동 후 내 차(Cha)가 공격받게 되는지 체크 (차길 열었다가 차가 죽는 것 방지)
+            // (간단 시뮬레이션은 minimax에서 하므로 여기선 정적 패턴만)
+            
+            // 정석 패턴
             if(h===1 && p.t==='ma' && p.x===7 && p.y===0 && x===6 && y===2) return 50;
-            // 3수: 면포 (7,2 -> 4,2)
             if(h===3 && p.t==='po' && p.x===7 && p.y===2 && x===4 && y===2) return 50;
-            // 5수: 좌변 졸 쓸기 (0,3 -> 1,3) - *위험하면 Minimax가 깎으므로 안전*
-            if(h===5 && p.t==='jol' && p.x===0 && p.y===3 && x===1 && y===3) return 30;
-            // 7수: 좌변 마 진출 (1,0 -> 2,2)
+            
+            // 졸 쓸기: 상대 차가 바로 앞에 없을 때만 추천
+            if(h===5 && p.t==='jol' && p.x===0 && p.y===3 && x===1 && y===3) {
+                // 상대 차가 0번 줄에 있으면 위험할 수 있음
+                const enemyCha = this.pieces.find(ep => ep.f==='cho' && ep.t==='cha' && ep.x===0);
+                if(enemyCha) return -50; // 위험하면 두지 마라
+                return 30;
+            }
             if(h===7 && p.t==='ma' && p.x===1 && p.y===0 && x===2 && y===2) return 30;
             return 0;
         }
@@ -193,10 +217,8 @@
             if(!am.length)return{s:im?-100000:100000};
             
             am.sort((x,y)=>{
-                // 오프닝 보너스 정렬 우선
                 const obX = this.getOpeningBonus(x), obY = this.getOpeningBonus(y);
                 if(obX !== obY) return obY - obX;
-                // 기물 가치 정렬
                 const tx=this.pieces.find(t=>t.x===x.x&&t.y===x.y),ty=this.pieces.find(t=>t.x===y.x&&t.y===y.y);
                 return (ty?(ty.t==='king'?900:10):0)-(tx?(tx.t==='king'?900:10):0)
             });
@@ -205,10 +227,8 @@
                 const bk=this.sim(m),vObj=this.minimax(d-1,a,b,!im,rn);
                 let v=vObj.s;this.res(bk);
                 
-                // Root Node에서 오프닝 보너스 적용
-                if(d === (this.diff==='god'?3:(this.diff==='veryhard'?3:2))) {
-                    v += this.getOpeningBonus(m);
-                }
+                // 오프닝 보너스 적용
+                if(d === (this.diff==='god'?3:(this.diff==='veryhard'?3:2))) v += this.getOpeningBonus(m);
                 
                 if(d===1&&rn>0)v+=(Math.random()-.5)*rn;
                 if(im){if(v>bs){bs=v;bm=m}a=Math.max(a,v)}else{if(v<bs){bs=v;bm=m}b=Math.min(b,v)}
@@ -243,7 +263,7 @@
         getRawMoves(p){let m=[];const g=(x,y)=>this.pieces.find(t=>t.x===x&&t.y===y),inp=(x,y)=>{if(x<3||x>5)return false;return p.f==='han'?(y>=0&&y<=2):(y>=7&&y<=9)},isc=(x,y)=>(x===4&&(y===1||y===8));const sc=(dx,dy,l=10,j=false)=>{let nx=p.x,ny=p.y,jp=false;for(let i=0;i<l;i++){nx+=dx;ny+=dy;if(nx<0||nx>8||ny<0||ny>9)break;const t=g(nx,ny);if(j){if(!jp){if(t){if(t.t==='po')break;jp=true}}else{if(t){if(t.f!==p.f&&t.t!=='po')m.push({x:nx,y:ny,capture:true});break}m.push({x:nx,y:ny})}}else{if(t){if(t.f!==p.f)m.push({x:nx,y:ny,capture:true});break}m.push({x:nx,y:ny})}}};if(p.t==='cha')[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>sc(d[0],d[1]));if(p.t==='po')[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>sc(d[0],d[1],10,true));if(p.t==='jol'){const dy=p.f==='cho'?-1:1;[[0,dy],[1,0],[-1,0]].forEach(d=>sc(d[0],d[1],1));if(inp(p.x,p.y))[[1,dy],[-1,dy]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inp(nx,ny)&&(isc(p.x,p.y)||isc(nx,ny)))sc(d[0],d[1],1)})}if(p.t==='ma'||p.t==='sang'){const r=p.t==='ma'?[[1,-2,0,-1],[-1,-2,0,-1],[1,2,0,1],[-1,2,0,1],[2,-1,1,0],[2,1,1,0],[-2,-1,-1,0],[-2,1,-1,0]]:[[2,-3,0,-1,1,-2],[-2,-3,0,-1,-1,-2],[2,3,0,1,1,2],[-2,3,0,1,-1,2],[3,-2,1,0,2,-1],[3,2,1,0,2,1],[-3,-2,-1,0,-2,-1],[-3,2,-1,0,-2,1]];r.forEach(v=>{if(!g(p.x+v[2],p.y+v[3])&&(p.t==='ma'||!g(p.x+v[4],p.y+v[5]))){const tx=p.x+v[0],ty=p.y+v[1];if(tx>=0&&tx<9&&ty>=0&&ty<10){const t=g(tx,ty);if(!t||t.f!==p.f)m.push({x:tx,y:ty,capture:!!t})}}})}if(p.t==='king'||p.t==='sa'){[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inp(nx,ny)){const t=g(nx,ny);if(!t||t.f!==p.f)m.push({x:nx,y:ny,capture:!!t})}});[[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inp(nx,ny)&&(isc(p.x,p.y)||isc(nx,ny))){const t=g(nx,ny);if(!t||t.f!==p.f)m.push({x:nx,y:ny,capture:!!t})}})}if(p.t==='po'&&inp(p.x,p.y)){[[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1],nnx=p.x+d[0]*2,nny=p.y+d[1]*2;if(inp(nx,ny)&&isc(nx,ny)){const s=g(nx,ny);if(s&&s.t!=='po'&&inp(nnx,nny)){const t=g(nnx,nny);if(!t)m.push({x:nnx,y:nny});else if(t.f!==p.f&&t.t!=='po')m.push({x:nnx,y:nny,capture:true})}}})}return m}
         sim(m){const{p,x,y}=m,ox=p.x,oy=p.y,ti=this.pieces.findIndex(t=>t.x===x&&t.y===y),c=ti!==-1?this.pieces[ti]:null;p.x=x;p.y=y;if(c)this.pieces.splice(ti,1);return{p,ox,oy,c,ti}}
         res(b){const{p,ox,oy,c,ti}=b;p.x=ox;p.y=oy;if(c)this.pieces.splice(ti,0,c)}
-        evalBoard(){const s={king:9000,cha:13,po:7,ma:5,sang:3,sa:3,jol:2};let sc=0;this.pieces.forEach(p=>{let v=s[p.t];if(this.diff==='hard'||this.diff==='veryhard'||this.diff==='god'){if(p.t==='po'&&p.x===4)v+=1.5;if(p.t==='ma'&&p.x===4&&p.y===4)v+=1;if(p.t==='jol'&&p.x===4)v+=.5}if(p.f==='han')sc+=v;else sc-=v});return sc}
+        evalBoard(){const s={king:9000,cha:13,po:7,ma:5,sang:3,sa:3,jol:2};let sc=0;this.pieces.forEach(p=>{let v=s[p.t];if(this.diff==='hard'||this.diff==='veryhard'||this.diff==='god'){if(p.t==='po'&&p.x===4)v+=1.5;if(p.t==='ma'&&p.x===4&&p.y===4)v+=1;if(p.t==='jol'&&p.x===4)v+=.5;if(p.t==='cha'&&this.isUnderAttack(p.x,p.y,p.f))v-=20;/* 차 위협받으면 대폭 감점 */}if(p.f==='han')sc+=v;else sc-=v});return sc}
         updateUI(){const st=document.getElementById('status-pill'),cai=document.getElementById('card-ai'),cuser=document.getElementById('card-user');if(this.turn==='cho'){st.innerHTML='나의 차례';st.className='status-pill active';cuser.classList.add('active');cai.classList.remove('active')}else{st.innerHTML='<span class="spinner"></span> AI 생각 중...';st.className='status-pill ai-turn';cuser.classList.remove('active');cai.classList.add('active')}let sc=0,sh=1.5;const s={king:0,cha:13,po:7,ma:5,sang:3,sa:3,jol:2};this.pieces.forEach(p=>p.f==='cho'?sc+=s[p.t]:sh+=s[p.t]);document.getElementById('score-user').innerText=sc;document.getElementById('score-ai').innerText=sh}
         addCap(p){const el=document.createElement('div');el.className=`piece-icon ${p.f==='cho'?'blue':'red'}`;const map={king:'王',cha:'車',po:'包',ma:'馬',sang:'象',sa:'士',jol:'卒'};el.innerText=map[p.t]||p.t[0];document.getElementById(this.turn==='cho'?'caps-user':'caps-ai').appendChild(el)}
         endGame(w){AudioSys.play('win');toast(w?"승리!":"패배",w?"success":"normal");setTimeout(()=>alert(w?"승리!":"패배"),300)}
