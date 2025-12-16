@@ -3,353 +3,380 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>장기 & 바둑 (차 대각선 수정)</title>
+    <title>AI 장기 & 바둑 프리미엄</title>
     <style>
-        :root { --bg: #0f172a; --panel: #1e293b; --accent: #f59e0b; --text: #e2e8f0; }
-        * { box-sizing: border-box; touch-action: none; user-select: none; -webkit-user-select: none; }
-        body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Pretendard', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&family=Gowun+Batang:wght@700&display=swap');
 
-        header { height: 56px; background: var(--panel); border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: 20; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-        .logo { font-weight: 900; font-size: 20px; color: var(--accent); letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
-        .status-pill { font-size: 13px; font-weight: 700; padding: 6px 14px; border-radius: 99px; background: #334155; color: #94a3b8; transition: all 0.3s; display: flex; align-items: center; gap: 8px; }
-        .status-pill.active { background: #2563eb; color: white; box-shadow: 0 0 15px rgba(37, 99, 235, 0.5); }
-        .status-pill.ai-turn { background: #dc2626; color: white; box-shadow: 0 0 15px rgba(220, 38, 38, 0.5); }
-        .spinner { width: 14px; height: 14px; border: 2px solid #fff; border-bottom-color: transparent; border-radius: 50%; display: inline-block; animation: rotation 1s linear infinite; }
-        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        .layout { flex: 1; display: flex; position: relative; overflow: hidden; }
-        aside { width: 280px; background: #1e293b; border-right: 1px solid #334155; padding: 24px; display: flex; flex-direction: column; gap: 20px; z-index: 10; }
-        .player-card { background: #0f172a; border-radius: 16px; padding: 20px; border: 1px solid #334155; position: relative; overflow: hidden; transition: all 0.3s; }
-        .player-card.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3); transform: translateY(-2px); }
-        .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .p-name { font-size: 14px; font-weight: bold; color: #94a3b8; }
-        .p-score { font-size: 28px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
-        .captures { display: flex; flex-wrap: wrap; gap: 6px; min-height: 30px; }
-        .piece-icon { width: 28px; height: 28px; border-radius: 50%; background: #e2e8f0; border: 2px solid rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; box-shadow: 2px 2px 4px rgba(0,0,0,0.2); }
-        .piece-icon.red { color: #b91c1c; border-color: #b91c1c; background: #fee2e2; }
-        .piece-icon.blue { color: #1d4ed8; border-color: #1d4ed8; background: #dbeafe; }
-
-        @media (max-width: 800px) {
-            .layout { flex-direction: column; }
-            aside { width: 100%; height: auto; flex-direction: row; padding: 12px; border-right: none; border-bottom: 1px solid #334155; }
-            .player-card { flex: 1; padding: 12px; border-radius: 12px; }
-            .p-score { font-size: 20px; }
-            .piece-icon { width: 20px; height: 20px; font-size: 10px; }
+        /* --- 테마별 변수 설정 (8종) --- */
+        /* 1. 리얼 우드 (기본) - 눈이 편안한 나무 질감 */
+        :root {
+            --bg: #1a1510; --panel: #261e16; --text: #e8dcc5; --accent: #d4a373;
+            --board-bg: #dcb35c; --line-color: #3e2723; --grid-shadow: rgba(0,0,0,0.1);
+            --cho-color: #1d4ed8; --han-color: #b91c1c; --piece-bg: #eaddcf;
+            --font-main: 'Gowun Batang', serif;
         }
+        /* 2. 다크 모드 - 눈 피로 최소화 */
+        body.theme-dark { --bg: #121212; --panel: #1e1e1e; --text: #cfcfcf; --accent: #64b5f6; --board-bg: #2c2c2c; --line-color: #555; --cho-color: #64b5f6; --han-color: #e57373; --piece-bg: #333; --font-main: 'Noto Sans KR', sans-serif; }
+        /* 3. 미니멀 - 군더더기 없음 */
+        body.theme-minimal { --bg: #f5f5f5; --panel: #ffffff; --text: #333; --accent: #333; --board-bg: #f0f0f0; --line-color: #aaa; --cho-color: #000; --han-color: #d32f2f; --piece-bg: #fff; --font-main: 'Noto Sans KR', sans-serif; }
+        /* 4. 클래식 - 전통 종이 질감 */
+        body.theme-classic { --bg: #fdf6e3; --panel: #eee8d5; --text: #657b83; --accent: #b58900; --board-bg: #eaddcf; --line-color: #5d4037; --cho-color: #268bd2; --han-color: #dc322f; --piece-bg: #fdf6e3; --font-main: 'Gowun Batang', serif; }
+        /* 5. 포레스트 - 눈이 편한 녹색 */
+        body.theme-forest { --bg: #1b2e1b; --panel: #243b24; --text: #d4eac8; --accent: #8bc34a; --board-bg: #385c38; --line-color: #8fbc8f; --cho-color: #81d4fa; --han-color: #ffab91; --piece-bg: #2e4a2e; --font-main: 'Noto Sans KR', sans-serif; }
+        /* 6. 오션 - 차분한 바다색 */
+        body.theme-ocean { --bg: #0d1b2a; --panel: #1b263b; --text: #e0e1dd; --accent: #00b4d8; --board-bg: #415a77; --line-color: #778da9; --cho-color: #90e0ef; --han-color: #ffadad; --piece-bg: #1b263b; --font-main: 'Noto Sans KR', sans-serif; }
+        /* 7. 모노 - 세련된 흑백 (모양 유지) */
+        body.theme-mono { --bg: #111; --panel: #222; --text: #ccc; --accent: #fff; --board-bg: #333; --line-color: #666; --cho-color: #fff; --han-color: #aaa; --piece-bg: #222; --font-main: 'Noto Sans KR', sans-serif; }
+        /* 8. 레트로 - 픽셀 감성 */
+        body.theme-retro { --bg: #2b2b2b; --panel: #3c3f41; --text: #a9b7c6; --accent: #cc7832; --board-bg: #3c3f41; --line-color: #808080; --cho-color: #6a8759; --han-color: #cc7832; --piece-bg: #2b2b2b; --font-main: 'Courier New', monospace; }
 
-        .board-area { flex: 1; background: #020617; display: flex; align-items: center; justify-content: center; position: relative; }
-        canvas { background-color: #d97706; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); border-radius: 6px; cursor: pointer; }
+        * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; transition: all 0.3s ease; }
 
-        .overlay { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.98); z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.3s; }
-        .overlay.hidden { opacity: 0; pointer-events: none; }
-        .menu-title { font-size: 36px; font-weight: 900; color: var(--accent); margin-bottom: 30px; letter-spacing: -1px; }
+        /* UI 컴포넌트 */
+        header { height: 50px; background: var(--panel); border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 20; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .logo { font-weight: 900; font-size: 18px; color: var(--accent); display: flex; align-items: center; gap: 6px; letter-spacing: -0.5px; }
+        .status-badge { font-size: 13px; font-weight: bold; padding: 4px 12px; border-radius: 20px; background: rgba(0,0,0,0.2); color: var(--text); transition: 0.3s; border: 1px solid rgba(255,255,255,0.1); }
+        .status-badge.active { background: var(--accent); color: #000; font-weight: 800; border-color: transparent; box-shadow: 0 0 10px var(--accent); }
+
+        .btn-icon { background: transparent; border: none; color: var(--text); font-size: 20px; cursor: pointer; padding: 4px; opacity: 0.7; transition: 0.2s; }
+        .btn-icon:hover { opacity: 1; transform: scale(1.1); }
+
+        /* 메인 레이아웃 */
+        .layout { flex: 1; display: flex; position: relative; }
+        aside { width: 260px; background: var(--panel); border-right: 1px solid rgba(255,255,255,0.05); padding: 20px; display: flex; flex-direction: column; gap: 16px; z-index: 10; transition: all 0.3s; }
         
-        .diff-select { display: flex; gap: 8px; margin-bottom: 40px; background: #1e293b; padding: 8px; border-radius: 12px; flex-wrap: wrap; justify-content: center; max-width: 95%; }
-        .diff-btn { background: transparent; border: 1px solid #334155; color: #94a3b8; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: all 0.2s; font-size: 14px; }
-        .diff-btn:hover { background: rgba(255,255,255,0.05); }
-        .diff-btn.selected { background: #2563eb; color: white; border-color: #2563eb; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4); }
-        .diff-btn[data-val="god"] { color: #f59e0b; border-color: #f59e0b; }
-        .diff-btn[data-val="god"].selected { background: #f59e0b; color: #000; box-shadow: 0 0 20px rgba(245, 158, 11, 0.6); }
+        .card { background: rgba(0,0,0,0.2); border-radius: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.05); transition: 0.3s; }
+        .card.active { border-color: var(--accent); background: rgba(255,255,255,0.05); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .p-label { font-size: 14px; font-weight: bold; opacity: 0.8; }
+        .p-score { font-size: 24px; font-weight: 800; color: var(--accent); }
+        .caps-area { display: flex; flex-wrap: wrap; gap: 4px; min-height: 24px; }
+        .cap-item { width: 22px; height: 22px; border-radius: 50%; background: var(--piece-bg); border: 1px solid rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; box-shadow: 1px 1px 2px rgba(0,0,0,0.2); }
 
-        .btn-grid { display: flex; gap: 20px; }
-        .menu-btn { background: #1e293b; border: 1px solid #334155; padding: 25px 40px; border-radius: 20px; color: white; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 160px; }
-        .menu-btn:hover { border-color: var(--accent); transform: translateY(-4px); box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.3); }
-        .menu-btn.janggi { background: linear-gradient(145deg, #1e293b, #0f172a); }
-        .menu-btn.baduk { background: linear-gradient(145deg, #334155, #1e293b); }
+        .board-container { flex: 1; background: rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; position: relative; padding: 10px; }
+        canvas { background-color: var(--board-bg); box-shadow: 0 20px 50px rgba(0,0,0,0.5); border-radius: 4px; cursor: pointer; transition: transform 0.2s, background-color 0.3s; max-width: 100%; max-height: 100%; }
 
-        .toast { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); background: rgba(220, 38, 38, 0.9); color: white; padding: 15px 30px; border-radius: 99px; font-size: 20px; font-weight: bold; opacity: 0; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); pointer-events: none; z-index: 50; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5); border: 2px solid rgba(255,255,255,0.2); backdrop-filter: blur(4px); white-space: nowrap; }
+        /* 오버레이 (설정창) */
+        .overlay { position: absolute; inset: 0; background: var(--bg); z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.3s; padding: 20px; overflow-y: auto; }
+        .overlay.hidden { opacity: 0; pointer-events: none; }
+        .menu-title { font-size: 28px; font-weight: 900; color: var(--accent); margin-bottom: 24px; text-align: center; }
+
+        .section { margin-bottom: 24px; width: 100%; max-width: 500px; }
+        .section-title { font-size: 14px; font-weight: bold; margin-bottom: 8px; opacity: 0.7; text-transform: uppercase; letter-spacing: 1px; }
+        
+        /* 그리드 버튼 */
+        .grid-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        .opt-btn { background: var(--panel); border: 1px solid rgba(255,255,255,0.1); color: var(--text); padding: 10px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: bold; transition: 0.2s; font-family: var(--font-main); }
+        .opt-btn:hover { background: rgba(255,255,255,0.05); border-color: var(--accent); }
+        .opt-btn.selected { background: var(--accent); color: #000; border-color: var(--accent); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        
+        .big-btn-row { display: flex; gap: 15px; width: 100%; max-width: 400px; margin-top: 20px; }
+        .big-btn { flex: 1; padding: 20px; background: var(--panel); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: var(--text); font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .big-btn:hover { border-color: var(--accent); transform: translateY(-3px); }
+        .big-btn span { font-size: 11px; opacity: 0.6; font-weight: normal; }
+
+        .toast { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); background: var(--accent); color: #000; padding: 12px 24px; border-radius: 50px; font-size: 18px; font-weight: bold; opacity: 0; pointer-events: none; transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 200; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
         .toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-        .toast.success { background: #16a34a; }
-        .toast.warn { background: #f59e0b; }
+
+        @media (max-width: 768px) {
+            .layout { flex-direction: column; }
+            aside { width: 100%; height: auto; flex-direction: row; padding: 10px; border-right: none; border-bottom: 1px solid rgba(255,255,255,0.1); }
+            .card { flex: 1; padding: 10px; border-radius: 8px; }
+            .p-score { font-size: 18px; }
+            .grid-options { grid-template-columns: repeat(3, 1fr); }
+        }
     </style>
 </head>
-<body>
+<body class=""> <!-- 기본 테마는 스크립트에서 설정 -->
 
 <header>
-    <div class="logo"><span>⚡</span> AI BOARD MASTER</div>
-    <div id="status-pill" class="status-pill">게임 대기 중</div>
-    <button onclick="goHome()" style="background:transparent; border:1px solid #475569; color:#94a3b8; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">나가기</button>
+    <div class="logo"><span>🏯</span> AI BOARD</div>
+    <div id="turn-badge" class="status-badge">대기 중</div>
+    <button class="btn-icon" onclick="goHome()">⚙️</button>
 </header>
 
+<!-- 설정 및 메인 메뉴 -->
 <div id="main-menu" class="overlay">
-    <div class="menu-title">난이도 및 게임 선택</div>
-    <div class="diff-select">
-        <button class="diff-btn" data-val="easy" onclick="setDifficulty('easy', this)">하수</button>
-        <button class="diff-btn" data-val="normal" onclick="setDifficulty('normal', this)">중수</button>
-        <button class="diff-btn" data-val="hard" onclick="setDifficulty('hard', this)">고수</button>
-        <button class="diff-btn" data-val="veryhard" onclick="setDifficulty('veryhard', this)">초고수</button>
-        <button class="diff-btn selected" data-val="god" onclick="setDifficulty('god', this)">신의 한 수</button>
+    <div class="menu-title">게임 설정</div>
+    
+    <div class="section">
+        <div class="section-title">🎨 테마 (Theme)</div>
+        <div class="grid-options" style="grid-template-columns: repeat(4, 1fr);">
+            <button class="opt-btn" onclick="setTheme('default', this)">리얼우드</button>
+            <button class="opt-btn" onclick="setTheme('dark', this)">다크</button>
+            <button class="opt-btn" onclick="setTheme('minimal', this)">미니멀</button>
+            <button class="opt-btn" onclick="setTheme('classic', this)">클래식</button>
+            <button class="opt-btn" onclick="setTheme('forest', this)">포레스트</button>
+            <button class="opt-btn" onclick="setTheme('ocean', this)">오션</button>
+            <button class="opt-btn" onclick="setTheme('mono', this)">모노</button>
+            <button class="opt-btn" onclick="setTheme('retro', this)">레트로</button>
+        </div>
     </div>
-    <div class="btn-grid">
-        <button class="menu-btn janggi" onclick="startGame('janggi')">
-            <span style="font-size:24px;font-weight:800">장기</span><span style="font-size:12px;opacity:0.7">차 대각선 이동 수정됨</span>
-        </button>
-        <button class="menu-btn baduk" onclick="startGame('baduk')">
-            <span style="font-size:24px;font-weight:800">바둑</span><span style="font-size:12px;opacity:0.7">패 & 시뮬레이션</span>
-        </button>
+
+    <div class="section">
+        <div class="section-title">🔥 난이도 (Difficulty)</div>
+        <div class="grid-options" style="grid-template-columns: repeat(5, 1fr);">
+            <button class="opt-btn" data-v="easy" onclick="setDiff('easy', this)">하수</button>
+            <button class="opt-btn" data-v="normal" onclick="setDiff('normal', this)">중수</button>
+            <button class="opt-btn" data-v="hard" onclick="setDiff('hard', this)">고수</button>
+            <button class="opt-btn" data-v="veryhard" onclick="setDiff('veryhard', this)">초고수</button>
+            <button class="opt-btn" data-v="god" onclick="setDiff('god', this)">신의한수</button>
+        </div>
+    </div>
+
+    <div class="big-btn-row">
+        <button class="big-btn" onclick="openJanggiSetup()">장기 <span>Korean Chess</span></button>
+        <button class="big-btn" onclick="startGame('baduk')">바둑 <span>Baduk / Go</span></button>
     </div>
 </div>
 
+<!-- 장기 차림 설정 -->
+<div id="janggi-setup" class="overlay hidden">
+    <div class="menu-title">상차림 선택</div>
+    <div class="section">
+        <div class="grid-options" style="grid-template-columns: 1fr 1fr;">
+            <button class="big-btn" onclick="startJanggi('gwima')">귀마 (표준)<span>왼:마상 / 오:상마</span></button>
+            <button class="big-btn" onclick="startJanggi('wonang')">원앙마<span>왼:상마 / 오:마상</span></button>
+            <button class="big-btn" onclick="startJanggi('yanggwima')">양귀마<span>왼:마상 / 오:마상</span></button>
+            <button class="big-btn" onclick="startJanggi('yanggwisang')">양귀상<span>왼:상마 / 오:상마</span></button>
+        </div>
+    </div>
+    <button class="opt-btn" style="width:100px; margin-top:20px;" onclick="goHome()">취소</button>
+</div>
+
+<!-- 게임 화면 -->
 <div class="layout">
     <aside>
-        <div id="card-ai" class="player-card">
-            <div class="card-top"><span class="p-name" style="color:#f87171">AI (한/백)</span><span id="score-ai" class="p-score">0</span></div>
-            <div id="caps-ai" class="captures"></div>
+        <div id="card-ai" class="card">
+            <div class="card-header"><span class="p-label">AI (Computer)</span><span id="score-ai" class="p-score">0</span></div>
+            <div id="caps-ai" class="caps-area"></div>
         </div>
-        <div id="card-user" class="player-card">
-            <div class="card-top"><span class="p-name" style="color:#60a5fa">나 (초/흑)</span><span id="score-user" class="p-score">0</span></div>
-            <div id="caps-user" class="captures"></div>
+        <div id="card-user" class="card">
+            <div class="card-header"><span class="p-label">Player (You)</span><span id="score-user" class="p-score">0</span></div>
+            <div id="caps-user" class="caps-area"></div>
         </div>
     </aside>
-    <div class="board-area" id="board-wrap">
+    <div class="board-container" id="board-wrap">
         <canvas id="gameCanvas"></canvas>
         <div id="toast" class="toast">메시지</div>
     </div>
 </div>
 
 <script>
-    const AudioSys={ctx:null,init(){if(!this.ctx)this.ctx=new(window.AudioContext||window.webkitAudioContext)()},play(t){if(!this.ctx)this.init();if(this.ctx.state==='suspended')this.ctx.resume();const n=this.ctx.currentTime,o=this.ctx.createOscillator(),g=this.ctx.createGain();if(t==='move'){o.type='triangle';o.frequency.setValueAtTime(200,n);o.frequency.exponentialRampToValueAtTime(50,n+.1);g.gain.setValueAtTime(.3,n);g.gain.linearRampToValueAtTime(0,n+.1)}else if(t==='capture'){o.type='square';o.frequency.setValueAtTime(150,n);o.frequency.exponentialRampToValueAtTime(40,n+.15);g.gain.setValueAtTime(.4,n);g.gain.linearRampToValueAtTime(0,n+.15)}else if(t==='win'){o.type='sine';o.frequency.setValueAtTime(440,n);o.frequency.linearRampToValueAtTime(880,n+.3);g.gain.setValueAtTime(.2,n);g.gain.linearRampToValueAtTime(0,n+.5)}else if(t==='warn'){o.type='sawtooth';o.frequency.setValueAtTime(100,n);o.frequency.linearRampToValueAtTime(50,n+.3);g.gain.setValueAtTime(.3,n);g.gain.linearRampToValueAtTime(0,n+.3)}o.connect(g);g.connect(this.ctx.destination);o.start(n);o.stop(n+.5)}};
-    class ParticleSystem{constructor(){this.p=[]}spawn(x,y,c){for(let i=0;i<12;i++)this.p.push({x,y,vx:(Math.random()-.5)*5,vy:(Math.random()-.5)*5,life:1,c})}update(){for(let i=this.p.length-1;i>=0;i--){let k=this.p[i];k.x+=k.vx;k.y+=k.vy;k.life-=.05;if(k.life<=0)this.p.splice(i,1)}}draw(c){this.p.forEach(k=>{c.globalAlpha=k.life;c.fillStyle=k.c;c.beginPath();c.arc(k.x,k.y,3,0,Math.PI*2);c.fill()});c.globalAlpha=1}}
+    // --- 시스템 변수 ---
+    let game = null;
+    let currentDiff = 'god';
+    let currentTheme = 'default';
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const wrap = document.getElementById('board-wrap');
+    let dpr = window.devicePixelRatio || 1;
+    let loopId = null;
 
-    const canvas=document.getElementById('gameCanvas'),ctx=canvas.getContext('2d'),wrap=document.getElementById('board-wrap');
-    let game=null,particles=new ParticleSystem(),dpr=window.devicePixelRatio||1,loopId=null,currentDiff='god';
+    // --- 오디오 & 파티클 (시각효과) ---
+    const AudioSys={ctx:null,init(){if(!this.ctx)this.ctx=new(window.AudioContext||window.webkitAudioContext)()},play(t){if(!this.ctx)this.init();if(this.ctx.state==='suspended')this.ctx.resume();const n=this.ctx.currentTime,o=this.ctx.createOscillator(),g=this.ctx.createGain();if(t==='move'){o.type='triangle';o.frequency.setValueAtTime(250,n);o.frequency.exponentialRampToValueAtTime(50,n+.1);g.gain.setValueAtTime(.3,n);g.gain.linearRampToValueAtTime(0,n+.1)}else if(t==='capture'){o.type='square';o.frequency.setValueAtTime(150,n);o.frequency.exponentialRampToValueAtTime(40,n+.15);g.gain.setValueAtTime(.4,n);g.gain.linearRampToValueAtTime(0,n+.15)}else{o.type='sine';o.frequency.setValueAtTime(440,n);o.frequency.linearRampToValueAtTime(880,n+.3);g.gain.setValueAtTime(.2,n);g.gain.linearRampToValueAtTime(0,n+.5)}o.connect(g);g.connect(this.ctx.destination);o.start(n);o.stop(n+.5)}};
+    class Particles{constructor(){this.p=[]}spawn(x,y,c){for(let i=0;i<12;i++)this.p.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,l:1,c})}up(){for(let i=this.p.length-1;i>=0;i--){this.p[i].x+=this.p[i].vx;this.p[i].y+=this.p[i].vy;this.p[i].l-=.05;if(this.p[i].l<=0)this.p.splice(i,1)}}draw(c){this.p.forEach(k=>{c.globalAlpha=k.l;c.fillStyle=k.c;c.beginPath();c.arc(k.x,k.y,3,0,Math.PI*2);c.fill()});c.globalAlpha=1}}
+    const particles = new Particles();
 
-    // AI Worker Script (차 대각선 로직 추가됨)
+    // --- Worker Script (AI) ---
     const workerCode = `
     self.onmessage = function(e) {
         const { type, pieces, diff, history } = e.data;
         if (type === 'JANGGI') {
             const ai = new JanggiAI(pieces, diff, history);
-            const move = ai.getBestMove();
-            self.postMessage(move);
+            self.postMessage(ai.getBestMove());
         }
     };
-
     class JanggiAI {
-        constructor(pieces, diff, history) {
-            this.pieces = pieces; this.diff = diff; this.history = history; this.turn = 'han';
-            this.stateHistory = new Map();
-        }
-
-        getBestMove() {
-            let depth = 1, randomness = 0;
+        constructor(p,d,h){this.pieces=p;this.diff=d;this.history=h;this.turn='han'}
+        getBestMove(){
+            let d=1,r=0;
             switch(this.diff){
-                case 'easy': depth=1; randomness=200; break;
-                case 'normal': depth=2; randomness=50; break;
-                case 'hard': depth=2; randomness=10; break;
-                case 'veryhard': depth=3; randomness=0; break;
-                case 'god': depth=3; randomness=0; break;
+                case 'easy':d=1;r=200;break;
+                case 'normal':d=2;r=50;break;
+                case 'hard':d=2;r=10;break;
+                case 'veryhard':d=3;r=0;break;
+                case 'god':d=3;r=0;break;
             }
-            const best = this.minimax(depth, -Infinity, Infinity, true, randomness);
-            return best.move;
+            return this.minimax(d,-Infinity,Infinity,true,r).move;
         }
-
-        get(x,y) { return this.pieces.find(t => t.x===x && t.y===y); }
-        score(t) { const s={king:10000,cha:13,po:7,ma:5,sang:3,sa:3,jol:2}; return s[t]||0; }
-        
-        evalBoard() {
-            let sc = 0;
-            this.pieces.forEach(p => {
-                let v = this.score(p.t);
-                if (this.diff !== 'easy') {
-                    if(p.t==='po' && p.x===4) v += 1.5;
-                    if(p.t==='ma' && p.x===4 && (p.y===4||p.y===5)) v += 1.0;
-                    if(p.t==='jol' && p.x===4) v += 0.5;
-                    if(p.t==='cha' && this.isUnderAttack(p.x, p.y, p.f)) v -= 15; 
+        get(x,y){return this.pieces.find(t=>t.x===x&&t.y===y)}
+        score(t){const s={king:10000,cha:13,po:7,ma:5,sang:3,sa:3,jol:2};return s[t]||0}
+        eval(){
+            let sc=0;
+            this.pieces.forEach(p=>{
+                let v=this.score(p.t);
+                if(this.diff!=='easy'){
+                    if(p.t==='po'&&p.x===4)v+=1.5; if(p.t==='ma'&&p.x===4&&(p.y===4||p.y===5))v+=1;
+                    if(p.t==='cha'&&this.att(p.x,p.y,p.f))v-=15; // 차 보호
                 }
-                if (p.f === 'han') sc += v; else sc -= v;
+                if(p.f==='han')sc+=v;else sc-=v;
             });
             return sc;
         }
-
-        getOpeningBonus(m) {
-            if (this.diff === 'easy' || this.history.length > 10) return 0;
-            const h = this.history.length;
-            const {p, x, y} = m;
-            if(this.isUnderAttack(x, y, p.f)) return -50;
-            if(p.t==='jol') {
-                const bk = this.sim(m);
-                const myCha = this.pieces.find(pc => pc.f===p.f && pc.t==='cha');
-                let danger = false;
-                if(myCha && this.isUnderAttack(myCha.x, myCha.y, p.f)) danger = true;
-                this.restore(bk);
-                if(danger) return -500;
+        att(x,y,f){const es=this.pieces.filter(p=>p.f!==f);for(let e of es)if(this.raw(e).some(m=>m.x===x&&m.y===y))return true;return false}
+        minimax(d,a,b,im,rn){
+            if(d===0)return this.diff==='god'?this.qui(a,b,im):{s:this.eval()};
+            const f=im?'han':'cho',my=this.pieces.filter(p=>p.f===f);
+            let bm=null,bs=im?-Infinity:Infinity,am=[];
+            for(let p of my)this.leg(p).forEach(m=>am.push({p,x:m.x,y:m.y}));
+            if(!am.length)return{s:im?-100000:100000};
+            am.sort((x,y)=>{const tx=this.get(x.x,x.y),ty=this.get(y.x,y.y);return (ty?this.score(ty.t):0)-(tx?this.score(tx.t):0)});
+            for(let m of am){
+                const bk=this.sim(m),vo=this.minimax(d-1,a,b,!im,rn);
+                let v=vo.s; this.res(bk);
+                if(d===1&&rn>0)v+=(Math.random()-.5)*rn;
+                if(im){if(v>bs){bs=v;bm=m}a=Math.max(a,v)}else{if(v<bs){bs=v;bm=m}b=Math.min(b,v)}
+                if(b<=a)break
             }
-            if(h===1 && p.t==='ma' && p.x===7 && p.y===0 && x===6 && y===2) return 1.5;
-            if(h===3 && p.t==='po' && p.x===7 && p.y===2 && x===4 && y===2) return 1.5;
-            if(h===5 && p.t==='jol' && p.x===0 && p.y===3 && x===1 && y===3) return 1.0; 
-            return 0;
+            return{s:bs,move:bm}
         }
-
-        minimax(depth, alpha, beta, isMax, rn) {
-            if (depth === 0) return this.diff === 'god' ? this.quiescence(alpha, beta, isMax) : { score: this.evalBoard() };
-            const f = isMax ? 'han' : 'cho';
-            const myPieces = this.pieces.filter(p => p.f === f);
-            let bestMove = null, bestScore = isMax ? -Infinity : Infinity;
-            let allMoves = [];
-            for(let p of myPieces) {
-                const moves = this.getLegalMoves(p);
-                for(let m of moves) allMoves.push({p, x:m.x, y:m.y});
-            }
-            if(allMoves.length === 0) return { score: isMax ? -100000 : 100000 };
-            allMoves.sort((a,b) => {
-                const obA = isMax ? this.getOpeningBonus(a) : 0;
-                const obB = isMax ? this.getOpeningBonus(b) : 0;
-                if(obA !== obB) return obB - obA;
-                const ta = this.get(a.x, a.y);
-                const tb = this.get(b.x, b.y);
-                return (tb?(this.score(tb.t)):0) - (ta?(this.score(ta.t)):0);
-            });
-            for(let move of allMoves) {
-                const backup = this.sim(move);
-                const valObj = this.minimax(depth - 1, alpha, beta, !isMax, rn);
-                let val = valObj.score;
-                this.restore(backup);
-                if (isMax && depth === (this.diff==='god'?3:2)) val += this.getOpeningBonus(move);
-                if (depth === 1 && rn > 0) val += (Math.random() - 0.5) * rn;
-                if (isMax) { if (val > bestScore) { bestScore = val; bestMove = move; } alpha = Math.max(alpha, val); } 
-                else { if (val < bestScore) { bestScore = val; bestMove = move; } beta = Math.min(beta, val); }
-                if (beta <= alpha) break;
-            }
-            return { score: bestScore, move: bestMove };
-        }
-
-        quiescence(alpha, beta, isMax) {
-            const standPat = this.evalBoard();
-            if (isMax) { if (standPat >= beta) return { score: beta }; if (standPat > alpha) alpha = standPat; } 
-            else { if (standPat <= alpha) return { score: alpha }; if (standPat < beta) beta = standPat; }
-            const f = isMax ? 'han' : 'cho';
-            const myPieces = this.pieces.filter(p => p.f === f);
-            for(let p of myPieces) {
-                const moves = this.getLegalMoves(p);
-                for(let m of moves) {
-                    const t = this.get(m.x, m.y);
-                    if(t) { 
-                        const backup = this.sim({p, x:m.x, y:m.y});
-                        const val = this.quiescence(alpha, beta, !isMax).score;
-                        this.restore(backup);
-                        if (isMax) { if (val > alpha) alpha = val; if (val >= beta) return { score: beta }; } 
-                        else { if (val < beta) beta = val; if (val <= alpha) return { score: alpha }; }
-                    }
+        qui(a,b,im){
+            const sp=this.eval();if(im){if(sp>=b)return{s:b};if(sp>a)a=sp}else{if(sp<=a)return{s:a};if(sp<b)b=sp}
+            const f=im?'han':'cho',my=this.pieces.filter(p=>p.f===f);let bs=sp;
+            for(let p of my)this.leg(p).forEach(m=>{
+                if(this.get(m.x,m.y)){
+                    const bk=this.sim({p,x:m.x,y:m.y}),v=this.qui(a,b,!im).s;this.res(bk);
+                    if(im){if(v>bs)bs=v;a=Math.max(a,v)}else{if(v<bs)bs=v;b=Math.min(b,v)}if(b<=a)return;
                 }
-            }
-            return { score: isMax ? alpha : beta };
+            });
+            return{s:bs}
         }
-
         sim(m){const{p,x,y}=m,ox=p.x,oy=p.y,ti=this.pieces.findIndex(t=>t.x===x&&t.y===y),c=ti!==-1?this.pieces[ti]:null;p.x=x;p.y=y;if(c)this.pieces.splice(ti,1);return{p,ox,oy,c,ti}}
-        restore(b){const{p,ox,oy,c,ti}=b;p.x=ox;p.y=oy;if(c)this.pieces.splice(ti,0,c)}
-        getLegalMoves(p){return this.getRawMoves(p).filter(m=>{const b=this.sim({p,x:m.x,y:m.y}),s=!this.isCheck(p.f);this.restore(b);return s})}
-        isCheck(f){const k=this.pieces.find(p=>p.f===f&&p.t==='king');if(!k)return true;const es=this.pieces.filter(p=>p.f!==f);for(let e of es){const ms=this.getRawMoves(e);if(ms.some(m=>m.x===k.x&&m.y===k.y))return true}return false}
-        isUnderAttack(x, y, f) {const es=this.pieces.filter(p=>p.f!==f);for(let e of es){const ms=this.getRawMoves(e);if(ms.some(m=>m.x===x&&m.y===y))return true}return false}
-
-        getRawMoves(p) {
-            let m=[]; const get=(x,y)=>this.pieces.find(t=>t.x===x&&t.y===y);
-            const inPalace=(x,y)=>{if(x<3||x>5)return false; return p.f==='han'?(y>=0&&y<=2):(y>=7&&y<=9)};
-            const isCenter=(x,y)=>(x===4&&(y===1||y===8));
-            const scan=(dx,dy,l=10,j=false)=>{let nx=p.x,ny=p.y,jp=false;for(let i=0;i<l;i++){nx+=dx;ny+=dy;if(nx<0||nx>8||ny<0||ny>9)break;const t=get(nx,ny);if(j){if(!jp){if(t){if(t.t==='po')break;jp=true}}else{if(t){if(t.f!==p.f&&t.t!=='po')m.push({x:nx,y:ny});break}m.push({x:nx,y:ny})}}else{if(t){if(t.f!==p.f)m.push({x:nx,y:ny});break}m.push({x:nx,y:ny})}}};
-            
-            if(p.t==='cha')[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>scan(d[0],d[1]));
-            if(p.t==='po')[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>scan(d[0],d[1],10,true));
-            if(p.t==='jol'){const dy=p.f==='cho'?-1:1;[[0,dy],[1,0],[-1,0]].forEach(d=>scan(d[0],d[1],1));if(inPalace(p.x,p.y))[[1,dy],[-1,dy]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inPalace(nx,ny)&&(isCenter(p.x,p.y)||isCenter(nx,ny)))scan(d[0],d[1],1)})}
-            if(p.t==='ma'||p.t==='sang'){const r=p.t==='ma'?[[1,-2,0,-1],[-1,-2,0,-1],[1,2,0,1],[-1,2,0,1],[2,-1,1,0],[2,1,1,0],[-2,-1,-1,0],[-2,1,-1,0]]:[[2,-3,0,-1,1,-2],[-2,-3,0,-1,-1,-2],[2,3,0,1,1,2],[-2,3,0,1,-1,2],[3,-2,1,0,2,-1],[3,2,1,0,2,1],[-3,-2,-1,0,-2,-1],[-3,2,-1,0,-2,1]];r.forEach(v=>{if(!get(p.x+v[2],p.y+v[3])&&(p.t==='ma'||!get(p.x+v[4],p.y+v[5]))){const tx=p.x+v[0],ty=p.y+v[1];if(tx>=0&&tx<9&&ty>=0&&ty<10){const t=get(tx,ty);if(!t||t.f!==p.f)m.push({x:tx,y:ty})}}})}
-            
-            // 사/왕
-            if(p.t==='king'||p.t==='sa'){
-                [[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inPalace(nx,ny)){const t=get(nx,ny);if(!t||t.f!==p.f)m.push({x:nx,y:ny})}});
-                [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inPalace(nx,ny)&&(isCenter(p.x,p.y)||isCenter(nx,ny))){const t=get(nx,ny);if(!t||t.f!==p.f)m.push({x:nx,y:ny})}});
-            }
-            // 포 궁성 대각
-            if(p.t==='po'&&inPalace(p.x,p.y)){[[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1],nnx=p.x+d[0]*2,nny=p.y+d[1]*2;if(inPalace(nx,ny)&&isCenter(nx,ny)){const s=get(nx,ny);if(s&&s.t!=='po'&&inPalace(nnx,nny)){const t=get(nnx,nny);if(!t)m.push({x:nnx,y:nny});else if(t.f!==p.f&&t.t!=='po')m.push({x:nnx,y:nny})}}})}
-            
-            // [NEW] 차 궁성 대각선 이동 추가
-            if(p.t==='cha'&&inPalace(p.x,p.y)){
-                [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>{
-                    const nx=p.x+d[0],ny=p.y+d[1];
-                    if(inPalace(nx,ny)&&(isCenter(p.x,p.y)||isCenter(nx,ny))){
-                        const t=get(nx,ny);
-                        if(!t||t.f!==p.f) m.push({x:nx,y:ny});
-                        // 2칸 이동 (중앙 -> 코너)
-                        if(!t && isCenter(p.x,p.y)) {
-                            const nnx=p.x+d[0]*2,nny=p.y+d[1]*2;
-                            if(inPalace(nnx,nny)) {
-                                const t2=get(nnx,nny);
-                                if(!t2||t2.f!==p.f) m.push({x:nnx,y:nny});
-                            }
-                        }
-                    }
-                });
-            }
+        res(b){const{p,ox,oy,c,ti}=b;p.x=ox;p.y=oy;if(c)this.pieces.splice(ti,0,c)}
+        leg(p){return this.raw(p).filter(m=>{const b=this.sim({p,x:m.x,y:m.y}),s=!this.chk(p.f);this.res(b);return s})}
+        chk(f){const k=this.pieces.find(p=>p.f===f&&p.t==='king');if(!k)return true;const es=this.pieces.filter(p=>p.f!==f);for(let e of es)if(this.raw(e).some(m=>m.x===k.x&&m.y===k.y))return true;return false}
+        raw(p){
+            let m=[];const g=(x,y)=>this.pieces.find(t=>t.x===x&&t.y===y),inp=(x,y)=>{if(x<3||x>5)return false;return p.f==='han'?(y>=0&&y<=2):(y>=7&&y<=9)},isc=(x,y)=>(x===4&&(y===1||y===8));
+            const sc=(dx,dy,l=10,j=false)=>{let nx=p.x,ny=p.y,jp=false;for(let i=0;i<l;i++){nx+=dx;ny+=dy;if(nx<0||nx>8||ny<0||ny>9)break;const t=g(nx,ny);if(j){if(!jp){if(t){if(t.t==='po')break;jp=true}}else{if(t){if(t.f!==p.f&&t.t!=='po')m.push({x:nx,y:ny,capture:true});break}m.push({x:nx,y:ny})}}else{if(t){if(t.f!==p.f)m.push({x:nx,y:ny,capture:true});break}m.push({x:nx,y:ny})}}};
+            if(p.t==='cha')[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>sc(d[0],d[1]));
+            if(p.t==='po')[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>sc(d[0],d[1],10,true));
+            if(p.t==='jol'){const dy=p.f==='cho'?-1:1;[[0,dy],[1,0],[-1,0]].forEach(d=>sc(d[0],d[1],1));if(inp(p.x,p.y))[[1,dy],[-1,dy]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inp(nx,ny)&&(isc(p.x,p.y)||isc(nx,ny)))sc(d[0],d[1],1)})}
+            if(p.t==='ma'||p.t==='sang'){const r=p.t==='ma'?[[1,-2,0,-1],[-1,-2,0,-1],[1,2,0,1],[-1,2,0,1],[2,-1,1,0],[2,1,1,0],[-2,-1,-1,0],[-2,1,-1,0]]:[[2,-3,0,-1,1,-2],[-2,-3,0,-1,-1,-2],[2,3,0,1,1,2],[-2,3,0,1,-1,2],[3,-2,1,0,2,-1],[3,2,1,0,2,1],[-3,-2,-1,0,-2,-1],[-3,2,-1,0,-2,1]];r.forEach(v=>{if(!g(p.x+v[2],p.y+v[3])&&(p.t==='ma'||!g(p.x+v[4],p.y+v[5]))){const tx=p.x+v[0],ty=p.y+v[1];if(tx>=0&&tx<9&&ty>=0&&ty<10){const t=g(tx,ty);if(!t||t.f!==p.f)m.push({x:tx,y:ty,capture:!!t})}}})}
+            if(p.t==='king'||p.t==='sa'){[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inp(nx,ny)){const t=g(nx,ny);if(!t||t.f!==p.f)m.push({x:nx,y:ny,capture:!!t})}});[[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inp(nx,ny)&&(isc(p.x,p.y)||isc(nx,ny))){const t=g(nx,ny);if(!t||t.f!==p.f)m.push({x:nx,y:ny,capture:!!t})}})}
+            if(p.t==='po'&&inp(p.x,p.y)){[[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1],nnx=p.x+d[0]*2,nny=p.y+d[1]*2;if(inp(nx,ny)&&isc(nx,ny)){const s=g(nx,ny);if(s&&s.t!=='po'&&inp(nnx,nny)){const t=g(nnx,nny);if(!t)m.push({x:nnx,y:nny});else if(t.f!==p.f&&t.t!=='po')m.push({x:nnx,y:nny,capture:true})}}})}
+            if(p.t==='cha'&&inp(p.x,p.y)){[[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inp(nx,ny)&&(isc(p.x,p.y)||isc(nx,ny))){const t=g(nx,ny);if(!t||t.f!==p.f)m.push({x:nx,y:ny,capture:!!t});if(!t&&isc(p.x,p.y)){const nnx=p.x+d[0]*2,nny=p.y+d[1]*2;if(inp(nnx,nny)){const t2=g(nnx,nny);if(!t2||t2.f!==p.f)m.push({x:nnx,y:nny,capture:!!t2})}}}})}
             return m;
         }
-    }
-    `;
+    }`;
 
-    function setDifficulty(l,b){currentDiff=l;document.querySelectorAll('.diff-btn').forEach(k=>k.classList.remove('selected'));b.classList.add('selected')}
+    // --- UI 로직 ---
+    let worker=null;
+    function initWorker() {
+        const blob=new Blob([workerCode],{type:'application/javascript'});
+        if(worker)worker.terminate();
+        worker=new Worker(URL.createObjectURL(blob));
+        worker.onmessage=e=>{if(e.data)game.execute(e.data.p,e.data.x,e.data.y);else game.endGame(true)};
+    }
+
+    function setTheme(t, b) {
+        currentTheme = t;
+        document.body.className = `theme-${t}`;
+        document.querySelectorAll('.opt-btn').forEach(k=>k.classList.remove('selected'));
+        if(b) b.classList.add('selected');
+        if(game) resize();
+    }
+    
+    // 초기화: 기본값(리얼우드, 신의한수) 선택 상태로 표시
+    setTheme('default', document.querySelector('.opt-btn')); 
+    document.querySelector('.opt-btn[data-v="god"]').classList.add('selected');
+
+    function setDiff(v,b){currentDiff=v;document.querySelectorAll('.opt-btn').forEach(k=>{if(k.hasAttribute('data-v'))k.classList.remove('selected')});b.classList.add('selected')}
     function startGame(m){
-        document.getElementById('main-menu').classList.add('hidden');document.getElementById('caps-ai').innerHTML='';document.getElementById('caps-user').innerHTML='';
+        document.getElementById('main-menu').classList.add('hidden');
+        document.getElementById('janggi-setup').classList.add('hidden');
+        document.getElementById('caps-ai').innerHTML='';document.getElementById('caps-user').innerHTML='';
         AudioSys.init();
-        const blob = new Blob([workerCode], {type: 'application/javascript'});
-        if(game && game.worker) game.worker.terminate();
-        
-        if(m==='janggi') {
-            game = new JanggiGame(currentDiff);
-            game.initWorker(blob);
-        } else {
-            game = new BadukGame(currentDiff);
-        }
+        if(m==='baduk'){game=new BadukGame(currentDiff);}
         resize(); if(loopId)cancelAnimationFrame(loopId); loop();
     }
-    function goHome(){document.getElementById('main-menu').classList.remove('hidden');game=null}
-    function toast(m,t='normal'){const e=document.getElementById('toast');e.innerText=m;e.className=`toast show ${t}`;setTimeout(()=>e.classList.remove('show'),2000)}
+    function openJanggiSetup(){document.getElementById('main-menu').classList.add('hidden');document.getElementById('janggi-setup').classList.remove('hidden')}
+    function startJanggi(s){document.getElementById('janggi-setup').classList.add('hidden');initWorker();game=new JanggiGame(currentDiff,s);resize();if(loopId)cancelAnimationFrame(loopId);loop()}
+    function goHome(){document.getElementById('main-menu').classList.remove('hidden');document.getElementById('janggi-setup').classList.add('hidden');game=null}
+    function toast(m){const e=document.getElementById('toast');e.innerText=m;e.className='toast show';setTimeout(()=>e.classList.remove('show'),2000)}
     function resize(){if(!game)return;const w=wrap.clientWidth,h=wrap.clientHeight,pad=30;const sz=Math.floor(Math.min((w-pad)/(game.cols+1),(h-pad)/(game.rows+1)));game.cs=sz;game.mg=Math.floor(sz*.8);const bw=game.mg*2+(game.cols-1)*sz,bh=game.mg*2+(game.rows-1)*sz;canvas.style.width=bw+'px';canvas.style.height=bh+'px';canvas.width=bw*dpr;canvas.height=bh*dpr;ctx.setTransform(1,0,0,1,0,0);ctx.scale(dpr,dpr);game.draw()}
     window.addEventListener('resize',()=>requestAnimationFrame(resize));
-    function loop(){if(game){game.draw();particles.update();particles.draw(ctx)}loopId=requestAnimationFrame(loop)}
+    function loop(){if(game){game.draw();particles.up();particles.draw(ctx)}loopId=requestAnimationFrame(loop)}
 
-    // --- 장기 게임 (메인 스레드 UI) ---
+    // --- 장기 (UI) ---
     class JanggiGame {
-        constructor(d){this.diff=d;this.cols=9;this.rows=10;this.pieces=[];this.turn='cho';this.selected=null;this.moves=[];this.lastMove=null;this.history=[];this.stateHistory=new Map();this.setup();this.updateUI();canvas.onclick=e=>this.onClick(e)}
-        initWorker(blob) {
-            this.worker = new Worker(URL.createObjectURL(blob));
-            this.worker.onmessage = (e) => {
-                const move = e.data;
-                if(move) this.execute(this.pieces.find(p=>p.x===move.p.x && p.y===move.p.y && p.t===move.p.t && p.f===move.p.f), move.x, move.y);
-                else this.endGame(true);
-            };
+        constructor(d,s){this.diff=d;this.setupType=s;this.cols=9;this.rows=10;this.pieces=[];this.turn='cho';this.selected=null;this.moves=[];this.lastMove=null;this.history=[];this.stateHistory=new Map();this.setup();this.updateUI();canvas.onclick=e=>this.onClick(e)}
+        setup(){
+            const add=(t,x,y,f)=>this.pieces.push({t,x,y,f,id:Math.random()});
+            add('cha',0,0,'han');add('cha',8,0,'han');add('cha',0,9,'cho');add('cha',8,9,'cho');
+            add('po',1,2,'han');add('po',7,2,'han');add('po',1,7,'cho');add('po',7,7,'cho');
+            [0,2,4,6,8].forEach(x=>{add('jol',x,3,'han');add('jol',x,6,'cho')});
+            add('king',4,1,'han');add('king',4,8,'cho');add('sa',3,0,'han');add('sa',5,0,'han');add('sa',3,9,'cho');add('sa',5,9,'cho');
+            
+            // 마상 배치
+            const sets=['gwima','wonang','yanggwima','yanggwisang'];
+            const aiSet=sets[Math.floor(Math.random()*4)];
+            this.placeMS(aiSet,'han',0); this.placeMS(this.setupType,'cho',9);
+            this.recState();
         }
-        setup(){const m=['cha','ma','sang','sa','','sa','sang','ma','cha'];const a=(t,x,y,f)=>this.pieces.push({t,x,y,f,id:Math.random()});m.forEach((t,x)=>t&&a(t,x,0,'han'));a('king',4,1,'han');a('po',1,2,'han');a('po',7,2,'han');[0,2,4,6,8].forEach(x=>a('jol',x,3,'han'));m.forEach((t,x)=>t&&a(t,x,9,'cho'));a('king',4,8,'cho');a('po',1,7,'cho');a('po',7,7,'cho');[0,2,4,6,8].forEach(x=>a('jol',x,6,'cho'))}
+        placeMS(t,f,y){const add=(k,x)=>this.pieces.push({t:k,x,y,f,id:Math.random()});let l,r;if(t==='gwima'){l=['ma','sang'];r=['sang','ma']}else if(t==='wonang'){l=['sang','ma'];r=['ma','sang']}else if(t==='yanggwima'){l=['ma','sang'];r=['ma','sang']}else{l=['sang','ma'];r=['sang','ma']}add(l[0],1);add(l[1],2);add(r[0],6);add(r[1],7)}
         getHash(){return this.pieces.map(p=>`${p.f[0]}${p.t[0]}${p.x}${p.y}`).sort().join('')}
-        recordState(){const h=this.getHash();this.stateHistory.set(h,(this.stateHistory.get(h)||0)+1)}
-        draw(){ctx.clearRect(0,0,canvas.width/dpr,canvas.height/dpr);const{cs,mg}=this;ctx.strokeStyle='#5d4037';ctx.lineWidth=1.5;for(let i=0;i<9;i++){ctx.beginPath();ctx.moveTo(mg+i*cs,mg);ctx.lineTo(mg+i*cs,mg+9*cs);ctx.stroke()}for(let i=0;i<10;i++){ctx.beginPath();ctx.moveTo(mg,mg+i*cs);ctx.lineTo(mg+8*cs,mg+i*cs);ctx.stroke()}const pal=(r,c)=>{ctx.beginPath();ctx.moveTo(mg+c*cs,mg+r*cs);ctx.lineTo(mg+(c+2)*cs,mg+(r+2)*cs);ctx.stroke();ctx.beginPath();ctx.moveTo(mg+(c+2)*cs,mg+r*cs);ctx.lineTo(mg+c*cs,mg+(r+2)*cs);ctx.stroke()};pal(0,3);pal(7,3);if(this.lastMove){const{fx,fy,tx,ty}=this.lastMove;ctx.fillStyle='rgba(255,255,255,0.2)';ctx.fillRect(mg+fx*cs-cs/2,mg+fy*cs-cs/2,cs,cs);ctx.fillRect(mg+tx*cs-cs/2,mg+ty*cs-cs/2,cs,cs)}this.moves.forEach(m=>{const mx=mg+m.x*cs,my=mg+m.y*cs;if(m.capture){ctx.strokeStyle='#ef4444';ctx.lineWidth=3;ctx.beginPath();ctx.arc(mx,my,cs*.4,0,Math.PI*2);ctx.stroke()}else{ctx.fillStyle='rgba(16,185,129,0.6)';ctx.beginPath();ctx.arc(mx,my,cs*.15,0,Math.PI*2);ctx.fill()}});this.pieces.forEach(p=>{const cx=mg+p.x*cs,cy=mg+p.y*cs;let r=cs*.4;if(p.t==='king')r*=1.15;if(['sa','jol'].includes(p.t))r*=.85;ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fillStyle='#eaddcf';ctx.shadowColor='rgba(0,0,0,0.3)';ctx.shadowBlur=4;ctx.shadowOffsetY=3;ctx.fill();ctx.shadowBlur=0;ctx.shadowOffsetY=0;const col=p.f==='cho'?'#1d4ed8':'#b91c1c';ctx.lineWidth=this.selected===p?3:2;ctx.strokeStyle=this.selected===p?'#10b981':col;ctx.stroke();ctx.fillStyle=col;ctx.font=`700 ${r*1.1}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';const map={king:p.f==='cho'?'楚':'漢',cha:'車',po:'包',ma:'馬',sang:'象',sa:'士',jol:p.f==='cho'?'卒':'兵'};ctx.fillText(map[p.t],cx,cy+r*0.1)})}
-        onClick(e){if(this.turn!=='cho')return;const r=canvas.getBoundingClientRect(),x=Math.round(((e.clientX-r.left)*(canvas.width/dpr/r.width)-this.mg)/this.cs),y=Math.round(((e.clientY-r.top)*(canvas.height/dpr/r.height)-this.mg)/this.cs);if(x<0||x>8||y<0||y>9)return;const p=this.pieces.find(pp=>pp.x===x&&pp.y===y);if(p&&p.f==='cho'){this.selected=p;this.moves=this.getLegalMoves(p);return}if(this.selected){const m=this.moves.find(mv=>mv.x===x&&mv.y===y);if(m)this.execute(this.selected,x,y);else{this.selected=null;this.moves=[]}}}
-        
+        recState(){const h=this.getHash();this.stateHistory.set(h,(this.stateHistory.get(h)||0)+1)}
+        draw(){
+            ctx.clearRect(0,0,canvas.width/dpr,canvas.height/dpr);const s=getComputedStyle(document.body);const bg=s.getPropertyValue('--board-bg').trim(),ln=s.getPropertyValue('--line-color').trim(),choc=s.getPropertyValue('--cho-color').trim(),hanc=s.getPropertyValue('--han-color').trim(),pbg=s.getPropertyValue('--piece-bg').trim();const{cs,mg}=this;
+            ctx.fillStyle=bg;ctx.fillRect(0,0,canvas.width/dpr,canvas.height/dpr);ctx.strokeStyle=ln;ctx.lineWidth=1.5;for(let i=0;i<9;i++){ctx.beginPath();ctx.moveTo(mg+i*cs,mg);ctx.lineTo(mg+i*cs,mg+9*cs);ctx.stroke()}for(let i=0;i<10;i++){ctx.beginPath();ctx.moveTo(mg,mg+i*cs);ctx.lineTo(mg+8*cs,mg+i*cs);ctx.stroke()}const pal=(r,c)=>{ctx.beginPath();ctx.moveTo(mg+c*cs,mg+r*cs);ctx.lineTo(mg+(c+2)*cs,mg+(r+2)*cs);ctx.stroke();ctx.beginPath();ctx.moveTo(mg+(c+2)*cs,mg+r*cs);ctx.lineTo(mg+c*cs,mg+(r+2)*cs);ctx.stroke()};pal(0,3);pal(7,3);
+            if(this.lastMove){const{fx,fy,tx,ty}=this.lastMove;ctx.fillStyle='rgba(255,255,255,0.2)';ctx.fillRect(mg+fx*cs-cs/2,mg+fy*cs-cs/2,cs,cs);ctx.fillRect(mg+tx*cs-cs/2,mg+ty*cs-cs/2,cs,cs)}
+            this.moves.forEach(m=>{const mx=mg+m.x*cs,my=mg+m.y*cs;if(m.capture){ctx.strokeStyle='#ef4444';ctx.lineWidth=3;ctx.beginPath();ctx.arc(mx,my,cs*.4,0,Math.PI*2);ctx.stroke()}else{ctx.fillStyle='rgba(16,185,129,0.6)';ctx.beginPath();ctx.arc(mx,my,cs*.15,0,Math.PI*2);ctx.fill()}});
+            this.pieces.forEach(p=>{
+                const cx=mg+p.x*cs,cy=mg+p.y*cs;let r=cs*.4;if(p.t==='king')r*=1.15;if(['sa','jol'].includes(p.t))r*=.85;ctx.beginPath();
+                if(!document.body.classList.contains('theme-mono')){
+                    // 리얼우드(기본)는 팔각형, 나머지는 원형/사각형 등
+                    if(document.body.classList.length===0 || document.body.classList.contains('theme-classic')){
+                        if(p.t!=='jol'&&p.t!=='sa'){for(let i=0;i<8;i++){const a=(i*45+22.5)*Math.PI/180;const px=cx+r*Math.cos(a),py=cy+r*Math.sin(a);if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py)}ctx.closePath()}else ctx.arc(cx,cy,r,0,Math.PI*2);
+                    } else ctx.arc(cx,cy,r,0,Math.PI*2);
+                } else ctx.arc(cx,cy,r,0,Math.PI*2);
+                
+                ctx.fillStyle=pbg;ctx.shadowColor='rgba(0,0,0,0.3)';ctx.shadowBlur=4;ctx.shadowOffsetY=3;ctx.fill();ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+                const col=p.f==='cho'?choc:hanc;ctx.lineWidth=this.selected===p?3:2;ctx.strokeStyle=this.selected===p?'#10b981':col;ctx.stroke();
+                ctx.fillStyle=col;ctx.font=`700 ${r*1.1}px ${getComputedStyle(document.body).fontFamily}`;ctx.textAlign='center';ctx.textBaseline='middle';const map={king:p.f==='cho'?'楚':'漢',cha:'車',po:'包',ma:'馬',sang:'象',sa:'士',jol:p.f==='cho'?'卒':'兵'};ctx.fillText(map[p.t],cx,cy+r*0.1);
+            });
+        }
+        onClick(e){if(this.turn!=='cho')return;const r=canvas.getBoundingClientRect(),x=Math.round(((e.clientX-r.left)*(canvas.width/dpr/r.width)-this.mg)/this.cs),y=Math.round(((e.clientY-r.top)*(canvas.height/dpr/r.height)-this.mg)/this.cs);if(x<0||x>8||y<0||y>9)return;const p=this.pieces.find(pp=>pp.x===x&&pp.y===y);if(p&&p.f==='cho'){this.selected=p;this.moves=this.getLegalMoves(p,true);return}if(this.selected){const m=this.moves.find(mv=>mv.x===x&&mv.y===y);if(m)this.execute(this.selected,x,y);else{this.selected=null;this.moves=[]}}}
         execute(p,x,y){
-            const realP = this.pieces.find(pp => pp.x===p.x && pp.y===p.y && pp.t===p.t && pp.f===p.f);
-            if(!realP) return;
+            const rp=this.pieces.find(k=>k.x===p.x&&k.y===p.y&&k.t===p.t&&k.f===p.f); if(!rp)return;
             const ti=this.pieces.findIndex(t=>t.x===x&&t.y===y),cap=ti!==-1?this.pieces[ti]:null;
             if(cap){this.pieces.splice(ti,1);this.addCap(cap);AudioSys.play('capture');particles.spawn(this.mg+x*this.cs,this.mg+y*this.cs,'#ef4444')}else AudioSys.play('move');
-            this.lastMove={fx:realP.x,fy:realP.y,tx:x,ty:y}; this.history.push(this.lastMove); realP.x=x; realP.y=y;
-            this.selected=null; this.moves=[];
+            this.lastMove={fx:rp.x,fy:rp.y,tx:x,ty:y};this.history.push(this.lastMove);rp.x=x;rp.y=y;this.recState();this.selected=null;this.moves=[];
             if(cap&&cap.t==='king'){this.endGame(true);return}
-            this.turn=this.turn==='cho'?'han':'cho'; this.updateUI();
-            if(this.isCheck(this.turn)){toast("장군!", "normal");if(this.isCheckmate(this.turn)){setTimeout(()=>this.endGame(this.turn!=='cho'),200);return}}
-            else if(this.isCheckmate(this.turn)){setTimeout(()=>this.endGame(this.turn!=='cho'),200);return}
-            if(this.turn==='han') { this.worker.postMessage({ type: 'JANGGI', pieces: this.pieces, diff: this.diff, history: this.history }); }
+            this.turn=this.turn==='cho'?'han':'cho';this.updateUI();
+            if(this.isCheck(this.turn)){toast("장군!");if(this.isCheckmate(this.turn)){setTimeout(()=>this.endGame(this.turn!=='cho'),200);return}}else if(this.isCheckmate(this.turn)){setTimeout(()=>this.endGame(this.turn!=='cho'),200);return}
+            if(this.turn==='han')worker.postMessage({type:'JANGGI',pieces:this.pieces,diff:this.diff,history:this.history});
         }
-        
-        // 메인 스레드용 룰 (Worker와 동기화)
-        getLegalMoves(p){return this.getRawMoves(p).filter(m=>{const b=this.sim({p,x:m.x,y:m.y});const s=!this.isCheck(p.f);this.restore(b);return s})}
-        isCheck(f){const k=this.pieces.find(p=>p.f===f&&p.t==='king');if(!k)return true;const es=this.pieces.filter(p=>p.f!==f);for(const e of es)if(this.getRawMoves(e).some(m=>m.x===k.x&&m.y===k.y))return true;return false}
+        // UI용 룰 복사본
+        getLegalMoves(p,cr=false){return this.getRawMoves(p).filter(m=>{const b=this.sim({p,x:m.x,y:m.y}),s=!this.isCheck(p.f);if(s&&cr){const h=this.getHash();if((this.stateHistory.get(h)||0)>=2){this.res(b);return false}}this.res(b);return s})}
+        isCheck(f){const k=this.pieces.find(p=>p.f===f&&p.t==='king');if(!k)return true;const es=this.pieces.filter(p=>p.f!==f);for(let e of es)if(this.getRawMoves(e).some(m=>m.x===k.x&&m.y===k.y))return true;return false}
         isCheckmate(f){return!this.pieces.filter(p=>p.f===f).some(p=>this.getLegalMoves(p).length>0)}
         getRawMoves(p){let m=[];const g=(x,y)=>this.pieces.find(t=>t.x===x&&t.y===y),inp=(x,y)=>{if(x<3||x>5)return false;return p.f==='han'?(y>=0&&y<=2):(y>=7&&y<=9)},isc=(x,y)=>(x===4&&(y===1||y===8));const sc=(dx,dy,l=10,j=false)=>{let nx=p.x,ny=p.y,jp=false;for(let i=0;i<l;i++){nx+=dx;ny+=dy;if(nx<0||nx>8||ny<0||ny>9)break;const t=g(nx,ny);if(j){if(!jp){if(t){if(t.t==='po')break;jp=true}}else{if(t){if(t.f!==p.f&&t.t!=='po')m.push({x:nx,y:ny,capture:true});break}m.push({x:nx,y:ny})}}else{if(t){if(t.f!==p.f)m.push({x:nx,y:ny,capture:true});break}m.push({x:nx,y:ny})}}};if(p.t==='cha')[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>sc(d[0],d[1]));if(p.t==='po')[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>sc(d[0],d[1],10,true));if(p.t==='jol'){const dy=p.f==='cho'?-1:1;[[0,dy],[1,0],[-1,0]].forEach(d=>sc(d[0],d[1],1));if(inp(p.x,p.y))[[1,dy],[-1,dy]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inp(nx,ny)&&(isc(p.x,p.y)||isc(nx,ny)))sc(d[0],d[1],1)})}if(p.t==='ma'||p.t==='sang'){const r=p.t==='ma'?[[1,-2,0,-1],[-1,-2,0,-1],[1,2,0,1],[-1,2,0,1],[2,-1,1,0],[2,1,1,0],[-2,-1,-1,0],[-2,1,-1,0]]:[[2,-3,0,-1,1,-2],[-2,-3,0,-1,-1,-2],[2,3,0,1,1,2],[-2,3,0,1,-1,2],[3,-2,1,0,2,-1],[3,2,1,0,2,1],[-3,-2,-1,0,-2,-1],[-3,2,-1,0,-2,1]];r.forEach(v=>{if(!g(p.x+v[2],p.y+v[3])&&(p.t==='ma'||!g(p.x+v[4],p.y+v[5]))){const tx=p.x+v[0],ty=p.y+v[1];if(tx>=0&&tx<9&&ty>=0&&ty<10){const t=g(tx,ty);if(!t||t.f!==p.f)m.push({x:tx,y:ty,capture:!!t})}}})}if(p.t==='king'||p.t==='sa'){[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inp(nx,ny)){const t=g(nx,ny);if(!t||t.f!==p.f)m.push({x:nx,y:ny,capture:!!t})}});[[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inp(nx,ny)&&(isc(p.x,p.y)||isc(nx,ny))){const t=g(nx,ny);if(!t||t.f!==p.f)m.push({x:nx,y:ny,capture:!!t})}})}if(p.t==='po'&&inp(p.x,p.y)){[[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1],nnx=p.x+d[0]*2,nny=p.y+d[1]*2;if(inp(nx,ny)&&isc(nx,ny)){const s=g(nx,ny);if(s&&s.t!=='po'&&inp(nnx,nny)){const t=g(nnx,nny);if(!t)m.push({x:nnx,y:nny});else if(t.f!==p.f&&t.t!=='po')m.push({x:nnx,y:nny,capture:true})}}})}
         if(p.t==='cha'&&inp(p.x,p.y)){[[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(inp(nx,ny)&&(isc(p.x,p.y)||isc(nx,ny))){const t=g(nx,ny);if(!t||t.f!==p.f)m.push({x:nx,y:ny,capture:!!t});if(!t&&isc(p.x,p.y)){const nnx=p.x+d[0]*2,nny=p.y+d[1]*2;if(inp(nnx,nny)){const t2=g(nnx,nny);if(!t2||t2.f!==p.f)m.push({x:nnx,y:nny,capture:!!t2})}}}})}return m}
         sim(m){const{p,x,y}=m,ox=p.x,oy=p.y,ti=this.pieces.findIndex(t=>t.x===x&&t.y===y),c=ti!==-1?this.pieces[ti]:null;p.x=x;p.y=y;if(c)this.pieces.splice(ti,1);return{p,ox,oy,c,ti}}
-        restore(b){const{p,ox,oy,c,ti}=b;p.x=ox;p.y=oy;if(c)this.pieces.splice(ti,0,c)}
-        updateUI(){const st=document.getElementById('status-pill'),cai=document.getElementById('card-ai'),cuser=document.getElementById('card-user');if(this.turn==='cho'){st.innerHTML='나의 차례';st.className='status-pill active';cuser.classList.add('active');cai.classList.remove('active')}else{st.innerHTML='<span class="loader"><span></span><span></span><span></span></span> AI 생각 중...';st.className='status-pill ai-turn';cuser.classList.remove('active');cai.classList.add('active')}let sc=0,sh=1.5;const s={king:0,cha:13,po:7,ma:5,sang:3,sa:3,jol:2};this.pieces.forEach(p=>p.f==='cho'?sc+=s[p.t]:sh+=s[p.t]);document.getElementById('score-user').innerText=sc;document.getElementById('score-ai').innerText=sh}
-        addCap(p){const el=document.createElement('div');el.className=`piece-icon ${p.f==='cho'?'blue':'red'}`;const map={king:'王',cha:'車',po:'包',ma:'馬',sang:'象',sa:'士',jol:'卒'};el.innerText=map[p.t]||p.t[0];document.getElementById(this.turn==='cho'?'caps-user':'caps-ai').appendChild(el)}
-        endGame(w){AudioSys.play('win');toast(w?"승리!":"패배",w?"success":"normal");setTimeout(()=>alert(w?"승리!":"패배"),300)}
+        res(b){const{p,ox,oy,c,ti}=b;p.x=ox;p.y=oy;if(c)this.pieces.splice(ti,0,c)}
+        updateUI(){const st=document.getElementById('turn-badge'),cai=document.getElementById('card-ai'),cuser=document.getElementById('card-user');if(this.turn==='cho'){st.innerText="나의 차례";st.className='status-badge active';cuser.classList.add('active');cai.classList.remove('active')}else{st.innerText="AI 생각 중...";st.className='status-badge';cuser.classList.remove('active');cai.classList.add('active')}let sc=0,sh=1.5;const s={king:0,cha:13,po:7,ma:5,sang:3,sa:3,jol:2};this.pieces.forEach(p=>p.f==='cho'?sc+=s[p.t]:sh+=s[p.t]);document.getElementById('score-user').innerText=sc;document.getElementById('score-ai').innerText=sh}
+        addCap(p){const el=document.createElement('div');el.className=`cap-item`;const s=getComputedStyle(document.body);el.style.background=s.getPropertyValue('--piece-bg');el.style.color=p.f==='cho'?s.getPropertyValue('--cho-color'):s.getPropertyValue('--han-color');if(document.body.classList.contains('theme-mono')){el.style.background='#fff';el.style.color='#000';el.style.border='1px solid #000'}el.innerText={king:'王',cha:'車',po:'包',ma:'馬',sang:'象',sa:'士',jol:'卒'}[p.t]||p.t[0];document.getElementById(this.turn==='cho'?'caps-user':'caps-ai').appendChild(el)}
+        endGame(w){AudioSys.play('win');toast(w?"승리!":"패배");setTimeout(()=>alert(w?"승리!":"패배"),300)}
     }
 
-    class BadukGame{constructor(d){this.diff=d;this.cols=19;this.rows=19;this.board=Array.from({length:19},()=>Array(19).fill(0));this.turn=1;this.caps={1:0,2:0};this.lastMove=null;this.koBan=null;this.updateUI();canvas.onclick=e=>this.onClick(e)}draw(){ctx.clearRect(0,0,canvas.width/dpr,canvas.height/dpr);const{cs,mg}=this;ctx.strokeStyle='#000';ctx.lineWidth=1;for(let i=0;i<19;i++){ctx.beginPath();ctx.moveTo(mg+i*cs,mg);ctx.lineTo(mg+i*cs,mg+18*cs);ctx.stroke();ctx.beginPath();ctx.moveTo(mg,mg+i*cs);ctx.lineTo(mg+18*cs,mg+i*cs);ctx.stroke()}[3,9,15].forEach(x=>[3,9,15].forEach(y=>{ctx.beginPath();ctx.arc(mg+x*cs,mg+y*cs,2.5,0,Math.PI*2);ctx.fillStyle='#000';ctx.fill()}));if(this.lastMove){const{x,y}=this.lastMove;ctx.beginPath();ctx.arc(mg+x*cs,mg+y*cs,cs*.5,0,Math.PI*2);ctx.fillStyle='rgba(255,0,0,0.3)';ctx.fill()}for(let y=0;y<19;y++)for(let x=0;x<19;x++)if(this.board[y][x]){const cx=mg+x*cs,cy=mg+y*cs;ctx.beginPath();ctx.arc(cx,cy,cs/2-1,0,Math.PI*2);const c=this.board[y][x],g=ctx.createRadialGradient(cx-2,cy-2,1,cx,cy,10);if(c===1){g.addColorStop(0,'#444');g.addColorStop(1,'#000')}else{g.addColorStop(0,'#fff');g.addColorStop(1,'#ddd')}ctx.fillStyle=g;ctx.fill()}}onClick(e){if(this.turn!==1)return;const r=canvas.getBoundingClientRect(),x=Math.round(((e.clientX-r.left)*(canvas.width/dpr/r.width)-this.mg)/this.cs),y=Math.round(((e.clientY-r.top)*(canvas.height/dpr/r.height)-this.mg)/this.cs);if(x>=0&&x<19&&y>=0&&y<19)this.place(x,y,1)}place(x,y,c){if(this.board[y][x]!==0)return;if(this.koBan&&this.koBan.x===x&&this.koBan.y===y){toast("패(Ko)!","warn");AudioSys.play('warn');return}this.board[y][x]=c;const opp=c===1?2:1;let cp=[],ct=0;[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{const nx=x+d[0],ny=y+d[1];if(nx>=0&&nx<19&&ny>=0&&ny<19&&this.board[ny][nx]===opp){if(!this.hasLib(nx,ny,opp))cp.push(...this.getGrp(nx,ny,opp))}});if(cp.length===0&&!this.hasLib(x,y,c)){this.board[y][x]=0;return}this.lastMove={x,y};AudioSys.play('move');particles.spawn(this.mg+x*this.cs,this.mg+y*this.cs,c===1?'#000':'#fff');if(cp.length>0){cp.forEach(p=>this.board[p.y][p.x]=0);this.caps[c]+=cp.length;AudioSys.play('capture');toast(cp.length+"점!","success");if(cp.length===1&&this.cntLib(x,y,c)===1)this.koBan={x:cp[0].x,y:cp[0].y};else this.koBan=null}else this.koBan=null;this.turn=opp;this.updateUI();this.draw();if(this.turn===2)setTimeout(()=>this.aiMove(),100)}hasLib(x,y,c,v=new Set()){const k=x+','+y;if(v.has(k))return false;v.add(k);const ds=[[1,0],[-1,0],[0,1],[0,-1]];for(let d of ds){const nx=x+d[0],ny=y+d[1];if(nx<0||nx>=19||ny<0||ny>=19)continue;if(this.board[ny][nx]===0)return true;if(this.board[ny][nx]===c&&this.hasLib(nx,ny,c,v))return true}return false}cntLib(x,y,c){let l=0;[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{const nx=x+d[0],ny=y+d[1];if(nx>=0&&nx<19&&ny>=0&&ny<19&&this.board[ny][nx]===0)l++});return l}getGrp(x,y,c){let q=[{x,y}],g=[{x,y}],v=new Set([x+','+y]);while(q.length){const p=q.shift();[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(nx>=0&&nx<19&&ny>=0&&ny<19&&this.board[ny][nx]===c&&!v.has(nx+','+ny)){v.add(nx+','+ny);g.push({x:nx,y:ny});q.push({x:nx,y:ny})}})}return g}aiMove(){let m=[];for(let y=0;y<19;y++)for(let x=0;x<19;x++)if(this.board[y][x]===0)m.push({x,y});if(!m.length)return;if(this.diff==='god'||this.diff==='veryhard'){let best=-Infinity,bm=null;const cands=m.filter(p=>{if(this.diff==='veryhard')return true;for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const nx=p.x+dx,ny=p.y+dy;if(nx>=0&&nx<19&&ny>=0&&ny<19&&this.board[ny][nx]!==0)return true}return Math.random()<0.05});if(cands.length===0)cands.push(m[Math.floor(Math.random()*m.length)]);cands.forEach(p=>{this.board[p.y][p.x]=2;let s=Math.random();let cp=0;[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(nx>=0&&nx<19&&ny>=0&&ny<19&&this.board[ny][nx]===1&&!this.hasLib(nx,ny,1))cp++});s+=cp*50;if(!this.hasLib(p.x,p.y,2))s-=1000;s+=this.cntLib(p.x,p.y,2)*2;this.board[p.y][p.x]=0;if(s>best){best=s;bm=p}});if(bm)this.place(bm.x,bm.y,2);else this.place(m[0].x,m[0].y,2)}else{let best=null,max=-Infinity;m.forEach(p=>{if(this.koBan&&this.koBan.x===p.x&&this.koBan.y===p.y)return;let s=Math.random()*2;if(this.lastMove){const d=Math.abs(p.x-this.lastMove.x)+Math.abs(p.y-this.lastMove.y);if(d===1)s+=5;if(d<=2)s+=2}const dc=Math.abs(p.x-9)+Math.abs(p.y-9);s+=(20-dc)*.3;if(s>max){max=s;best=p}});if(best)this.place(best.x,best.y,2)}}updateUI(){const st=document.getElementById('status-pill'),cai=document.getElementById('card-ai'),cuser=document.getElementById('card-user');if(this.turn===1){st.innerText="나의 차례";st.className="status-pill active";cuser.classList.add('active');cai.classList.remove('active')}else{st.innerText="AI 생각 중";st.className="status-pill ai-turn";cuser.classList.remove('active');cai.classList.add('active')}document.getElementById('score-user').innerText=this.caps[1];document.getElementById('score-ai').innerText=this.caps[2]}}
+    class BadukGame {
+        constructor(d){this.diff=d;this.cols=19;this.rows=19;this.board=Array.from({length:19},()=>Array(19).fill(0));this.turn=1;this.caps={1:0,2:0};this.lastMove=null;this.koBan=null;this.updateUI();canvas.onclick=e=>this.onClick(e)}
+        draw(){
+            ctx.clearRect(0,0,canvas.width/dpr,canvas.height/dpr);const s=getComputedStyle(document.body);const bg=s.getPropertyValue('--board-bg').trim(),ln=s.getPropertyValue('--line-color').trim(),cc=s.getPropertyValue('--cho-color').trim(),hc=s.getPropertyValue('--han-color').trim();const{cs,mg}=this;
+            ctx.fillStyle=bg;ctx.fillRect(0,0,canvas.width/dpr,canvas.height/dpr);ctx.strokeStyle=ln;ctx.lineWidth=1;for(let i=0;i<19;i++){ctx.beginPath();ctx.moveTo(mg+i*cs,mg);ctx.lineTo(mg+i*cs,mg+18*cs);ctx.stroke();ctx.beginPath();ctx.moveTo(mg,mg+i*cs);ctx.lineTo(mg+18*cs,mg+i*cs);ctx.stroke()}[3,9,15].forEach(x=>[3,9,15].forEach(y=>{ctx.beginPath();ctx.arc(mg+x*cs,mg+y*cs,2.5,0,Math.PI*2);ctx.fillStyle=ln;ctx.fill()}));
+            if(this.lastMove){const{x,y}=this.lastMove;ctx.beginPath();ctx.arc(mg+x*cs,mg+y*cs,cs*.5,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,0.3)';ctx.fill()}
+            for(let y=0;y<19;y++)for(let x=0;x<19;x++)if(this.board[y][x]){const cx=mg+x*cs,cy=mg+y*cs;ctx.beginPath();ctx.arc(cx,cy,cs/2-1,0,Math.PI*2);const c=this.board[y][x];if(document.body.className.includes('classic')||!document.body.className){const g=ctx.createRadialGradient(cx-2,cy-2,1,cx,cy,10);if(c===1){g.addColorStop(0,'#555');g.addColorStop(1,'#000')}else{g.addColorStop(0,'#fff');g.addColorStop(1,'#ddd')}ctx.fillStyle=g}else{ctx.fillStyle=c===1?s.getPropertyValue('--text').trim():'#fff';if(c===2&&document.body.className.includes('mono'))ctx.strokeStyle='#000',ctx.stroke()}ctx.fill()}
+        }
+        onClick(e){if(this.turn!==1)return;const r=canvas.getBoundingClientRect(),x=Math.round(((e.clientX-r.left)*(canvas.width/dpr/r.width)-this.mg)/this.cs),y=Math.round(((e.clientY-r.top)*(canvas.height/dpr/r.height)-this.mg)/this.cs);if(x>=0&&x<19&&y>=0&&y<19)this.place(x,y,1)}
+        place(x,y,c){if(this.board[y][x]!==0)return;if(this.koBan&&this.koBan.x===x&&this.koBan.y===y){toast("패(Ko)!");return}this.board[y][x]=c;const opp=c===1?2:1;let cp=[],ct=0;[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{const nx=x+d[0],ny=y+d[1];if(nx>=0&&nx<19&&ny>=0&&ny<19&&this.board[ny][nx]===opp){if(!this.hasLib(nx,ny,opp))cp.push(...this.getGrp(nx,ny,opp))}});if(cp.length===0&&!this.hasLib(x,y,c)){this.board[y][x]=0;return}this.lastMove={x,y};AudioSys.play('move');particles.spawn(this.mg+x*this.cs,this.mg+y*this.cs,c===1?'#000':'#fff');if(cp.length>0){cp.forEach(p=>this.board[p.y][p.x]=0);this.caps[c]+=cp.length;AudioSys.play('capture');toast(cp.length+"점 획득!");if(cp.length===1&&this.cntLib(x,y,c)===1)this.koBan={x:cp[0].x,y:cp[0].y};else this.koBan=null}else this.koBan=null;this.turn=opp;this.updateUI();this.draw();if(this.turn===2)setTimeout(()=>this.aiMove(),100)}
+        hasLib(x,y,c,v=new Set()){const k=x+','+y;if(v.has(k))return false;v.add(k);const ds=[[1,0],[-1,0],[0,1],[0,-1]];for(let d of ds){const nx=x+d[0],ny=y+d[1];if(nx<0||nx>=19||ny<0||ny>=19)continue;if(this.board[ny][nx]===0)return true;if(this.board[ny][nx]===c&&this.hasLib(nx,ny,c,v))return true}return false}
+        cntLib(x,y,c){let l=0;[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{const nx=x+d[0],ny=y+d[1];if(nx>=0&&nx<19&&ny>=0&&ny<19&&this.board[ny][nx]===0)l++});return l}
+        getGrp(x,y,c){let q=[{x,y}],g=[{x,y}],v=new Set([x+','+y]);while(q.length){const p=q.shift();[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(nx>=0&&nx<19&&ny>=0&&ny<19&&this.board[ny][nx]===c&&!v.has(nx+','+ny)){v.add(nx+','+ny);g.push({x:nx,y:ny});q.push({x:nx,y:ny})}})}return g}
+        aiMove(){let m=[];for(let y=0;y<19;y++)for(let x=0;x<19;x++)if(this.board[y][x]===0)m.push({x,y});if(!m.length)return;if(this.diff==='god'||this.diff==='veryhard'){let best=-Infinity,bm=null;const cands=m.filter(p=>{if(this.diff==='veryhard')return true;for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const nx=p.x+dx,ny=p.y+dy;if(nx>=0&&nx<19&&ny>=0&&ny<19&&this.board[ny][nx]!==0)return true}return Math.random()<0.05});if(cands.length===0)cands.push(m[Math.floor(Math.random()*m.length)]);cands.forEach(p=>{this.board[p.y][p.x]=2;let s=Math.random();let cp=0;[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{const nx=p.x+d[0],ny=p.y+d[1];if(nx>=0&&nx<19&&ny>=0&&ny<19&&this.board[ny][nx]===1&&!this.hasLib(nx,ny,1))cp++});s+=cp*50;if(!this.hasLib(p.x,p.y,2))s-=1000;s+=this.cntLib(p.x,p.y,2)*2;this.board[p.y][p.x]=0;if(s>best){best=s;bm=p}});if(bm)this.place(bm.x,bm.y,2);else this.place(m[0].x,m[0].y,2)}else{let best=null,max=-Infinity;m.forEach(p=>{if(this.koBan&&this.koBan.x===p.x&&this.koBan.y===p.y)return;let s=Math.random()*2;if(this.lastMove){const d=Math.abs(p.x-this.lastMove.x)+Math.abs(p.y-this.lastMove.y);if(d===1)s+=5;if(d<=2)s+=2}const dc=Math.abs(p.x-9)+Math.abs(p.y-9);s+=(20-dc)*.3;if(s>max){max=s;best=p}});if(best)this.place(best.x,best.y,2)}}
+        updateUI(){const st=document.getElementById('turn-badge'),cai=document.getElementById('card-ai'),cuser=document.getElementById('card-user');if(this.turn===1){st.innerText="나의 차례";st.className="status-badge active";cuser.classList.add('active');cai.classList.remove('active')}else{st.innerText="AI 생각 중...";st.className="status-badge";cuser.classList.remove('active');cai.classList.add('active')}document.getElementById('score-user').innerText=this.caps[1];document.getElementById('score-ai').innerText=this.caps[2]}
+    }
 </script>
 </body>
 </html>
