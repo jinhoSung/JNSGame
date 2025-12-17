@@ -63,7 +63,6 @@
         </div>
 
         <!-- Game Board -->
-        <!-- 보드 컨테이너의 테두리를 조금 더 굵게(4px) 설정하여 전체적인 안정감 부여 -->
         <div id="board-container" class="w-full aspect-square relative rounded-xl shadow-2xl overflow-hidden border-4 transition-colors duration-300">
             <div id="game-board" class="w-full h-full grid gap-0">
                 <!-- Cells injected by JS -->
@@ -141,7 +140,7 @@
          */
         const BLANK = 0;
         
-        // 테마 설정: borderLight(내부 얇은 선), borderHeavy(박스 굵은 선), boardBorder(전체 외곽선)
+        // 테마 설정
         const THEMES = {
             Classic: {
                 name: '클래식',
@@ -161,8 +160,8 @@
                 btnInactive: 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50',
                 numPad: 'bg-white text-slate-700 hover:bg-blue-50 hover:text-blue-600 border-slate-200',
                 eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200',
-                borderLight: 'border-slate-300', // 내부 얇은 선 (연한 회색)
-                borderHeavy: 'border-slate-800'  // 박스 구분선 (진한 회색)
+                borderLight: 'border-slate-300', 
+                borderHeavy: 'border-slate-800'  
             },
             Dark: {
                 name: '다크',
@@ -737,9 +736,11 @@
                 btn.textContent = formatValue(i);
                 
                 const isCompleted = (counts[i] || 0) >= state.gridSize;
-                const completedClass = isCompleted ? 'opacity-20 cursor-not-allowed pointer-events-none' : '';
+                const completedClass = isCompleted 
+                    ? `${theme.btnPrimary} opacity-50 cursor-not-allowed pointer-events-none border-transparent` 
+                    : theme.numPad;
                 
-                btn.className = `aspect-square sm:h-12 rounded-lg shadow-sm border-b-2 sm:border-b-4 active:border-b-0 active:translate-y-0.5 transition-all text-sm sm:text-xl font-bold flex items-center justify-center ${theme.numPad} ${completedClass}`;
+                btn.className = `aspect-square sm:h-12 rounded-lg shadow-sm border-b-2 sm:border-b-4 active:border-b-0 active:translate-y-0.5 transition-all text-sm sm:text-xl font-bold flex items-center justify-center ${completedClass}`;
                 btn.onclick = () => handleNumberInput(i);
                 container.appendChild(btn);
             }
@@ -758,6 +759,17 @@
             const size = state.gridSize;
             const boxSize = Math.sqrt(size);
 
+            // Pre-calculate completed numbers
+            const counts = {};
+            for(let r=0; r<size; r++){
+                for(let c=0; c<size; c++){
+                    const val = state.board[r][c];
+                    if(val !== BLANK) counts[val] = (counts[val] || 0) + 1;
+                }
+            }
+            // Extract the main text color from cellNormal (e.g. "text-blue-600")
+            const normalTextColor = theme.cellNormal.split(' ').find(c => c.startsWith('text-')) || 'text-blue-600';
+
             boardEl.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
             boardEl.style.gridTemplateRows = `repeat(${size}, 1fr)`;
             boardEl.innerHTML = '';
@@ -770,6 +782,7 @@
                     const isSelected = state.selectedCell && state.selectedCell[0] === r && state.selectedCell[1] === c;
                     const isSameNumber = state.selectedCell && value !== BLANK && state.board[state.selectedCell[0]][state.selectedCell[1]] === value;
                     const isError = !isInitial && value !== BLANK && value !== state.solution[r][c];
+                    const isCompletedNumber = value !== BLANK && counts[value] >= size;
 
                     // Base Classes
                     let cls = 'flex items-center justify-center cursor-pointer transition-colors duration-75 select-none relative no-select ';
@@ -778,10 +791,7 @@
                     if (size === 9) cls += value !== BLANK ? "text-lg sm:text-2xl font-medium " : "";
                     else cls += value !== BLANK ? "text-xs sm:text-base font-bold " : "";
 
-                    // Borders - REVISED LOGIC (Box lines: 2px & Dark, Inner lines: 1px & Light)
-                    // Every cell gets a right and bottom border
-                    
-                    // Default: Thin, Light borders
+                    // Borders - Box lines: 2px & Dark, Inner lines: 1px & Light
                     let borderClassRight = theme.borderLight;
                     let borderClassBottom = theme.borderLight;
                     let borderWidthRight = 'border-r'; // 1px
@@ -797,7 +807,7 @@
                         borderWidthBottom = 'border-b-2'; // 2px
                     }
 
-                    // Edge Cases: No border on the very right/bottom edge (handled by container)
+                    // Edge Cases
                     if (c === size - 1) {
                         borderWidthRight = 'border-r-0';
                         borderClassRight = '';
@@ -809,12 +819,24 @@
 
                     cls += `${borderWidthRight} ${borderClassRight} ${borderWidthBottom} ${borderClassBottom} `;
 
-                    // Theme Colors (Cell Backgrounds & Text)
-                    if (isSelected) cls += theme.cellSelected;
-                    else if (isError) cls += theme.cellError;
-                    else if (isSameNumber) cls += theme.cellSame;
-                    else if (isInitial) cls += theme.cellInitial;
-                    else cls += theme.cellNormal;
+                    // Theme Colors
+                    if (isSelected) {
+                        cls += theme.cellSelected;
+                    } else if (isError) {
+                        cls += theme.cellError;
+                    } else if (isSameNumber) {
+                        cls += theme.cellSame;
+                    } else if (isInitial) {
+                        // If number is completed, override text color to "normal/completed" color
+                        if (isCompletedNumber) {
+                            cls += theme.cellInitial; // Apply bg
+                            cls += ` !${normalTextColor}`; // Force text color override
+                        } else {
+                            cls += theme.cellInitial;
+                        }
+                    } else {
+                        cls += theme.cellNormal;
+                    }
 
                     cell.className = cls;
                     cell.onclick = () => handleCellClick(r, c);
