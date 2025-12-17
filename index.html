@@ -63,7 +63,8 @@
         </div>
 
         <!-- Game Board -->
-        <div id="board-container" class="w-full aspect-square relative rounded-xl shadow-2xl overflow-hidden border-2 transition-colors duration-300">
+        <!-- 보드 컨테이너의 테두리를 조금 더 굵게(4px) 설정하여 전체적인 안정감 부여 -->
+        <div id="board-container" class="w-full aspect-square relative rounded-xl shadow-2xl overflow-hidden border-4 transition-colors duration-300">
             <div id="game-board" class="w-full h-full grid gap-0">
                 <!-- Cells injected by JS -->
             </div>
@@ -139,7 +140,8 @@
          * --- CONSTANTS & DATA ---
          */
         const BLANK = 0;
-        // 테두리 색상(borderHeavy)을 boardBorder와 더 비슷하게, 혹은 더 진하게 조정하여 구분감을 높임
+        
+        // 테마 설정: borderLight(내부 얇은 선), borderHeavy(박스 굵은 선), boardBorder(전체 외곽선)
         const THEMES = {
             Classic: {
                 name: '클래식',
@@ -159,8 +161,8 @@
                 btnInactive: 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50',
                 numPad: 'bg-white text-slate-700 hover:bg-blue-50 hover:text-blue-600 border-slate-200',
                 eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200',
-                borderLight: 'border-slate-300', // 좀 더 진한 회색으로 변경
-                borderHeavy: 'border-slate-800'  // 외곽선과 동일한 진한 색으로 변경
+                borderLight: 'border-slate-300', // 내부 얇은 선 (연한 회색)
+                borderHeavy: 'border-slate-800'  // 박스 구분선 (진한 회색)
             },
             Dark: {
                 name: '다크',
@@ -181,14 +183,14 @@
                 numPad: 'bg-slate-800 text-slate-200 hover:bg-indigo-900 hover:text-indigo-200 border-slate-700',
                 eraseBtn: 'bg-red-900/30 text-red-400 hover:bg-red-900/50 border-red-900',
                 borderLight: 'border-slate-700',
-                borderHeavy: 'border-black' // 블랙으로 통일
+                borderHeavy: 'border-black'
             },
             Nature: {
                 name: '자연',
                 bg: 'bg-stone-100',
                 textMain: 'text-stone-800',
                 textSub: 'text-stone-500',
-                boardBg: 'bg-stone-800', // 좀 더 진하게
+                boardBg: 'bg-stone-800',
                 boardBorder: 'border-stone-800',
                 cellInitial: 'bg-stone-200 text-stone-900',
                 cellSelected: 'bg-emerald-600 text-white',
@@ -202,7 +204,7 @@
                 numPad: 'bg-white text-stone-700 hover:bg-emerald-50 hover:text-emerald-700 border-stone-300',
                 eraseBtn: 'bg-orange-50 text-orange-600 hover:bg-orange-100 border-orange-200',
                 borderLight: 'border-stone-300',
-                borderHeavy: 'border-stone-800' // 외곽선과 통일
+                borderHeavy: 'border-stone-800'
             },
             Pink: {
                 name: '핑크',
@@ -223,7 +225,7 @@
                 numPad: 'bg-white text-rose-700 hover:bg-pink-50 hover:text-pink-600 border-rose-200',
                 eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200',
                 borderLight: 'border-rose-200',
-                borderHeavy: 'border-rose-900' // 진하게
+                borderHeavy: 'border-rose-900'
             },
             Ocean: {
                 name: '오션',
@@ -244,7 +246,7 @@
                 numPad: 'bg-white text-cyan-800 hover:bg-cyan-50 hover:text-cyan-600 border-cyan-200',
                 eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200',
                 borderLight: 'border-cyan-200',
-                borderHeavy: 'border-cyan-900' // 진하게
+                borderHeavy: 'border-cyan-900'
             },
             Lavender: {
                 name: '라벤더',
@@ -634,7 +636,7 @@
             // Board Container
             const boardContainer = document.getElementById('board-container');
             if (boardContainer) {
-                boardContainer.className = `w-full aspect-square relative rounded-xl shadow-2xl overflow-hidden border-2 transition-colors duration-300 ${theme.boardBg} ${theme.boardBorder}`;
+                boardContainer.className = `w-full aspect-square relative rounded-xl shadow-2xl overflow-hidden border-4 transition-colors duration-300 ${theme.boardBg} ${theme.boardBorder}`;
             }
             
             // Mistake Display
@@ -776,30 +778,38 @@
                     if (size === 9) cls += value !== BLANK ? "text-lg sm:text-2xl font-medium " : "";
                     else cls += value !== BLANK ? "text-xs sm:text-base font-bold " : "";
 
-                    // Borders - REVISED LOGIC (ALL LINES 1PX, Colors distinguish boxes)
-                    // Every cell has a right and bottom border by default
-                    let rightBorder = theme.borderLight;
-                    let bottomBorder = theme.borderLight;
-                    let borderRightWidth = 'border-r';
-                    let borderBottomWidth = 'border-b';
+                    // Borders - REVISED LOGIC (Box lines: 2px & Dark, Inner lines: 1px & Light)
+                    // Every cell gets a right and bottom border
+                    
+                    // Default: Thin, Light borders
+                    let borderClassRight = theme.borderLight;
+                    let borderClassBottom = theme.borderLight;
+                    let borderWidthRight = 'border-r'; // 1px
+                    let borderWidthBottom = 'border-b'; // 1px
 
-                    // Darker borders for box edges (Color change only, thickness remains 1px)
+                    // Box Dividers: Thick, Dark borders
                     if ((c + 1) % boxSize === 0 && c !== size - 1) {
-                        rightBorder = theme.borderHeavy;
-                        // borderRightWidth remains 'border-r'
+                        borderClassRight = theme.borderHeavy;
+                        borderWidthRight = 'border-r-2'; // 2px
                     }
                     if ((r + 1) % boxSize === 0 && r !== size - 1) {
-                        bottomBorder = theme.borderHeavy;
-                        // borderBottomWidth remains 'border-b'
+                        borderClassBottom = theme.borderHeavy;
+                        borderWidthBottom = 'border-b-2'; // 2px
                     }
 
-                    // Remove border for last column/row (handled by container border)
-                    if (c === size - 1) borderRightWidth = 'border-r-0';
-                    if (r === size - 1) borderBottomWidth = 'border-b-0';
+                    // Edge Cases: No border on the very right/bottom edge (handled by container)
+                    if (c === size - 1) {
+                        borderWidthRight = 'border-r-0';
+                        borderClassRight = '';
+                    }
+                    if (r === size - 1) {
+                        borderWidthBottom = 'border-b-0';
+                        borderClassBottom = '';
+                    }
 
-                    cls += `${borderRightWidth} ${rightBorder} ${borderBottomWidth} ${bottomBorder} `;
+                    cls += `${borderWidthRight} ${borderClassRight} ${borderWidthBottom} ${borderClassBottom} `;
 
-                    // Theme Colors
+                    // Theme Colors (Cell Backgrounds & Text)
                     if (isSelected) cls += theme.cellSelected;
                     else if (isError) cls += theme.cellError;
                     else if (isSameNumber) cls += theme.cellSame;
