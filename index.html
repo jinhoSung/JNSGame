@@ -3,162 +3,1067 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jinos 게임 콜렉션</title>
+    <title>스도쿠 (Sudoku)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        /* (이전 스타일은 유지하거나 아래와 같이 업데이트) */
-        body {
-            font-family: 'Arial', sans-serif;
-            background-color: #f4f4f9;
-            color: #333;
-            margin: 0;
-            padding: 0;
-            text-align: center;
-        }
-
-        .container {
-            max-width: 1000px; /* 컨테이너 너비를 약간 넓혔습니다. */
-            margin: 50px auto;
-            padding: 20px;
-            background-color: #fff;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        h1 {
-            color: #4CAF50;
-            border-bottom: 2px solid #eee;
-            padding-bottom: 10px;
-        }
-
-        /* 📌 게임 목록 스타일 수정: Flexbox를 사용하여 가로로 배치 */
-        .game-list {
-            list-style: none;
-            padding: 0;
-            display: flex;
-            flex-wrap: wrap; /* 창 크기에 따라 줄 바꿈 */
-            justify-content: center; /* 가운데 정렬 */
-            gap: 20px; /* 항목 사이의 간격 */
-        }
-
-        .game-list li {
-            width: 280px; /* 각 게임 항목의 너비 */
-            margin: 10px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            overflow: hidden; /* 이미지 모서리 둥글게 처리 */
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
-
-        .game-list li:hover {
-            transform: translateY(-5px); /* 호버 시 약간 위로 이동 */
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-        }
-
-        .game-list a {
-            text-decoration: none;
-            color: #333;
-            display: block; /* 전체 항목을 링크로 만듦 */
-            padding: 0;
-        }
-
-        .game-thumbnail {
-            width: 100%;
-            height: 150px; /* 이미지 높이 고정 */
-            object-fit: cover; /* 이미지가 잘리더라도 영역을 꽉 채움 */
-            display: block;
-        }
-
-        .game-title {
-            padding: 15px 10px;
-            background-color: #f9f9f9;
-            font-weight: bold;
-            font-size: 1.1em;
-            text-align: center;
-        }
+        /* 폰트 및 기본 설정 */
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
+        body { font-family: 'Noto Sans KR', sans-serif; }
+        .cell-content { pointer-events: none; }
+        /* 터치 조작 최적화 */
+        .no-select { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>🕹️ Jinos 게임 콜렉션 🕹️</h1>
-        <p>아래 목록에서 원하는 게임을 선택하여 플레이해 보세요!</p>
-        
-        <ul id="game-links" class="game-list">
-            </ul>
+<body class="transition-colors duration-300 min-h-screen flex flex-col items-center py-6 px-2">
+
+    <!-- App Container -->
+    <div id="app" class="w-full max-w-lg flex flex-col gap-4">
+        <!-- Header -->
+        <div class="flex justify-between items-center">
+            <h1 id="game-title" class="text-3xl font-bold">스도쿠</h1>
+            <div class="flex gap-2">
+                <button id="btn-settings" class="p-2 rounded-lg transition-all" title="설정 / 테마">
+                    <i data-lucide="settings" class="w-6 h-6"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Settings Modal (Hidden by default) -->
+        <div id="settings-panel" class="hidden w-full p-4 rounded-xl shadow-lg border mb-2 animate-in slide-in-from-top-2">
+            <div class="flex justify-between items-center mb-3">
+                <span class="font-bold">테마 설정</span>
+                <button id="btn-close-settings"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <div id="theme-grid" class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                <!-- Themes injected by JS -->
+            </div>
+        </div>
+
+        <!-- Mode & Difficulty & Timer -->
+        <div class="flex justify-between items-center gap-2">
+            <div class="flex bg-black/5 p-1 rounded-lg" id="grid-size-controls">
+                <button data-size="9" class="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-bold transition-all">
+                    <i data-lucide="grid-3x3" class="w-4 h-4"></i> 9x9
+                </button>
+                <button data-size="16" class="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-bold transition-all">
+                    <i data-lucide="grid-2x2" class="w-4 h-4"></i> 16x16
+                </button>
+            </div>
+
+            <div id="timer-display" class="flex items-center gap-2 font-mono text-lg px-3 py-1 rounded-lg shadow-sm border">
+                <i data-lucide="timer" class="w-5 h-5"></i>
+                <span>0:00</span>
+            </div>
+        </div>
+
+        <!-- Difficulty Selection -->
+        <div id="difficulty-controls" class="flex flex-wrap gap-2 justify-center">
+            <!-- Difficulty buttons injected by JS -->
+        </div>
+
+        <!-- Game Board -->
+        <div id="board-container" class="w-full aspect-square relative rounded-xl shadow-2xl overflow-hidden border-2 transition-colors duration-300">
+            <div id="game-board" class="w-full h-full grid gap-0">
+                <!-- Cells injected by JS -->
+            </div>
+        </div>
+
+        <!-- Info & Controls -->
+        <div class="w-full max-w-lg">
+            <!-- Mistakes -->
+            <div class="flex justify-end mb-2">
+                <div id="mistake-display" class="flex items-center gap-1 font-bold text-sm px-3 py-1 rounded-full border transition-all">
+                    <i data-lucide="alert-circle" class="w-4 h-4"></i>
+                    <span>실수: <span id="mistake-count">0</span>/3</span>
+                </div>
+            </div>
+
+            <!-- Number Pad -->
+            <div id="numpad" class="grid gap-2 mb-4 grid-cols-5 transition-all">
+                <!-- Buttons injected by JS -->
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="grid grid-cols-2 gap-4 mt-2">
+                <button id="btn-note" class="py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2 border-b-4 active:border-b-0 active:translate-y-1">
+                    <i data-lucide="pencil" class="w-5 h-5"></i>
+                    <span id="note-text">메모 OFF</span>
+                </button>
+
+                <button id="btn-new-game" class="py-3 rounded-xl font-bold shadow-sm border-b-4 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2">
+                    <i data-lucide="refresh-cw" class="w-5 h-5"></i> 새 게임
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <!-- Win Modal -->
+    <div id="modal-win" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div id="modal-win-content" class="rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl transform scale-100 transition-colors">
+            <div class="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="trophy" class="w-10 h-10 text-yellow-600"></i>
+            </div>
+            <h2 class="text-3xl font-bold mb-2">축하합니다!</h2>
+            <p class="mb-6 opacity-80">
+                <span class="font-bold" id="win-size">9x9</span> 퍼즐 완성!<br/>
+                <span class="font-bold" id="win-diff">초급</span> 난이도<br/>
+                소요 시간: <span class="font-mono font-bold text-blue-500" id="win-time">0:00</span>
+            </p>
+            <button id="btn-win-restart" class="w-full py-3 rounded-xl font-bold transition-colors text-white">
+                새 게임 시작하기
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="modal-fail" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div id="modal-fail-content" class="rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl transition-colors">
+            <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="alert-circle" class="w-10 h-10 text-red-600"></i>
+            </div>
+            <h2 class="text-2xl font-bold mb-2">게임 오버</h2>
+            <p class="mb-6 opacity-80">
+                실수가 3번을 초과했습니다.<br/>
+                다시 도전해보세요!
+            </p>
+            <button id="btn-fail-restart" class="w-full py-3 rounded-xl font-bold transition-colors text-white">
+                다시 시작
+            </button>
+        </div>
     </div>
 
     <script>
-        // =======================================================
-        // 🚨 핵심 수정 부분: 이 배열만 관리하면 됩니다!
-        // =======================================================
-        const games = [
-            // { folder: '폴더 이름', title: '화면에 표시할 게임 제목', file: '시작 파일 이름', image: '썸네일 파일명' }
-            { folder: 'NeonStack', title: '벽돌쌓기', image: 'thumbnail.png' },            
-            { folder: 'AIJanggiBaduk', title: '장기 or 바둑', image: 'thumbnail.png' }, 
-            { folder: 'SimpleSUDOKU', title: '심플 스도쿠', image: 'thumbnail.png' },             
-            { folder: 'LuckySoloDefense', title: '나 혼자만 운빨 솔로 디펜스', image: 'thumbnail.png' }, // file을 생략하면 index.html로 간주됨
-            { folder: 'NeonMelodyMaker', title: '비트게임', image: 'thumbnail.png' },
-            { folder: 'LogicPuzzle', title: '코딩게임', image: 'thumbnail.png' }, 
-            { folder: 'MyTower', title: '디펜스게임', image: 'thumbnail.png' }, // file을 생략하면 index.html로 간주됨            
-            { folder: 'AutonomousRacing', title: '자율운행자동차게임', image: 'thumbnail.png' }, // file을 생략하면 index.html로 간주됨
-            { folder: 'AutonomousRacingV2', title: '자율운행자동차게임v2', image: 'thumbnail.png' }, // file을 생략하면 index.html로 간주됨
-            { folder: 'PlanetSurvivor', title: '행성디펜스게임', image: 'thumbnail.png' }, // file을 생략하면 index.html로 간주됨
-            { folder: 'BrickBreaker', title: '블럭깨기 게임', image: 'thumbnail.png' }, // file을 생략하면 index.html로 간주됨
-            { folder: 'CheonGiNuSeol', title: '천기누설 사주/궁합', image: 'thumbnail.png' }, // file을 생략하면 index.html로 간주됨
-            { folder: 'BungeoppangTycoon', title: '붕어빵 타이쿤', image: 'thumbnail.png' }, // file을 생략하면 index.html로 간주됨
-            { folder: 'AIDroneEvolution', title: 'AI(신경망)드론 진화 구경(?)게임', image: 'thumbnail.png' }, // file을 생략하면 index.html로 간주됨
-            { folder: 'AICarEvolution', title: 'AI(신경망)자동차 진화 구경(?)게임', image: 'thumbnail.png' }, // file을 생략하면 index.html로 간주됨
-            { folder: 'AIMultiCopter', title: 'AI(신경망) 멀티콥터 진화 구경(?)게임', image: 'thumbnail.png' }, // file을 생략하면 index.html로 간주됨
+        /**
+         * --- CONSTANTS & DATA ---
+         */
+        const BLANK = 0;
+        // 테두리 색상(borderHeavy)을 boardBorder와 더 비슷하게, 혹은 더 진하게 조정하여 구분감을 높임
+        const THEMES = {
+            Classic: {
+                name: '클래식',
+                bg: 'bg-slate-50',
+                textMain: 'text-slate-800',
+                textSub: 'text-slate-500',
+                boardBg: 'bg-slate-800',
+                boardBorder: 'border-slate-800',
+                cellInitial: 'bg-slate-100 text-slate-900',
+                cellSelected: 'bg-blue-500 text-white',
+                cellSame: 'bg-blue-200 text-slate-900',
+                cellError: 'bg-red-100 text-red-600',
+                cellNormal: 'bg-white text-blue-600',
+                cellNote: 'text-slate-500',
+                btnPrimary: 'bg-blue-600 hover:bg-blue-500 text-white border-blue-800',
+                btnActive: 'bg-slate-700 text-white border-slate-900',
+                btnInactive: 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50',
+                numPad: 'bg-white text-slate-700 hover:bg-blue-50 hover:text-blue-600 border-slate-200',
+                eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200',
+                borderLight: 'border-slate-300', // 좀 더 진한 회색으로 변경
+                borderHeavy: 'border-slate-800'  // 외곽선과 동일한 진한 색으로 변경
+            },
+            Dark: {
+                name: '다크',
+                bg: 'bg-slate-900',
+                textMain: 'text-slate-100',
+                textSub: 'text-slate-400',
+                boardBg: 'bg-black',
+                boardBorder: 'border-black',
+                cellInitial: 'bg-slate-800 text-slate-300',
+                cellSelected: 'bg-indigo-600 text-white',
+                cellSame: 'bg-slate-700 text-white',
+                cellError: 'bg-red-900 text-red-200',
+                cellNormal: 'bg-slate-900 text-indigo-300',
+                cellNote: 'text-slate-500',
+                btnPrimary: 'bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-800',
+                btnActive: 'bg-indigo-500 text-white border-indigo-700',
+                btnInactive: 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700',
+                numPad: 'bg-slate-800 text-slate-200 hover:bg-indigo-900 hover:text-indigo-200 border-slate-700',
+                eraseBtn: 'bg-red-900/30 text-red-400 hover:bg-red-900/50 border-red-900',
+                borderLight: 'border-slate-700',
+                borderHeavy: 'border-black' // 블랙으로 통일
+            },
+            Nature: {
+                name: '자연',
+                bg: 'bg-stone-100',
+                textMain: 'text-stone-800',
+                textSub: 'text-stone-500',
+                boardBg: 'bg-stone-800', // 좀 더 진하게
+                boardBorder: 'border-stone-800',
+                cellInitial: 'bg-stone-200 text-stone-900',
+                cellSelected: 'bg-emerald-600 text-white',
+                cellSame: 'bg-emerald-200 text-stone-900',
+                cellError: 'bg-orange-100 text-orange-700',
+                cellNormal: 'bg-white text-emerald-700',
+                cellNote: 'text-stone-500',
+                btnPrimary: 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-800',
+                btnActive: 'bg-stone-600 text-white border-stone-800',
+                btnInactive: 'bg-white text-stone-600 border-stone-300 hover:bg-stone-50',
+                numPad: 'bg-white text-stone-700 hover:bg-emerald-50 hover:text-emerald-700 border-stone-300',
+                eraseBtn: 'bg-orange-50 text-orange-600 hover:bg-orange-100 border-orange-200',
+                borderLight: 'border-stone-300',
+                borderHeavy: 'border-stone-800' // 외곽선과 통일
+            },
+            Pink: {
+                name: '핑크',
+                bg: 'bg-rose-50',
+                textMain: 'text-rose-900',
+                textSub: 'text-rose-500',
+                boardBg: 'bg-rose-900',
+                boardBorder: 'border-rose-900',
+                cellInitial: 'bg-rose-100 text-rose-900',
+                cellSelected: 'bg-pink-500 text-white',
+                cellSame: 'bg-pink-200 text-rose-900',
+                cellError: 'bg-red-100 text-red-600',
+                cellNormal: 'bg-white text-pink-600',
+                cellNote: 'text-rose-400',
+                btnPrimary: 'bg-pink-500 hover:bg-pink-400 text-white border-pink-700',
+                btnActive: 'bg-rose-600 text-white border-rose-800',
+                btnInactive: 'bg-white text-rose-500 border-rose-200 hover:bg-rose-50',
+                numPad: 'bg-white text-rose-700 hover:bg-pink-50 hover:text-pink-600 border-rose-200',
+                eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200',
+                borderLight: 'border-rose-200',
+                borderHeavy: 'border-rose-900' // 진하게
+            },
+            Ocean: {
+                name: '오션',
+                bg: 'bg-cyan-50',
+                textMain: 'text-cyan-900',
+                textSub: 'text-cyan-600',
+                boardBg: 'bg-cyan-900',
+                boardBorder: 'border-cyan-900',
+                cellInitial: 'bg-cyan-100 text-cyan-900',
+                cellSelected: 'bg-cyan-600 text-white',
+                cellSame: 'bg-cyan-200 text-cyan-900',
+                cellError: 'bg-red-100 text-red-600',
+                cellNormal: 'bg-white text-cyan-700',
+                cellNote: 'text-cyan-500',
+                btnPrimary: 'bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-800',
+                btnActive: 'bg-cyan-700 text-white border-cyan-900',
+                btnInactive: 'bg-white text-cyan-600 border-cyan-200 hover:bg-cyan-100',
+                numPad: 'bg-white text-cyan-800 hover:bg-cyan-50 hover:text-cyan-600 border-cyan-200',
+                eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200',
+                borderLight: 'border-cyan-200',
+                borderHeavy: 'border-cyan-900' // 진하게
+            },
+            Lavender: {
+                name: '라벤더',
+                bg: 'bg-violet-50',
+                textMain: 'text-violet-900',
+                textSub: 'text-violet-500',
+                boardBg: 'bg-violet-900',
+                boardBorder: 'border-violet-900',
+                cellInitial: 'bg-violet-100 text-violet-900',
+                cellSelected: 'bg-violet-500 text-white',
+                cellSame: 'bg-violet-200 text-violet-900',
+                cellError: 'bg-red-100 text-red-600',
+                cellNormal: 'bg-white text-violet-600',
+                cellNote: 'text-violet-400',
+                btnPrimary: 'bg-violet-500 hover:bg-violet-400 text-white border-violet-700',
+                btnActive: 'bg-violet-600 text-white border-violet-800',
+                btnInactive: 'bg-white text-violet-500 border-violet-200 hover:bg-violet-50',
+                numPad: 'bg-white text-violet-700 hover:bg-violet-50 hover:text-violet-600 border-violet-200',
+                eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200',
+                borderLight: 'border-violet-200',
+                borderHeavy: 'border-violet-900'
+            },
+            Mint: {
+                name: '민트',
+                bg: 'bg-teal-50',
+                textMain: 'text-teal-900',
+                textSub: 'text-teal-600',
+                boardBg: 'bg-teal-900',
+                boardBorder: 'border-teal-900',
+                cellInitial: 'bg-teal-100 text-teal-900',
+                cellSelected: 'bg-teal-500 text-white',
+                cellSame: 'bg-teal-200 text-teal-900',
+                cellError: 'bg-red-100 text-red-600',
+                cellNormal: 'bg-white text-teal-600',
+                cellNote: 'text-teal-400',
+                btnPrimary: 'bg-teal-500 hover:bg-teal-400 text-white border-teal-700',
+                btnActive: 'bg-teal-600 text-white border-teal-800',
+                btnInactive: 'bg-white text-teal-500 border-teal-200 hover:bg-teal-50',
+                numPad: 'bg-white text-teal-700 hover:bg-teal-50 hover:text-teal-600 border-teal-200',
+                eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200',
+                borderLight: 'border-teal-200',
+                borderHeavy: 'border-teal-900'
+            },
+            Sunset: {
+                name: '선셋',
+                bg: 'bg-orange-50',
+                textMain: 'text-orange-900',
+                textSub: 'text-orange-600',
+                boardBg: 'bg-orange-900',
+                boardBorder: 'border-orange-900',
+                cellInitial: 'bg-orange-100 text-orange-900',
+                cellSelected: 'bg-orange-500 text-white',
+                cellSame: 'bg-orange-200 text-orange-900',
+                cellError: 'bg-red-100 text-red-600',
+                cellNormal: 'bg-white text-orange-600',
+                cellNote: 'text-orange-400',
+                btnPrimary: 'bg-orange-500 hover:bg-orange-400 text-white border-orange-700',
+                btnActive: 'bg-orange-600 text-white border-orange-800',
+                btnInactive: 'bg-white text-orange-500 border-orange-200 hover:bg-orange-50',
+                numPad: 'bg-white text-orange-700 hover:bg-orange-50 hover:text-orange-600 border-orange-200',
+                eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200',
+                borderLight: 'border-orange-200',
+                borderHeavy: 'border-orange-900'
+            },
+            Midnight: {
+                name: '미드나잇',
+                bg: 'bg-blue-950',
+                textMain: 'text-blue-100',
+                textSub: 'text-blue-400',
+                boardBg: 'bg-black',
+                boardBorder: 'border-black',
+                cellInitial: 'bg-blue-900 text-blue-200',
+                cellSelected: 'bg-blue-600 text-white',
+                cellSame: 'bg-blue-800 text-white',
+                cellError: 'bg-red-900 text-red-200',
+                cellNormal: 'bg-blue-950 text-blue-300',
+                cellNote: 'text-blue-500',
+                btnPrimary: 'bg-blue-600 hover:bg-blue-500 text-white border-blue-800',
+                btnActive: 'bg-blue-500 text-white border-blue-700',
+                btnInactive: 'bg-blue-900 text-blue-300 border-blue-800 hover:bg-blue-800',
+                numPad: 'bg-blue-900 text-blue-200 hover:bg-blue-800 hover:text-white border-blue-800',
+                eraseBtn: 'bg-red-900/40 text-red-400 hover:bg-red-900/60 border-red-900',
+                borderLight: 'border-slate-700',
+                borderHeavy: 'border-black'
+            },
+            Cyber: {
+                name: '사이버',
+                bg: 'bg-zinc-950',
+                textMain: 'text-lime-400',
+                textSub: 'text-lime-700',
+                boardBg: 'bg-black',
+                boardBorder: 'border-lime-900',
+                cellInitial: 'bg-zinc-900 text-lime-600',
+                cellSelected: 'bg-lime-600 text-black',
+                cellSame: 'bg-zinc-800 text-lime-400',
+                cellError: 'bg-red-900 text-red-400',
+                cellNormal: 'bg-black text-lime-400',
+                cellNote: 'text-zinc-500',
+                btnPrimary: 'bg-lime-600 hover:bg-lime-500 text-black border-lime-800',
+                btnActive: 'bg-lime-700 text-black border-lime-900',
+                btnInactive: 'bg-black text-lime-600 border-zinc-800 hover:bg-zinc-900',
+                numPad: 'bg-zinc-900 text-lime-500 hover:bg-zinc-800 hover:text-lime-400 border-zinc-800',
+                eraseBtn: 'bg-red-950 text-red-500 hover:bg-red-900 border-red-900',
+                borderLight: 'border-lime-900/50',
+                borderHeavy: 'border-lime-600'
+            },
+            Coffee: {
+                name: '커피',
+                bg: 'bg-stone-900',
+                textMain: 'text-amber-100',
+                textSub: 'text-amber-700',
+                boardBg: 'bg-black',
+                boardBorder: 'border-black',
+                cellInitial: 'bg-stone-800 text-stone-400',
+                cellSelected: 'bg-amber-700 text-white',
+                cellSame: 'bg-stone-700 text-amber-100',
+                cellError: 'bg-red-900 text-red-200',
+                cellNormal: 'bg-stone-900 text-amber-200',
+                cellNote: 'text-stone-600',
+                btnPrimary: 'bg-amber-700 hover:bg-amber-600 text-white border-amber-900',
+                btnActive: 'bg-amber-800 text-white border-amber-950',
+                btnInactive: 'bg-stone-800 text-amber-700 border-stone-700 hover:bg-stone-700',
+                numPad: 'bg-stone-800 text-amber-200 hover:bg-stone-700 hover:text-amber-100 border-stone-700',
+                eraseBtn: 'bg-red-900/30 text-red-400 hover:bg-red-900/50 border-red-900',
+                borderLight: 'border-slate-700',
+                borderHeavy: 'border-black'
+            },
+            Vampire: {
+                name: '뱀파이어',
+                bg: 'bg-neutral-950',
+                textMain: 'text-red-600',
+                textSub: 'text-red-900',
+                boardBg: 'bg-black',
+                boardBorder: 'border-red-950',
+                cellInitial: 'bg-neutral-900 text-red-800',
+                cellSelected: 'bg-red-700 text-white',
+                cellSame: 'bg-neutral-800 text-red-500',
+                cellError: 'bg-red-950 text-red-400',
+                cellNormal: 'bg-black text-red-600',
+                cellNote: 'text-neutral-600',
+                btnPrimary: 'bg-red-700 hover:bg-red-600 text-white border-red-900',
+                btnActive: 'bg-red-800 text-white border-red-950',
+                btnInactive: 'bg-black text-red-900 border-neutral-900 hover:bg-neutral-900',
+                numPad: 'bg-neutral-900 text-red-600 hover:bg-neutral-800 hover:text-red-500 border-neutral-800',
+                eraseBtn: 'bg-red-950 text-red-500 hover:bg-red-900 border-red-900',
+                borderLight: 'border-red-900/50',
+                borderHeavy: 'border-red-700'
+            }
+        };
 
+        const STORAGE_KEY_GAME = 'sudoku_gamestate_html';
+        const STORAGE_KEY_SETTINGS = 'sudoku_settings_html';
 
+        /**
+         * --- STATE MANAGEMENT ---
+         */
+        const state = {
+            themeName: 'Classic',
+            gridSize: 9,
+            difficulty: 'Easy',
+            board: [],
+            initialBoard: [],
+            solution: [],
+            notes: [],
+            mistakes: 0,
+            timer: 0,
+            isWon: false,
+            isPaused: false,
+            selectedCell: null,
+            isNoteMode: false,
+            timerInterval: null
+        };
+
+        /**
+         * --- LOGIC FUNCTIONS ---
+         */
+        const formatValue = (val) => {
+            if (val === 0) return '';
+            if (val <= 9) return val.toString();
+            return String.fromCharCode(65 + val - 10);
+        };
+
+        const getBaseBoard = (size) => {
+            const boxSize = Math.sqrt(size);
+            const board = Array.from({ length: size }, () => Array(size).fill(0));
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    const shift = (Math.floor(r / boxSize) + (r % boxSize) * boxSize) % size;
+                    board[r][c] = ((c + shift) % size) + 1;
+                }
+            }
+            return board;
+        };
+
+        const shuffleBoard = (baseBoard, size) => {
+            const boxSize = Math.sqrt(size);
+            let board = baseBoard.map(row => [...row]);
             
-        ];
-        
-        // 썸네일 이미지의 기본 파일명
-        const DEFAULT_IMAGE_NAME = 'thumbnail.png';
+            const nums = Array.from({ length: size }, (_, i) => i + 1);
+            for (let i = nums.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [nums[i], nums[j]] = [nums[j], nums[i]];
+            }
+            const map = new Map();
+            nums.forEach((n, i) => map.set(i + 1, n));
+            board = board.map(row => row.map(n => map.get(n)));
 
-        const gameListElement = document.getElementById('game-links');
+            const shuffle = (arr) => {
+                for (let i = arr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [arr[i], arr[j]] = [arr[j], arr[i]];
+                }
+                return arr;
+            };
 
-        games.forEach(game => {
-            const folderName = game.folder;
-            const gameTitle = game.title;
-            const fileName = game.file || 'index.html'; 
-            // 썸네일 파일명은 game.image를 사용하거나, 정의되지 않았다면 DEFAULT_IMAGE_NAME을 사용합니다.
-            const imageName = game.image || DEFAULT_IMAGE_NAME; 
+            for (let b = 0; b < size; b += boxSize) {
+                const rows = Array.from({ length: boxSize }, (_, i) => b + i);
+                const shuffledRows = shuffle([...rows]);
+                const oldBoard = [...board];
+                rows.forEach((oldR, i) => {
+                    board[oldR] = oldBoard[shuffledRows[i]];
+                });
+            }
 
-            // 하이퍼링크 주소 생성: 예) ./game-a/index.html
-            const linkPath = `./${folderName}/${fileName}`;
-            // 이미지 주소 생성: 예) ./game-a/thumbnail.png
-            const imagePath = `./${folderName}/${imageName}`;
+            let transposed = board[0].map((_, c) => board.map(r => r[c]));
+            for (let b = 0; b < size; b += boxSize) {
+                const cols = Array.from({ length: boxSize }, (_, i) => b + i);
+                const shuffledCols = shuffle([...cols]);
+                const oldTransposed = [...transposed];
+                cols.forEach((oldC, i) => {
+                    transposed[oldC] = oldTransposed[shuffledCols[i]];
+                });
+            }
+            board = transposed[0].map((_, c) => transposed.map(r => r[c]));
 
-            // 1. <li> 요소 생성
-            const listItem = document.createElement('li');
+            // Shuffle bands logic omitted for brevity but keeps board valid if rows/cols shuffled within box constraints
+            return board;
+        };
 
-            // 2. <a> 요소 생성 (전체를 감싸는 링크)
-            const link = document.createElement('a');
-            link.href = linkPath;
-            link.title = `${gameTitle} 게임 시작`; // 마우스 오버 시 툴팁 추가
-
-            // 3. <img> 요소 생성
-            const image = document.createElement('img');
-            image.src = imagePath; // 이미지 주소 설정
-            image.alt = `${gameTitle} 썸네일 이미지`; // 접근성을 위한 alt 텍스트
-            image.classList.add('game-thumbnail');
-
-            // 4. 제목 표시 <div> 생성
-            const titleDiv = document.createElement('div');
-            titleDiv.textContent = gameTitle;
-            titleDiv.classList.add('game-title');
+        const generateBoard = (difficulty, size) => {
+            const base = getBaseBoard(size);
+            const solution = shuffleBoard(base, size);
+            const playable = solution.map(row => [...row]);
+            const totalCells = size * size;
             
-            // 5. <a> 안에 이미지와 제목 삽입
-            link.appendChild(image);
-            link.appendChild(titleDiv);
+            let clues;
+            if (size === 9) {
+                if (difficulty === 'Easy') clues = 45;
+                else if (difficulty === 'Medium') clues = 35;
+                else if (difficulty === 'Hard') clues = 30;
+                else clues = 24; 
+            } else {
+                if (difficulty === 'Easy') clues = 160;
+                else if (difficulty === 'Medium') clues = 130;
+                else if (difficulty === 'Hard') clues = 110;
+                else clues = 90;
+            }
 
-            // 6. <li> 안에 <a> 삽입
-            listItem.appendChild(link);
+            let attempts = totalCells - clues;
+            while (attempts > 0) {
+                const r = Math.floor(Math.random() * size);
+                const c = Math.floor(Math.random() * size);
+                if (playable[r][c] !== BLANK) {
+                    playable[r][c] = BLANK;
+                    attempts--;
+                }
+            }
 
-            // 7. 최종적으로 <ul> 안에 <li> 삽입
-            gameListElement.appendChild(listItem);
+            return { initial: playable, solution };
+        };
+
+        const formatTime = (seconds) => {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        };
+
+        const getDifficultyLabel = (diff) => {
+            switch (diff) {
+                case 'Easy': return '초급';
+                case 'Medium': return '중급';
+                case 'Hard': return '고급';
+                case 'Expert': return '전문가';
+                default: return '초급';
+            }
+        };
+
+        /**
+         * --- SAVE & LOAD ---
+         */
+        const saveGame = () => {
+            if (state.isWon) return;
+            // Serialize Sets in notes
+            const serializedNotes = state.notes.map(row => 
+                row.map(set => Array.from(set))
+            );
+            const data = {
+                ...state,
+                notes: serializedNotes,
+                timerInterval: null // Don't save interval ID
+            };
+            localStorage.setItem(STORAGE_KEY_GAME, JSON.stringify(data));
+        };
+
+        const loadGame = () => {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY_GAME);
+                if (!saved) return false;
+                const data = JSON.parse(saved);
+                
+                // Hydrate Set objects
+                data.notes = data.notes.map(row => 
+                    row.map(arr => new Set(arr))
+                );
+                
+                // Merge into state
+                Object.assign(state, data);
+                state.isPaused = false; // Always unpause on load
+                return true;
+            } catch (e) {
+                console.error("Save load failed", e);
+                return false;
+            }
+        };
+
+        const loadSettings = () => {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY_SETTINGS);
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    if (THEMES[data.theme]) state.themeName = data.theme;
+                }
+            } catch(e) {}
+        };
+
+        const saveSettings = () => {
+            localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify({ theme: state.themeName }));
+        };
+
+        /**
+         * --- RENDERING & UI UPDATES ---
+         */
+        const getCurrentTheme = () => THEMES[state.themeName];
+
+        const applyTheme = () => {
+            const theme = getCurrentTheme();
+            document.body.className = `${theme.bg} transition-colors duration-300 min-h-screen flex flex-col items-center py-6 px-2`;
+            
+            // Header Text
+            document.getElementById('game-title').className = `text-3xl font-bold ${theme.textMain}`;
+            
+            // Settings Button
+            const btnSettings = document.getElementById('btn-settings');
+            const settingsPanelEl = document.getElementById('settings-panel');
+            const isSettingsOpen = settingsPanelEl && !settingsPanelEl.classList.contains('hidden');
+            
+            if (btnSettings) {
+                btnSettings.className = `p-2 rounded-lg transition-all ${isSettingsOpen ? theme.btnActive : 'bg-transparent hover:bg-black/5 ' + theme.textMain}`;
+            }
+
+            // Settings Panel
+            if (settingsPanelEl) {
+                settingsPanelEl.className = `hidden w-full p-4 rounded-xl shadow-lg border mb-2 animate-in slide-in-from-top-2 ${theme.numPad}`; 
+                if(isSettingsOpen) settingsPanelEl.classList.remove('hidden');
+            }
+
+            // Grid Size Buttons
+            const sizeBtns = document.querySelectorAll('#grid-size-controls button');
+            sizeBtns.forEach(btn => {
+                const size = parseInt(btn.dataset.size);
+                if (state.gridSize === size) {
+                    btn.className = `flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-bold transition-all ${theme.btnInactive} shadow-sm`;
+                } else {
+                    btn.className = `flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-bold transition-all text-slate-400 hover:text-slate-600`;
+                }
+            });
+
+            // Timer
+            const timerDisplay = document.getElementById('timer-display');
+            if (timerDisplay) {
+                timerDisplay.className = `flex items-center gap-2 font-mono text-lg px-3 py-1 rounded-lg shadow-sm border ${theme.btnInactive}`;
+            }
+
+            // Difficulty Buttons
+            renderDifficultyButtons();
+
+            // Board Container
+            const boardContainer = document.getElementById('board-container');
+            if (boardContainer) {
+                boardContainer.className = `w-full aspect-square relative rounded-xl shadow-2xl overflow-hidden border-2 transition-colors duration-300 ${theme.boardBg} ${theme.boardBorder}`;
+            }
+            
+            // Mistake Display
+            const mistakeDisplay = document.getElementById('mistake-display');
+            if (mistakeDisplay) {
+                if (state.mistakes >= 2) {
+                    mistakeDisplay.className = `flex items-center gap-1 font-bold text-sm px-3 py-1 rounded-full border bg-red-100 text-red-600 border-red-200 animate-pulse`;
+                } else {
+                    mistakeDisplay.className = `flex items-center gap-1 font-bold text-sm px-3 py-1 rounded-full border ${theme.btnInactive}`;
+                }
+            }
+
+            // Note Button
+            const btnNote = document.getElementById('btn-note');
+            if (btnNote) {
+                btnNote.className = `py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2 border-b-4 active:border-b-0 active:translate-y-1 ${state.isNoteMode ? theme.btnActive : theme.btnInactive}`;
+                
+                // FIX: Lucide replaces <i> with <svg>, so we need to query for both or the svg if i is missing
+                const noteIcon = btnNote.querySelector('i, svg'); 
+                if (noteIcon) {
+                    if (state.isNoteMode) {
+                        noteIcon.classList.add('text-yellow-400');
+                        noteIcon.classList.remove('opacity-50');
+                    } else {
+                        noteIcon.classList.remove('text-yellow-400');
+                        noteIcon.classList.add('opacity-50');
+                    }
+                }
+            }
+
+            // New Game Button
+            const btnNewGame = document.getElementById('btn-new-game');
+            if (btnNewGame) {
+                btnNewGame.className = `py-3 rounded-xl font-bold shadow-sm border-b-4 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2 ${theme.btnPrimary}`;
+            }
+
+            // Modals
+            const modalWinContent = document.getElementById('modal-win-content');
+            if (modalWinContent) {
+                modalWinContent.className = `rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl transform scale-100 transition-colors ${theme.bg}`;
+                const winTitle = modalWinContent.querySelector('h2');
+                if (winTitle) winTitle.className = `text-3xl font-bold mb-2 ${theme.textMain}`;
+                const winText = modalWinContent.querySelector('p');
+                if (winText) winText.className = `mb-6 ${theme.textSub}`;
+                const btnWinRestart = document.getElementById('btn-win-restart');
+                if (btnWinRestart) btnWinRestart.className = `w-full py-3 rounded-xl font-bold transition-colors ${theme.btnPrimary}`;
+            }
+
+            const modalFailContent = document.getElementById('modal-fail-content');
+            if (modalFailContent) {
+                modalFailContent.className = `rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl transition-colors ${theme.bg}`;
+                const failTitle = modalFailContent.querySelector('h2');
+                if (failTitle) failTitle.className = `text-2xl font-bold mb-2 ${theme.textMain}`;
+                const failText = modalFailContent.querySelector('p');
+                if (failText) failText.className = `mb-6 ${theme.textSub}`;
+                const btnFailRestart = document.getElementById('btn-fail-restart');
+                if (btnFailRestart) btnFailRestart.className = `w-full py-3 rounded-xl font-bold transition-colors ${theme.btnActive}`;
+            }
+
+            // Re-render components that depend on theme for inner content
+            renderNumpad();
+            renderBoard(); 
+            lucide.createIcons();
+        };
+
+        const renderDifficultyButtons = () => {
+            const theme = getCurrentTheme();
+            const container = document.getElementById('difficulty-controls');
+            if (!container) return;
+            container.innerHTML = '';
+            ['Easy', 'Medium', 'Hard', 'Expert'].forEach(diff => {
+                const btn = document.createElement('button');
+                btn.textContent = getDifficultyLabel(diff);
+                btn.className = `px-4 py-1.5 rounded-full text-xs sm:text-sm font-bold transition-all border ${state.difficulty === diff ? theme.btnPrimary : theme.btnInactive}`;
+                btn.onclick = () => { startNewGame(diff, state.gridSize); };
+                container.appendChild(btn);
+            });
+        };
+
+        const renderNumpad = () => {
+            const theme = getCurrentTheme();
+            const container = document.getElementById('numpad');
+            if (!container) return;
+            container.className = `grid gap-2 mb-4 ${state.gridSize === 16 ? 'grid-cols-8' : 'grid-cols-5'} transition-all`;
+            container.innerHTML = '';
+
+            // Calculate frequencies of numbers on board
+            const counts = {};
+            for(let r=0; r<state.gridSize; r++){
+                for(let c=0; c<state.gridSize; c++){
+                    const val = state.board[r][c];
+                    if(val !== BLANK) counts[val] = (counts[val] || 0) + 1;
+                }
+            }
+
+            for (let i = 1; i <= state.gridSize; i++) {
+                const btn = document.createElement('button');
+                btn.textContent = formatValue(i);
+                
+                const isCompleted = (counts[i] || 0) >= state.gridSize;
+                const completedClass = isCompleted ? 'opacity-20 cursor-not-allowed pointer-events-none' : '';
+                
+                btn.className = `aspect-square sm:h-12 rounded-lg shadow-sm border-b-2 sm:border-b-4 active:border-b-0 active:translate-y-0.5 transition-all text-sm sm:text-xl font-bold flex items-center justify-center ${theme.numPad} ${completedClass}`;
+                btn.onclick = () => handleNumberInput(i);
+                container.appendChild(btn);
+            }
+
+            const eraseBtn = document.createElement('button');
+            eraseBtn.innerHTML = '<i data-lucide="eraser" class="w-5 h-5"></i>';
+            eraseBtn.className = `aspect-square sm:h-12 rounded-lg shadow-sm border-b-2 sm:border-b-4 active:border-b-0 active:translate-y-0.5 transition-all flex items-center justify-center ${theme.eraseBtn} ${state.gridSize === 16 ? 'col-span-1' : ''}`;
+            eraseBtn.onclick = () => handleNumberInput(0);
+            container.appendChild(eraseBtn);
+        };
+
+        const renderBoard = () => {
+            const theme = getCurrentTheme();
+            const boardEl = document.getElementById('game-board');
+            if (!boardEl) return;
+            const size = state.gridSize;
+            const boxSize = Math.sqrt(size);
+
+            boardEl.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+            boardEl.style.gridTemplateRows = `repeat(${size}, 1fr)`;
+            boardEl.innerHTML = '';
+
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    const cell = document.createElement('div');
+                    const value = state.board[r][c];
+                    const isInitial = state.initialBoard[r][c] !== BLANK;
+                    const isSelected = state.selectedCell && state.selectedCell[0] === r && state.selectedCell[1] === c;
+                    const isSameNumber = state.selectedCell && value !== BLANK && state.board[state.selectedCell[0]][state.selectedCell[1]] === value;
+                    const isError = !isInitial && value !== BLANK && value !== state.solution[r][c];
+
+                    // Base Classes
+                    let cls = 'flex items-center justify-center cursor-pointer transition-colors duration-75 select-none relative no-select ';
+                    
+                    // Font Size
+                    if (size === 9) cls += value !== BLANK ? "text-lg sm:text-2xl font-medium " : "";
+                    else cls += value !== BLANK ? "text-xs sm:text-base font-bold " : "";
+
+                    // Borders - REVISED LOGIC (ALL LINES 1PX, Colors distinguish boxes)
+                    // Every cell has a right and bottom border by default
+                    let rightBorder = theme.borderLight;
+                    let bottomBorder = theme.borderLight;
+                    let borderRightWidth = 'border-r';
+                    let borderBottomWidth = 'border-b';
+
+                    // Darker borders for box edges (Color change only, thickness remains 1px)
+                    if ((c + 1) % boxSize === 0 && c !== size - 1) {
+                        rightBorder = theme.borderHeavy;
+                        // borderRightWidth remains 'border-r'
+                    }
+                    if ((r + 1) % boxSize === 0 && r !== size - 1) {
+                        bottomBorder = theme.borderHeavy;
+                        // borderBottomWidth remains 'border-b'
+                    }
+
+                    // Remove border for last column/row (handled by container border)
+                    if (c === size - 1) borderRightWidth = 'border-r-0';
+                    if (r === size - 1) borderBottomWidth = 'border-b-0';
+
+                    cls += `${borderRightWidth} ${rightBorder} ${borderBottomWidth} ${bottomBorder} `;
+
+                    // Theme Colors
+                    if (isSelected) cls += theme.cellSelected;
+                    else if (isError) cls += theme.cellError;
+                    else if (isSameNumber) cls += theme.cellSame;
+                    else if (isInitial) cls += theme.cellInitial;
+                    else cls += theme.cellNormal;
+
+                    cell.className = cls;
+                    cell.onclick = () => handleCellClick(r, c);
+
+                    // Content
+                    if (value !== BLANK) {
+                        cell.textContent = formatValue(value);
+                    } else {
+                        // Notes
+                        const hasNotes = state.notes[r] && state.notes[r][c] && state.notes[r][c].size > 0;
+                        if (hasNotes) {
+                            const noteContainer = document.createElement('div');
+                            noteContainer.className = `w-full h-full pointer-events-none p-0.5 flex flex-wrap content-start items-start leading-none justify-center ${size === 16 ? 'gap-[1px]' : 'gap-0.5'}`;
+                            const sortedNotes = Array.from(state.notes[r][c]).sort((a,b)=>a-b);
+                            sortedNotes.forEach(n => {
+                                const sp = document.createElement('span');
+                                sp.className = `${size === 16 ? 'text-[6px] sm:text-[8px]' : 'text-[8px] sm:text-[10px]'} font-bold ${theme.cellNote}`;
+                                sp.textContent = formatValue(n);
+                                noteContainer.appendChild(sp);
+                            });
+                            cell.appendChild(noteContainer);
+                        }
+                    }
+
+                    boardEl.appendChild(cell);
+                }
+            }
+        };
+
+        const renderSettingsThemes = () => {
+            const container = document.getElementById('theme-grid');
+            if (!container) return;
+            container.innerHTML = '';
+            Object.keys(THEMES).forEach(key => {
+                const t = THEMES[key];
+                const btn = document.createElement('button');
+                btn.textContent = t.name;
+                const isActive = state.themeName === key;
+                btn.className = `py-2 px-1 sm:px-3 rounded-lg text-xs sm:text-sm font-bold border-2 transition-all ${
+                    isActive
+                      ? `${t.btnPrimary} border-transparent ring-2 ring-offset-2 ring-blue-400` 
+                      : `${t.bg} ${t.textMain} border-current opacity-70 hover:opacity-100`
+                }`;
+                btn.onclick = () => {
+                    state.themeName = key;
+                    saveSettings();
+                    applyTheme();
+                };
+                container.appendChild(btn);
+            });
+        };
+
+        /**
+         * --- ACTION HANDLERS ---
+         */
+        const startNewGame = (diff = state.difficulty, size = state.gridSize, shouldSave = true) => {
+            const { initial, solution } = generateBoard(diff, size);
+            state.initialBoard = initial;
+            state.board = initial.map(row => [...row]);
+            state.solution = solution;
+            state.notes = Array.from({ length: size }, () => Array.from({ length: size }, () => new Set()));
+            state.difficulty = diff;
+            state.gridSize = size;
+            state.mistakes = 0;
+            state.timer = 0;
+            state.isWon = false;
+            state.isPaused = false;
+            state.selectedCell = null;
+            state.isNoteMode = false;
+
+            document.getElementById('modal-win').classList.add('hidden');
+            document.getElementById('modal-fail').classList.add('hidden');
+            document.getElementById('note-text').textContent = '메모 OFF';
+            document.getElementById('mistake-count').textContent = '0';
+            
+            if (shouldSave) localStorage.removeItem(STORAGE_KEY_GAME);
+            
+            applyTheme();
+            renderBoard();
+        };
+
+        const handleCellClick = (r, c) => {
+            if (state.isWon) return;
+            state.selectedCell = [r, c];
+            renderBoard();
+        };
+
+        const handleNumberInput = (num) => {
+            if (!state.selectedCell || state.isWon) return;
+            const [r, c] = state.selectedCell;
+            
+            // Cannot edit initial cells
+            if (state.initialBoard[r][c] !== BLANK) return;
+
+            // Note Mode
+            if (state.isNoteMode) {
+                if (num === 0) {
+                    state.notes[r][c].clear();
+                } else {
+                    if (state.notes[r][c].has(num)) state.notes[r][c].delete(num);
+                    else state.notes[r][c].add(num);
+                }
+                saveGame();
+                renderBoard();
+                return;
+            }
+
+            // Normal Mode
+            if (num === 0) {
+                state.board[r][c] = BLANK;
+                saveGame();
+                renderBoard();
+                // Re-render numpad to update counts
+                renderNumpad();
+                return;
+            }
+
+            // Check Mistake
+            if (num !== state.solution[r][c]) {
+                state.mistakes++;
+                document.getElementById('mistake-count').textContent = state.mistakes;
+                applyTheme(); // Update mistake display color
+                
+                if (state.mistakes >= 3) {
+                    document.getElementById('modal-fail').classList.remove('hidden');
+                }
+            } else {
+                // Correct Move
+                state.board[r][c] = num;
+                // Clear notes in this cell
+                state.notes[r][c].clear();
+                
+                // Check Win
+                let isComplete = true;
+                for(let i=0; i<state.gridSize; i++){
+                    for(let j=0; j<state.gridSize; j++){
+                        if(state.board[i][j] !== state.solution[i][j]) {
+                            isComplete = false;
+                            break;
+                        }
+                    }
+                }
+                
+                if (isComplete) {
+                    state.isWon = true;
+                    localStorage.removeItem(STORAGE_KEY_GAME);
+                    document.getElementById('win-size').textContent = `${state.gridSize}x${state.gridSize}`;
+                    document.getElementById('win-diff').textContent = getDifficultyLabel(state.difficulty);
+                    document.getElementById('win-time').textContent = formatTime(state.timer);
+                    document.getElementById('modal-win').classList.remove('hidden');
+                }
+            }
+
+            saveGame();
+            renderBoard();
+            // Re-render numpad to update counts if number added
+            renderNumpad();
+        };
+
+        const moveSelection = (key) => {
+            if (!state.selectedCell) {
+                state.selectedCell = [0, 0];
+                renderBoard();
+                return;
+            }
+            const [r, c] = state.selectedCell;
+            let nr = r, nc = c;
+            if (key === 'ArrowUp') nr = Math.max(0, r - 1);
+            if (key === 'ArrowDown') nr = Math.min(state.gridSize - 1, r + 1);
+            if (key === 'ArrowLeft') nc = Math.max(0, c - 1);
+            if (key === 'ArrowRight') nc = Math.min(state.gridSize - 1, c + 1);
+            state.selectedCell = [nr, nc];
+            renderBoard();
+        };
+
+        /**
+         * --- INITIALIZATION & EVENTS ---
+         */
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSettings();
+            
+            if (!loadGame()) {
+                startNewGame('Easy', 9, false);
+            }
+
+            renderSettingsThemes();
+            applyTheme(); // Initial render
+
+            // Timer Loop
+            setInterval(() => {
+                if (!state.isWon && !state.isPaused && !document.hidden) {
+                    state.timer++;
+                    const timerEl = document.querySelector('#timer-display span');
+                    if(timerEl) timerEl.textContent = formatTime(state.timer);
+                    // Save periodically? Optional. We save on moves.
+                }
+            }, 1000);
+
+            // Global Keydown
+            window.addEventListener('keydown', (e) => {
+                if (state.isWon) return;
+                const isSettingsOpen = !document.getElementById('settings-panel').classList.contains('hidden');
+                if (isSettingsOpen) return;
+
+                const key = e.key;
+                const keyNum = parseInt(key);
+
+                if (!isNaN(keyNum) && keyNum >= 1 && keyNum <= 9) {
+                    handleNumberInput(keyNum);
+                }
+                else if (state.gridSize === 16 && /^[a-gA-G]$/.test(key)) {
+                    const val = key.toUpperCase().charCodeAt(0) - 65 + 10;
+                    handleNumberInput(val);
+                }
+                else if (key === 'Backspace' || key === 'Delete') {
+                    handleNumberInput(0);
+                }
+                else if (key.toLowerCase() === 'n') {
+                    document.getElementById('btn-note').click();
+                }
+                else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+                    e.preventDefault();
+                    moveSelection(key);
+                }
+            });
+
+            // Button Events
+            document.getElementById('btn-settings').onclick = () => {
+                const p = document.getElementById('settings-panel');
+                p.classList.toggle('hidden');
+                applyTheme(); // Re-render button state
+            };
+            document.getElementById('btn-close-settings').onclick = () => {
+                document.getElementById('settings-panel').classList.add('hidden');
+                applyTheme();
+            };
+
+            document.querySelectorAll('#grid-size-controls button').forEach(btn => {
+                btn.onclick = (e) => {
+                    const size = parseInt(e.currentTarget.dataset.size);
+                    if (size !== state.gridSize) startNewGame(state.difficulty, size);
+                }
+            });
+
+            document.getElementById('btn-note').onclick = () => {
+                state.isNoteMode = !state.isNoteMode;
+                document.getElementById('note-text').textContent = state.isNoteMode ? '메모 ON' : '메모 OFF';
+                applyTheme(); // Update button style
+            };
+
+            document.getElementById('btn-new-game').onclick = () => startNewGame();
+
+            document.getElementById('btn-win-restart').onclick = () => startNewGame();
+            document.getElementById('btn-fail-restart').onclick = () => startNewGame();
+
+            // Icons
+            lucide.createIcons();
         });
+
     </script>
 </body>
 </html>
