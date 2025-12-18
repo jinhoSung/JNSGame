@@ -99,6 +99,7 @@
             </div>
             
             <div class="flex flex-col gap-3 mb-6">
+                <!-- Sound Toggle -->
                 <div class="flex justify-between items-center">
                     <div class="flex items-center gap-2">
                         <i data-lucide="volume-2" class="w-5 h-5 text-slate-500"></i>
@@ -109,6 +110,7 @@
                         <label for="toggle-sound" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer transition-colors duration-300"></label>
                     </div>
                 </div>
+                <!-- Effect Toggle -->
                 <div class="flex justify-between items-center">
                     <div class="flex items-center gap-2">
                         <i data-lucide="sparkles" class="w-5 h-5 text-slate-500"></i>
@@ -117,6 +119,17 @@
                     <div class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
                         <input type="checkbox" name="toggle" id="toggle-effect" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer transition-all duration-300 left-0 checked:left-6"/>
                         <label for="toggle-effect" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer transition-colors duration-300"></label>
+                    </div>
+                </div>
+                <!-- Initial BG Toggle -->
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="paint-bucket" class="w-5 h-5 text-slate-500"></i>
+                        <span class="font-medium">초기 숫자 배경</span>
+                    </div>
+                    <div class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" name="toggle" id="toggle-bg" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer transition-all duration-300 left-0 checked:left-6"/>
+                        <label for="toggle-bg" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer transition-colors duration-300"></label>
                     </div>
                 </div>
             </div>
@@ -222,9 +235,9 @@
 
     <script>
         const BLANK = 0;
-        const STORAGE_KEY_GAME = 'sudoku_gamestate_html_v7';
-        const STORAGE_KEY_SETTINGS = 'sudoku_settings_html_v7';
-        const STORAGE_KEY_SCORES = 'sudoku_scores_html_v7';
+        const STORAGE_KEY_GAME = 'sudoku_gamestate_html_v8';
+        const STORAGE_KEY_SETTINGS = 'sudoku_settings_html_v8';
+        const STORAGE_KEY_SCORES = 'sudoku_scores_html_v8';
 
         const THEMES = {
             Classic: { name: '클래식', bg: 'bg-slate-50', textMain: 'text-slate-800', textSub: 'text-slate-500', boardBg: 'bg-slate-800', boardBorder: 'border-slate-800', cellInitial: 'bg-slate-100 text-slate-900', cellSelected: 'bg-blue-500 text-white', cellSame: 'bg-blue-200 text-slate-900', cellError: 'bg-red-100 text-red-600', cellNormal: 'bg-white text-blue-600', cellNote: 'text-slate-500', btnPrimary: 'bg-blue-600 hover:bg-blue-500 text-white border-blue-800', btnActive: 'bg-slate-700 text-white border-slate-900', btnInactive: 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50', numPad: 'bg-white text-slate-700 hover:bg-blue-50 hover:text-blue-600 border-slate-200', eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200', borderLight: 'border-slate-300', borderHeavy: 'border-slate-800' },
@@ -258,6 +271,7 @@
             timerInterval: null,
             soundEnabled: true,
             effectEnabled: true,
+            showInitialBg: true, // Default: True (Show gray bg for initial numbers)
             lastEffect: { row: null, col: null, type: null }
         };
 
@@ -432,7 +446,7 @@
                 data.notes = data.notes.map(row => row.map(arr => new Set(arr)));
                 Object.assign(state, data);
                 state.isPaused = false; 
-                state.lastEffect = { row: null, col: null, type: null }; // Reset effect on load
+                state.lastEffect = { row: null, col: null, type: null }; 
                 return true;
             } catch (e) { return false; }
         }
@@ -445,13 +459,17 @@
                     if (THEMES[data.theme]) state.themeName = data.theme;
                     if (typeof data.soundEnabled !== 'undefined') state.soundEnabled = data.soundEnabled;
                     if (typeof data.effectEnabled !== 'undefined') state.effectEnabled = data.effectEnabled;
+                    if (typeof data.showInitialBg !== 'undefined') state.showInitialBg = data.showInitialBg;
                 }
             } catch(e) {}
         }
 
         function saveSettings() {
             localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify({ 
-                theme: state.themeName, soundEnabled: state.soundEnabled, effectEnabled: state.effectEnabled
+                theme: state.themeName, 
+                soundEnabled: state.soundEnabled, 
+                effectEnabled: state.effectEnabled,
+                showInitialBg: state.showInitialBg
             }));
         }
 
@@ -508,6 +526,7 @@
                 if(isSettingsOpen) settingsPanelEl.classList.remove('hidden');
                 document.getElementById('toggle-sound').checked = state.soundEnabled;
                 document.getElementById('toggle-effect').checked = state.effectEnabled;
+                document.getElementById('toggle-bg').checked = state.showInitialBg;
             }
 
             document.querySelectorAll('#grid-size-controls button').forEach(btn => {
@@ -607,13 +626,11 @@
                 btn.className = `relative w-full h-12 sm:h-16 rounded-xl shadow-sm border-b-4 active:border-b-0 active:translate-y-1 transition-all flex flex-col items-center justify-center ${completedClass}`;
                 btn.onclick = () => handleNumberInput(i);
 
-                // Add Number Text
                 const numSpan = document.createElement('span');
                 numSpan.className = "text-xl sm:text-3xl font-bold leading-none";
                 numSpan.textContent = formatValue(i);
                 btn.appendChild(numSpan);
 
-                // Add Badge if not completed
                 if (!isCompleted) {
                     const badge = document.createElement('span');
                     badge.className = "absolute top-0.5 right-1 text-[10px] sm:text-xs font-medium opacity-70 leading-none";
@@ -646,6 +663,8 @@
                 }
             }
             const normalTextColor = theme.cellNormal.split(' ').find(c => c.startsWith('text-')) || 'text-blue-600';
+            const initialTextClass = theme.cellInitial.split(' ').filter(c => c.startsWith('text-')).join(' ');
+            const normalBgClass = theme.cellNormal.split(' ').filter(c => c.startsWith('bg-')).join(' ');
 
             boardEl.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
             boardEl.style.gridTemplateRows = `repeat(${size}, 1fr)`;
@@ -689,28 +708,43 @@
 
                     cls += `${borderWidthRight} ${rightColorClass} ${borderWidthBottom} ${bottomColorClass} `;
 
+                    let animationClass = '';
+                    if (state.effectEnabled) {
+                        if (state.lastEffect.type === 'wrong' && state.lastEffect.row === r && state.lastEffect.col === c) {
+                            animationClass = ' animate-shake';
+                        } else if (state.lastEffect.type === 'correct' && state.lastEffect.row === r && state.lastEffect.col === c) {
+                            animationClass = ' animate-pop';
+                        }
+                    }
+
                     if (isSelected) {
                         cls += theme.cellSelected;
                     } else if (isError) {
                         cls += theme.cellError;
-                        // Add shake animation class if effect enabled
                         if(state.effectEnabled && state.lastEffect.type === 'wrong' && state.lastEffect.row === r && state.lastEffect.col === c) {
                             cls += ' animate-shake';
                         }
                     } else if (isSameNumber) {
                         cls += theme.cellSame;
                     } else if (isInitial) {
-                        if (isCompletedNumber) {
-                            cls += theme.cellInitial; 
-                            cls += ` !${normalTextColor}`; 
+                        if (state.showInitialBg) {
+                            if (isCompletedNumber) {
+                                cls += theme.cellInitial; 
+                                cls += ` !${normalTextColor}`; 
+                            } else {
+                                cls += theme.cellInitial;
+                            }
                         } else {
-                            cls += theme.cellInitial;
+                            // BG 제거 모드
+                            cls += `${normalBgClass} ${initialTextClass}`;
+                            if (isCompletedNumber) {
+                                 cls += ` !${normalTextColor}`;
+                            }
                         }
                     } else {
                         cls += theme.cellNormal;
                     }
                     
-                    // Add Pop Animation if correct
                     if(state.effectEnabled && state.lastEffect.type === 'correct' && state.lastEffect.row === r && state.lastEffect.col === c) {
                         cls += ' animate-pop';
                     }
@@ -783,6 +817,7 @@
             state.isPaused = false;
             state.selectedCell = null;
             state.isNoteMode = false;
+            state.lastEffect = { row: null, col: null, type: null };
 
             document.getElementById('modal-win').classList.add('hidden');
             document.getElementById('modal-fail').classList.add('hidden');
@@ -809,10 +844,8 @@
             if (!state.selectedCell || state.isWon) return;
             const [r, c] = state.selectedCell;
             
-            // Cannot edit initial cells
             if (state.initialBoard[r][c] !== BLANK) return;
 
-            // Note Mode
             if (state.isNoteMode) {
                 playSound('input');
                 if (num === 0) {
@@ -826,7 +859,6 @@
                 return;
             }
 
-            // Normal Mode
             if (num === 0) {
                 playSound('delete');
                 state.board[r][c] = BLANK;
@@ -836,31 +868,25 @@
                 return;
             }
 
-            // Check Move
             if (num !== state.solution[r][c]) {
-                // Wrong
                 playSound('wrong');
                 state.mistakes++;
                 const mistakeCount = document.getElementById('mistake-count');
                 if(mistakeCount) mistakeCount.textContent = state.mistakes;
                 
-                // Track Effect
                 state.lastEffect = { row: r, col: c, type: 'wrong' };
-                // Render to show error immediately
                 renderBoard();
                 
                 if (state.mistakes >= 3) {
                     document.getElementById('modal-fail').classList.remove('hidden');
                 }
                 
-                // Clear effect after animation
                 setTimeout(() => {
                     state.lastEffect = { row: null, col: null, type: null };
                     renderBoard();
                 }, 500);
 
             } else {
-                // Correct
                 playSound('correct');
                 state.board[r][c] = num;
                 state.notes[r][c].clear();
@@ -876,7 +902,7 @@
                     }
                 }
                 
-                renderBoard(); // Show pop effect
+                renderBoard(); 
                 
                 if (isComplete) {
                     state.isWon = true;
@@ -896,10 +922,9 @@
                         document.getElementById('win-diff').textContent = getDifficultyLabel(state.difficulty);
                         document.getElementById('win-time').textContent = formatTime(state.timer);
                         document.getElementById('modal-win').classList.remove('hidden');
-                    }, 500); // Delay slightly for pop animation
+                    }, 500); 
                 }
                 
-                // Clear effect
                 setTimeout(() => {
                     state.lastEffect = { row: null, col: null, type: null };
                     renderBoard();
@@ -930,7 +955,7 @@
         let isDragging = false;
         let lastRippleX = 0;
         let lastRippleY = 0;
-        const RIPPLE_DISTANCE = 30; // Min px distance to trigger next ripple on drag
+        const RIPPLE_DISTANCE = 30; 
 
         function createRipple(x, y) {
             if (!state.effectEnabled) return;
@@ -1011,7 +1036,6 @@
                 }
             });
 
-            // Toggles
             document.getElementById('toggle-sound').onclick = (e) => {
                 state.soundEnabled = e.target.checked;
                 if(state.soundEnabled) playSound('click');
@@ -1020,6 +1044,12 @@
             document.getElementById('toggle-effect').onclick = (e) => {
                 state.effectEnabled = e.target.checked;
                 saveSettings();
+            };
+            document.getElementById('toggle-bg').onclick = (e) => {
+                state.showInitialBg = e.target.checked;
+                playSound('click');
+                saveSettings();
+                renderBoard(); // Re-render to apply change
             };
 
             const btnSettings = document.getElementById('btn-settings');
