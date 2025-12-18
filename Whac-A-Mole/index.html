@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>두더지 잡기: 레벨업 & 랭킹</title>
+    <title>두더지 잡기: UI 개선판</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 
@@ -13,7 +13,7 @@
             width: 100vw;
             height: 100vh;
             background-color: #87CEEB;
-            font-family: 'Jua', sans-serif; /* 귀여운 폰트로 변경 */
+            font-family: 'Jua', sans-serif;
             overflow: hidden;
             user-select: none;
             -webkit-user-select: none;
@@ -30,50 +30,84 @@
 
         canvas { display: block; }
 
-        /* --- UI 오버레이 (상단 정보창) --- */
-        .ui-bar {
+        /* --- HUD (Head-Up Display) 레이아웃 --- */
+        
+        /* 공통 스타일 */
+        .hud-panel {
             position: absolute;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            border-radius: 15px;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            pointer-events: none; /* 클릭 통과 (버튼 제외) */
+            z-index: 20;
+            backdrop-filter: blur(2px);
+        }
+
+        /* 1. 좌측 상단: 점수와 레벨 */
+        .hud-left {
+            top: 20px;
+            left: 20px;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 5px;
+            font-size: clamp(16px, 3vw, 24px);
+        }
+        .hud-row { display: flex; align-items: center; gap: 10px; }
+        .hud-label { color: #ddd; }
+        .hud-value { color: #ffd700; font-size: 1.2em; }
+
+        /* 2. 중앙 상단: 시간 */
+        .hud-center {
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            width: 90%;
-            max-width: 600px;
+            font-size: clamp(24px, 5vw, 40px);
+            padding: 5px 30px;
             background: rgba(0, 0, 0, 0.6);
-            border-radius: 50px;
-            padding: 10px 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            color: white;
-            font-size: clamp(18px, 4vw, 28px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-            pointer-events: none;
-            z-index: 10;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 30px;
         }
+        #time-display { color: #fff; margin-left: 10px; }
 
-        .ui-group { display: flex; gap: 20px; }
-        .ui-item span { color: #ffd700; margin-left: 5px; }
-
-        /* --- 전체화면 버튼 (우측 상단) --- */
-        #fullscreen-btn {
-            position: absolute;
+        /* 3. 우측 상단: 버튼 그룹 */
+        .hud-right {
             top: 20px;
             right: 20px;
-            pointer-events: auto;
+            background: transparent; /* 배경 없음 */
+            box-shadow: none;
+            padding: 0;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: auto; /* 버튼 클릭 가능 */
+            align-items: flex-end; /* 오른쪽 정렬 */
+        }
+
+        /* 우측 상단 버튼 스타일 */
+        .icon-btn {
             background: rgba(255, 255, 255, 0.2);
             border: 2px solid white;
             color: white;
-            padding: 8px 12px;
-            border-radius: 15px;
+            padding: 8px 15px;
+            border-radius: 12px;
             font-size: 14px;
             cursor: pointer;
-            z-index: 20;
-            transition: all 0.2s;
             font-family: 'Jua', sans-serif;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100px; /* 버튼 너비 통일 */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-        #fullscreen-btn:hover { background: rgba(255, 255, 255, 0.4); }
+        .icon-btn:hover { background: rgba(255, 255, 255, 0.4); transform: translateY(-2px); }
+        .icon-btn:active { transform: translateY(0); }
 
-        /* --- 공통 스크린 스타일 (시작, 종료, 랭킹) --- */
+
+        /* --- 스크린 (시작, 종료, 랭킹) --- */
         .screen {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -95,7 +129,7 @@
         h2 { font-size: clamp(2rem, 6vw, 3.5rem); margin-bottom: 20px; }
         p { font-size: clamp(1.2rem, 3vw, 1.8rem); margin: 5px 0; color: #eee; }
 
-        /* --- 버튼 스타일 (심플하고 통일감 있게) --- */
+        /* 메인 액션 버튼 */
         .btn-group { display: flex; gap: 15px; margin-top: 30px; flex-wrap: wrap; justify-content: center; }
         
         button.action-btn {
@@ -115,9 +149,8 @@
 
         button.action-btn:hover { transform: translateY(-2px); }
         button.action-btn:active { transform: translateY(4px); box-shadow: 0 0 0 #b36b00, 0 0 0 rgba(0,0,0,0); }
-        button.action-btn.secondary:active { box-shadow: 0 0 0 #2E7D32; }
 
-        /* --- 랭킹 보드 스타일 --- */
+        /* 랭킹 리스트 */
         .rank-list {
             background: rgba(255, 255, 255, 0.1);
             border-radius: 20px;
@@ -142,14 +175,27 @@
     <div id="game-container">
         <canvas id="gameCanvas"></canvas>
         
-        <!-- 상단 정보 UI -->
-        <button id="fullscreen-btn" onclick="toggleFullScreen()">전체화면</button>
-        <div class="ui-bar">
-            <div class="ui-group">
-                <div class="ui-item">LV.<span id="level-display">1</span></div>
-                <div class="ui-item">SCORE <span id="score-display">0</span></div>
+        <!-- 1. 좌측 상단: 레벨 & 점수 -->
+        <div class="hud-panel hud-left">
+            <div class="hud-row">
+                <span class="hud-label">LV.</span>
+                <span class="hud-value" id="level-display">1</span>
             </div>
-            <div class="ui-item">TIME <span id="time-display">30</span></div>
+            <div class="hud-row">
+                <span class="hud-label">SCORE</span>
+                <span class="hud-value" id="score-display">0</span>
+            </div>
+        </div>
+
+        <!-- 2. 중앙 상단: 시간 -->
+        <div class="hud-panel hud-center">
+            TIME <span id="time-display">30</span>
+        </div>
+
+        <!-- 3. 우측 상단: 컨트롤 버튼들 -->
+        <div class="hud-panel hud-right">
+            <button class="icon-btn" id="fullscreen-btn" onclick="toggleFullScreen()">전체화면</button>
+            <button class="icon-btn" id="ranking-btn" onclick="openRanking()">🏆 랭킹</button>
         </div>
 
         <!-- 시작 화면 -->
@@ -159,7 +205,6 @@
             <p style="color: #ff6b6b;">검은 폭탄을 건드리면 감점!</p>
             <div class="btn-group">
                 <button class="action-btn" onclick="startGame()">게임 시작</button>
-                <button class="action-btn secondary" onclick="showRanking()">랭킹 보기</button>
             </div>
         </div>
 
@@ -170,7 +215,6 @@
             <p id="new-record-msg" style="color: #4CAF50; display:none;">🎉 최고 기록 갱신! 🎉</p>
             <div class="btn-group">
                 <button class="action-btn" onclick="startGame()">다시 하기</button>
-                <button class="action-btn secondary" onclick="showRanking()">랭킹 보기</button>
             </div>
         </div>
 
@@ -181,7 +225,7 @@
                 <!-- JS로 채워짐 -->
             </div>
             <div class="btn-group">
-                <button class="action-btn danger" onclick="showStartScreen()">닫기</button>
+                <button class="action-btn danger" onclick="closeRanking()">닫기</button>
             </div>
         </div>
     </div>
@@ -202,12 +246,12 @@
         const newRecordMsg = document.getElementById('new-record-msg');
         const rankListContent = document.getElementById('rank-list-content');
 
-        // 게임 설정 및 상태
+        // 게임 설정
         const config = {
             cols: 3, rows: 3,
             holeSize: 100, moleSize: 80, gap: 20,
             missPenalty: 5,
-            bombPenalty: 20, // 폭탄 패널티
+            bombPenalty: 20,
             baseTime: 30,
             offsetX: 0, offsetY: 0
         };
@@ -217,6 +261,7 @@
             level: 1,
             timeLeft: 30,
             isPlaying: false,
+            isPaused: false, // 랭킹 볼 때 일시정지용
             lastHole: null,
             mouseX: 0, mouseY: 0,
             hammer: { angle: 0, isHitting: false, x:0, y:0 }
@@ -226,6 +271,7 @@
         let effects = [];
         let gameLoopId;
         let timerId;
+        let previousScreen = null; // 랭킹 닫을 때 돌아갈 화면 기억
 
         // ==========================================
         // 로컬 스토리지 & 랭킹 관리
@@ -238,62 +284,88 @@
         function saveHighScore(score) {
             let scores = getHighScores();
             scores.push(score);
-            scores.sort((a, b) => b - a); // 내림차순 정렬
-            scores = scores.slice(0, 5); // 상위 5개만 유지
+            scores.sort((a, b) => b - a);
+            scores = scores.slice(0, 5);
             localStorage.setItem('whac-a-mole-scores', JSON.stringify(scores));
-            return scores[0] === score; // 신기록 여부 리턴
+            return scores[0] === score;
         }
 
         function renderRanking() {
             const scores = getHighScores();
             rankListContent.innerHTML = '';
             if (scores.length === 0) {
-                rankListContent.innerHTML = '<p>아직 기록이 없습니다.</p>';
+                rankListContent.innerHTML = '<p style="font-size: 1rem;">아직 기록이 없습니다.</p>';
                 return;
             }
             scores.forEach((score, index) => {
                 const div = document.createElement('div');
                 div.className = 'rank-item';
-                div.innerHTML = `<span class="rank-rank">${index + 1}위</span> <span>${score}점</span>`;
+                let medal = '';
+                if(index === 0) medal = '🥇';
+                else if(index === 1) medal = '🥈';
+                else if(index === 2) medal = '🥉';
+                
+                div.innerHTML = `<span class="rank-rank">${medal} ${index + 1}위</span> <span>${score}점</span>`;
                 rankListContent.appendChild(div);
             });
         }
 
         // ==========================================
-        // 화면 전환 함수
+        // 화면 전환 함수 (랭킹 로직 개선)
         // ==========================================
         function switchScreen(screen) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             if (screen) screen.classList.add('active');
         }
-        function showStartScreen() { switchScreen(startScreen); }
-        function showRanking() { renderRanking(); switchScreen(rankingScreen); }
-        
+
+        function openRanking() {
+            // 현재 활성화된 스크린 기억 (없으면 null = 게임 중)
+            const activeScreen = document.querySelector('.screen.active');
+            previousScreen = activeScreen;
+
+            // 게임 중이었다면 일시정지 플래그 설정 (타이머 멈춤 등을 위해)
+            if (!activeScreen && gameState.isPlaying) {
+                gameState.isPaused = true; 
+            }
+
+            renderRanking();
+            rankingScreen.classList.add('active'); // 랭킹만 위에 덮어씌움 (기존 스크린 유지하되 z-index로 덮음)
+        }
+
+        function closeRanking() {
+            rankingScreen.classList.remove('active');
+            
+            // 게임 중이었다면 일시정지 해제
+            if (gameState.isPaused) {
+                gameState.isPaused = false;
+            }
+            
+            // 만약 게임 중이 아니었고, 이전에 다른 스크린이 있었다면 그 스크린 복구
+            if (previousScreen) {
+                previousScreen.classList.add('active');
+            }
+        }
+
         // ==========================================
-        // 게임 로직 (레벨, 폭탄)
+        // 게임 로직
         // ==========================================
-        
-        // 레벨 체크: 점수에 따라 레벨업
         function checkLevel() {
-            const newLevel = Math.floor(gameState.score / 50) + 1; // 50점마다 레벨업
+            const newLevel = Math.floor(gameState.score / 50) + 1;
             if (newLevel > gameState.level) {
                 gameState.level = newLevel;
                 levelDisplay.innerText = gameState.level;
-                // 레벨업 이펙트 (중앙에 텍스트)
                 effects.push(new Effect(canvas.width/2, canvas.height/2, 'levelup'));
-                // 시간 약간 추가 보너스
                 gameState.timeLeft = Math.min(gameState.timeLeft + 5, 60);
                 timeDisplay.innerText = gameState.timeLeft;
             }
         }
 
-        // 캔버스 리사이즈
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
             
             const minDim = Math.min(canvas.width, canvas.height);
-            const contentSize = minDim * 0.85; // 85% 사용
+            const contentSize = minDim * 0.85;
             
             config.holeSize = contentSize / 3.5; 
             config.moleSize = config.holeSize * 0.8;
@@ -307,7 +379,6 @@
 
             if (holes.length === 0) initHoles();
             else {
-                // 기존 구멍 위치 업데이트
                 let idx = 0;
                 for(let r=0; r<config.rows; r++){
                     for(let c=0; c<config.cols; c++){
@@ -323,16 +394,15 @@
         window.addEventListener('resize', resizeCanvas);
 
         // ==========================================
-        // 클래스: 이펙트 & 구멍
+        // 클래스 정의 (Effect, Hole)
         // ==========================================
         class Effect {
             constructor(x, y, type) {
                 this.x = x; this.y = y; this.type = type; this.life = 1.0;
-                
                 if (type === 'hit') this.radius = config.holeSize * 0.1;
                 else if (type === 'bomb_hit') this.radius = config.holeSize * 0.1;
                 else if (type === 'miss') this.vy = -2;
-                else if (type === 'levelup') { this.life = 2.0; this.vy = -1; } // 레벨업 텍스트 길게
+                else if (type === 'levelup') { this.life = 2.0; this.vy = -1; }
                 else if (type === 'star' || type === 'smoke') {
                     this.vx = (Math.random() - 0.5) * 10;
                     this.vy = (Math.random() - 0.5) * 10;
@@ -342,7 +412,7 @@
             update() {
                 this.life -= 0.05;
                 if (this.type === 'hit') this.radius += 5;
-                else if (this.type === 'bomb_hit') this.radius += 8; // 폭발 더 크게
+                else if (this.type === 'bomb_hit') this.radius += 8;
                 else if (this.type === 'miss' || this.type === 'levelup') this.y += this.vy;
                 else if (this.type === 'star' || this.type === 'smoke') {
                     this.x += this.vx; this.y += this.vy;
@@ -351,11 +421,10 @@
             draw(ctx) {
                 ctx.save();
                 ctx.globalAlpha = Math.max(0, Math.min(1, this.life));
-                
                 if (this.type === 'hit') {
                     ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                     ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 5; ctx.stroke();
-                } else if (this.type === 'bomb_hit') { // 쾅! 이펙트
+                } else if (this.type === 'bomb_hit') {
                     ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                     ctx.fillStyle = '#ff4444'; ctx.fill();
                     ctx.fillStyle = 'white'; ctx.font = `bold ${config.holeSize*0.4}px Jua`;
@@ -364,15 +433,13 @@
                     ctx.fillStyle = '#FF4500'; ctx.font = `bold ${config.holeSize*0.3}px Jua`;
                     ctx.fillText("MISS!", this.x - 20, this.y);
                 } else if (this.type === 'levelup') {
-                    ctx.fillStyle = '#ffffff'; 
-                    ctx.shadowColor="black"; ctx.shadowBlur=10;
-                    ctx.font = `bold ${config.holeSize*0.6}px Jua`;
-                    ctx.textAlign = "center";
+                    ctx.fillStyle = '#ffffff'; ctx.shadowColor="black"; ctx.shadowBlur=10;
+                    ctx.font = `bold ${config.holeSize*0.6}px Jua`; ctx.textAlign = "center";
                     ctx.fillText("LEVEL UP!", this.x, this.y);
                 } else if (this.type === 'star') {
                     ctx.fillStyle = '#FFFF00'; ctx.translate(this.x, this.y); ctx.rotate(this.life*5);
                     ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
-                } else if (this.type === 'smoke') { // 폭탄 연기
+                } else if (this.type === 'smoke') {
                     ctx.fillStyle = '#555'; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill();
                 }
                 ctx.restore();
@@ -382,22 +449,16 @@
         class Hole {
             constructor(x, y) {
                 this.x = x; this.y = y;
-                this.state = 'idle'; 
-                this.type = 'mole'; // 'mole' or 'bomb'
-                this.moleY = 0;
+                this.state = 'idle'; this.type = 'mole'; this.moleY = 0;
             }
-
             pop() {
-                if (this.state !== 'idle') return;
+                if (this.state !== 'idle' || gameState.isPaused) return; // 일시정지 시 pop 방지
                 this.state = 'rising';
                 this.moleY = config.holeSize;
                 
-                // 레벨이 높을수록 폭탄 확률 증가 (최대 30%)
-                // 레벨 1: 0%, 레벨 2: 10%, 레벨 3: 15% ...
                 const bombChance = Math.min(0.3, (gameState.level - 1) * 0.1); 
                 this.type = Math.random() < bombChance ? 'bomb' : 'mole';
 
-                // 레벨이 높을수록 더 빨리 들어감
                 const baseTime = 1000;
                 const minTime = 400;
                 const speedFactor = (gameState.level - 1) * 100; 
@@ -407,51 +468,37 @@
                     if (this.state === 'rising') this.state = 'idle';
                 }, stayTime);
             }
-
             hit(hitX, hitY) {
                 if (this.state === 'rising') {
-                    this.state = 'hit'; // 즉시 상태 변경
-
+                    this.state = 'hit';
                     if (this.type === 'mole') {
-                        // 두더지: 점수 획득
-                        updateScore(10); // 기본 10점
+                        updateScore(10);
                         effects.push(new Effect(hitX, hitY, 'hit'));
                         for(let i=0; i<5; i++) effects.push(new Effect(hitX, hitY, 'star'));
                     } else {
-                        // 폭탄: 감점
                         updateScore(-config.bombPenalty);
                         effects.push(new Effect(hitX, hitY, 'bomb_hit'));
                         for(let i=0; i<8; i++) effects.push(new Effect(hitX, hitY, 'smoke'));
-                        // 화면 흔들림 효과 (간단 구현)
                         canvas.style.transform = `translate(${Math.random()*10-5}px, ${Math.random()*10-5}px)`;
                         setTimeout(()=>canvas.style.transform='none', 200);
                     }
-
                     setTimeout(() => { this.state = 'idle'; }, 500);
                     return true;
                 }
                 return false;
             }
-
             draw() {
                 const cx = this.x + config.holeSize/2;
                 const cy = this.y + config.holeSize/2;
-
-                // 1. 구멍
                 ctx.fillStyle = '#3e2723';
-                ctx.beginPath();
-                ctx.ellipse(cx, cy + config.holeSize*0.15, config.holeSize/2, config.holeSize/3, 0, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.beginPath(); ctx.ellipse(cx, cy + config.holeSize*0.15, config.holeSize/2, config.holeSize/3, 0, 0, Math.PI * 2); ctx.fill();
 
-                // 2. 내용물 (마스킹)
                 ctx.save();
-                ctx.beginPath();
-                ctx.rect(this.x, this.y - config.holeSize, config.holeSize, config.holeSize * 2); 
-                ctx.clip();
+                ctx.beginPath(); ctx.rect(this.x, this.y - config.holeSize, config.holeSize, config.holeSize * 2); ctx.clip();
 
-                // 애니메이션 속도도 레벨에 따라 빨라짐
-                let moveSpeed = (config.holeSize * 0.1) + (gameState.level * 0.5); 
-                
+                let moveSpeed = (config.holeSize * 0.1) + (gameState.level * 0.5);
+                if(gameState.isPaused) moveSpeed = 0; // 일시정지 시 애니메이션 멈춤
+
                 if (this.state !== 'idle') {
                     this.moleY = Math.max(0, this.moleY - (this.state === 'rising' ? moveSpeed : -moveSpeed/2));
                 } else {
@@ -459,31 +506,19 @@
                 }
 
                 const drawY = cy + this.moleY;
-
                 if (this.moleY < config.holeSize) {
-                    if (this.type === 'mole') {
-                        this.drawMole(cx, drawY);
-                    } else {
-                        this.drawBomb(cx, drawY);
-                    }
+                    if (this.type === 'mole') this.drawMole(cx, drawY);
+                    else this.drawBomb(cx, drawY);
                 }
                 ctx.restore();
 
-                // 3. 구멍 앞 턱
-                ctx.fillStyle = '#5d4037'; ctx.beginPath(); 
-                ctx.ellipse(cx, cy + config.holeSize*0.2, config.holeSize/2, config.holeSize/6, 0, 0, Math.PI); ctx.fill();
+                ctx.fillStyle = '#5d4037'; ctx.beginPath(); ctx.ellipse(cx, cy + config.holeSize*0.2, config.holeSize/2, config.holeSize/6, 0, 0, Math.PI); ctx.fill();
             }
-
             drawMole(x, y) {
-                // 몸통
-                ctx.fillStyle = '#8d6e63'; 
-                ctx.beginPath(); ctx.ellipse(x, y, config.moleSize/2, config.moleSize/1.8, 0, Math.PI, 0); ctx.fill(); ctx.stroke();
-                
-                // 표정
+                ctx.fillStyle = '#8d6e63'; ctx.beginPath(); ctx.ellipse(x, y, config.moleSize/2, config.moleSize/1.8, 0, Math.PI, 0); ctx.fill(); ctx.stroke();
                 const eyeOffX = config.moleSize*0.2; const eyeOffY = config.moleSize*0.4;
                 ctx.fillStyle = 'black';
                 if (this.state === 'hit') {
-                    // 아야! X_X
                     ctx.lineWidth=3;
                     ctx.beginPath(); ctx.moveTo(x-eyeOffX-5, y-eyeOffY-5); ctx.lineTo(x-eyeOffX+5, y-eyeOffY+5); ctx.moveTo(x-eyeOffX+5, y-eyeOffY-5); ctx.lineTo(x-eyeOffX-5, y-eyeOffY+5); ctx.stroke();
                     ctx.beginPath(); ctx.moveTo(x+eyeOffX-5, y-eyeOffY-5); ctx.lineTo(x+eyeOffX+5, y-eyeOffY+5); ctx.moveTo(x+eyeOffX+5, y-eyeOffY-5); ctx.lineTo(x+eyeOffX-5, y-eyeOffY+5); ctx.stroke();
@@ -491,47 +526,29 @@
                     ctx.fillStyle = 'red'; ctx.font = `bold ${config.moleSize*0.3}px Jua`; 
                     ctx.fillText('아야!', x-config.moleSize*0.4, y-config.moleSize*0.6);
                 } else {
-                    // 기본 O_O
                     ctx.beginPath(); ctx.arc(x-eyeOffX, y-eyeOffY, 3, 0, Math.PI*2); ctx.arc(x+eyeOffX, y-eyeOffY, 3, 0, Math.PI*2); ctx.fill();
                 }
-                // 코
                 ctx.fillStyle = '#ffab91'; ctx.beginPath(); ctx.ellipse(x, y-eyeOffY+15, 8, 5, 0, 0, Math.PI*2); ctx.fill();
             }
-
             drawBomb(x, y) {
-                // 폭탄 본체 (검은 원)
-                ctx.fillStyle = '#222'; 
-                ctx.beginPath(); ctx.arc(x, y-config.moleSize*0.2, config.moleSize/2.2, 0, Math.PI*2); ctx.fill(); 
-                // 광택
+                ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(x, y-config.moleSize*0.2, config.moleSize/2.2, 0, Math.PI*2); ctx.fill(); 
                 ctx.fillStyle = '#555'; ctx.beginPath(); ctx.arc(x-10, y-config.moleSize*0.4, 5, 0, Math.PI*2); ctx.fill();
-                
-                // 심지
                 ctx.strokeStyle = '#d4a017'; ctx.lineWidth = 4;
                 ctx.beginPath(); ctx.moveTo(x, y-config.moleSize*0.6); ctx.quadraticCurveTo(x+10, y-config.moleSize*0.8, x+15, y-config.moleSize*0.7); ctx.stroke();
-                
-                // 심지 불꽃
                 if (this.state !== 'hit') {
                     ctx.fillStyle = 'orange'; ctx.beginPath(); ctx.arc(x+15, y-config.moleSize*0.7, Math.random()*4+2, 0, Math.PI*2); ctx.fill();
                 }
-
-                // 해골 마크 or 위험 표시
-                ctx.fillStyle = 'red'; ctx.font = `bold ${config.moleSize*0.4}px sans-serif`; 
-                ctx.fillText("!", x-4, y-config.moleSize*0.1);
+                ctx.fillStyle = 'red'; ctx.font = `bold ${config.moleSize*0.4}px sans-serif`; ctx.fillText("!", x-4, y-config.moleSize*0.1);
             }
         }
 
         function drawHammer(ctx, x, y, angle) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(angle);
+            ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
             const scale = config.holeSize / 120;
-            // 뿅망치
             ctx.fillStyle = '#8B4513'; ctx.fillRect(-10*scale, -20*scale, 20*scale, 100*scale);
             ctx.fillStyle = '#FF6347'; ctx.beginPath(); ctx.roundRect(-40*scale, -50*scale, 80*scale, 40*scale, 10*scale); ctx.fill();
             ctx.strokeStyle = '#B22222'; ctx.lineWidth = 3*scale; ctx.stroke();
-            // 주름
-            ctx.fillStyle = '#ff8a65'; 
-            ctx.beginPath(); ctx.arc(-20*scale, -30*scale, 5*scale, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#ff8a65'; ctx.beginPath(); ctx.arc(-20*scale, -30*scale, 5*scale, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(20*scale, -30*scale, 5*scale, 0, Math.PI*2); ctx.fill();
             ctx.restore();
         }
@@ -543,7 +560,7 @@
             holes = [];
             for (let r = 0; r < config.rows; r++) {
                 for (let c = 0; c < config.cols; c++) {
-                    holes.push(new Hole(0,0)); // resizeCanvas에서 위치 잡음
+                    holes.push(new Hole(0,0));
                 }
             }
         }
@@ -557,9 +574,14 @@
         }
 
         function peep() {
-            if (!gameState.isPlaying) return;
+            if (!gameState.isPlaying || gameState.isPaused) {
+                if(gameState.isPlaying && gameState.isPaused) {
+                    // 일시정지 중이면 잠시 후 다시 체크
+                    setTimeout(peep, 500); 
+                }
+                return;
+            }
             
-            // 레벨에 따라 튀어나오는 빈도 증가
             let freq = Math.max(300, 1000 - (gameState.level * 100));
             let variance = Math.max(100, 500 - (gameState.level * 50));
             
@@ -579,6 +601,7 @@
             gameState.level = 1;
             gameState.timeLeft = config.baseTime;
             gameState.isPlaying = true;
+            gameState.isPaused = false;
             effects = [];
             
             scoreDisplay.textContent = "0";
@@ -586,18 +609,19 @@
             timeDisplay.textContent = gameState.timeLeft;
             newRecordMsg.style.display = 'none';
             
-            switchScreen(null); // 모든 스크린 닫기
+            switchScreen(null);
             
             resizeCanvas();
             peep();
             
-            // 타이머
             if (timerId) clearInterval(timerId);
             timerId = setInterval(() => {
-                gameState.timeLeft--;
-                timeDisplay.textContent = gameState.timeLeft;
-                if (gameState.timeLeft <= 0) {
-                    endGame();
+                if(!gameState.isPaused) {
+                    gameState.timeLeft--;
+                    timeDisplay.textContent = gameState.timeLeft;
+                    if (gameState.timeLeft <= 0) {
+                        endGame();
+                    }
                 }
             }, 1000);
             
@@ -607,25 +631,24 @@
         function endGame() {
             gameState.isPlaying = false;
             clearInterval(timerId);
-            
             finalScoreSpan.textContent = gameState.score;
-            
             const isNewRecord = saveHighScore(gameState.score);
             if(isNewRecord && gameState.score > 0) newRecordMsg.style.display = 'block';
-            
             switchScreen(gameOverScreen);
         }
 
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
             holes.forEach(hole => hole.draw());
+            
+            // 일시정지 중에는 이펙트 업데이트 안함 (그리기만 함)
+            if(!gameState.isPaused) {
+                effects = effects.filter(e => e.life > 0);
+                effects.forEach(e => e.update());
+            }
+            effects.forEach(e => e.draw(ctx));
 
-            effects = effects.filter(e => e.life > 0);
-            effects.forEach(e => { e.update(); e.draw(ctx); });
-
-            if (gameState.isPlaying) {
-                // 망치 위치 보정 (모바일/PC)
+            if (gameState.isPlaying && !gameState.isPaused) {
                 drawHammer(ctx, gameState.mouseX, gameState.mouseY, gameState.hammer.angle);
             }
 
@@ -636,19 +659,17 @@
         // 입력 핸들러
         // ==========================================
         function handleInput(x, y) {
-            if (!gameState.isPlaying) return;
+            if (!gameState.isPlaying || gameState.isPaused) return;
 
             gameState.mouseX = x; gameState.mouseY = y;
             gameState.hammer.isHitting = true;
             gameState.hammer.angle = -Math.PI / 4;
 
             let hitSomething = false;
-
             holes.forEach(hole => {
                 const cx = hole.x + config.holeSize / 2;
                 const cy = hole.y + config.holeSize / 2;
                 const dist = Math.hypot(x - cx, y - cy);
-                
                 if (dist < config.holeSize / 1.5 && hole.state === 'rising') {
                     hole.hit(x, y);
                     hitSomething = true;
@@ -666,26 +687,16 @@
             }, 100);
         }
 
-        // Mouse & Touch Events
         canvas.addEventListener('mousedown', e => handleInput(e.clientX, e.clientY));
         canvas.addEventListener('mousemove', e => { gameState.mouseX = e.clientX; gameState.mouseY = e.clientY; });
-        
-        canvas.addEventListener('touchstart', e => {
-            e.preventDefault();
-            handleInput(e.touches[0].clientX, e.touches[0].clientY);
-        }, {passive: false});
-        
-        canvas.addEventListener('touchmove', e => {
-             e.preventDefault(); 
-             gameState.mouseX = e.touches[0].clientX; gameState.mouseY = e.touches[0].clientY; 
-        }, {passive: false});
+        canvas.addEventListener('touchstart', e => { e.preventDefault(); handleInput(e.touches[0].clientX, e.touches[0].clientY); }, {passive: false});
+        canvas.addEventListener('touchmove', e => { e.preventDefault(); gameState.mouseX = e.touches[0].clientX; gameState.mouseY = e.touches[0].clientY; }, {passive: false});
 
         function toggleFullScreen() {
             if (!document.fullscreenElement) document.documentElement.requestFullscreen();
             else if (document.exitFullscreen) document.exitFullscreen();
         }
 
-        // 초기화
         initHoles();
         resizeCanvas();
 
