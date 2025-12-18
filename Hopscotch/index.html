@@ -22,12 +22,13 @@
             image-rendering: pixelated; 
         }
 
+        /* 상단 UI 바 */
         #ui-layer {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
-            padding: 15px;
+            padding: 10px 15px;
             box-sizing: border-box;
             pointer-events: none;
             text-shadow: 2px 2px 4px black;
@@ -35,12 +36,13 @@
             justify-content: space-between;
             align-items: flex-start;
             font-weight: bold;
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
             z-index: 10;
+            transition: opacity 0.5s;
         }
 
-        .stat-group { display: flex; flex-direction: column; gap: 5px; }
+        .stat-group { display: flex; flex-direction: column; gap: 4px; }
         .stat-item span { color: #ffcc00; }
         
         #right-ui {
@@ -51,30 +53,50 @@
             pointer-events: auto;
         }
 
-        /* 버튼 그룹 스타일 */
-        .btn-group {
-            display: flex;
-            gap: 10px;
-        }
+        .btn-group { display: flex; gap: 8px; }
 
         .game-btn {
-            background: rgba(255, 255, 255, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.6);
             color: white;
-            padding: 8px 12px;
-            border-radius: 8px;
+            padding: 6px 12px;
+            border-radius: 20px;
             cursor: pointer;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             transition: 0.2s;
             display: flex;
             align-items: center;
             justify-content: center;
             backdrop-filter: blur(4px);
         }
-        .game-btn:hover { background: rgba(255, 255, 255, 0.4); transform: scale(1.05); }
-        .icon-btn { font-size: 1.2rem; padding: 5px 10px; }
+        .game-btn:hover { background: rgba(255, 255, 255, 0.5); transform: scale(1.05); }
+        .icon-btn { font-size: 1.1rem; padding: 6px 10px; }
 
-        /* 결과 모달 */
+        /* 승리 시 상단 안내 메시지 */
+        #victory-msg {
+            display: none;
+            position: absolute;
+            top: 15%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 30px;
+            color: #00ff00;
+            font-size: 1.2rem;
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 50;
+            border: 2px solid #fff;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: translateX(-50%) scale(1); }
+            50% { transform: translateX(-50%) scale(1.05); }
+            100% { transform: translateX(-50%) scale(1); }
+        }
+
+        /* 결과 모달 (게임오버 시에만 사용) */
         #result-modal {
             display: none;
             position: absolute;
@@ -89,14 +111,14 @@
             pointer-events: auto;
             z-index: 100;
             box-shadow: 0 0 50px rgba(255,255,255,0.2);
-            min-width: 300px;
+            min-width: 280px;
         }
         #result-title { font-size: 2.5rem; margin-bottom: 10px; color: #ff3333; }
         #result-sub { font-size: 1.2rem; margin-bottom: 25px; color: #ccc; }
         
-        #next-level-btn, #restart-btn {
-            padding: 15px 30px;
-            font-size: 1.3rem;
+        #restart-btn {
+            padding: 12px 25px;
+            font-size: 1.2rem;
             background: #333;
             color: white;
             border: 2px solid white;
@@ -104,7 +126,7 @@
             transition: 0.2s;
             border-radius: 5px;
         }
-        #next-level-btn:hover, #restart-btn:hover { background: #555; transform: scale(1.05); }
+        #restart-btn:hover { background: #555; transform: scale(1.05); }
 
         /* 모바일 컨트롤러 */
         #mobile-controls {
@@ -177,18 +199,20 @@
         <div id="right-ui">
             <div class="btn-group">
                 <input type="file" id="img-input" accept="image/*" style="display: none;">
-                <button class="game-btn" onclick="document.getElementById('img-input').click()">📷 사진 변경</button>
+                <button class="game-btn" onclick="document.getElementById('img-input').click()">📷 사진</button>
                 <button class="game-btn icon-btn" onclick="toggleFullscreen()">⛶</button>
             </div>
         </div>
     </div>
 
-    <!-- 결과 화면 -->
+    <!-- 승리 메시지 (배경 감상 모드) -->
+    <div id="victory-msg">성공! 터치하여 다음 레벨로 ▶</div>
+
+    <!-- 게임오버 모달 -->
     <div id="result-modal">
         <div id="result-title">GAME OVER</div>
         <div id="result-sub">다시 도전하세요!</div>
         <button id="restart-btn" onclick="resetGame(true)">다시하기</button>
-        <button id="next-level-btn" onclick="nextLevel()" style="display:none;">다음 레벨 ▶</button>
     </div>
 
     <canvas id="gameCanvas"></canvas>
@@ -210,8 +234,8 @@
     const modal = document.getElementById('result-modal');
     const resultTitle = document.getElementById('result-title');
     const resultSub = document.getElementById('result-sub');
-    const restartBtn = document.getElementById('restart-btn');
-    const nextLevelBtn = document.getElementById('next-level-btn');
+    const victoryMsg = document.getElementById('victory-msg');
+    const uiLayer = document.getElementById('ui-layer');
     const imgInput = document.getElementById('img-input');
 
     // 게임 상수
@@ -226,7 +250,7 @@
     let lives = 3;
     let totalPixels = 0;
     let capturedPixels = 0;
-    let gameState = 'playing'; // playing, gameover, victory
+    let gameState = 'playing'; // 'playing', 'gameover', 'victory_view'
     let isInitialized = false;
     let currentTargetPercent = 80;
     
@@ -250,6 +274,16 @@
     let input = { left: false, right: false, up: false, down: false, action: false, joyX: 0, joyY: 0 };
 
     // --- 이벤트 핸들러 ---
+    
+    // 화면 클릭/터치 시 다음 레벨로 (승리 뷰 상태일 때)
+    document.addEventListener('click', handleGlobalClick);
+    document.addEventListener('touchstart', handleGlobalClick);
+
+    function handleGlobalClick() {
+        if (gameState === 'victory_view') {
+            nextLevel();
+        }
+    }
 
     imgInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
@@ -321,10 +355,12 @@
 
         gameState = 'playing';
         updateUI();
+        
+        // UI 초기화
         modal.style.display = 'none';
-        nextLevelBtn.style.display = 'none';
-        restartBtn.style.display = 'inline-block';
-
+        victoryMsg.style.display = 'none';
+        uiLayer.style.opacity = '1'; // UI 다시 보이기
+        
         grid = new Uint8Array(width * height);
         totalPixels = width * height;
         capturedPixels = 0;
@@ -550,12 +586,9 @@
     }
 
     function checkCollision() {
-        // [수정] 안전지대에 있을 때는 무적 (몸통 박치기 & 미사일 면역)
         const isOnSafeGround = isSafe(player.x, player.y);
 
-        // 1. 적 본체 충돌
         enemies.forEach(en => {
-            // 선 충돌 (선은 안전지대 밖에 있으므로 항상 위험)
             if ((player.state === 'drawing' || player.state === 'retracting') && path.length > 0) {
                 for (let p of path) {
                     if (Math.hypot(p.x - en.x, p.y - en.y) < en.radius + 4) {
@@ -563,7 +596,6 @@
                     }
                 }
             }
-            // 몸 충돌 (안전지대 밖일 때만)
             if (!isOnSafeGround) {
                 if (Math.hypot(player.x - en.x, player.y - en.y) < en.radius + PLAYER_SIZE + 2) {
                     handleDeath("적에게 잡혔습니다!"); return;
@@ -571,9 +603,7 @@
             }
         });
 
-        // 2. 미사일 충돌
         projectiles.forEach(p => {
-             // 선 충돌
              if ((player.state === 'drawing' || player.state === 'retracting') && path.length > 0) {
                 for (let pt of path) {
                     if (Math.hypot(pt.x - p.x, pt.y - p.y) < p.radius + 4) {
@@ -581,7 +611,6 @@
                     }
                 }
             }
-            // 몸 충돌 (안전지대 밖일 때만)
             if (!isOnSafeGround) {
                 if (Math.hypot(player.x - p.x, player.y - p.y) < p.radius + PLAYER_SIZE + 2) {
                     handleDeath("미사일에 맞았습니다!"); return;
@@ -605,32 +634,30 @@
     }
 
     function endGame(win, msg) {
-        gameState = win ? 'victory' : 'gameover';
-        
         if (win) {
-            revealArea(0, 0, width, height); 
-            resultTitle.innerText = "STAGE CLEAR!";
-            resultTitle.style.color = "#00ff00";
-            resultSub.innerText = `레벨 ${level} 완료! (목표: ${currentTargetPercent}%)\n다음 레벨 도전?`;
-            restartBtn.style.display = 'none';
-            nextLevelBtn.style.display = 'inline-block';
+            // 승리 모드 (배경 감상)
+            gameState = 'victory_view';
+            revealArea(0, 0, width, height); // 전체 공개
+            victoryMsg.style.display = 'block'; // 터치 안내 메시지
+            uiLayer.style.opacity = '0.5'; // UI 살짝 숨김
         } else {
+            // 패배 모드
+            gameState = 'gameover';
             resultTitle.innerText = "GAME OVER";
-            resultTitle.style.color = "#ff3333";
             resultSub.innerText = msg;
-            restartBtn.style.display = 'inline-block';
-            nextLevelBtn.style.display = 'none';
+            modal.style.display = 'block';
         }
-        modal.style.display = 'block';
     }
 
     function fillLand() {
+        // [1] 선을 Grid에 기록
         if(path.length > 0) {
              for (let i = 0; i < path.length - 1; i++) {
                 drawLineOnGrid(path[i].x, path[i].y, path[i+1].x, path[i+1].y);
             }
         }
         
+        // [2] Flood Fill로 갇힌 영역 찾기
         let boss = enemies.find(e => e.type === 'boss') || enemies[0];
         let bx = boss ? Math.floor(boss.x) : Math.floor(width/2);
         let by = boss ? Math.floor(boss.y) : Math.floor(height/2);
@@ -661,10 +688,13 @@
         let bgData = bgImgData.data;
         let newPixels = 0;
 
+        // [3] Grid 전체 갱신 (새로 획득한 땅 + 기존 땅 모두 이미지로 덮음)
+        // 성능을 위해 새로 획득한 곳만 처리
         for (let i = 0; i < grid.length; i++) {
             if (grid[i] === 0 && visited[i] === 0) {
                 grid[i] = 1; 
                 newPixels++;
+                // 이미지 픽셀 복사
                 let idx = i * 4;
                 landData[idx] = bgData[idx];     
                 landData[idx+1] = bgData[idx+1]; 
@@ -672,16 +702,33 @@
                 landData[idx+3] = bgData[idx+3]; 
             }
         }
-        
-        for(let p of path) {
-            for(let py=Math.floor(p.y)-2; py<=Math.floor(p.y)+2; py++) {
-                for(let px=Math.floor(p.x)-2; px<=Math.floor(p.x)+2; px++) {
-                    if(px>=0 && px<width && py>=0 && py<height) {
-                         let idx = (py*width + px) * 4;
-                         landData[idx] = bgData[idx];
-                         landData[idx+1] = bgData[idx+1];
-                         landData[idx+2] = bgData[idx+2];
-                         landData[idx+3] = bgData[idx+3];
+
+        // [4] 자국 제거 로직 개선: 경로(path) 주변을 강제로 이미지로 덮어쓰기
+        // 점과 점 사이를 촘촘하게 메움
+        if (path.length > 1) {
+            for (let i = 0; i < path.length - 1; i++) {
+                let p1 = path[i];
+                let p2 = path[i+1];
+                let dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                let steps = Math.ceil(dist); // 픽셀 단위로 이동
+                
+                for (let s = 0; s <= steps; s++) {
+                    let t = s / steps;
+                    let lx = p1.x + (p2.x - p1.x) * t;
+                    let ly = p1.y + (p2.y - p1.y) * t;
+                    
+                    // 해당 위치 주변 4px 반경을 이미지로 칠함 (선 두께보다 약간 넓게)
+                    let radius = 4; 
+                    for(let py = Math.floor(ly)-radius; py <= Math.floor(ly)+radius; py++) {
+                        for(let px = Math.floor(lx)-radius; px <= Math.floor(lx)+radius; px++) {
+                            if(px >= 0 && px < width && py >= 0 && py < height) {
+                                let idx = (py * width + px) * 4;
+                                landData[idx] = bgData[idx];
+                                landData[idx+1] = bgData[idx+1];
+                                landData[idx+2] = bgData[idx+2];
+                                landData[idx+3] = bgData[idx+3];
+                            }
+                        }
                     }
                 }
             }
@@ -729,6 +776,9 @@
 
     function draw() {
         ctx.drawImage(landCanvas, 0, 0);
+
+        // 승리 뷰 상태라면 게임 요소(플레이어, 적)는 그리지 않음
+        if (gameState === 'victory_view') return;
 
         if (path.length > 1) {
             ctx.beginPath();
