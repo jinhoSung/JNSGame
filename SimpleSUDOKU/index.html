@@ -2,14 +2,14 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>스도쿠 (Sudoku)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
-        body { font-family: 'Noto Sans KR', sans-serif; }
+        body { font-family: 'Noto Sans KR', sans-serif; touch-action: manipulation; }
         .cell-content { pointer-events: none; }
         .no-select { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 
@@ -19,7 +19,6 @@
             50% { transform: scale(1.4); }
             100% { transform: scale(1); }
         }
-        /* !important를 사용하여 선택된 상태(파란색)보다 우선순위를 높임 */
         .animate-pop {
             animation: pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             z-index: 20;
@@ -35,8 +34,8 @@
         }
         .animate-shake {
             animation: shake 0.4s ease-in-out;
-            background-color: #fee2e2 !important; /* Red-100 Force */
-            color: #dc2626 !important; /* Red-600 Force */
+            background-color: #fee2e2 !important; 
+            color: #dc2626 !important;
             z-index: 20;
             position: relative;
         }
@@ -49,6 +48,23 @@
             animation: fadeIn 0.3s ease-out forwards;
         }
 
+        /* Ripple Effect */
+        @keyframes ripple-anim {
+            0% { transform: translate(-50%, -50%) scale(0.2); opacity: 0.6; }
+            100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+        }
+        .click-ripple {
+            position: fixed;
+            width: 30px;
+            height: 30px;
+            background: rgba(59, 130, 246, 0.4); /* Blue-500 with opacity */
+            border-radius: 50%;
+            pointer-events: none; /* 중요: 클릭 이벤트 통과 */
+            z-index: 9999;
+            animation: ripple-anim 0.6s ease-out forwards;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
+        }
+
         .toggle-checkbox:checked {
             right: 0;
             border-color: #3b82f6;
@@ -58,10 +74,10 @@
         }
     </style>
 </head>
-<body class="transition-colors duration-300 min-h-screen flex flex-col items-center py-6 px-2">
+<body class="transition-colors duration-300 min-h-screen flex flex-col items-center py-6 px-2 overflow-x-hidden">
 
     <!-- App Container -->
-    <div id="app" class="w-full max-w-lg flex flex-col gap-4">
+    <div id="app" class="w-full max-w-lg flex flex-col gap-4 relative z-10">
         <!-- Header -->
         <div class="flex justify-between items-center">
             <h1 id="game-title" class="text-3xl font-bold">스도쿠</h1>
@@ -206,9 +222,9 @@
 
     <script>
         const BLANK = 0;
-        const STORAGE_KEY_GAME = 'sudoku_gamestate_html_v6';
-        const STORAGE_KEY_SETTINGS = 'sudoku_settings_html_v6';
-        const STORAGE_KEY_SCORES = 'sudoku_scores_html_v6';
+        const STORAGE_KEY_GAME = 'sudoku_gamestate_html_v7';
+        const STORAGE_KEY_SETTINGS = 'sudoku_settings_html_v7';
+        const STORAGE_KEY_SCORES = 'sudoku_scores_html_v7';
 
         const THEMES = {
             Classic: { name: '클래식', bg: 'bg-slate-50', textMain: 'text-slate-800', textSub: 'text-slate-500', boardBg: 'bg-slate-800', boardBorder: 'border-slate-800', cellInitial: 'bg-slate-100 text-slate-900', cellSelected: 'bg-blue-500 text-white', cellSame: 'bg-blue-200 text-slate-900', cellError: 'bg-red-100 text-red-600', cellNormal: 'bg-white text-blue-600', cellNote: 'text-slate-500', btnPrimary: 'bg-blue-600 hover:bg-blue-500 text-white border-blue-800', btnActive: 'bg-slate-700 text-white border-slate-900', btnInactive: 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50', numPad: 'bg-white text-slate-700 hover:bg-blue-50 hover:text-blue-600 border-slate-200', eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200', borderLight: 'border-slate-300', borderHeavy: 'border-slate-800' },
@@ -657,23 +673,15 @@
                     if ((r + 1) % boxSize === 0 && r !== size - 1) borderWidthBottom = 'border-b-2';
 
                     cls += `${borderWidthRight} ${rightColorClass} ${borderWidthBottom} ${bottomColorClass} `;
-                    
-                    // --- EFFECT LOGIC ---
-                    // Append specific animation classes regardless of other states if effect matches
-                    let animationClass = '';
-                    if (state.effectEnabled) {
-                        if (state.lastEffect.type === 'wrong' && state.lastEffect.row === r && state.lastEffect.col === c) {
-                            animationClass = ' animate-shake';
-                        } else if (state.lastEffect.type === 'correct' && state.lastEffect.row === r && state.lastEffect.col === c) {
-                            animationClass = ' animate-pop';
-                        }
-                    }
 
-                    // --- COLOR LOGIC ---
                     if (isSelected) {
                         cls += theme.cellSelected;
                     } else if (isError) {
                         cls += theme.cellError;
+                        // Add shake animation class if effect enabled
+                        if(state.effectEnabled && state.lastEffect.type === 'wrong' && state.lastEffect.row === r && state.lastEffect.col === c) {
+                            cls += ' animate-shake';
+                        }
                     } else if (isSameNumber) {
                         cls += theme.cellSame;
                     } else if (isInitial) {
@@ -686,8 +694,11 @@
                     } else {
                         cls += theme.cellNormal;
                     }
-
-                    cls += animationClass;
+                    
+                    // Add Pop Animation if correct
+                    if(state.effectEnabled && state.lastEffect.type === 'correct' && state.lastEffect.row === r && state.lastEffect.col === c) {
+                        cls += ' animate-pop';
+                    }
 
                     cell.className = cls;
                     cell.onclick = () => {
@@ -757,12 +768,15 @@
             state.isPaused = false;
             state.selectedCell = null;
             state.isNoteMode = false;
-            state.lastEffect = { row: null, col: null, type: null };
 
             document.getElementById('modal-win').classList.add('hidden');
             document.getElementById('modal-fail').classList.add('hidden');
-            document.getElementById('note-text').textContent = '메모 OFF';
-            document.getElementById('mistake-count').textContent = '0';
+            
+            const noteText = document.getElementById('note-text');
+            if(noteText) noteText.textContent = '메모 OFF';
+            
+            const mistakeCount = document.getElementById('mistake-count');
+            if(mistakeCount) mistakeCount.textContent = '0';
             
             if (shouldSave) localStorage.removeItem(STORAGE_KEY_GAME);
             
@@ -780,8 +794,10 @@
             if (!state.selectedCell || state.isWon) return;
             const [r, c] = state.selectedCell;
             
+            // Cannot edit initial cells
             if (state.initialBoard[r][c] !== BLANK) return;
 
+            // Note Mode
             if (state.isNoteMode) {
                 playSound('input');
                 if (num === 0) {
@@ -795,6 +811,7 @@
                 return;
             }
 
+            // Normal Mode
             if (num === 0) {
                 playSound('delete');
                 state.board[r][c] = BLANK;
@@ -804,25 +821,31 @@
                 return;
             }
 
+            // Check Move
             if (num !== state.solution[r][c]) {
+                // Wrong
                 playSound('wrong');
                 state.mistakes++;
                 const mistakeCount = document.getElementById('mistake-count');
                 if(mistakeCount) mistakeCount.textContent = state.mistakes;
                 
+                // Track Effect
                 state.lastEffect = { row: r, col: c, type: 'wrong' };
+                // Render to show error immediately
                 renderBoard();
                 
                 if (state.mistakes >= 3) {
                     document.getElementById('modal-fail').classList.remove('hidden');
                 }
                 
+                // Clear effect after animation
                 setTimeout(() => {
                     state.lastEffect = { row: null, col: null, type: null };
                     renderBoard();
                 }, 500);
 
             } else {
+                // Correct
                 playSound('correct');
                 state.board[r][c] = num;
                 state.notes[r][c].clear();
@@ -838,7 +861,7 @@
                     }
                 }
                 
-                renderBoard(); 
+                renderBoard(); // Show pop effect
                 
                 if (isComplete) {
                     state.isWon = true;
@@ -847,16 +870,21 @@
                     setTimeout(() => {
                         playSound('win');
                         if(state.effectEnabled && window.confetti) {
-                            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+                            confetti({
+                                particleCount: 150,
+                                spread: 70,
+                                origin: { y: 0.6 }
+                            });
                         }
                         updateScore(state.gridSize, state.difficulty, state.timer);
                         document.getElementById('win-size').textContent = `${state.gridSize}x${state.gridSize}`;
                         document.getElementById('win-diff').textContent = getDifficultyLabel(state.difficulty);
                         document.getElementById('win-time').textContent = formatTime(state.timer);
                         document.getElementById('modal-win').classList.remove('hidden');
-                    }, 500); 
+                    }, 500); // Delay slightly for pop animation
                 }
                 
+                // Clear effect
                 setTimeout(() => {
                     state.lastEffect = { row: null, col: null, type: null };
                     renderBoard();
@@ -883,6 +911,22 @@
             renderBoard();
         }
 
+        // --- Ripple Logic ---
+        let isDragging = false;
+        let lastRippleX = 0;
+        let lastRippleY = 0;
+        const RIPPLE_DISTANCE = 30; // Min px distance to trigger next ripple on drag
+
+        function createRipple(x, y) {
+            if (!state.effectEnabled) return;
+            const ripple = document.createElement('div');
+            ripple.className = 'click-ripple';
+            ripple.style.left = `${x}px`;
+            ripple.style.top = `${y}px`;
+            document.body.appendChild(ripple);
+            ripple.addEventListener('animationend', () => ripple.remove());
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             loadSettings();
             loadScores();
@@ -901,6 +945,27 @@
                     if(timerEl) timerEl.textContent = formatTime(state.timer);
                 }
             }, 1000);
+
+            // Global Interaction (Touch/Mouse) for Ripple
+            window.addEventListener('pointerdown', (e) => {
+                isDragging = true;
+                createRipple(e.clientX, e.clientY);
+                lastRippleX = e.clientX;
+                lastRippleY = e.clientY;
+            });
+
+            window.addEventListener('pointermove', (e) => {
+                if (!isDragging) return;
+                const dist = Math.hypot(e.clientX - lastRippleX, e.clientY - lastRippleY);
+                if (dist > RIPPLE_DISTANCE) {
+                    createRipple(e.clientX, e.clientY);
+                    lastRippleX = e.clientX;
+                    lastRippleY = e.clientY;
+                }
+            });
+
+            window.addEventListener('pointerup', () => { isDragging = false; });
+            window.addEventListener('pointercancel', () => { isDragging = false; });
 
             window.addEventListener('keydown', (e) => {
                 if (document.getElementById('modal-scoreboard') && !document.getElementById('modal-scoreboard').classList.contains('hidden')) return;
@@ -931,6 +996,7 @@
                 }
             });
 
+            // Toggles
             document.getElementById('toggle-sound').onclick = (e) => {
                 state.soundEnabled = e.target.checked;
                 if(state.soundEnabled) playSound('click');
