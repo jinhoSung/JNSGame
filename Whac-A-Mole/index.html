@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>추억의 두더지 잡기 - 업그레이드</title>
+    <style>
+        /* 이전과 동일한 스타일 */
+        body { margin: 0; padding: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; background-color: #87CEEB; font-family: 'Sunflower', sans-serif; overflow: hidden; user-select: none; }
+        h1 { color: #fff; text-shadow: 2px 2px 0 #000; margin-bottom: 10px; font-size: 2.5rem; }
+        #game-container { position: relative; box-shadow: 0 10px 20px rgba(0,0,0,0.3); border-radius: 15px; overflow: hidden; border: 5px solid #4a3728; background-color: #65a30d; cursor: none; /* 기본 커서 숨김 (망치 커서 사용) */ }
+        canvas { display: block; }
+        .ui-overlay { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; padding: 10px; box-sizing: border-box; display: flex; justify-content: space-between; font-size: 24px; font-weight: bold; color: white; text-shadow: 2px 2px 0 #000; }
+        #start-screen, #game-over-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; z-index: 10; pointer-events: auto; cursor: default; }
+        button { padding: 15px 30px; font-size: 24px; background-color: #ff9800; border: 4px solid #fff; color: white; border-radius: 50px; cursor: pointer; font-weight: bold; transition: transform 0.1s; box-shadow: 0 5px 0 #b36b00; }
+        button:active { transform: scale(0.95); box-shadow: 0 2px 0 #b36b00; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <h1>두더지 잡기 Ver.2</h1>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
+        
+        <div class="ui-overlay">
+            <div id="score-board">점수: 0</div>
+            <div id="time-board">시간: 30</div>
+        </div>
+
+        <div id="start-screen">
+            <h2>준비되셨나요?</h2>
+            <p>나타나는 두더지를 뿅망치로 잡으세요!</p>
+            <p style="font-size: 0.8em; color: #ffcccb;">(빗나가면 -5점 패널티!)</p>
+            <br>
+            <button onclick="startGame()">게임 시작</button>
+        </div>
+
+        <div id="game-over-screen" class="hidden">
+            <h2>게임 종료!</h2>
+            <p>최종 점수: <span id="final-score">0</span></p>
+            <br>
+            <button onclick="startGame()">다시 하기</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreBoard = document.getElementById('score-board');
+        const timeBoard = document.getElementById('time-board');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalScoreSpan = document.getElementById('final-score');
+
+        // 게임 상태 관리
+        const gameState = {
+            score: 0,
+            timeLeft: 30,
+            timeUp: false,
+            isPlaying: false,
+            lastHole: null,
+            mouseX: canvas.width / 2,
+            mouseY: canvas.height / 2,
+            hammer: { angle: 0, isHitting: false } // 망치 상태 추가
+        };
+        
+        const config = {
+            cols: 3, rows: 3,
+            holeSize: 120, moleSize: 100, gap: 40,
+            missPenalty: 5 // 빗나갔을 때 패널티 점수
+        };
+
+        config.offsetX = (canvas.width - (config.cols * config.holeSize + (config.cols - 1) * config.gap)) / 2;
+        config.offsetY = (canvas.height - (config.rows * config.holeSize + (config.rows - 1) * config.gap)) / 2 + 50;
+
+        const holes = [];
+        // 이펙트(파티클)들을 담을 배열
+        let effects = [];
+
+        // ==========================================
+        // 이펙트 클래스 정의
+        // ==========================================
+        class Effect {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.type = type; // 'hit', 'miss', 'star'
+                this.life = 1.0; // 생명 주기 (1.0 -> 0.0)
+                
+                if (type === 'hit') {
+                    this.radius = 10;
+                } else if (type === 'miss') {
+                    this.vy = -2; // 위로 떠오르는 속도
+                } else if (type === 'star') {
+                    this.vx = (Math.random() - 0.5) * 10;
+                    this.vy = (Math.random() - 0.5) * 10;
+                    this.size = Math.random() * 10 + 5;
+                }
+            }
+
+            update() {
+                this.life -= 0.05; // 서서히 사라짐
+                if (this.type === 'hit') {
+                    this.radius += 5; // 원 커짐
+                } else if (this.type === 'miss') {
+                    this.y += this.vy; // 위로 이동
+                } else if (this.type === 'star') {
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    this.vy += 0.5; // 중력
+                }
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.life; // 투명도 적용
+
+                if (this.type === 'hit') {
+                    // 노란색 충격파 원
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.strokeStyle = '#FFD700';
+                    ctx.lineWidth = 5;
+                    ctx.stroke();
+                } else if (this.type === 'miss') {
+                    // 빨간색 MISS 텍스트
+                    ctx.fillStyle = '#FF4500';
+                    ctx.font = 'bold 30px sans-serif';
+                    ctx.fillText("MISS!", this.x - 30, this.y);
+                } else if (this.type === 'star') {
+                    // 별 모양 (간단히 노란 사각형으로 대체)
+                    ctx.fillStyle = '#FFFF00';
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(this.life * 5); // 회전
+                    ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+                }
+                ctx.restore();
+            }
+        }
+
+        // ==========================================
+        // 구멍(Hole) 클래스
+        // ==========================================
+        class Hole {
+            constructor(x, y) {
+                this.x = x; this.y = y;
+                this.state = 'idle'; // idle, rising, hit
+                this.moleY = 0;
+                this.timer = null;
+            }
+
+            pop() {
+                if (this.state !== 'idle') return;
+                this.state = 'rising';
+                this.moleY = config.holeSize;
+                const stayTime = Math.random() * 1000 + 500;
+                this.timer = setTimeout(() => {
+                    if (this.state === 'rising') this.state = 'idle';
+                }, stayTime);
+            }
+
+            hit(hitX, hitY) {
+                if (this.state === 'rising') {
+                    this.state = 'hit';
+                    updateScore(1);
+                    
+                    // 타격 성공 이펙트 생성
+                    effects.push(new Effect(hitX, hitY, 'hit'));
+                    // 별 파티클 여러개 생성
+                    for(let i=0; i<5; i++) effects.push(new Effect(hitX, hitY, 'star'));
+
+                    setTimeout(() => { this.state = 'idle'; }, 500);
+                    return true; // 성공 반환
+                }
+                return false; // 실패 반환
+            }
+
+            draw() {
+                // 1. 구멍
+                ctx.fillStyle = '#3e2723';
+                ctx.beginPath();
+                ctx.ellipse(this.x + config.holeSize/2, this.y + config.holeSize/2 + 20, config.holeSize/2, config.holeSize/3, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 2. 두더지 (마스킹)
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(this.x, this.y - 50, config.holeSize, config.holeSize + 100); 
+                ctx.clip();
+
+                if (this.state !== 'idle') {
+                    this.moleY = Math.max(0, this.moleY - (this.state === 'rising' ? 10 : -5));
+                } else {
+                    this.moleY = Math.min(config.holeSize, this.moleY + 10);
+                }
+
+                const drawX = this.x + config.holeSize/2;
+                const drawY = this.y + config.holeSize/2 + this.moleY;
+
+                if (this.moleY < config.holeSize) {
+                    // 몸통
+                    ctx.fillStyle = '#8d6e63'; ctx.beginPath(); ctx.ellipse(drawX, drawY, config.moleSize/2, config.moleSize/1.8, 0, Math.PI, 0); ctx.fill(); ctx.stroke();
+                    // 눈
+                    ctx.fillStyle = 'black';
+                    if (this.state === 'hit') {
+                        ctx.lineWidth = 3; ctx.beginPath();
+                        ctx.moveTo(drawX-25, drawY-45); ctx.lineTo(drawX-15, drawY-35); ctx.moveTo(drawX-15, drawY-45); ctx.lineTo(drawX-25, drawY-35);
+                        ctx.moveTo(drawX+15, drawY-45); ctx.lineTo(drawX+25, drawY-35); ctx.moveTo(drawX+25, drawY-45); ctx.lineTo(drawX+15, drawY-35); ctx.stroke(); ctx.lineWidth = 1;
+                    } else {
+                        ctx.beginPath(); ctx.arc(drawX-20, drawY-40, 5, 0, Math.PI*2); ctx.arc(drawX+20, drawY-40, 5, 0, Math.PI*2); ctx.fill();
+                    }
+                    // 코
+                    ctx.fillStyle = '#ffab91'; ctx.beginPath(); ctx.ellipse(drawX, drawY-25, 10, 8, 0, 0, Math.PI*2); ctx.fill();
+                    
+                    if (this.state === 'hit') {
+                        ctx.fillStyle = 'red'; ctx.font = 'bold 30px Arial'; ctx.fillText('아야!', drawX-35, drawY-70);
+                    }
+                }
+                ctx.restore();
+
+                // 3. 구멍 앞 턱
+                ctx.fillStyle = '#5d4037'; ctx.beginPath(); ctx.ellipse(this.x + config.holeSize/2, this.y + config.holeSize/2 + 25, config.holeSize/2, config.holeSize/6, 0, 0, Math.PI); ctx.fill();
+            }
+        }
+
+        // ==========================================
+        // 뿅망치 그리기 함수
+        // ==========================================
+        function drawHammer(ctx, x, y, angle) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle); // 타격 시 회전
+
+            // 망치 손잡이
+            ctx.fillStyle = '#8B4513'; // 갈색
+            ctx.fillRect(-10, -20, 20, 100);
+            
+            // 망치 머리 (뿅망치 스타일)
+            ctx.fillStyle = '#FF6347'; // 토마토색 (빨강 계열)
+            ctx.beginPath();
+            // 둥근 사각형 (머리)
+            ctx.roundRect(-40, -50, 80, 40, 10);
+            ctx.fill();
+            ctx.strokeStyle = '#B22222';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            
+            // 망치 머리 주름/하이라이트
+            ctx.fillStyle = '#FF7F50';
+            ctx.beginPath(); ctx.arc(-20, -30, 5, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(20, -30, 5, 0, Math.PI*2); ctx.fill();
+
+            ctx.restore();
+        }
+
+
+        function initHoles() {
+            holes.length = 0;
+            for (let r = 0; r < config.rows; r++) {
+                for (let c = 0; c < config.cols; c++) {
+                    holes.push(new Hole(config.offsetX + c * (config.holeSize + config.gap), config.offsetY + r * (config.holeSize + config.gap)));
+                }
+            }
+        }
+
+        function randomHole() {
+            const idx = Math.floor(Math.random() * holes.length);
+            const hole = holes[idx];
+            if (hole === gameState.lastHole) return randomHole();
+            gameState.lastHole = hole;
+            return hole;
+        }
+
+        function peep() {
+            if (gameState.timeUp) return;
+            const time = Math.random() * 800 + 400;
+            randomHole().pop();
+            setTimeout(peep, time);
+        }
+
+        function updateScore(points) {
+            gameState.score += points;
+            if (gameState.score < 0) gameState.score = 0; // 점수 음수 방지
+            scoreBoard.textContent = `점수: ${gameState.score}`;
+        }
+
+        function startGame() {
+            gameState.score = 0;
+            gameState.timeLeft = 30;
+            gameState.timeUp = false;
+            gameState.isPlaying = true;
+            effects = []; // 이펙트 초기화
+            updateScore(0);
+            timeBoard.textContent = `시간: ${gameState.timeLeft}`;
+            
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            
+            initHoles();
+            peep();
+            
+            const timer = setInterval(() => {
+                gameState.timeLeft--;
+                timeBoard.textContent = `시간: ${gameState.timeLeft}`;
+                if (gameState.timeLeft <= 0) {
+                    clearInterval(timer);
+                    gameState.timeUp = true;
+                    endGame();
+                }
+            }, 1000);
+            animate();
+        }
+
+        function endGame() {
+            gameState.isPlaying = false;
+            finalScoreSpan.textContent = gameState.score;
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        // 메인 애니메이션 루프
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. 구멍 및 두더지 그리기
+            holes.forEach(hole => hole.draw());
+
+            // 2. 이펙트 업데이트 및 그리기
+            // 수명이 다한 이펙트는 배열에서 제거 (filter 사용)
+            effects = effects.filter(effect => effect.life > 0);
+            effects.forEach(effect => {
+                effect.update();
+                effect.draw(ctx);
+            });
+
+            // 3. 뿅망치 그리기 (가장 위에)
+            if (gameState.isPlaying) {
+                drawHammer(ctx, gameState.mouseX, gameState.mouseY, gameState.hammer.angle);
+            }
+
+            if (!gameState.timeUp) {
+                requestAnimationFrame(animate);
+            }
+        }
+
+        // 마우스 이동 추적
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            gameState.mouseX = (e.clientX - rect.left) * scaleX;
+            gameState.mouseY = (e.clientY - rect.top) * scaleY;
+        });
+
+        // 마우스 클릭 (타격) 처리
+        canvas.addEventListener('mousedown', (e) => {
+            if (gameState.timeUp || !gameState.isPlaying) return;
+
+            // 망치 내리기 애니메이션 시작
+            gameState.hammer.isHitting = true;
+            gameState.hammer.angle = -Math.PI / 4; // -45도 회전
+
+            let hitSuccess = false;
+            const clickX = gameState.mouseX;
+            const clickY = gameState.mouseY;
+
+            holes.forEach(hole => {
+                const centerX = hole.x + config.holeSize / 2;
+                const centerY = hole.y + config.holeSize / 2;
+                const dist = Math.hypot(clickX - centerX, clickY - centerY);
+
+                // 두더지 타격 판정
+                if (dist < config.holeSize / 1.5 && hole.state === 'rising') {
+                    // hit() 메서드가 성공 여부를 반환하도록 수정됨
+                    if (hole.hit(clickX, clickY)) {
+                        hitSuccess = true;
+                    }
+                }
+            });
+
+            // 빗나갔을 경우 (Miss)
+            if (!hitSuccess) {
+                updateScore(-config.missPenalty); // 패널티 적용
+                // 빗나감 이펙트 생성
+                effects.push(new Effect(clickX, clickY, 'miss'));
+            }
+        });
+
+        // 마우스 뗐을 때 (망치 올리기)
+        window.addEventListener('mouseup', () => {
+             if (gameState.hammer.isHitting) {
+                gameState.hammer.isHitting = false;
+                gameState.hammer.angle = 0; // 원래 각도로 복귀
+             }
+        });
+
+
+        initHoles();
+        holes.forEach(hole => hole.draw());
+
+    </script>
+</body>
+</html>
