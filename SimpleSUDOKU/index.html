@@ -32,10 +32,11 @@
             60% { transform: translateX(-5px); }
             80% { transform: translateX(5px); }
         }
+        /* 오답 시 강제 붉은 배경 적용 */
         .animate-shake {
             animation: shake 0.4s ease-in-out;
-            background-color: #fee2e2 !important; /* Tailwind Red-100 Force */
-            color: #dc2626 !important; /* Tailwind Red-600 Force */
+            background-color: #fee2e2 !important; /* Red-100 */
+            color: #dc2626 !important; /* Red-600 */
             z-index: 50 !important;
             position: relative;
         }
@@ -173,7 +174,7 @@
                 </div>
             </div>
             <!-- Numpad Grid -->
-            <div id="numpad" class="grid gap-2 sm:gap-3 mb-4 transition-all"></div>
+            <div id="numpad" class="mb-4 transition-all"></div>
             
             <div class="grid grid-cols-2 gap-4 mt-2">
                 <button id="btn-note" class="py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2 border-b-4 active:border-b-0 active:translate-y-1">
@@ -240,9 +241,9 @@
 
     <script>
         const BLANK = 0;
-        const STORAGE_KEY_GAME = 'sudoku_gamestate_html_v10';
-        const STORAGE_KEY_SETTINGS = 'sudoku_settings_html_v10';
-        const STORAGE_KEY_SCORES = 'sudoku_scores_html_v10';
+        const STORAGE_KEY_GAME = 'sudoku_gamestate_html_v11';
+        const STORAGE_KEY_SETTINGS = 'sudoku_settings_html_v11';
+        const STORAGE_KEY_SCORES = 'sudoku_scores_html_v11';
 
         const THEMES = {
             Classic: { name: '클래식', bg: 'bg-slate-50', textMain: 'text-slate-800', textSub: 'text-slate-500', boardBg: 'bg-slate-800', boardBorder: 'border-slate-800', cellInitial: 'bg-slate-100 text-slate-900', cellSelected: 'bg-blue-500 text-white', cellSame: 'bg-blue-200 text-slate-900', cellError: 'bg-red-100 text-red-600', cellNormal: 'bg-white text-blue-600', cellNote: 'text-slate-500', btnPrimary: 'bg-blue-600 hover:bg-blue-500 text-white border-blue-800', btnActive: 'bg-slate-700 text-white border-slate-900', btnInactive: 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50', numPad: 'bg-white text-slate-700 hover:bg-blue-50 hover:text-blue-600 border-slate-200', eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200', borderLight: 'border-slate-300', borderHeavy: 'border-slate-800' },
@@ -611,7 +612,16 @@
         function renderNumpad() {
             const theme = getCurrentTheme();
             const container = document.getElementById('numpad');
-            container.className = `grid gap-2 sm:gap-3 mb-4 ${state.gridSize === 16 ? 'grid-cols-8' : 'grid-cols-5'} transition-all`;
+            
+            // 9x9 -> grid-cols-5 (Row1: 1-5, Row2: 6-9+Eraser) ? Or 2 rows of 5?
+            // Actually standard numpad for 9x9 is usually 1-5, 6-9+E.
+            // 16x16 -> grid-cols-9 (Row1: 1-9, Row2: A-G + Eraser(span 2))
+            
+            if (state.gridSize === 16) {
+                container.className = `grid gap-2 sm:gap-3 mb-4 grid-cols-9 transition-all`;
+            } else {
+                container.className = `grid gap-2 sm:gap-3 mb-4 grid-cols-5 transition-all`;
+            }
             container.innerHTML = '';
 
             const counts = {};
@@ -649,13 +659,21 @@
                 container.appendChild(btn);
             }
 
+            // Eraser
             const eraseBtn = document.createElement('button');
             eraseBtn.innerHTML = '<i data-lucide="eraser" class="w-5 h-5 sm:w-8 sm:h-8"></i>';
-            eraseBtn.className = `w-full h-12 sm:h-16 rounded-xl shadow-sm border-b-4 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center ${theme.eraseBtn} ${state.gridSize === 16 ? 'col-span-1' : ''}`;
+            
+            // For 16x16 with grid-cols-9:
+            // Items 1-9 (9 items) -> Row 1 full.
+            // Items A-G (7 items) -> Row 2 indices 0-6.
+            // Eraser needs to fill remaining 2 slots (index 7, 8).
+            const spanClass = state.gridSize === 16 ? 'col-span-2' : 'col-span-1';
+
+            eraseBtn.className = `w-full h-12 sm:h-16 rounded-xl shadow-sm border-b-4 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center ${theme.eraseBtn} ${spanClass}`;
             eraseBtn.onclick = () => handleNumberInput(0);
             container.appendChild(eraseBtn);
         }
-
+        
         function renderScoreboard() {
             ['9', '16'].forEach(size => {
                 const tbody = document.getElementById(`score-list-${size}`);
@@ -756,11 +774,9 @@
                         }
                     }
 
-                    // Logic order: Animation(Force) -> Selection -> Error -> Same -> Initial -> Normal
+                    // Logic order for CSS classes
+                    // Force Animation classes to override others via !important in CSS
                     
-                    // We append animation class last to ensure !important overrides work.
-                    // But we also need to build base classes properly.
-
                     if (isSelected) {
                         cls += theme.cellSelected;
                     } else if (isError) {
