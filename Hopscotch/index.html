@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>이미지 땅따먹기 DX (Canvas)</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #111;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background-color: #000;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            image-rendering: pixelated; 
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px;
+            box-sizing: border-box;
+            pointer-events: none;
+            text-shadow: 2px 2px 4px black;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            font-weight: bold;
+            font-size: 1.2rem;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+            z-index: 10;
+        }
+
+        .stat-group { display: flex; flex-direction: column; gap: 5px; }
+        .stat-item span { color: #ffcc00; }
+        
+        #right-ui {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 10px;
+            pointer-events: auto;
+        }
+
+        /* 버튼 그룹 스타일 */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .game-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        .game-btn:hover { background: rgba(255, 255, 255, 0.4); transform: scale(1.05); }
+        .icon-btn { font-size: 1.2rem; padding: 5px 10px; }
+
+        /* 결과 모달 */
+        #result-modal {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            border: 4px solid #fff;
+            padding: 40px;
+            text-align: center;
+            border-radius: 15px;
+            pointer-events: auto;
+            z-index: 100;
+            box-shadow: 0 0 50px rgba(255,255,255,0.2);
+            min-width: 300px;
+        }
+        #result-title { font-size: 2.5rem; margin-bottom: 10px; color: #ff3333; }
+        #result-sub { font-size: 1.2rem; margin-bottom: 25px; color: #ccc; }
+        
+        #next-level-btn, #restart-btn {
+            padding: 15px 30px;
+            font-size: 1.3rem;
+            background: #333;
+            color: white;
+            border: 2px solid white;
+            cursor: pointer;
+            transition: 0.2s;
+            border-radius: 5px;
+        }
+        #next-level-btn:hover, #restart-btn:hover { background: #555; transform: scale(1.05); }
+
+        /* 모바일 컨트롤러 */
+        #mobile-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            width: 100%;
+            height: 150px;
+            display: none; 
+            pointer-events: none;
+            justify-content: space-between;
+            padding: 0 50px;
+            box-sizing: border-box;
+            z-index: 20;
+        }
+
+        #joystick-area {
+            width: 140px;
+            height: 140px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            position: relative;
+            pointer-events: auto;
+            backdrop-filter: blur(4px);
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+
+        #joystick-knob {
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        #action-btn {
+            width: 110px;
+            height: 110px;
+            background: rgba(255, 60, 60, 0.6);
+            border-radius: 50%;
+            border: 5px solid rgba(255, 255, 255, 0.8);
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.5rem;
+            user-select: none;
+            transition: transform 0.1s, background 0.1s;
+        }
+        #action-btn:active, #action-btn.active {
+            transform: scale(0.95);
+            background: rgba(255, 60, 60, 0.9);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <div class="stat-group">
+            <div class="stat-item">LEVEL <span id="level-val">1</span></div>
+            <div class="stat-item" id="area-stat">AREA: <span id="score-val">0.0</span>% / <span id="target-val">80</span>%</div>
+            <div class="stat-item">LIFE: <span id="life-val">❤️❤️❤️</span></div>
+        </div>
+
+        <div id="right-ui">
+            <div class="btn-group">
+                <input type="file" id="img-input" accept="image/*" style="display: none;">
+                <button class="game-btn" onclick="document.getElementById('img-input').click()">📷 사진 변경</button>
+                <button class="game-btn icon-btn" onclick="toggleFullscreen()">⛶</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 결과 화면 -->
+    <div id="result-modal">
+        <div id="result-title">GAME OVER</div>
+        <div id="result-sub">다시 도전하세요!</div>
+        <button id="restart-btn" onclick="resetGame(true)">다시하기</button>
+        <button id="next-level-btn" onclick="nextLevel()" style="display:none;">다음 레벨 ▶</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="mobile-controls">
+        <div id="joystick-area"><div id="joystick-knob"></div></div>
+        <div id="action-btn">GO!</div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // UI Elements
+    const levelEl = document.getElementById('level-val');
+    const scoreEl = document.getElementById('score-val');
+    const targetEl = document.getElementById('target-val');
+    const lifeEl = document.getElementById('life-val');
+    const modal = document.getElementById('result-modal');
+    const resultTitle = document.getElementById('result-title');
+    const resultSub = document.getElementById('result-sub');
+    const restartBtn = document.getElementById('restart-btn');
+    const nextLevelBtn = document.getElementById('next-level-btn');
+    const imgInput = document.getElementById('img-input');
+
+    // 게임 상수
+    const PLAYER_SIZE = 5;
+    const PLAYER_SPEED = 6; 
+    const RETRACT_SPEED = 12;
+    const BOSS_BASE_SPEED = 5; 
+    
+    // 상태 변수
+    let width, height;
+    let level = 1;
+    let lives = 3;
+    let totalPixels = 0;
+    let capturedPixels = 0;
+    let gameState = 'playing'; // playing, gameover, victory
+    let isInitialized = false;
+    let currentTargetPercent = 80;
+    
+    // Grid System
+    let grid = null; 
+    let landCanvas = document.createElement('canvas'); 
+    let landCtx = landCanvas.getContext('2d');
+    let bgCanvas = document.createElement('canvas'); 
+    let bgCtx = bgCanvas.getContext('2d');
+    let bgImage = new Image();
+
+    // 기본 이미지
+    bgImage.crossOrigin = "Anonymous";
+    bgImage.src = "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80";
+
+    // 엔티티
+    let player = { x: 0, y: 0, color: '#00ff00', state: 'safe' };
+    let path = []; 
+    let enemies = []; 
+    let projectiles = []; 
+    let input = { left: false, right: false, up: false, down: false, action: false, joyX: 0, joyY: 0 };
+
+    // --- 이벤트 핸들러 ---
+
+    imgInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => { bgImage.src = event.target.result; };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    bgImage.onload = () => {
+        if (!isInitialized) { init(); isInitialized = true; }
+        else { resize(); }
+    };
+    bgImage.onerror = () => { init(); isInitialized = true; }
+
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+        } else {
+            if (document.exitFullscreen) document.exitFullscreen();
+        }
+    }
+
+    function init() {
+        window.addEventListener('resize', resize);
+        
+        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+            document.getElementById('mobile-controls').style.display = 'flex';
+            setupMobileControls();
+        }
+        setupPCControls();
+        
+        resize();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function resize() {
+        width = window.innerWidth || 320;
+        height = window.innerHeight || 240;
+        
+        canvas.width = width; canvas.height = height;
+        landCanvas.width = width; landCanvas.height = height;
+        bgCanvas.width = width; bgCanvas.height = height;
+        
+        if (bgImage.complete && bgImage.naturalWidth !== 0) {
+            let sRatio = bgImage.width / bgImage.height;
+            let dRatio = width / height;
+            let rw, rh, rx, ry;
+            if (dRatio > sRatio) { rw = width; rh = width/sRatio; rx = 0; ry = (height-rh)/2; }
+            else { rh = height; rw = height*sRatio; rx = (width-rw)/2; ry = 0; }
+            bgCtx.drawImage(bgImage, rx, ry, rw, rh);
+        } else {
+            bgCtx.fillStyle = '#3333aa'; bgCtx.fillRect(0,0,width,height);
+        }
+
+        if(width > 0 && height > 0) resetGame(false); 
+    }
+
+    function resetGame(fullReset = true) {
+        if (width === 0 || height === 0) return;
+
+        if (fullReset) {
+            level = 1;
+            lives = 3;
+        }
+
+        currentTargetPercent = Math.min(80 + (level - 1) * 2, 95);
+
+        gameState = 'playing';
+        updateUI();
+        modal.style.display = 'none';
+        nextLevelBtn.style.display = 'none';
+        restartBtn.style.display = 'inline-block';
+
+        grid = new Uint8Array(width * height);
+        totalPixels = width * height;
+        capturedPixels = 0;
+        
+        landCtx.fillStyle = '#111111'; 
+        landCtx.fillRect(0, 0, width, height);
+        
+        const border = 40;
+        revealArea(0, 0, width, border); 
+        revealArea(0, height - border, width, border); 
+        revealArea(0, border, border, height - 2*border); 
+        revealArea(width - border, border, border, height - 2*border); 
+
+        respawnPlayer();
+        initEnemies();
+    }
+
+    function nextLevel() {
+        level++;
+        resetGame(false); 
+    }
+
+    function respawnPlayer() {
+        player.x = 20; 
+        player.y = height / 2; 
+        player.state = 'safe'; player.color = '#00ff00';
+        path = [];
+    }
+
+    function initEnemies() {
+        enemies = [];
+        projectiles = [];
+        
+        let speed = BOSS_BASE_SPEED + (level * 0.8);
+        enemies.push({ 
+            type: 'boss', 
+            x: width/2, y: height/2, 
+            dx: speed, dy: speed, 
+            radius: 8 + (level), 
+            cooldown: 0 
+        });
+
+        let minionCount = Math.floor((level - 1) * 1.5); 
+        for(let i=0; i<minionCount; i++) {
+            spawnMinion(width/2, height/2, speed * 0.8); 
+        }
+    }
+    
+    function spawnMinion(x, y, speed) {
+         enemies.push({
+            type: 'minion',
+            x: x, y: y,
+            dx: (Math.random()-0.5)*speed*1.5,
+            dy: (Math.random()-0.5)*speed*1.5,
+            radius: 5
+        });
+    }
+
+    function gameLoop() {
+        if (gameState === 'playing') {
+            update();
+        }
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function update() {
+        updateEnemies();
+        updateProjectiles();
+
+        if (player.state === 'retracting') {
+            let moveDist = RETRACT_SPEED; 
+            while (moveDist > 0 && path.length > 0) {
+                let target = path[path.length - 1];
+                let dx = target.x - player.x;
+                let dy = target.y - player.y;
+                let dist = Math.hypot(dx, dy);
+
+                if (dist <= moveDist) {
+                    player.x = target.x; player.y = target.y;
+                    moveDist -= dist; path.pop(); 
+                } else {
+                    player.x += (dx / dist) * moveDist;
+                    player.y += (dy / dist) * moveDist;
+                    moveDist = 0;
+                }
+            }
+            if (path.length === 0) {
+                player.state = 'safe'; player.color = '#00ff00';
+            }
+            checkCollision();
+            return; 
+        }
+
+        let dx = 0, dy = 0;
+        if (input.left) dx -= 1; if (input.right) dx += 1;
+        if (input.up) dy -= 1; if (input.down) dy += 1;
+        if (input.joyX !== 0 || input.joyY !== 0) { dx = input.joyX; dy = input.joyY; }
+        
+        if (dx !== 0 || dy !== 0 && input.joyX === 0) {
+            const len = Math.hypot(dx, dy);
+            if(len > 1) { dx /= len; dy /= len; }
+        }
+
+        let nextX = player.x + dx * PLAYER_SPEED;
+        let nextY = player.y + dy * PLAYER_SPEED;
+        
+        nextX = Math.max(0, Math.min(width-1, nextX));
+        nextY = Math.max(0, Math.min(height-1, nextY));
+
+        const currentlySafe = isSafe(player.x, player.y);
+        const nextIsSafe = isSafe(nextX, nextY);
+
+        checkCollision();
+
+        if (input.action) {
+            if (player.state === 'safe' && !nextIsSafe) {
+                player.state = 'drawing';
+                path = [{x: player.x, y: player.y}]; 
+            }
+            player.x = nextX; player.y = nextY;
+
+            if (player.state === 'drawing') {
+                player.color = '#ff3333';
+                const lastPt = path[path.length-1];
+                const dist = Math.hypot(player.x - lastPt.x, player.y - lastPt.y);
+                if (dist > 4) path.push({x: player.x, y: player.y});
+
+                if (nextIsSafe) {
+                    path.push({x: player.x, y: player.y});
+                    fillLand(); 
+                    player.state = 'safe'; path = [];
+                }
+            }
+        } else {
+            if (player.state === 'drawing') {
+                player.state = 'retracting'; player.color = '#ffff00'; 
+            } else {
+                player.state = 'safe'; player.color = '#00ff00';
+                if (nextIsSafe) { player.x = nextX; player.y = nextY; }
+                else {
+                    if (isSafe(nextX, player.y)) player.x = nextX;
+                    else if (isSafe(player.x, nextY)) player.y = nextY;
+                }
+            }
+        }
+    }
+
+    function updateEnemies() {
+        enemies.forEach(en => {
+            en.x += en.dx;
+            en.y += en.dy;
+
+            let hitX = isSafe(en.x + (en.dx > 0 ? en.radius : -en.radius), en.y);
+            let hitY = isSafe(en.x, en.y + (en.dy > 0 ? en.radius : -en.radius));
+
+            if (hitX) en.dx *= -1;
+            if (hitY) en.dy *= -1;
+            
+            if (en.x < en.radius || en.x > width-en.radius) en.dx *= -1;
+            if (en.y < en.radius || en.y > height-en.radius) en.dy *= -1;
+
+            if (en.type === 'boss') {
+                if (en.cooldown > 0) en.cooldown--;
+                else {
+                    if (Math.random() < 0.03 + (level * 0.005)) { 
+                        bossAttack(en);
+                        en.cooldown = Math.max(60, 100 - (level * 5)); 
+                    }
+                }
+                if (Math.random() < 0.02) {
+                    en.dx = (Math.random() - 0.5) * Math.abs(en.dx) * 2.5; 
+                    en.dy = (Math.random() - 0.5) * Math.abs(en.dy) * 2.5;
+                }
+            }
+        });
+    }
+
+    function bossAttack(boss) {
+        if (Math.random() < 0.3) {
+            shootMinion(boss);
+        } else {
+            shootMissile(boss);
+        }
+    }
+
+    function shootMinion(boss) {
+        let angle = Math.atan2(player.y - boss.y, player.x - boss.x);
+        let speed = 4 + (level * 0.5);
+        enemies.push({
+            type: 'minion',
+            x: boss.x, y: boss.y,
+            dx: Math.cos(angle) * speed,
+            dy: Math.sin(angle) * speed,
+            radius: 5
+        });
+    }
+
+    function shootMissile(boss) {
+        let angle = Math.atan2(player.y - boss.y, player.x - boss.x);
+        let speed = 6 + (level * 0.8); 
+        projectiles.push({
+            x: boss.x, y: boss.y,
+            dx: Math.cos(angle) * speed,
+            dy: Math.sin(angle) * speed,
+            radius: 4
+        });
+    }
+
+    function updateProjectiles() {
+        for (let i = projectiles.length - 1; i >= 0; i--) {
+            let p = projectiles[i];
+            p.x += p.dx;
+            p.y += p.dy;
+
+            if (isSafe(p.x, p.y)) {
+                projectiles.splice(i, 1);
+            }
+            else if (p.x < 0 || p.x > width || p.y < 0 || p.y > height) {
+                projectiles.splice(i, 1);
+            }
+        }
+    }
+
+    function checkCollision() {
+        // [수정] 안전지대에 있을 때는 무적 (몸통 박치기 & 미사일 면역)
+        const isOnSafeGround = isSafe(player.x, player.y);
+
+        // 1. 적 본체 충돌
+        enemies.forEach(en => {
+            // 선 충돌 (선은 안전지대 밖에 있으므로 항상 위험)
+            if ((player.state === 'drawing' || player.state === 'retracting') && path.length > 0) {
+                for (let p of path) {
+                    if (Math.hypot(p.x - en.x, p.y - en.y) < en.radius + 4) {
+                        handleDeath("선을 건드렸습니다!"); return;
+                    }
+                }
+            }
+            // 몸 충돌 (안전지대 밖일 때만)
+            if (!isOnSafeGround) {
+                if (Math.hypot(player.x - en.x, player.y - en.y) < en.radius + PLAYER_SIZE + 2) {
+                    handleDeath("적에게 잡혔습니다!"); return;
+                }
+            }
+        });
+
+        // 2. 미사일 충돌
+        projectiles.forEach(p => {
+             // 선 충돌
+             if ((player.state === 'drawing' || player.state === 'retracting') && path.length > 0) {
+                for (let pt of path) {
+                    if (Math.hypot(pt.x - p.x, pt.y - p.y) < p.radius + 4) {
+                        handleDeath("미사일에 선이 끊겼습니다!"); return;
+                    }
+                }
+            }
+            // 몸 충돌 (안전지대 밖일 때만)
+            if (!isOnSafeGround) {
+                if (Math.hypot(player.x - p.x, player.y - p.y) < p.radius + PLAYER_SIZE + 2) {
+                    handleDeath("미사일에 맞았습니다!"); return;
+                }
+            }
+        });
+    }
+
+    function handleDeath(reason) {
+        lives--;
+        updateUI();
+        canvas.style.opacity = 0.5;
+        setTimeout(() => canvas.style.opacity = 1, 100);
+
+        if (lives <= 0) {
+            endGame(false, reason);
+        } else {
+            respawnPlayer();
+            projectiles = [];
+        }
+    }
+
+    function endGame(win, msg) {
+        gameState = win ? 'victory' : 'gameover';
+        
+        if (win) {
+            revealArea(0, 0, width, height); 
+            resultTitle.innerText = "STAGE CLEAR!";
+            resultTitle.style.color = "#00ff00";
+            resultSub.innerText = `레벨 ${level} 완료! (목표: ${currentTargetPercent}%)\n다음 레벨 도전?`;
+            restartBtn.style.display = 'none';
+            nextLevelBtn.style.display = 'inline-block';
+        } else {
+            resultTitle.innerText = "GAME OVER";
+            resultTitle.style.color = "#ff3333";
+            resultSub.innerText = msg;
+            restartBtn.style.display = 'inline-block';
+            nextLevelBtn.style.display = 'none';
+        }
+        modal.style.display = 'block';
+    }
+
+    function fillLand() {
+        if(path.length > 0) {
+             for (let i = 0; i < path.length - 1; i++) {
+                drawLineOnGrid(path[i].x, path[i].y, path[i+1].x, path[i+1].y);
+            }
+        }
+        
+        let boss = enemies.find(e => e.type === 'boss') || enemies[0];
+        let bx = boss ? Math.floor(boss.x) : Math.floor(width/2);
+        let by = boss ? Math.floor(boss.y) : Math.floor(height/2);
+        
+        if (bx < 0) bx = 0; if (bx >= width) bx = width-1;
+        if (by < 0) by = 0; if (by >= height) by = height-1;
+
+        let stack = [bx + by * width];
+        let visited = new Uint8Array(width * height);
+        visited[bx + by * width] = 1;
+
+        while(stack.length > 0) {
+            let idx = stack.pop();
+            const neighbors = [idx-1, idx+1, idx-width, idx+width];
+            for(let nIdx of neighbors) {
+                if(nIdx >= 0 && nIdx < grid.length && visited[nIdx] === 0) {
+                    if (grid[nIdx] === 0) { 
+                        visited[nIdx] = 1;
+                        stack.push(nIdx);
+                    }
+                }
+            }
+        }
+
+        let landImgData = landCtx.getImageData(0, 0, width, height);
+        let landData = landImgData.data;
+        let bgImgData = bgCtx.getImageData(0, 0, width, height);
+        let bgData = bgImgData.data;
+        let newPixels = 0;
+
+        for (let i = 0; i < grid.length; i++) {
+            if (grid[i] === 0 && visited[i] === 0) {
+                grid[i] = 1; 
+                newPixels++;
+                let idx = i * 4;
+                landData[idx] = bgData[idx];     
+                landData[idx+1] = bgData[idx+1]; 
+                landData[idx+2] = bgData[idx+2]; 
+                landData[idx+3] = bgData[idx+3]; 
+            }
+        }
+        
+        for(let p of path) {
+            for(let py=Math.floor(p.y)-2; py<=Math.floor(p.y)+2; py++) {
+                for(let px=Math.floor(p.x)-2; px<=Math.floor(p.x)+2; px++) {
+                    if(px>=0 && px<width && py>=0 && py<height) {
+                         let idx = (py*width + px) * 4;
+                         landData[idx] = bgData[idx];
+                         landData[idx+1] = bgData[idx+1];
+                         landData[idx+2] = bgData[idx+2];
+                         landData[idx+3] = bgData[idx+3];
+                    }
+                }
+            }
+        }
+
+        capturedPixels += newPixels;
+        landCtx.putImageData(landImgData, 0, 0);
+        updateUI();
+    }
+
+    function drawLineOnGrid(x0, y0, x1, y1) {
+        x0 = Math.floor(x0); y0 = Math.floor(y0);
+        x1 = Math.floor(x1); y1 = Math.floor(y1);
+        let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+        let sx = (x0 < x1) ? 1 : -1, sy = (y0 < y1) ? 1 : -1;
+        let err = dx - dy;
+        while(true) {
+            if (x0 >= 0 && x0 < width && y0 >= 0 && y0 < height) grid[y0 * width + x0] = 1; 
+            if (x0 === x1 && y0 === y1) break;
+            let e2 = 2 * err;
+            if (e2 > -dy) { err -= dy; x0 += sx; }
+            if (e2 < dx) { err += dx; y0 += sy; }
+        }
+    }
+
+    function revealArea(x, y, w, h) {
+        if (bgCanvas.width === 0) return;
+        if (x < 0) x = 0; if (y < 0) y = 0;
+        if (x + w > width) w = width - x; if (y + h > height) h = height - y;
+
+        for(let j=y; j<y+h; j++) {
+            for(let i=x; i<x+w; i++) {
+                let idx = j*width + i;
+                if (grid[idx] === 0) { grid[idx] = 1; capturedPixels++; }
+            }
+        }
+        landCtx.drawImage(bgCanvas, x, y, w, h, x, y, w, h);
+        updateUI();
+    }
+
+    function isSafe(x, y) {
+        if (x < 0 || x >= width || y < 0 || y >= height) return true;
+        return grid[Math.floor(y) * width + Math.floor(x)] === 1;
+    }
+
+    function draw() {
+        ctx.drawImage(landCanvas, 0, 0);
+
+        if (path.length > 1) {
+            ctx.beginPath();
+            ctx.strokeStyle = player.state === 'retracting' ? '#ffff00' : '#ff3333';
+            ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            ctx.moveTo(path[0].x, path[0].y);
+            for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y);
+            ctx.lineTo(player.x, player.y);
+            ctx.stroke();
+        }
+
+        enemies.forEach(en => {
+            ctx.fillStyle = en.type === 'boss' ? '#ff0000' : '#ff8800';
+            ctx.beginPath();
+            ctx.arc(en.x, en.y, en.radius, 0, Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(en.x + en.dx, en.y + en.dy, en.radius/3, 0, Math.PI*2);
+            ctx.fill();
+        });
+
+        ctx.fillStyle = '#ff00ff';
+        projectiles.forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+            ctx.fill();
+        });
+
+        ctx.fillStyle = player.color;
+        ctx.shadowColor = 'black'; ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, PLAYER_SIZE, 0, Math.PI*2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+
+    function updateUI() {
+        const percent = (capturedPixels / totalPixels * 100).toFixed(2);
+        scoreEl.innerText = percent;
+        levelEl.innerText = level;
+        targetEl.innerText = currentTargetPercent;
+        
+        let hearts = "";
+        for(let i=0; i<lives; i++) hearts += "❤️";
+        lifeEl.innerText = hearts.length > 0 ? hearts : "💀";
+
+        if (gameState === 'playing' && parseFloat(percent) >= currentTargetPercent) {
+            endGame(true, `레벨 ${level} 클리어!`);
+        }
+    }
+
+    function setupPCControls() {
+        window.addEventListener('keydown', (e) => {
+            switch(e.code) {
+                case 'ArrowLeft': input.left = true; break;
+                case 'ArrowRight': input.right = true; break;
+                case 'ArrowUp': input.up = true; break;
+                case 'ArrowDown': input.down = true; break;
+                case 'Space': input.action = true; break;
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            switch(e.code) {
+                case 'ArrowLeft': input.left = false; break;
+                case 'ArrowRight': input.right = false; break;
+                case 'ArrowUp': input.up = false; break;
+                case 'ArrowDown': input.down = false; break;
+                case 'Space': input.action = false; break;
+            }
+        });
+    }
+
+    function setupMobileControls() {
+        const joyArea = document.getElementById('joystick-area');
+        const joyKnob = document.getElementById('joystick-knob');
+        const actionBtn = document.getElementById('action-btn');
+        let startX, startY;
+
+        joyArea.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = joyArea.getBoundingClientRect();
+            startX = rect.left + rect.width/2;
+            startY = rect.top + rect.height/2;
+            updateJoystick(touch.clientX, touch.clientY);
+        }, {passive:false});
+
+        joyArea.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            updateJoystick(touch.clientX, touch.clientY);
+        }, {passive:false});
+
+        joyArea.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            input.joyX = 0; input.joyY = 0;
+            joyKnob.style.transform = `translate(-50%, -50%)`;
+        });
+
+        function updateJoystick(cx, cy) {
+            const max = 40;
+            let dx = cx - startX, dy = cy - startY;
+            const dist = Math.min(Math.hypot(dx, dy), max);
+            const ang = Math.atan2(dy, dx);
+            const mx = Math.cos(ang)*dist, my = Math.sin(ang)*dist;
+            joyKnob.style.transform = `translate(calc(-50% + ${mx}px), calc(-50% + ${my}px))`;
+            input.joyX = mx/max; input.joyY = my/max;
+        }
+
+        actionBtn.addEventListener('touchstart', (e) => { e.preventDefault(); input.action = true; actionBtn.classList.add('active'); }, {passive:false});
+        actionBtn.addEventListener('touchend', (e) => { e.preventDefault(); input.action = false; actionBtn.classList.remove('active'); }, {passive:false});
+    }
+</script>
+</body>
+</html>
