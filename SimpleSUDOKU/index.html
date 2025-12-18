@@ -3,16 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>심플 스도쿠 v1.0 (Simple Sudoku v1.0)</title>
+    <title>스도쿠 (Sudoku)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
-        /* 폰트 및 기본 설정 */
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
         body { font-family: 'Noto Sans KR', sans-serif; }
         .cell-content { pointer-events: none; }
-        /* 터치 조작 최적화 */
         .no-select { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+
+        /* --- Animations --- */
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.4); }
+            100% { transform: scale(1); }
+        }
+        /* !important를 사용하여 선택된 상태(파란색)보다 우선순위를 높임 */
+        .animate-pop {
+            animation: pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 20;
+            position: relative;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-5px); }
+            40% { transform: translateX(5px); }
+            60% { transform: translateX(-5px); }
+            80% { transform: translateX(5px); }
+        }
+        .animate-shake {
+            animation: shake 0.4s ease-in-out;
+            background-color: #fee2e2 !important; /* Red-100 Force */
+            color: #dc2626 !important; /* Red-600 Force */
+            z-index: 20;
+            position: relative;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #3b82f6;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #3b82f6;
+        }
     </style>
 </head>
 <body class="transition-colors duration-300 min-h-screen flex flex-col items-center py-6 px-2">
@@ -21,7 +64,7 @@
     <div id="app" class="w-full max-w-lg flex flex-col gap-4">
         <!-- Header -->
         <div class="flex justify-between items-center">
-            <h1 id="game-title" class="text-3xl font-bold">심플 스도쿠v1.0</h1>
+            <h1 id="game-title" class="text-3xl font-bold">스도쿠</h1>
             <div class="flex gap-2">
                 <button id="btn-scoreboard" class="p-2 rounded-lg transition-all" title="기록 보기">
                     <i data-lucide="trophy" class="w-6 h-6"></i>
@@ -32,18 +75,41 @@
             </div>
         </div>
 
-        <!-- Settings Modal (Hidden by default) -->
-        <div id="settings-panel" class="hidden w-full p-4 rounded-xl shadow-lg border mb-2 animate-in slide-in-from-top-2">
-            <div class="flex justify-between items-center mb-3">
-                <span class="font-bold">테마 설정</span>
-                <button id="btn-close-settings"><i data-lucide="x" class="w-4 h-4"></i></button>
+        <!-- Settings Modal -->
+        <div id="settings-panel" class="hidden w-full p-4 rounded-xl shadow-lg border mb-2 animate-fade-in bg-white/95 backdrop-blur z-20">
+            <div class="flex justify-between items-center mb-4 pb-2 border-b">
+                <span class="font-bold text-lg">설정</span>
+                <button id="btn-close-settings" class="p-1 hover:bg-black/10 rounded-full"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
-            <div id="theme-grid" class="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                <!-- Themes injected by JS -->
+            
+            <div class="flex flex-col gap-3 mb-6">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="volume-2" class="w-5 h-5 text-slate-500"></i>
+                        <span class="font-medium">사운드 효과</span>
+                    </div>
+                    <div class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" name="toggle" id="toggle-sound" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer transition-all duration-300 left-0 checked:left-6"/>
+                        <label for="toggle-sound" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer transition-colors duration-300"></label>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="sparkles" class="w-5 h-5 text-slate-500"></i>
+                        <span class="font-medium">시각 이펙트</span>
+                    </div>
+                    <div class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                        <input type="checkbox" name="toggle" id="toggle-effect" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer transition-all duration-300 left-0 checked:left-6"/>
+                        <label for="toggle-effect" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer transition-colors duration-300"></label>
+                    </div>
+                </div>
             </div>
+
+            <div class="mb-2 font-bold text-sm text-slate-500">테마 선택</div>
+            <div id="theme-grid" class="grid grid-cols-3 sm:grid-cols-4 gap-2"></div>
         </div>
 
-        <!-- Mode & Difficulty & Timer -->
+        <!-- Controls -->
         <div class="flex justify-between items-center gap-2">
             <div class="flex bg-black/5 p-1 rounded-lg" id="grid-size-controls">
                 <button data-size="9" class="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-bold transition-all">
@@ -53,47 +119,33 @@
                     <i data-lucide="grid-2x2" class="w-4 h-4"></i> 16x16
                 </button>
             </div>
-
             <div id="timer-display" class="flex items-center gap-2 font-mono text-lg px-3 py-1 rounded-lg shadow-sm border">
                 <i data-lucide="timer" class="w-5 h-5"></i>
                 <span>0:00</span>
             </div>
         </div>
 
-        <!-- Difficulty Selection -->
-        <div id="difficulty-controls" class="flex flex-wrap gap-2 justify-center">
-            <!-- Difficulty buttons injected by JS -->
+        <div id="difficulty-controls" class="flex flex-wrap gap-2 justify-center"></div>
+
+        <!-- Board -->
+        <div id="board-container" class="w-full aspect-square relative rounded-xl shadow-2xl overflow-hidden border-4 transition-colors duration-300 bg-white">
+            <div id="game-board" class="w-full h-full grid gap-0"></div>
         </div>
 
-        <!-- Game Board -->
-        <div id="board-container" class="w-full aspect-square relative rounded-xl shadow-2xl overflow-hidden border-4 transition-colors duration-300">
-            <div id="game-board" class="w-full h-full grid gap-0">
-                <!-- Cells injected by JS -->
-            </div>
-        </div>
-
-        <!-- Info & Controls -->
+        <!-- Footer -->
         <div class="w-full max-w-lg">
-            <!-- Mistakes -->
             <div class="flex justify-end mb-2">
                 <div id="mistake-display" class="flex items-center gap-1 font-bold text-sm px-3 py-1 rounded-full border transition-all">
                     <i data-lucide="alert-circle" class="w-4 h-4"></i>
                     <span>실수: <span id="mistake-count">0</span>/3</span>
                 </div>
             </div>
-
-            <!-- Number Pad -->
-            <div id="numpad" class="grid gap-2 sm:gap-3 mb-4 grid-cols-5 transition-all">
-                <!-- Buttons injected by JS -->
-            </div>
-
-            <!-- Action Buttons -->
+            <div id="numpad" class="grid gap-2 sm:gap-3 mb-4 grid-cols-5 transition-all"></div>
             <div class="grid grid-cols-2 gap-4 mt-2">
                 <button id="btn-note" class="py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2 border-b-4 active:border-b-0 active:translate-y-1">
                     <i data-lucide="pencil" class="w-5 h-5"></i>
                     <span id="note-text">메모 OFF</span>
                 </button>
-
                 <button id="btn-new-game" class="py-3 rounded-xl font-bold shadow-sm border-b-4 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2">
                     <i data-lucide="refresh-cw" class="w-5 h-5"></i> 새 게임
                 </button>
@@ -101,60 +153,32 @@
         </div>
     </div>
 
-    <!-- Scoreboard Modal -->
-    <div id="modal-scoreboard" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <!-- Modals -->
+    <div id="modal-scoreboard" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
         <div id="modal-scoreboard-content" class="rounded-2xl p-6 max-w-md w-full shadow-2xl transform scale-100 transition-colors bg-white max-h-[80vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-6 border-b pb-4">
                 <div class="flex items-center gap-3">
-                    <div class="p-2 bg-yellow-100 rounded-lg">
-                        <i data-lucide="crown" class="w-6 h-6 text-yellow-600"></i>
-                    </div>
+                    <div class="p-2 bg-yellow-100 rounded-lg"><i data-lucide="crown" class="w-6 h-6 text-yellow-600"></i></div>
                     <h2 class="text-2xl font-bold">명예의 전당</h2>
                 </div>
-                <button id="btn-close-scoreboard" class="p-2 hover:bg-black/5 rounded-full transition-colors">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
+                <button id="btn-close-scoreboard" class="p-2 hover:bg-black/5 rounded-full transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
-            
             <div class="space-y-6">
-                <!-- 9x9 Scores -->
                 <div>
-                    <h3 class="text-lg font-bold mb-3 flex items-center gap-2">
-                        <i data-lucide="grid-3x3" class="w-4 h-4"></i> 9x9 퍼즐
-                    </h3>
+                    <h3 class="text-lg font-bold mb-3 flex items-center gap-2"><i data-lucide="grid-3x3" class="w-4 h-4"></i> 9x9 퍼즐</h3>
                     <div class="bg-gray-50 rounded-xl overflow-hidden border">
                         <table class="w-full text-sm">
-                            <thead class="bg-gray-100 text-gray-600 font-medium">
-                                <tr>
-                                    <th class="py-3 px-4 text-left">난이도</th>
-                                    <th class="py-3 px-4 text-center">최고 기록</th>
-                                    <th class="py-3 px-4 text-right">클리어</th>
-                                </tr>
-                            </thead>
-                            <tbody id="score-list-9" class="divide-y divide-gray-200">
-                                <!-- JS Injected -->
-                            </tbody>
+                            <thead class="bg-gray-100 text-gray-600 font-medium"><tr><th class="py-3 px-4 text-left">난이도</th><th class="py-3 px-4 text-center">최고 기록</th><th class="py-3 px-4 text-right">클리어</th></tr></thead>
+                            <tbody id="score-list-9" class="divide-y divide-gray-200"></tbody>
                         </table>
                     </div>
                 </div>
-
-                <!-- 16x16 Scores -->
                 <div>
-                    <h3 class="text-lg font-bold mb-3 flex items-center gap-2">
-                        <i data-lucide="grid-2x2" class="w-4 h-4"></i> 16x16 퍼즐
-                    </h3>
+                    <h3 class="text-lg font-bold mb-3 flex items-center gap-2"><i data-lucide="grid-2x2" class="w-4 h-4"></i> 16x16 퍼즐</h3>
                     <div class="bg-gray-50 rounded-xl overflow-hidden border">
                         <table class="w-full text-sm">
-                            <thead class="bg-gray-100 text-gray-600 font-medium">
-                                <tr>
-                                    <th class="py-3 px-4 text-left">난이도</th>
-                                    <th class="py-3 px-4 text-center">최고 기록</th>
-                                    <th class="py-3 px-4 text-right">클리어</th>
-                                </tr>
-                            </thead>
-                            <tbody id="score-list-16" class="divide-y divide-gray-200">
-                                <!-- JS Injected -->
-                            </tbody>
+                            <thead class="bg-gray-100 text-gray-600 font-medium"><tr><th class="py-3 px-4 text-left">난이도</th><th class="py-3 px-4 text-center">최고 기록</th><th class="py-3 px-4 text-right">클리어</th></tr></thead>
+                            <tbody id="score-list-16" class="divide-y divide-gray-200"></tbody>
                         </table>
                     </div>
                 </div>
@@ -162,303 +186,43 @@
         </div>
     </div>
 
-    <!-- Win Modal -->
-    <div id="modal-win" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div id="modal-win" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
         <div id="modal-win-content" class="rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl transform scale-100 transition-colors">
-            <div class="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i data-lucide="trophy" class="w-10 h-10 text-yellow-600"></i>
-            </div>
+            <div class="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-pop"><i data-lucide="trophy" class="w-10 h-10 text-yellow-600"></i></div>
             <h2 class="text-3xl font-bold mb-2">축하합니다!</h2>
-            <p class="mb-6 opacity-80">
-                <span class="font-bold" id="win-size">9x9</span> 퍼즐 완성!<br/>
-                <span class="font-bold" id="win-diff">초급</span> 난이도<br/>
-                소요 시간: <span class="font-mono font-bold text-blue-500" id="win-time">0:00</span>
-            </p>
-            <button id="btn-win-restart" class="w-full py-3 rounded-xl font-bold transition-colors text-white">
-                새 게임 시작하기
-            </button>
+            <p class="mb-6 opacity-80"><span class="font-bold" id="win-size">9x9</span> 퍼즐 완성!<br/><span class="font-bold" id="win-diff">초급</span> 난이도<br/>소요 시간: <span class="font-mono font-bold text-blue-500" id="win-time">0:00</span></p>
+            <button id="btn-win-restart" class="w-full py-3 rounded-xl font-bold transition-colors text-white">새 게임 시작하기</button>
         </div>
     </div>
 
-    <!-- Game Over Modal -->
-    <div id="modal-fail" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div id="modal-fail" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
         <div id="modal-fail-content" class="rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl transition-colors">
-            <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i data-lucide="alert-circle" class="w-10 h-10 text-red-600"></i>
-            </div>
+            <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-shake"><i data-lucide="alert-circle" class="w-10 h-10 text-red-600"></i></div>
             <h2 class="text-2xl font-bold mb-2">게임 오버</h2>
-            <p class="mb-6 opacity-80">
-                실수가 3번을 초과했습니다.<br/>
-                다시 도전해보세요!
-            </p>
-            <button id="btn-fail-restart" class="w-full py-3 rounded-xl font-bold transition-colors text-white">
-                다시 시작
-            </button>
+            <p class="mb-6 opacity-80">실수가 3번을 초과했습니다.<br/>다시 도전해보세요!</p>
+            <button id="btn-fail-restart" class="w-full py-3 rounded-xl font-bold transition-colors text-white">다시 시작</button>
         </div>
     </div>
 
     <script>
-        /**
-         * --- CONSTANTS & STATE ---
-         */
         const BLANK = 0;
-        const STORAGE_KEY_GAME = 'sudoku_gamestate_html_v3'; // Version 3 to ensure clean state
-        const STORAGE_KEY_SETTINGS = 'sudoku_settings_html_v3';
-        const STORAGE_KEY_SCORES = 'sudoku_scores_html_v3';
+        const STORAGE_KEY_GAME = 'sudoku_gamestate_html_v6';
+        const STORAGE_KEY_SETTINGS = 'sudoku_settings_html_v6';
+        const STORAGE_KEY_SCORES = 'sudoku_scores_html_v6';
 
         const THEMES = {
-            Classic: {
-                name: '클래식',
-                bg: 'bg-slate-50',
-                textMain: 'text-slate-800',
-                textSub: 'text-slate-500',
-                boardBg: 'bg-slate-800',
-                boardBorder: 'border-slate-800',
-                cellInitial: 'bg-slate-100 text-slate-900',
-                cellSelected: 'bg-blue-500 text-white',
-                cellSame: 'bg-blue-200 text-slate-900',
-                cellError: 'bg-red-100 text-red-600',
-                cellNormal: 'bg-white text-blue-600',
-                cellNote: 'text-slate-500',
-                btnPrimary: 'bg-blue-600 hover:bg-blue-500 text-white border-blue-800',
-                btnActive: 'bg-slate-700 text-white border-slate-900',
-                btnInactive: 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50',
-                numPad: 'bg-white text-slate-700 hover:bg-blue-50 hover:text-blue-600 border-slate-200',
-                eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200',
-                borderLight: 'border-slate-300', 
-                borderHeavy: 'border-slate-800'  
-            },
-            Dark: {
-                name: '다크',
-                bg: 'bg-slate-900',
-                textMain: 'text-slate-100',
-                textSub: 'text-slate-400',
-                boardBg: 'bg-black',
-                boardBorder: 'border-black',
-                cellInitial: 'bg-slate-800 text-slate-300',
-                cellSelected: 'bg-indigo-600 text-white',
-                cellSame: 'bg-slate-700 text-white',
-                cellError: 'bg-red-900 text-red-200',
-                cellNormal: 'bg-slate-900 text-indigo-300',
-                cellNote: 'text-slate-500',
-                btnPrimary: 'bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-800',
-                btnActive: 'bg-indigo-500 text-white border-indigo-700',
-                btnInactive: 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700',
-                numPad: 'bg-slate-800 text-slate-200 hover:bg-indigo-900 hover:text-indigo-200 border-slate-700',
-                eraseBtn: 'bg-red-900/30 text-red-400 hover:bg-red-900/50 border-red-900',
-                borderLight: 'border-slate-700',
-                borderHeavy: 'border-black'
-            },
-            Nature: {
-                name: '자연',
-                bg: 'bg-stone-100',
-                textMain: 'text-stone-800',
-                textSub: 'text-stone-500',
-                boardBg: 'bg-stone-800',
-                boardBorder: 'border-stone-800',
-                cellInitial: 'bg-stone-200 text-stone-900',
-                cellSelected: 'bg-emerald-600 text-white',
-                cellSame: 'bg-emerald-200 text-stone-900',
-                cellError: 'bg-orange-100 text-orange-700',
-                cellNormal: 'bg-white text-emerald-700',
-                cellNote: 'text-stone-500',
-                btnPrimary: 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-800',
-                btnActive: 'bg-stone-600 text-white border-stone-800',
-                btnInactive: 'bg-white text-stone-600 border-stone-300 hover:bg-stone-50',
-                numPad: 'bg-white text-stone-700 hover:bg-emerald-50 hover:text-emerald-700 border-stone-300',
-                eraseBtn: 'bg-orange-50 text-orange-600 hover:bg-orange-100 border-orange-200',
-                borderLight: 'border-stone-300',
-                borderHeavy: 'border-stone-800'
-            },
-            Pink: {
-                name: '핑크',
-                bg: 'bg-rose-50',
-                textMain: 'text-rose-900',
-                textSub: 'text-rose-500',
-                boardBg: 'bg-rose-900',
-                boardBorder: 'border-rose-900',
-                cellInitial: 'bg-rose-100 text-rose-900',
-                cellSelected: 'bg-pink-500 text-white',
-                cellSame: 'bg-pink-200 text-rose-900',
-                cellError: 'bg-red-100 text-red-600',
-                cellNormal: 'bg-white text-pink-600',
-                cellNote: 'text-rose-400',
-                btnPrimary: 'bg-pink-500 hover:bg-pink-400 text-white border-pink-700',
-                btnActive: 'bg-rose-600 text-white border-rose-800',
-                btnInactive: 'bg-white text-rose-500 border-rose-200 hover:bg-rose-50',
-                numPad: 'bg-white text-rose-700 hover:bg-pink-50 hover:text-pink-600 border-rose-200',
-                eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200',
-                borderLight: 'border-rose-200',
-                borderHeavy: 'border-rose-900'
-            },
-            Ocean: {
-                name: '오션',
-                bg: 'bg-cyan-50',
-                textMain: 'text-cyan-900',
-                textSub: 'text-cyan-600',
-                boardBg: 'bg-cyan-900',
-                boardBorder: 'border-cyan-900',
-                cellInitial: 'bg-cyan-100 text-cyan-900',
-                cellSelected: 'bg-cyan-600 text-white',
-                cellSame: 'bg-cyan-200 text-cyan-900',
-                cellError: 'bg-red-100 text-red-600',
-                cellNormal: 'bg-white text-cyan-700',
-                cellNote: 'text-cyan-500',
-                btnPrimary: 'bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-800',
-                btnActive: 'bg-cyan-700 text-white border-cyan-900',
-                btnInactive: 'bg-white text-cyan-600 border-cyan-200 hover:bg-cyan-100',
-                numPad: 'bg-white text-cyan-800 hover:bg-cyan-50 hover:text-cyan-600 border-cyan-200',
-                eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200',
-                borderLight: 'border-cyan-200',
-                borderHeavy: 'border-cyan-900'
-            },
-            Lavender: {
-                name: '라벤더',
-                bg: 'bg-violet-50',
-                textMain: 'text-violet-900',
-                textSub: 'text-violet-500',
-                boardBg: 'bg-violet-900',
-                boardBorder: 'border-violet-900',
-                cellInitial: 'bg-violet-100 text-violet-900',
-                cellSelected: 'bg-violet-500 text-white',
-                cellSame: 'bg-violet-200 text-violet-900',
-                cellError: 'bg-red-100 text-red-600',
-                cellNormal: 'bg-white text-violet-600',
-                cellNote: 'text-violet-400',
-                btnPrimary: 'bg-violet-500 hover:bg-violet-400 text-white border-violet-700',
-                btnActive: 'bg-violet-600 text-white border-violet-800',
-                btnInactive: 'bg-white text-violet-500 border-violet-200 hover:bg-violet-50',
-                numPad: 'bg-white text-violet-700 hover:bg-violet-50 hover:text-violet-600 border-violet-200',
-                eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200',
-                borderLight: 'border-violet-200',
-                borderHeavy: 'border-violet-900'
-            },
-            Mint: {
-                name: '민트',
-                bg: 'bg-teal-50',
-                textMain: 'text-teal-900',
-                textSub: 'text-teal-600',
-                boardBg: 'bg-teal-900',
-                boardBorder: 'border-teal-900',
-                cellInitial: 'bg-teal-100 text-teal-900',
-                cellSelected: 'bg-teal-500 text-white',
-                cellSame: 'bg-teal-200 text-teal-900',
-                cellError: 'bg-red-100 text-red-600',
-                cellNormal: 'bg-white text-teal-600',
-                cellNote: 'text-teal-400',
-                btnPrimary: 'bg-teal-500 hover:bg-teal-400 text-white border-teal-700',
-                btnActive: 'bg-teal-600 text-white border-teal-800',
-                btnInactive: 'bg-white text-teal-500 border-teal-200 hover:bg-teal-50',
-                numPad: 'bg-white text-teal-700 hover:bg-teal-50 hover:text-teal-600 border-teal-200',
-                eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200',
-                borderLight: 'border-teal-200',
-                borderHeavy: 'border-teal-900'
-            },
-            Sunset: {
-                name: '선셋',
-                bg: 'bg-orange-50',
-                textMain: 'text-orange-900',
-                textSub: 'text-orange-600',
-                boardBg: 'bg-orange-900',
-                boardBorder: 'border-orange-900',
-                cellInitial: 'bg-orange-100 text-orange-900',
-                cellSelected: 'bg-orange-500 text-white',
-                cellSame: 'bg-orange-200 text-orange-900',
-                cellError: 'bg-red-100 text-red-600',
-                cellNormal: 'bg-white text-orange-600',
-                cellNote: 'text-orange-400',
-                btnPrimary: 'bg-orange-500 hover:bg-orange-400 text-white border-orange-700',
-                btnActive: 'bg-orange-600 text-white border-orange-800',
-                btnInactive: 'bg-white text-orange-500 border-orange-200 hover:bg-orange-50',
-                numPad: 'bg-white text-orange-700 hover:bg-orange-50 hover:text-orange-600 border-orange-200',
-                eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200',
-                borderLight: 'border-orange-200',
-                borderHeavy: 'border-orange-900'
-            },
-            Midnight: {
-                name: '미드나잇',
-                bg: 'bg-blue-950',
-                textMain: 'text-blue-100',
-                textSub: 'text-blue-400',
-                boardBg: 'bg-black',
-                boardBorder: 'border-black',
-                cellInitial: 'bg-blue-900 text-blue-200',
-                cellSelected: 'bg-blue-600 text-white',
-                cellSame: 'bg-blue-800 text-white',
-                cellError: 'bg-red-900 text-red-200',
-                cellNormal: 'bg-blue-950 text-blue-300',
-                cellNote: 'text-blue-500',
-                btnPrimary: 'bg-blue-600 hover:bg-blue-500 text-white border-blue-800',
-                btnActive: 'bg-blue-500 text-white border-blue-700',
-                btnInactive: 'bg-blue-900 text-blue-300 border-blue-800 hover:bg-blue-800',
-                numPad: 'bg-blue-900 text-blue-200 hover:bg-blue-800 hover:text-white border-blue-800',
-                eraseBtn: 'bg-red-900/40 text-red-400 hover:bg-red-900/60 border-red-900',
-                borderLight: 'border-slate-700',
-                borderHeavy: 'border-black'
-            },
-            Cyber: {
-                name: '사이버',
-                bg: 'bg-zinc-950',
-                textMain: 'text-lime-400',
-                textSub: 'text-lime-700',
-                boardBg: 'bg-black',
-                boardBorder: 'border-lime-900',
-                cellInitial: 'bg-zinc-900 text-lime-600',
-                cellSelected: 'bg-lime-600 text-black',
-                cellSame: 'bg-zinc-800 text-lime-400',
-                cellError: 'bg-red-900 text-red-400',
-                cellNormal: 'bg-black text-lime-400',
-                cellNote: 'text-zinc-500',
-                btnPrimary: 'bg-lime-600 hover:bg-lime-500 text-black border-lime-800',
-                btnActive: 'bg-lime-700 text-black border-lime-900',
-                btnInactive: 'bg-black text-lime-600 border-zinc-800 hover:bg-zinc-900',
-                numPad: 'bg-zinc-900 text-lime-500 hover:bg-zinc-800 hover:text-lime-400 border-zinc-800',
-                eraseBtn: 'bg-red-950 text-red-500 hover:bg-red-900 border-red-900',
-                borderLight: 'border-lime-900/30',
-                borderHeavy: 'border-lime-600'
-            },
-            Coffee: {
-                name: '커피',
-                bg: 'bg-stone-900',
-                textMain: 'text-amber-100',
-                textSub: 'text-amber-700',
-                boardBg: 'bg-black',
-                boardBorder: 'border-black',
-                cellInitial: 'bg-stone-800 text-stone-400',
-                cellSelected: 'bg-amber-700 text-white',
-                cellSame: 'bg-stone-700 text-amber-100',
-                cellError: 'bg-red-900 text-red-200',
-                cellNormal: 'bg-stone-900 text-amber-200',
-                cellNote: 'text-stone-600',
-                btnPrimary: 'bg-amber-700 hover:bg-amber-600 text-white border-amber-900',
-                btnActive: 'bg-amber-800 text-white border-amber-950',
-                btnInactive: 'bg-stone-800 text-amber-700 border-stone-700 hover:bg-stone-700',
-                numPad: 'bg-stone-800 text-amber-200 hover:bg-stone-700 hover:text-amber-100 border-stone-700',
-                eraseBtn: 'bg-red-900/30 text-red-400 hover:bg-red-900/50 border-red-900',
-                borderLight: 'border-slate-700',
-                borderHeavy: 'border-black'
-            },
-            Vampire: {
-                name: '뱀파이어',
-                bg: 'bg-neutral-950',
-                textMain: 'text-red-600',
-                textSub: 'text-red-900',
-                boardBg: 'bg-black',
-                boardBorder: 'border-red-950',
-                cellInitial: 'bg-neutral-900 text-red-800',
-                cellSelected: 'bg-red-700 text-white',
-                cellSame: 'bg-neutral-800 text-red-500',
-                cellError: 'bg-red-950 text-red-400',
-                cellNormal: 'bg-black text-red-600',
-                cellNote: 'text-neutral-600',
-                btnPrimary: 'bg-red-700 hover:bg-red-600 text-white border-red-900',
-                btnActive: 'bg-red-800 text-white border-red-950',
-                btnInactive: 'bg-black text-red-900 border-neutral-900 hover:bg-neutral-900',
-                numPad: 'bg-neutral-900 text-red-600 hover:bg-neutral-800 hover:text-red-500 border-neutral-800',
-                eraseBtn: 'bg-red-950 text-red-500 hover:bg-red-900 border-red-900',
-                borderLight: 'border-red-900/30',
-                borderHeavy: 'border-red-700'
-            }
+            Classic: { name: '클래식', bg: 'bg-slate-50', textMain: 'text-slate-800', textSub: 'text-slate-500', boardBg: 'bg-slate-800', boardBorder: 'border-slate-800', cellInitial: 'bg-slate-100 text-slate-900', cellSelected: 'bg-blue-500 text-white', cellSame: 'bg-blue-200 text-slate-900', cellError: 'bg-red-100 text-red-600', cellNormal: 'bg-white text-blue-600', cellNote: 'text-slate-500', btnPrimary: 'bg-blue-600 hover:bg-blue-500 text-white border-blue-800', btnActive: 'bg-slate-700 text-white border-slate-900', btnInactive: 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50', numPad: 'bg-white text-slate-700 hover:bg-blue-50 hover:text-blue-600 border-slate-200', eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200', borderLight: 'border-slate-300', borderHeavy: 'border-slate-800' },
+            Dark: { name: '다크', bg: 'bg-slate-900', textMain: 'text-slate-100', textSub: 'text-slate-400', boardBg: 'bg-black', boardBorder: 'border-black', cellInitial: 'bg-slate-800 text-slate-300', cellSelected: 'bg-indigo-600 text-white', cellSame: 'bg-slate-700 text-white', cellError: 'bg-red-900 text-red-200', cellNormal: 'bg-slate-900 text-indigo-300', cellNote: 'text-slate-500', btnPrimary: 'bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-800', btnActive: 'bg-indigo-500 text-white border-indigo-700', btnInactive: 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700', numPad: 'bg-slate-800 text-slate-200 hover:bg-indigo-900 hover:text-indigo-200 border-slate-700', eraseBtn: 'bg-red-900/30 text-red-400 hover:bg-red-900/50 border-red-900', borderLight: 'border-slate-700', borderHeavy: 'border-black' },
+            Nature: { name: '자연', bg: 'bg-stone-100', textMain: 'text-stone-800', textSub: 'text-stone-500', boardBg: 'bg-stone-800', boardBorder: 'border-stone-800', cellInitial: 'bg-stone-200 text-stone-900', cellSelected: 'bg-emerald-600 text-white', cellSame: 'bg-emerald-200 text-stone-900', cellError: 'bg-orange-100 text-orange-700', cellNormal: 'bg-white text-emerald-700', cellNote: 'text-stone-500', btnPrimary: 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-800', btnActive: 'bg-stone-600 text-white border-stone-800', btnInactive: 'bg-white text-stone-600 border-stone-300 hover:bg-stone-50', numPad: 'bg-white text-stone-700 hover:bg-emerald-50 hover:text-emerald-700 border-stone-300', eraseBtn: 'bg-orange-50 text-orange-600 hover:bg-orange-100 border-orange-200', borderLight: 'border-stone-300', borderHeavy: 'border-stone-800' },
+            Pink: { name: '핑크', bg: 'bg-rose-50', textMain: 'text-rose-900', textSub: 'text-rose-500', boardBg: 'bg-rose-900', boardBorder: 'border-rose-900', cellInitial: 'bg-rose-100 text-rose-900', cellSelected: 'bg-pink-500 text-white', cellSame: 'bg-pink-200 text-rose-900', cellError: 'bg-red-100 text-red-600', cellNormal: 'bg-white text-pink-600', cellNote: 'text-rose-400', btnPrimary: 'bg-pink-500 hover:bg-pink-400 text-white border-pink-700', btnActive: 'bg-rose-600 text-white border-rose-800', btnInactive: 'bg-white text-rose-500 border-rose-200 hover:bg-rose-50', numPad: 'bg-white text-rose-700 hover:bg-pink-50 hover:text-pink-600 border-rose-200', eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200', borderLight: 'border-rose-200', borderHeavy: 'border-rose-900' },
+            Ocean: { name: '오션', bg: 'bg-cyan-50', textMain: 'text-cyan-900', textSub: 'text-cyan-600', boardBg: 'bg-cyan-900', boardBorder: 'border-cyan-900', cellInitial: 'bg-cyan-100 text-cyan-900', cellSelected: 'bg-cyan-600 text-white', cellSame: 'bg-cyan-200 text-cyan-900', cellError: 'bg-red-100 text-red-600', cellNormal: 'bg-white text-cyan-700', cellNote: 'text-cyan-500', btnPrimary: 'bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-800', btnActive: 'bg-cyan-700 text-white border-cyan-900', btnInactive: 'bg-white text-cyan-600 border-cyan-200 hover:bg-cyan-100', numPad: 'bg-white text-cyan-800 hover:bg-cyan-50 hover:text-cyan-600 border-cyan-200', eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200', borderLight: 'border-cyan-200', borderHeavy: 'border-cyan-900' },
+            Lavender: { name: '라벤더', bg: 'bg-violet-50', textMain: 'text-violet-900', textSub: 'text-violet-500', boardBg: 'bg-violet-900', boardBorder: 'border-violet-900', cellInitial: 'bg-violet-100 text-violet-900', cellSelected: 'bg-violet-500 text-white', cellSame: 'bg-violet-200 text-violet-900', cellError: 'bg-red-100 text-red-600', cellNormal: 'bg-white text-violet-600', cellNote: 'text-violet-400', btnPrimary: 'bg-violet-500 hover:bg-violet-400 text-white border-violet-700', btnActive: 'bg-violet-600 text-white border-violet-800', btnInactive: 'bg-white text-violet-500 border-violet-200 hover:bg-violet-50', numPad: 'bg-white text-violet-700 hover:bg-violet-50 hover:text-violet-600 border-violet-200', eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200', borderLight: 'border-violet-200', borderHeavy: 'border-violet-900' },
+            Mint: { name: '민트', bg: 'bg-teal-50', textMain: 'text-teal-900', textSub: 'text-teal-600', boardBg: 'bg-teal-900', boardBorder: 'border-teal-900', cellInitial: 'bg-teal-100 text-teal-900', cellSelected: 'bg-teal-500 text-white', cellSame: 'bg-teal-200 text-teal-900', cellError: 'bg-red-100 text-red-600', cellNormal: 'bg-white text-teal-600', cellNote: 'text-teal-400', btnPrimary: 'bg-teal-500 hover:bg-teal-400 text-white border-teal-700', btnActive: 'bg-teal-600 text-white border-teal-800', btnInactive: 'bg-white text-teal-500 border-teal-200 hover:bg-teal-50', numPad: 'bg-white text-teal-700 hover:bg-teal-50 hover:text-teal-600 border-teal-200', eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200', borderLight: 'border-teal-200', borderHeavy: 'border-teal-900' },
+            Sunset: { name: '선셋', bg: 'bg-orange-50', textMain: 'text-orange-900', textSub: 'text-orange-600', boardBg: 'bg-orange-900', boardBorder: 'border-orange-900', cellInitial: 'bg-orange-100 text-orange-900', cellSelected: 'bg-orange-500 text-white', cellSame: 'bg-orange-200 text-orange-900', cellError: 'bg-red-100 text-red-600', cellNormal: 'bg-white text-orange-600', cellNote: 'text-orange-400', btnPrimary: 'bg-orange-500 hover:bg-orange-400 text-white border-orange-700', btnActive: 'bg-orange-600 text-white border-orange-800', btnInactive: 'bg-white text-orange-500 border-orange-200 hover:bg-orange-50', numPad: 'bg-white text-orange-700 hover:bg-orange-50 hover:text-orange-600 border-orange-200', eraseBtn: 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200', borderLight: 'border-orange-200', borderHeavy: 'border-orange-900' },
+            Midnight: { name: '미드나잇', bg: 'bg-blue-950', textMain: 'text-blue-100', textSub: 'text-blue-400', boardBg: 'bg-black', boardBorder: 'border-black', cellInitial: 'bg-blue-900 text-blue-200', cellSelected: 'bg-blue-600 text-white', cellSame: 'bg-blue-800 text-white', cellError: 'bg-red-900 text-red-200', cellNormal: 'bg-blue-950 text-blue-300', cellNote: 'text-blue-500', btnPrimary: 'bg-blue-600 hover:bg-blue-500 text-white border-blue-800', btnActive: 'bg-blue-500 text-white border-blue-700', btnInactive: 'bg-blue-900 text-blue-300 border-blue-800 hover:bg-blue-800', numPad: 'bg-blue-900 text-blue-200 hover:bg-blue-800 hover:text-white border-blue-800', eraseBtn: 'bg-red-900/40 text-red-400 hover:bg-red-900/60 border-red-900', borderLight: 'border-slate-700', borderHeavy: 'border-black' },
+            Cyber: { name: '사이버', bg: 'bg-zinc-950', textMain: 'text-lime-400', textSub: 'text-lime-700', boardBg: 'bg-black', boardBorder: 'border-lime-900', cellInitial: 'bg-zinc-900 text-lime-600', cellSelected: 'bg-lime-600 text-black', cellSame: 'bg-zinc-800 text-lime-400', cellError: 'bg-red-900 text-red-400', cellNormal: 'bg-black text-lime-400', cellNote: 'text-zinc-500', btnPrimary: 'bg-lime-600 hover:bg-lime-500 text-black border-lime-800', btnActive: 'bg-lime-700 text-black border-lime-900', btnInactive: 'bg-black text-lime-600 border-zinc-800 hover:bg-zinc-900', numPad: 'bg-zinc-900 text-lime-500 hover:bg-zinc-800 hover:text-lime-400 border-zinc-800', eraseBtn: 'bg-red-950 text-red-500 hover:bg-red-900 border-red-900', borderLight: 'border-lime-900/30', borderHeavy: 'border-lime-600' },
+            Coffee: { name: '커피', bg: 'bg-stone-900', textMain: 'text-amber-100', textSub: 'text-amber-700', boardBg: 'bg-black', boardBorder: 'border-black', cellInitial: 'bg-stone-800 text-stone-400', cellSelected: 'bg-amber-700 text-white', cellSame: 'bg-stone-700 text-amber-100', cellError: 'bg-red-900 text-red-200', cellNormal: 'bg-stone-900 text-amber-200', cellNote: 'text-stone-600', btnPrimary: 'bg-amber-700 hover:bg-amber-600 text-white border-amber-900', btnActive: 'bg-amber-800 text-white border-amber-950', btnInactive: 'bg-stone-800 text-amber-700 border-stone-700 hover:bg-stone-700', numPad: 'bg-stone-800 text-amber-200 hover:bg-stone-700 hover:text-amber-100 border-stone-700', eraseBtn: 'bg-red-900/30 text-red-400 hover:bg-red-900/50 border-red-900', borderLight: 'border-slate-700', borderHeavy: 'border-black' },
+            Vampire: { name: '뱀파이어', bg: 'bg-neutral-950', textMain: 'text-red-600', textSub: 'text-red-900', boardBg: 'bg-black', boardBorder: 'border-red-950', cellInitial: 'bg-neutral-900 text-red-800', cellSelected: 'bg-red-700 text-white', cellSame: 'bg-neutral-800 text-red-500', cellError: 'bg-red-950 text-red-400', cellNormal: 'bg-black text-red-600', cellNote: 'text-neutral-600', btnPrimary: 'bg-red-700 hover:bg-red-600 text-white border-red-900', btnActive: 'bg-red-800 text-white border-red-950', btnInactive: 'bg-black text-red-900 border-neutral-900 hover:bg-neutral-900', numPad: 'bg-neutral-900 text-red-600 hover:bg-neutral-800 hover:text-red-500 border-neutral-800', eraseBtn: 'bg-red-950 text-red-500 hover:bg-red-900 border-red-900', borderLight: 'border-red-900/30', borderHeavy: 'border-red-700' }
         };
 
         const state = {
@@ -475,31 +239,57 @@
             isPaused: false,
             selectedCell: null,
             isNoteMode: false,
-            timerInterval: null
+            timerInterval: null,
+            soundEnabled: true,
+            effectEnabled: true,
+            lastEffect: { row: null, col: null, type: null }
         };
 
         const scores = {
-            9: {
-                Easy: { time: null, wins: 0 },
-                Medium: { time: null, wins: 0 },
-                Hard: { time: null, wins: 0 },
-                Expert: { time: null, wins: 0 },
-                Master: { time: null, wins: 0 }
-            },
-            16: {
-                Easy: { time: null, wins: 0 },
-                Medium: { time: null, wins: 0 },
-                Hard: { time: null, wins: 0 },
-                Expert: { time: null, wins: 0 },
-                Master: { time: null, wins: 0 }
-            }
+            9: { Easy: { time: null, wins: 0 }, Medium: { time: null, wins: 0 }, Hard: { time: null, wins: 0 }, Expert: { time: null, wins: 0 }, Master: { time: null, wins: 0 } },
+            16: { Easy: { time: null, wins: 0 }, Medium: { time: null, wins: 0 }, Hard: { time: null, wins: 0 }, Expert: { time: null, wins: 0 }, Master: { time: null, wins: 0 } }
         };
 
-        /**
-         * --- FUNCTION DECLARATIONS ---
-         * Hoisted functions to prevent ReferenceErrors
-         */
+        // --- Sound System ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playTone(freq, type, duration) {
+            if (!state.soundEnabled) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
 
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function playSound(type) {
+            switch(type) {
+                case 'click': playTone(400, 'sine', 0.1); break;
+                case 'input': playTone(600, 'sine', 0.1); break;
+                case 'correct': 
+                    playTone(800, 'sine', 0.1);
+                    setTimeout(() => playTone(1200, 'sine', 0.2), 100);
+                    break;
+                case 'wrong':
+                    playTone(150, 'sawtooth', 0.3);
+                    break;
+                case 'win':
+                    [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => {
+                        setTimeout(() => playTone(f, 'square', 0.4), i * 150);
+                    });
+                    break;
+                case 'delete': playTone(200, 'sine', 0.1); break;
+            }
+        }
+
+        // --- Functions ---
         function formatValue(val) {
             if (val === 0) return '';
             if (val <= 9) return val.toString();
@@ -521,7 +311,6 @@
         function shuffleBoard(baseBoard, size) {
             const boxSize = Math.sqrt(size);
             let board = baseBoard.map(row => [...row]);
-            
             const nums = Array.from({ length: size }, (_, i) => i + 1);
             for (let i = nums.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -573,13 +362,13 @@
                 else if (difficulty === 'Medium') clues = 35;
                 else if (difficulty === 'Hard') clues = 30;
                 else if (difficulty === 'Expert') clues = 24;
-                else clues = 17; // Master
+                else clues = 17;
             } else {
                 if (difficulty === 'Easy') clues = 160;
                 else if (difficulty === 'Medium') clues = 130;
                 else if (difficulty === 'Hard') clues = 110;
                 else if (difficulty === 'Expert') clues = 90;
-                else clues = 70; // Master
+                else clues = 70;
             }
 
             let attempts = totalCells - clues;
@@ -614,14 +403,8 @@
 
         function saveGame() {
             if (state.isWon) return;
-            const serializedNotes = state.notes.map(row => 
-                row.map(set => Array.from(set))
-            );
-            const data = {
-                ...state,
-                notes: serializedNotes,
-                timerInterval: null
-            };
+            const serializedNotes = state.notes.map(row => row.map(set => Array.from(set)));
+            const data = { ...state, notes: serializedNotes, timerInterval: null };
             localStorage.setItem(STORAGE_KEY_GAME, JSON.stringify(data));
         }
 
@@ -630,18 +413,12 @@
                 const saved = localStorage.getItem(STORAGE_KEY_GAME);
                 if (!saved) return false;
                 const data = JSON.parse(saved);
-                
-                data.notes = data.notes.map(row => 
-                    row.map(arr => new Set(arr))
-                );
-                
+                data.notes = data.notes.map(row => row.map(arr => new Set(arr)));
                 Object.assign(state, data);
                 state.isPaused = false; 
+                state.lastEffect = { row: null, col: null, type: null }; // Reset effect on load
                 return true;
-            } catch (e) {
-                console.error("Save load failed", e);
-                return false;
-            }
+            } catch (e) { return false; }
         }
 
         function loadSettings() {
@@ -650,12 +427,16 @@
                 if (saved) {
                     const data = JSON.parse(saved);
                     if (THEMES[data.theme]) state.themeName = data.theme;
+                    if (typeof data.soundEnabled !== 'undefined') state.soundEnabled = data.soundEnabled;
+                    if (typeof data.effectEnabled !== 'undefined') state.effectEnabled = data.effectEnabled;
                 }
             } catch(e) {}
         }
 
         function saveSettings() {
-            localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify({ theme: state.themeName }));
+            localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify({ 
+                theme: state.themeName, soundEnabled: state.soundEnabled, effectEnabled: state.effectEnabled
+            }));
         }
 
         function loadScores() {
@@ -666,16 +447,12 @@
                     for (const size in scores) {
                         if (data[size]) {
                             for (const diff in scores[size]) {
-                                if (data[size][diff]) {
-                                    scores[size][diff] = data[size][diff];
-                                }
+                                if (data[size][diff]) scores[size][diff] = data[size][diff];
                             }
                         }
                     }
                 }
-            } catch (e) {
-                console.error("Score load failed", e);
-            }
+            } catch (e) {}
         }
 
         function saveScores() {
@@ -699,9 +476,7 @@
         function applyTheme() {
             const theme = getCurrentTheme();
             document.body.className = `${theme.bg} transition-colors duration-300 min-h-screen flex flex-col items-center py-6 px-2`;
-            
-            const titleEl = document.getElementById('game-title');
-            if(titleEl) titleEl.className = `text-3xl font-bold ${theme.textMain}`;
+            document.getElementById('game-title').className = `text-3xl font-bold ${theme.textMain}`;
             
             const btnSettings = document.getElementById('btn-settings');
             const btnScoreboard = document.getElementById('btn-scoreboard');
@@ -715,10 +490,11 @@
             if (settingsPanelEl) {
                 settingsPanelEl.className = `hidden w-full p-4 rounded-xl shadow-lg border mb-2 animate-in slide-in-from-top-2 ${theme.numPad}`; 
                 if(isSettingsOpen) settingsPanelEl.classList.remove('hidden');
+                document.getElementById('toggle-sound').checked = state.soundEnabled;
+                document.getElementById('toggle-effect').checked = state.effectEnabled;
             }
 
-            const sizeBtns = document.querySelectorAll('#grid-size-controls button');
-            sizeBtns.forEach(btn => {
+            document.querySelectorAll('#grid-size-controls button').forEach(btn => {
                 const size = parseInt(btn.dataset.size);
                 if (state.gridSize === size) {
                     btn.className = `flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-bold transition-all ${theme.btnInactive} shadow-sm`;
@@ -727,69 +503,46 @@
                 }
             });
 
-            const timerDisplay = document.getElementById('timer-display');
-            if (timerDisplay) {
-                timerDisplay.className = `flex items-center gap-2 font-mono text-lg px-3 py-1 rounded-lg shadow-sm border ${theme.btnInactive}`;
-            }
+            document.getElementById('timer-display').className = `flex items-center gap-2 font-mono text-lg px-3 py-1 rounded-lg shadow-sm border ${theme.btnInactive}`;
 
             renderDifficultyButtons();
-
-            const boardContainer = document.getElementById('board-container');
-            if (boardContainer) {
-                boardContainer.className = `w-full aspect-square relative rounded-xl shadow-2xl overflow-hidden border-4 transition-colors duration-300 ${theme.boardBg} ${theme.boardBorder}`;
-            }
+            
+            document.getElementById('board-container').className = `w-full aspect-square relative rounded-xl shadow-2xl overflow-hidden border-4 transition-colors duration-300 ${theme.boardBg} ${theme.boardBorder}`;
             
             const mistakeDisplay = document.getElementById('mistake-display');
-            if (mistakeDisplay) {
-                if (state.mistakes >= 2) {
-                    mistakeDisplay.className = `flex items-center gap-1 font-bold text-sm px-3 py-1 rounded-full border bg-red-100 text-red-600 border-red-200 animate-pulse`;
-                } else {
-                    mistakeDisplay.className = `flex items-center gap-1 font-bold text-sm px-3 py-1 rounded-full border ${theme.btnInactive}`;
-                }
+            if (state.mistakes >= 2) {
+                mistakeDisplay.className = `flex items-center gap-1 font-bold text-sm px-3 py-1 rounded-full border bg-red-100 text-red-600 border-red-200 animate-pulse`;
+            } else {
+                mistakeDisplay.className = `flex items-center gap-1 font-bold text-sm px-3 py-1 rounded-full border ${theme.btnInactive}`;
             }
 
             const btnNote = document.getElementById('btn-note');
-            if (btnNote) {
-                btnNote.className = `py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2 border-b-4 active:border-b-0 active:translate-y-1 ${state.isNoteMode ? theme.btnActive : theme.btnInactive}`;
-                
-                const noteIcon = btnNote.querySelector('i, svg'); 
-                if (noteIcon) {
-                    if (state.isNoteMode) {
-                        noteIcon.classList.add('text-yellow-400');
-                        noteIcon.classList.remove('opacity-50');
-                    } else {
-                        noteIcon.classList.remove('text-yellow-400');
-                        noteIcon.classList.add('opacity-50');
-                    }
+            btnNote.className = `py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2 border-b-4 active:border-b-0 active:translate-y-1 ${state.isNoteMode ? theme.btnActive : theme.btnInactive}`;
+            const noteIcon = btnNote.querySelector('i, svg'); 
+            if (noteIcon) {
+                if (state.isNoteMode) {
+                    noteIcon.classList.add('text-yellow-400');
+                    noteIcon.classList.remove('opacity-50');
+                } else {
+                    noteIcon.classList.remove('text-yellow-400');
+                    noteIcon.classList.add('opacity-50');
                 }
             }
 
             const btnNewGame = document.getElementById('btn-new-game');
-            if (btnNewGame) {
-                btnNewGame.className = `py-3 rounded-xl font-bold shadow-sm border-b-4 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2 ${theme.btnPrimary}`;
-            }
+            btnNewGame.className = `py-3 rounded-xl font-bold shadow-sm border-b-4 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2 ${theme.btnPrimary}`;
 
             const modalWinContent = document.getElementById('modal-win-content');
-            if (modalWinContent) {
-                modalWinContent.className = `rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl transform scale-100 transition-colors ${theme.bg}`;
-                const winTitle = modalWinContent.querySelector('h2');
-                if (winTitle) winTitle.className = `text-3xl font-bold mb-2 ${theme.textMain}`;
-                const winText = modalWinContent.querySelector('p');
-                if (winText) winText.className = `mb-6 ${theme.textSub}`;
-                const btnWinRestart = document.getElementById('btn-win-restart');
-                if (btnWinRestart) btnWinRestart.className = `w-full py-3 rounded-xl font-bold transition-colors ${theme.btnPrimary}`;
-            }
+            modalWinContent.className = `rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl transform scale-100 transition-colors ${theme.bg}`;
+            modalWinContent.querySelector('h2').className = `text-3xl font-bold mb-2 ${theme.textMain}`;
+            modalWinContent.querySelector('p').className = `mb-6 ${theme.textSub}`;
+            document.getElementById('btn-win-restart').className = `w-full py-3 rounded-xl font-bold transition-colors ${theme.btnPrimary}`;
 
             const modalFailContent = document.getElementById('modal-fail-content');
-            if (modalFailContent) {
-                modalFailContent.className = `rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl transition-colors ${theme.bg}`;
-                const failTitle = modalFailContent.querySelector('h2');
-                if (failTitle) failTitle.className = `text-2xl font-bold mb-2 ${theme.textMain}`;
-                const failText = modalFailContent.querySelector('p');
-                if (failText) failText.className = `mb-6 ${theme.textSub}`;
-                const btnFailRestart = document.getElementById('btn-fail-restart');
-                if (btnFailRestart) btnFailRestart.className = `w-full py-3 rounded-xl font-bold transition-colors ${theme.btnActive}`;
-            }
+            modalFailContent.className = `rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl transition-colors ${theme.bg}`;
+            modalFailContent.querySelector('h2').className = `text-2xl font-bold mb-2 ${theme.textMain}`;
+            modalFailContent.querySelector('p').className = `mb-6 ${theme.textSub}`;
+            document.getElementById('btn-fail-restart').className = `w-full py-3 rounded-xl font-bold transition-colors ${theme.btnActive}`;
 
             renderNumpad();
             renderBoard(); 
@@ -799,52 +552,22 @@
         function renderDifficultyButtons() {
             const theme = getCurrentTheme();
             const container = document.getElementById('difficulty-controls');
-            if (!container) return;
             container.innerHTML = '';
             ['Easy', 'Medium', 'Hard', 'Expert', 'Master'].forEach(diff => {
                 const btn = document.createElement('button');
                 btn.textContent = getDifficultyLabel(diff);
                 btn.className = `px-4 py-1.5 rounded-full text-xs sm:text-sm font-bold transition-all border ${state.difficulty === diff ? theme.btnPrimary : theme.btnInactive}`;
-                btn.onclick = () => { startNewGame(diff, state.gridSize); };
+                btn.onclick = () => { 
+                    playSound('click');
+                    startNewGame(diff, state.gridSize); 
+                };
                 container.appendChild(btn);
-            });
-        }
-
-        function renderScoreboard() {
-            ['9', '16'].forEach(size => {
-                const tbody = document.getElementById(`score-list-${size}`);
-                if(!tbody) return;
-                tbody.innerHTML = '';
-                
-                const difficultyOrder = ['Easy', 'Medium', 'Hard', 'Expert', 'Master'];
-                difficultyOrder.forEach(diff => {
-                    const data = scores[size] && scores[size][diff] ? scores[size][diff] : { time: null, wins: 0 };
-                    const tr = document.createElement('tr');
-                    
-                    const tdDiff = document.createElement('td');
-                    tdDiff.className = "py-3 px-4 font-medium text-gray-800";
-                    tdDiff.textContent = getDifficultyLabel(diff);
-                    
-                    const tdTime = document.createElement('td');
-                    tdTime.className = "py-3 px-4 text-center font-mono text-blue-600 font-bold";
-                    tdTime.textContent = data.time ? formatTime(data.time) : '-';
-                    
-                    const tdWins = document.createElement('td');
-                    tdWins.className = "py-3 px-4 text-right font-medium text-gray-500";
-                    tdWins.textContent = `${data.wins}회`;
-                    
-                    tr.appendChild(tdDiff);
-                    tr.appendChild(tdTime);
-                    tr.appendChild(tdWins);
-                    tbody.appendChild(tr);
-                });
             });
         }
 
         function renderNumpad() {
             const theme = getCurrentTheme();
             const container = document.getElementById('numpad');
-            if (!container) return;
             container.className = `grid gap-2 sm:gap-3 mb-4 ${state.gridSize === 16 ? 'grid-cols-8' : 'grid-cols-5'} transition-all`;
             container.innerHTML = '';
 
@@ -865,29 +588,13 @@
                     ? `${theme.btnPrimary} opacity-50 cursor-not-allowed pointer-events-none border-transparent` 
                     : theme.numPad;
                 
-                // Use w-full to fill available width in the grid cell
-                // Using aspect-square ensures height matches the width, creating dynamic sizing
-                // Removed fixed heights (h-12 sm:h-16) to allow expansion
-                // Added min-h to ensure it doesn't get too small on very narrow screens if needed, but aspect-square usually handles it well.
-                // Let's rely on w-full and aspect-square for perfect squares that fill the grid.
-                // But user complained about "narrow buttons". If the grid columns are narrow, aspect-square makes them short too.
-                // If the container is wide, they will be big.
-                // To fill "empty space" horizontally, w-full in grid is default.
-                // If user wants them *wider* than square, we should remove aspect-square and set a fixed height or min-height.
-                // Let's try removing aspect-square and setting a good height, and w-full.
-                // Actually, standard numpads are often square.
-                // If I remove aspect-square, I can let them stretch.
-                
-                // Updated class: w-full (stretches in grid), h-12 (mobile height), sm:h-16 (pc height)
-                // This makes them rectangles if the column is wider than the height.
                 btn.className = `w-full h-12 sm:h-16 rounded-xl shadow-sm border-b-4 active:border-b-0 active:translate-y-1 transition-all text-xl sm:text-3xl font-bold flex items-center justify-center ${completedClass}`;
-                
                 btn.onclick = () => handleNumberInput(i);
                 container.appendChild(btn);
             }
 
             const eraseBtn = document.createElement('button');
-            eraseBtn.innerHTML = '<i data-lucide="eraser" class="w-5 h-5 sm:w-8 sm:h-8"></i>'; // Adjusted icon size for PC
+            eraseBtn.innerHTML = '<i data-lucide="eraser" class="w-5 h-5 sm:w-8 sm:h-8"></i>';
             eraseBtn.className = `w-full h-12 sm:h-16 rounded-xl shadow-sm border-b-4 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center ${theme.eraseBtn} ${state.gridSize === 16 ? 'col-span-1' : ''}`;
             eraseBtn.onclick = () => handleNumberInput(0);
             container.appendChild(eraseBtn);
@@ -950,7 +657,19 @@
                     if ((r + 1) % boxSize === 0 && r !== size - 1) borderWidthBottom = 'border-b-2';
 
                     cls += `${borderWidthRight} ${rightColorClass} ${borderWidthBottom} ${bottomColorClass} `;
+                    
+                    // --- EFFECT LOGIC ---
+                    // Append specific animation classes regardless of other states if effect matches
+                    let animationClass = '';
+                    if (state.effectEnabled) {
+                        if (state.lastEffect.type === 'wrong' && state.lastEffect.row === r && state.lastEffect.col === c) {
+                            animationClass = ' animate-shake';
+                        } else if (state.lastEffect.type === 'correct' && state.lastEffect.row === r && state.lastEffect.col === c) {
+                            animationClass = ' animate-pop';
+                        }
+                    }
 
+                    // --- COLOR LOGIC ---
                     if (isSelected) {
                         cls += theme.cellSelected;
                     } else if (isError) {
@@ -968,8 +687,13 @@
                         cls += theme.cellNormal;
                     }
 
+                    cls += animationClass;
+
                     cell.className = cls;
-                    cell.onclick = () => handleCellClick(r, c);
+                    cell.onclick = () => {
+                        playSound('click');
+                        handleCellClick(r, c);
+                    };
 
                     if (value !== BLANK) {
                         cell.textContent = formatValue(value);
@@ -1009,6 +733,7 @@
                       : `${t.bg} ${t.textMain} border-current opacity-70 hover:opacity-100`
                 }`;
                 btn.onclick = () => {
+                    playSound('click');
                     state.themeName = key;
                     saveSettings();
                     applyTheme();
@@ -1032,15 +757,12 @@
             state.isPaused = false;
             state.selectedCell = null;
             state.isNoteMode = false;
+            state.lastEffect = { row: null, col: null, type: null };
 
             document.getElementById('modal-win').classList.add('hidden');
             document.getElementById('modal-fail').classList.add('hidden');
-            
-            const noteText = document.getElementById('note-text');
-            if(noteText) noteText.textContent = '메모 OFF';
-            
-            const mistakeCount = document.getElementById('mistake-count');
-            if(mistakeCount) mistakeCount.textContent = '0';
+            document.getElementById('note-text').textContent = '메모 OFF';
+            document.getElementById('mistake-count').textContent = '0';
             
             if (shouldSave) localStorage.removeItem(STORAGE_KEY_GAME);
             
@@ -1061,6 +783,7 @@
             if (state.initialBoard[r][c] !== BLANK) return;
 
             if (state.isNoteMode) {
+                playSound('input');
                 if (num === 0) {
                     state.notes[r][c].clear();
                 } else {
@@ -1073,6 +796,7 @@
             }
 
             if (num === 0) {
+                playSound('delete');
                 state.board[r][c] = BLANK;
                 saveGame();
                 renderBoard();
@@ -1081,17 +805,28 @@
             }
 
             if (num !== state.solution[r][c]) {
+                playSound('wrong');
                 state.mistakes++;
                 const mistakeCount = document.getElementById('mistake-count');
                 if(mistakeCount) mistakeCount.textContent = state.mistakes;
-                applyTheme(); 
+                
+                state.lastEffect = { row: r, col: c, type: 'wrong' };
+                renderBoard();
                 
                 if (state.mistakes >= 3) {
                     document.getElementById('modal-fail').classList.remove('hidden');
                 }
+                
+                setTimeout(() => {
+                    state.lastEffect = { row: null, col: null, type: null };
+                    renderBoard();
+                }, 500);
+
             } else {
+                playSound('correct');
                 state.board[r][c] = num;
                 state.notes[r][c].clear();
+                state.lastEffect = { row: r, col: c, type: 'correct' };
                 
                 let isComplete = true;
                 for(let i=0; i<state.gridSize; i++){
@@ -1103,21 +838,32 @@
                     }
                 }
                 
+                renderBoard(); 
+                
                 if (isComplete) {
                     state.isWon = true;
                     localStorage.removeItem(STORAGE_KEY_GAME);
                     
-                    updateScore(state.gridSize, state.difficulty, state.timer);
-
-                    document.getElementById('win-size').textContent = `${state.gridSize}x${state.gridSize}`;
-                    document.getElementById('win-diff').textContent = getDifficultyLabel(state.difficulty);
-                    document.getElementById('win-time').textContent = formatTime(state.timer);
-                    document.getElementById('modal-win').classList.remove('hidden');
+                    setTimeout(() => {
+                        playSound('win');
+                        if(state.effectEnabled && window.confetti) {
+                            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+                        }
+                        updateScore(state.gridSize, state.difficulty, state.timer);
+                        document.getElementById('win-size').textContent = `${state.gridSize}x${state.gridSize}`;
+                        document.getElementById('win-diff').textContent = getDifficultyLabel(state.difficulty);
+                        document.getElementById('win-time').textContent = formatTime(state.timer);
+                        document.getElementById('modal-win').classList.remove('hidden');
+                    }, 500); 
                 }
+                
+                setTimeout(() => {
+                    state.lastEffect = { row: null, col: null, type: null };
+                    renderBoard();
+                }, 500);
             }
 
             saveGame();
-            renderBoard();
             renderNumpad();
         }
 
@@ -1158,7 +904,6 @@
 
             window.addEventListener('keydown', (e) => {
                 if (document.getElementById('modal-scoreboard') && !document.getElementById('modal-scoreboard').classList.contains('hidden')) return;
-                
                 if (document.getElementById('settings-panel') && !document.getElementById('settings-panel').classList.contains('hidden')) return;
 
                 if (state.isWon) return;
@@ -1186,9 +931,20 @@
                 }
             });
 
+            document.getElementById('toggle-sound').onclick = (e) => {
+                state.soundEnabled = e.target.checked;
+                if(state.soundEnabled) playSound('click');
+                saveSettings();
+            };
+            document.getElementById('toggle-effect').onclick = (e) => {
+                state.effectEnabled = e.target.checked;
+                saveSettings();
+            };
+
             const btnSettings = document.getElementById('btn-settings');
             if(btnSettings) {
                 btnSettings.onclick = () => {
+                    playSound('click');
                     const p = document.getElementById('settings-panel');
                     if(p) {
                         p.classList.toggle('hidden');
@@ -1200,6 +956,7 @@
             const btnCloseSettings = document.getElementById('btn-close-settings');
             if(btnCloseSettings) {
                 btnCloseSettings.onclick = () => {
+                    playSound('click');
                     const p = document.getElementById('settings-panel');
                     if(p) {
                         p.classList.add('hidden');
@@ -1211,6 +968,7 @@
             const btnScoreboard = document.getElementById('btn-scoreboard');
             if(btnScoreboard) {
                 btnScoreboard.onclick = () => {
+                    playSound('click');
                     renderScoreboard();
                     document.getElementById('modal-scoreboard').classList.remove('hidden');
                 };
@@ -1219,6 +977,7 @@
             const btnCloseScoreboard = document.getElementById('btn-close-scoreboard');
             if(btnCloseScoreboard) {
                 btnCloseScoreboard.onclick = () => {
+                    playSound('click');
                     document.getElementById('modal-scoreboard').classList.add('hidden');
                 };
             }
@@ -1234,6 +993,7 @@
 
             document.querySelectorAll('#grid-size-controls button').forEach(btn => {
                 btn.onclick = (e) => {
+                    playSound('click');
                     const size = parseInt(e.currentTarget.dataset.size);
                     if (size !== state.gridSize) startNewGame(state.difficulty, size);
                 }
@@ -1242,6 +1002,7 @@
             const btnNote = document.getElementById('btn-note');
             if(btnNote) {
                 btnNote.onclick = () => {
+                    playSound('click');
                     state.isNoteMode = !state.isNoteMode;
                     const noteText = document.getElementById('note-text');
                     if(noteText) noteText.textContent = state.isNoteMode ? '메모 ON' : '메모 OFF';
@@ -1250,13 +1011,22 @@
             }
 
             const btnNewGame = document.getElementById('btn-new-game');
-            if(btnNewGame) btnNewGame.onclick = () => startNewGame();
+            if(btnNewGame) btnNewGame.onclick = () => {
+                playSound('click');
+                startNewGame();
+            };
 
             const btnWinRestart = document.getElementById('btn-win-restart');
-            if(btnWinRestart) btnWinRestart.onclick = () => startNewGame();
+            if(btnWinRestart) btnWinRestart.onclick = () => {
+                playSound('click');
+                startNewGame();
+            };
             
             const btnFailRestart = document.getElementById('btn-fail-restart');
-            if(btnFailRestart) btnFailRestart.onclick = () => startNewGame();
+            if(btnFailRestart) btnFailRestart.onclick = () => {
+                playSound('click');
+                startNewGame();
+            };
 
             if(window.lucide) lucide.createIcons();
         });
