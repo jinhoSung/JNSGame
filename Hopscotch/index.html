@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>이미지 땅따먹기 DX (Fixed)</title>
+    <title>이미지 땅따먹기 DX (Leaderboard)</title>
     <style>
         body {
             margin: 0;
@@ -21,7 +21,6 @@
             margin: 0 auto;
             background-color: #000;
             box-shadow: 0 0 20px rgba(0,0,0,0.5);
-            /* 픽셀 아트를 선명하게 보기 위해 */
             image-rendering: pixelated; 
         }
 
@@ -115,36 +114,75 @@
             100% { transform: translateX(-50%) scale(1); }
         }
 
-        #result-modal {
+        /* 공통 모달 스타일 */
+        .modal {
             display: none;
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.9);
-            border: 4px solid #fff;
-            padding: 40px;
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #444;
+            padding: 30px;
             text-align: center;
             border-radius: 15px;
             pointer-events: auto;
             z-index: 100;
-            box-shadow: 0 0 50px rgba(255,255,255,0.2);
-            min-width: 280px;
+            box-shadow: 0 0 50px rgba(0, 255, 255, 0.1);
+            min-width: 300px;
+            max-width: 90%;
+            color: white;
         }
+
         #result-title { font-size: 2.5rem; margin-bottom: 10px; color: #ff3333; }
         #result-sub { font-size: 1.2rem; margin-bottom: 25px; color: #ccc; }
         
-        #restart-btn {
+        button.action-btn {
             padding: 12px 25px;
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             background: #333;
             color: white;
-            border: 2px solid white;
+            border: 1px solid #666;
             cursor: pointer;
             transition: 0.2s;
             border-radius: 5px;
+            margin: 5px;
         }
-        #restart-btn:hover { background: #555; transform: scale(1.05); }
+        button.action-btn:hover { background: #555; transform: scale(1.05); border-color: white; }
+        button.primary { background: #0066cc; border-color: #0088ff; }
+        button.primary:hover { background: #0077ee; }
+
+        /* 랭킹 스타일 */
+        #leaderboard-list {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            text-align: left;
+        }
+        .rank-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            border-bottom: 1px solid #333;
+            font-size: 0.9rem;
+        }
+        .rank-item:nth-child(1) { color: #ffd700; font-weight: bold; font-size: 1.1rem; }
+        .rank-item:nth-child(2) { color: #c0c0c0; font-weight: bold; }
+        .rank-item:nth-child(3) { color: #cd7f32; font-weight: bold; }
+
+        #input-name {
+            padding: 10px;
+            font-size: 1.1rem;
+            width: 70%;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            border: 1px solid #666;
+            background: #222;
+            color: white;
+            text-align: center;
+        }
 
         #mobile-controls {
             position: absolute;
@@ -157,70 +195,33 @@
             pointer-events: none;
         }
 
-        #zone-left {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 50%;
-            height: 100%;
-            pointer-events: auto;
-        }
-
-        #zone-right {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 50%;
-            height: 100%;
-            pointer-events: auto;
-        }
+        #zone-left { position: absolute; top: 0; left: 0; width: 50%; height: 100%; pointer-events: auto; }
+        #zone-right { position: absolute; top: 0; right: 0; width: 50%; height: 100%; pointer-events: auto; }
 
         #dynamic-joystick {
-            position: absolute;
-            width: 100px;
-            height: 100px;
+            position: absolute; width: 100px; height: 100px;
             background: rgba(255, 255, 255, 0.15);
             border: 2px solid rgba(255, 255, 255, 0.4);
             border-radius: 50%;
-            display: none;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            backdrop-filter: blur(2px);
+            display: none; transform: translate(-50%, -50%);
+            pointer-events: none; backdrop-filter: blur(2px);
         }
-
         #dynamic-knob {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 40px;
-            height: 40px;
+            position: absolute; top: 50%; left: 50%; width: 40px; height: 40px;
             background: rgba(255, 255, 255, 0.9);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
+            border-radius: 50%; transform: translate(-50%, -50%);
             box-shadow: 0 0 10px rgba(0,0,0,0.5);
         }
-
         #action-btn {
-            position: absolute;
-            bottom: 40px;
-            right: 40px;
-            width: 90px;
-            height: 90px;
-            background: rgba(255, 60, 60, 0.5);
-            border-radius: 50%;
+            position: absolute; bottom: 40px; right: 40px; width: 90px; height: 90px;
+            background: rgba(255, 60, 60, 0.5); border-radius: 50%;
             border: 4px solid rgba(255, 255, 255, 0.7);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 1.4rem;
-            color: white;
-            pointer-events: none;
-            transition: transform 0.1s, background 0.1s;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 1.4rem; color: white;
+            pointer-events: none; transition: transform 0.1s, background 0.1s;
         }
         #action-btn.active {
-            transform: scale(0.9);
-            background: rgba(255, 60, 60, 0.9);
+            transform: scale(0.9); background: rgba(255, 60, 60, 0.9);
             box-shadow: 0 0 20px rgba(255, 60, 60, 0.6);
         }
     </style>
@@ -236,6 +237,7 @@
 
         <div id="right-ui">
             <div class="btn-group">
+                <button class="game-btn" onclick="showLeaderboard()">🏆 랭킹</button>
                 <input type="file" id="img-input" accept="image/*" style="display: none;">
                 <button class="game-btn" onclick="document.getElementById('img-input').click()">📷 사진</button>
                 <button class="game-btn icon-btn" onclick="toggleFullscreen()">⛶</button>
@@ -246,10 +248,25 @@
     <div id="msg-overlay"></div>
     <div id="victory-msg">성공! 터치하여 다음 레벨로 ▶</div>
 
-    <div id="result-modal">
+    <!-- 게임 오버 모달 -->
+    <div id="result-modal" class="modal">
         <div id="result-title">GAME OVER</div>
         <div id="result-sub">다시 도전하세요!</div>
-        <button id="restart-btn" onclick="resetGame(true)">다시하기</button>
+        <div id="save-score-area">
+            <input type="text" id="input-name" placeholder="이름을 입력하세요 (3글자 이상)" maxlength="10">
+            <br>
+            <button class="action-btn primary" onclick="submitScore()">점수 저장</button>
+        </div>
+        <br>
+        <button class="action-btn" onclick="resetGame(true)">다시하기</button>
+    </div>
+
+    <!-- 랭킹 모달 -->
+    <div id="leaderboard-modal" class="modal">
+        <div style="font-size: 1.8rem; margin-bottom: 10px; color: #ffd700;">🏆 명예의 전당</div>
+        <div id="leaderboard-loading" style="color:#888;">데이터 불러오는 중...</div>
+        <ul id="leaderboard-list"></ul>
+        <button class="action-btn" onclick="closeLeaderboard()">닫기</button>
     </div>
 
     <canvas id="gameCanvas"></canvas>
@@ -262,6 +279,137 @@
         </div>
         <div id="action-btn">GO!</div>
     </div>
+
+    <!-- Firebase SDK (모듈 방식) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+        // ==========================================
+        // [중요] 여기에 Firebase 설정값을 복사해 넣으세요!
+        // ==========================================
+        const firebaseConfig = {
+    apiKey: "AIzaSyAYSKqmUyDMy-7JojaiId4NZBwOQ-iOldI",
+    authDomain: "jnsgamerankscore.firebaseapp.com",
+    projectId: "jnsgamerankscore",
+    storageBucket: "jnsgamerankscore.firebasestorage.app",
+    messagingSenderId: "508728667972",
+    appId: "1:508728667972:web:27cc29bfd5ee36a6217111",
+    measurementId: "G-K68BKHZ3LT"
+  };
+
+        // Firebase 초기화 확인
+        let db;
+        let isFirebaseReady = false;
+
+        try {
+            if (firebaseConfig.apiKey != "YOUR_API_KEY") {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                isFirebaseReady = true;
+                console.log("Firebase 연결 성공!");
+            } else {
+                console.warn("Firebase 설정이 완료되지 않았습니다. 랭킹 기능은 로컬 모드로 작동합니다.");
+            }
+        } catch (e) {
+            console.error("Firebase 초기화 오류:", e);
+        }
+
+        // 전역 함수로 노출 (HTML onclick에서 사용하기 위해)
+        window.submitScore = async function() {
+            const nameInput = document.getElementById('input-name');
+            const name = nameInput.value.trim();
+            
+            // 점수 계산 (레벨 * 1000 + 정복한 픽셀 수 대충 환산)
+            const finalScore = (window.gameLevel || 1) * 1000; 
+
+            if (name.length < 2) {
+                alert("이름을 2글자 이상 입력해주세요.");
+                return;
+            }
+
+            if (isFirebaseReady) {
+                try {
+                    document.querySelector('#save-score-area button').innerText = "저장 중...";
+                    await addDoc(collection(db, "leaderboard"), {
+                        name: name,
+                        score: finalScore,
+                        level: window.gameLevel,
+                        date: new Date().toISOString()
+                    });
+                    alert("점수가 등록되었습니다!");
+                    document.getElementById('result-modal').style.display = 'none';
+                    showLeaderboard(); // 랭킹 보여주기
+                } catch (e) {
+                    console.error("점수 저장 실패:", e);
+                    alert("점수 저장에 실패했습니다. 인터넷 연결이나 설정을 확인하세요.");
+                } finally {
+                    document.querySelector('#save-score-area button').innerText = "점수 저장";
+                }
+            } else {
+                alert("Firebase 설정이 되어있지 않아 점수를 저장할 수 없습니다.\n코드 내 firebaseConfig를 설정해주세요.");
+            }
+        };
+
+        window.showLeaderboard = async function() {
+            const modal = document.getElementById('leaderboard-modal');
+            const list = document.getElementById('leaderboard-list');
+            const loading = document.getElementById('leaderboard-loading');
+            
+            modal.style.display = 'block';
+            list.innerHTML = '';
+            loading.style.display = 'block';
+
+            // 게임 일시정지 (필요 시 구현)
+            
+            if (isFirebaseReady) {
+                try {
+                    const q = query(collection(db, "leaderboard"), orderBy("score", "desc"), limit(10));
+                    const querySnapshot = await getDocs(q);
+                    
+                    loading.style.display = 'none';
+                    
+                    if (querySnapshot.empty) {
+                        list.innerHTML = '<li>등록된 점수가 없습니다. 1등을 노려보세요!</li>';
+                    } else {
+                        let rank = 1;
+                        querySnapshot.forEach((doc) => {
+                            const data = doc.data();
+                            const li = document.createElement('li');
+                            li.className = 'rank-item';
+                            li.innerHTML = `
+                                <span>${rank}. ${escapeHtml(data.name)}</span>
+                                <span>Lv.${data.level}</span>
+                                <span>${data.score}점</span>
+                            `;
+                            list.appendChild(li);
+                            rank++;
+                        });
+                    }
+                } catch (e) {
+                    loading.innerText = "데이터 불러오기 실패";
+                    console.error(e);
+                }
+            } else {
+                loading.style.display = 'none';
+                list.innerHTML = '<li style="text-align:center;">Firebase 설정이 필요합니다.<br>코드를 확인해주세요.</li>';
+            }
+        };
+
+        window.closeLeaderboard = function() {
+            document.getElementById('leaderboard-modal').style.display = 'none';
+        }
+
+        function escapeHtml(text) {
+            if (!text) return text;
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
 
 <script>
     const canvas = document.getElementById('gameCanvas');
@@ -293,7 +441,7 @@
     
     const ITEM_TYPES = {
         SPEED: { color: '#FFFF00', icon: '⚡', duration: 400, label: "SPEED UP!" }, 
-        FREEZE: { color: '#00FFFF', icon: '❄️', duration: 600, label: "FREEZE!" }, // [수정] 지속시간 증가 (약 10초)
+        FREEZE: { color: '#00FFFF', icon: '❄️', duration: 600, label: "FREEZE!" }, 
         LIFE: { color: '#FF0000', icon: '❤️', duration: 0, label: "LIFE UP!" }
     };
 
@@ -314,6 +462,9 @@
     let currentTargetPercent = 80;
     let frameCount = 0; 
     
+    // 전역으로 레벨 노출 (스코어 저장용)
+    window.gameLevel = 1;
+
     let buffs = { speed: 0, freeze: 0 };
     let availableImages = [];
     
@@ -326,7 +477,7 @@
 
     bgImage.crossOrigin = "Anonymous";
     
-    // [수정] WebP 및 PNG 동시 지원 이미지 스캐너
+    // WebP 및 PNG 동시 지원 이미지 스캐너
     scanImages(1);
 
     let player = { x: 0, y: 0, color: '#00ff00', state: 'safe' };
@@ -336,9 +487,7 @@
     let items = []; 
     let input = { left: false, right: false, up: false, down: false, action: false, joyX: 0, joyY: 0 };
 
-    // [수정] 재귀적 이미지 스캔 (PNG -> WebP 순서)
     function scanImages(index) {
-        // 1. PNG 시도
         const imgPng = new Image();
         imgPng.src = `img/${index}.png`;
         imgPng.onload = () => {
@@ -346,7 +495,6 @@
             scanImages(index + 1);
         };
         imgPng.onerror = () => {
-            // 2. 실패시 WebP 시도
             const imgWebp = new Image();
             imgWebp.src = `img/${index}.webp`;
             imgWebp.onload = () => {
@@ -354,7 +502,6 @@
                 scanImages(index + 1);
             };
             imgWebp.onerror = () => {
-                // 3. 둘 다 없으면 스캔 종료
                 console.log(`이미지 스캔 완료: ${availableImages.length}개 발견`);
                 setRandomBackground();
             };
@@ -364,10 +511,8 @@
     function setRandomBackground() {
         if (availableImages.length > 0) {
             let randIdx = Math.floor(Math.random() * availableImages.length);
-            // availableImages에는 이미 전체 경로가 들어있음
             bgImage.src = availableImages[randIdx];
         } else {
-            // 이미지가 없으면 기본값 사용
             if (!bgImage.src || bgImage.src === "") {
                 bgImage.src = FALLBACK_IMG;
             } else if (!isInitialized) {
@@ -379,11 +524,17 @@
     document.addEventListener('click', handleGlobalClick);
     document.addEventListener('touchstart', handleGlobalClick);
 
-    function handleGlobalClick() {
+    function handleGlobalClick(e) {
+        // 모달 내부 클릭은 무시
+        if (e.target.closest('.modal')) return;
+        
         if (gameState === 'victory_view') {
             nextLevel();
         }
-        window.focus();
+        // 인풋에 포커스 있을때는 게임 조작 방지 등 처리 필요
+        if (document.activeElement.tagName !== 'INPUT') {
+            window.focus();
+        }
     }
 
     imgInput.addEventListener('change', (e) => {
@@ -404,7 +555,6 @@
         if (!isInitialized) { init(); isInitialized = true; }
     }
 
-    // [수정] 오류 처리 로직 추가
     function toggleFullscreen() {
         if (!document.fullscreenElement) {
             if (document.documentElement.requestFullscreen) {
@@ -481,6 +631,7 @@
 
         if (fullReset) {
             level = 1;
+            window.gameLevel = 1;
             lives = 3;
             if(availableImages.length > 0) setRandomBackground();
         }
@@ -491,6 +642,7 @@
         updateUI();
         
         modal.style.display = 'none';
+        document.getElementById('leaderboard-modal').style.display = 'none'; // 랭킹창도 닫기
         victoryMsg.style.display = 'none';
         uiLayer.style.opacity = '1'; 
         
@@ -498,11 +650,8 @@
         totalPixels = width * height; 
         capturedPixels = 0;
         
-        // --- 배경 실루엣 그리기 ---
         if (bgImage.complete && bgImage.naturalWidth !== 0) {
             landCtx.drawImage(bgImage, imgParams.x, imgParams.y, imgParams.w, imgParams.h);
-            
-            // 더 어둡게 (93%)
             landCtx.fillStyle = 'rgba(0, 0, 0, 0.93)';
             landCtx.fillRect(0, 0, width, height);
         } else {
@@ -511,7 +660,6 @@
         }
         
         const border = 40 * gameScale;
-        // 정수형으로 변환하여 revealArea 호출
         revealArea(0, 0, Math.ceil(width), Math.ceil(border)); 
         revealArea(0, Math.floor(height - border), Math.ceil(width), Math.ceil(border)); 
         revealArea(0, Math.floor(border), Math.ceil(border), Math.floor(height - 2*border)); 
@@ -532,6 +680,7 @@
 
     function nextLevel() {
         level++;
+        window.gameLevel = level;
         setRandomBackground();
     }
 
@@ -759,7 +908,6 @@
         }
 
         enemies.forEach(en => {
-            // [수정] 프리즈 상태면 모든 동작 멈춤
             if (buffs.freeze > 0) return;
 
             if (en.type === 'boss') {
@@ -846,10 +994,8 @@
             if (en.type === 'boss' && en.laserState === 0) {
                 if (en.cooldown > 0) en.cooldown--;
                 else {
-                    // [수정] 공격 확률 감소 (0.03 -> 0.015)
                     if (Math.random() < 0.015 + (level * 0.005)) { 
                         bossAttack(en);
-                        // [수정] 쿨타임 대폭 증가 (기본 약 2.5초 ~ 1.5초)
                         if(en.laserState === 0) en.cooldown = Math.max(90, 150 - (level * 5)); 
                     }
                 }
@@ -1024,6 +1170,7 @@
             resultTitle.innerText = "GAME OVER";
             resultSub.innerText = msg;
             modal.style.display = 'block';
+            document.getElementById('save-score-area').style.display = 'block';
         }
     }
 
@@ -1076,7 +1223,6 @@
         let bgData = bgImgData.data;
         let newPixels = 0;
 
-        // 1. 내부 채우기 (Pixel Perfect)
         for (let i = 0; i < grid.length; i++) {
             if (grid[i] === 0 && visited[i] === 0) {
                 grid[i] = 1; 
@@ -1090,8 +1236,6 @@
         }
         landCtx.putImageData(landImgData, 0, 0);
 
-        // [수정] 검은 줄 제거 핵심 로직:
-        // 기존 영역과 새 영역 사이의 틈(경로 부분)을 '이미지 패턴 브러시'로 덧칠하여 메꿈
         if (path.length > 1) {
             landCtx.save();
             landCtx.beginPath();
@@ -1099,9 +1243,7 @@
             for(let i=1; i<path.length; i++) landCtx.lineTo(path[i].x, path[i].y);
             landCtx.lineTo(player.x, player.y);
             
-            // 배경 이미지를 패턴으로 생성
             let pattern = landCtx.createPattern(bgImage, 'repeat');
-            // 패턴의 위치를 배경 이미지 파라미터와 일치시킴
             let matrix = new DOMMatrix();
             matrix.translateSelf(imgParams.x, imgParams.y);
             matrix.scaleSelf(imgParams.w / bgImage.width, imgParams.h / bgImage.height);
@@ -1110,12 +1252,10 @@
             landCtx.strokeStyle = pattern;
             landCtx.lineCap = 'round';
             landCtx.lineJoin = 'round';
-            // 경로보다 약간 두껍게 그려서 틈새를 확실히 커버
             landCtx.lineWidth = 12 * gameScale; 
             landCtx.stroke();
             landCtx.restore();
             
-            // 그리드 상태도 확실히 업데이트 (충돌 판정용)
             for (let i = 0; i < path.length - 1; i++) {
                let p1 = path[i];
                let p2 = path[i+1];
@@ -1270,7 +1410,6 @@
                     ctx.stroke();
                 }
 
-                // [수정] 프리즈 상태 시각적 효과 (파란색 + FROZEN)
                 if (buffs.freeze > 0) {
                      let grd = ctx.createRadialGradient(en.x, en.y, en.radius * 0.2, en.x, en.y, en.radius);
                     grd.addColorStop(0, "#00FFFF");
@@ -1328,7 +1467,6 @@
                 ctx.fill();
 
             } else {
-                // 일반 적 그리기 (프리즈시 멈춤 효과)
                 if (buffs.freeze > 0) {
                     ctx.fillStyle = "#00AAAA";
                 } else {
