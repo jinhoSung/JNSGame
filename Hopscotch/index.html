@@ -277,12 +277,11 @@
     const imgInput = document.getElementById('img-input');
     const msgOverlay = document.getElementById('msg-overlay');
 
-    // [중요] 게임 상수 (기본 해상도 720p 기준 값)
-    // 이 값들은 resize()에서 gameScale에 따라 곱해져서 실제 값으로 변환됩니다.
+    // 게임 상수
     const BASE_PLAYER_SIZE = 5;
     const BASE_PLAYER_SPEED = 6; 
     const BASE_RETRACT_SPEED = 12;
-    const BOSS_BASE_SPEED = 2; // 난이도 완화
+    const BOSS_BASE_SPEED = 2; 
     
     const MAX_MINIONS = 6;
     const MINION_LIFETIME = 700;
@@ -294,11 +293,13 @@
         LIFE: { color: '#FF0000', icon: '❤️', duration: 0, label: "LIFE UP!" }
     };
 
-    // 스케일링 변수
     let gameScale = 1.0;
+    let gameSpeedMultiplier = 1.0; 
     
-    // 실제 적용될 변수들 (resize에서 계산됨)
     let s_playerSize, s_playerSpeed, s_retractSpeed, s_bossSpeed;
+    
+    // 이미지 렌더링 파라미터 (좌표 동기화용)
+    let imgParams = { x: 0, y: 0, w: 0, h: 0 };
 
     // 상태 변수
     let width, height;
@@ -398,6 +399,9 @@
         if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
             document.getElementById('mobile-controls').style.display = 'block';
             setupMobileControls();
+            gameSpeedMultiplier = 0.5;
+        } else {
+            gameSpeedMultiplier = 1.0;
         }
 
         setupPCControls();
@@ -409,27 +413,36 @@
         width = window.innerWidth || 320;
         height = window.innerHeight || 240;
         
-        // [핵심] 해상도 비례 스케일 계산 (기준: 짧은 변 720px)
-        // 720p보다 화면이 작으면 gameScale < 1, 크면 gameScale > 1
         gameScale = Math.min(width, height) / 720;
         
-        // 스케일 적용 값 계산
         s_playerSize = BASE_PLAYER_SIZE * gameScale;
-        s_playerSpeed = BASE_PLAYER_SPEED * gameScale;
-        s_retractSpeed = BASE_RETRACT_SPEED * gameScale;
-        s_bossSpeed = BOSS_BASE_SPEED * gameScale;
+        s_playerSpeed = BASE_PLAYER_SPEED * gameScale * gameSpeedMultiplier;
+        s_retractSpeed = BASE_RETRACT_SPEED * gameScale * gameSpeedMultiplier;
+        s_bossSpeed = BOSS_BASE_SPEED * gameScale * gameSpeedMultiplier;
 
         canvas.width = width; canvas.height = height;
         landCanvas.width = width; landCanvas.height = height;
         bgCanvas.width = width; bgCanvas.height = height;
         
+        // 이미지 위치 및 크기 계산 (Cover 모드)
         if (bgImage.complete && bgImage.naturalWidth !== 0) {
             let sRatio = bgImage.width / bgImage.height;
             let dRatio = width / height;
-            let rw, rh, rx, ry;
-            if (dRatio > sRatio) { rw = width; rh = width/sRatio; rx = 0; ry = (height-rh)/2; }
-            else { rh = height; rw = height*sRatio; rx = (width-rw)/2; ry = 0; }
-            bgCtx.drawImage(bgImage, rx, ry, rw, rh);
+            
+            if (dRatio > sRatio) { 
+                imgParams.w = width; 
+                imgParams.h = width / sRatio; 
+                imgParams.x = 0; 
+                imgParams.y = (height - imgParams.h) / 2; 
+            } else { 
+                imgParams.h = height; 
+                imgParams.w = height * sRatio; 
+                imgParams.x = (width - imgParams.w) / 2; 
+                imgParams.y = 0; 
+            }
+            
+            // 원본 캔버스에 그리기 (밝은 이미지)
+            bgCtx.drawImage(bgImage, imgParams.x, imgParams.y, imgParams.w, imgParams.h);
         } else {
             bgCtx.fillStyle = '#3333aa'; bgCtx.fillRect(0,0,width,height);
         }
@@ -459,8 +472,19 @@
         totalPixels = width * height; 
         capturedPixels = 0;
         
-        landCtx.fillStyle = '#111111'; 
-        landCtx.fillRect(0, 0, width, height);
+        // --- [수정] 배경 실루엣 그리기 ---
+        // 1. 이미지가 있으면 그림
+        if (bgImage.complete && bgImage.naturalWidth !== 0) {
+            landCtx.drawImage(bgImage, imgParams.x, imgParams.y, imgParams.w, imgParams.h);
+            
+            // 2. 어둡게 덮어서 실루엣 효과 (검은색 85%)
+            landCtx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+            landCtx.fillRect(0, 0, width, height);
+        } else {
+            // 이미지가 없으면 그냥 검은색
+            landCtx.fillStyle = '#111111'; 
+            landCtx.fillRect(0, 0, width, height);
+        }
         
         // 테두리도 스케일 적용
         const border = 40 * gameScale;
@@ -488,7 +512,6 @@
     }
 
     function respawnPlayer() {
-        // 시작 위치도 스케일 적용
         player.x = 20 * gameScale; 
         player.y = height / 2; 
         player.state = 'safe'; player.color = '#00ff00';
@@ -499,8 +522,7 @@
         enemies = [];
         projectiles = [];
         
-        // 보스 속도 계산 (레벨 비례 + 스케일)
-        let bossSpeed = s_bossSpeed + (level * 0.4 * gameScale); 
+        let bossSpeed = s_bossSpeed + (level * 0.4 * gameScale * gameSpeedMultiplier); 
         
         enemies.push({ 
             type: 'boss', 
@@ -646,7 +668,6 @@
 
             if (player.state === 'drawing') {
                 player.color = '#ff3333';
-                // 선 긋기 간격도 스케일 고려
                 const lastPt = path[path.length-1];
                 const dist = Math.hypot(player.x - lastPt.x, player.y - lastPt.y);
                 if (dist > 4 * gameScale) path.push({x: player.x, y: player.y});
@@ -684,7 +705,6 @@
         for (let i = items.length - 1; i >= 0; i--) {
             let item = items[i];
             let dist = Math.hypot(player.x - item.x, player.y - item.y);
-            // 플레이어 크기 + 아이템 반경 스케일 고려
             if (dist < s_playerSize + item.radius) {
                 applyItemEffect(item.type);
                 items.splice(i, 1);
@@ -870,7 +890,7 @@
         if (currentMinions >= MAX_MINIONS) return;
 
         let angle = Math.atan2(player.y - boss.y, player.x - boss.x);
-        let speed = (4 + (level * 0.5)) * gameScale; // 속도 스케일링
+        let speed = (4 + (level * 0.5)) * gameScale * gameSpeedMultiplier;
         enemies.push({
             type: 'minion', subType: type || 'bouncer',
             x: boss.x, y: boss.y,
@@ -883,7 +903,7 @@
 
     function shootMissile(boss) {
         let angle = Math.atan2(player.y - boss.y, player.x - boss.x);
-        let speed = (7 + (level * 0.8)) * gameScale; 
+        let speed = (7 + (level * 0.8)) * gameScale * gameSpeedMultiplier; 
         projectiles.push({
             x: boss.x, y: boss.y,
             dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed, radius: 4 * gameScale
@@ -892,7 +912,7 @@
     
     function shootSpreadMissile(boss) {
         let baseAngle = Math.atan2(player.y - boss.y, player.x - boss.x);
-        let speed = (6 + (level * 0.8)) * gameScale;
+        let speed = (6 + (level * 0.8)) * gameScale * gameSpeedMultiplier;
         for(let i = -1; i <= 1; i++) {
             let angle = baseAngle + (i * 0.3); 
             projectiles.push({
@@ -1047,7 +1067,7 @@
                     let t = s / steps;
                     let lx = p1.x + (p2.x - p1.x) * t;
                     let ly = p1.y + (p2.y - p1.y) * t;
-                    let radius = 4 * gameScale; // [스케일] 선 두께 적용
+                    let radius = 4 * gameScale; 
                     for(let py = Math.floor(ly)-radius; py <= Math.floor(ly)+radius; py++) {
                         for(let px = Math.floor(lx)-radius; px <= Math.floor(lx)+radius; px++) {
                             if(px >= 0 && px < width && py >= 0 && py < height) {
