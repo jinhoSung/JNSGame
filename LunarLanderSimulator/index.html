@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Lunar Lander: Mobile Edition (Audio & FX)</title>
+    <title>Lunar Lander: Mobile Edition (Items & Score)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
@@ -244,13 +244,11 @@
             </div>
             
             <div class="hud-center">
-                <!-- 사운드 토글 -->
                 <div class="icon-btn" id="sound-btn" onclick="toggleSound()">
                     <svg width="18" height="18" viewBox="0 0 24 24">
                         <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
                     </svg>
                 </div>
-                <!-- 일시정지 -->
                 <div class="icon-btn" id="pause-btn" onclick="togglePause()">
                     <svg width="14" height="14" viewBox="0 0 14 14">
                         <rect x="2" y="1" width="4" height="12"/>
@@ -260,6 +258,7 @@
             </div>
 
             <div class="hud-group hud-right">
+                <div>SCORE <span id="ui-score" style="color:#ff0">0</span></div>
                 <div>ALT <span id="ui-alt">0</span></div>
                 <div>V.SPD <span id="ui-vspeed">0</span></div>
                 <div>H.SPD <span id="ui-hspeed">0</span></div>
@@ -321,10 +320,9 @@
 
     <script>
         /**
-         * LUNAR LANDER: COMPLETE EDITION (AUDIO ENHANCED)
+         * LUNAR LANDER: COMPLETE EDITION (FINAL POLISH)
          */
 
-        // --- 오디오 컨트롤러 (Web Audio API) ---
         class AudioController {
             constructor() {
                 this.ctx = null;
@@ -337,28 +335,24 @@
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
                 this.ctx = new AudioContext();
                 this.masterGain = this.ctx.createGain();
-                this.masterGain.gain.value = 0.3; // 전체 볼륨
+                this.masterGain.gain.value = 0.3; 
                 this.masterGain.connect(this.ctx.destination);
             }
 
             toggle() {
                 this.enabled = !this.enabled;
-                if (this.ctx) {
-                    this.masterGain.gain.value = this.enabled ? 0.3 : 0;
-                }
+                if (this.ctx) this.masterGain.gain.value = this.enabled ? 0.3 : 0;
                 return this.enabled;
             }
 
-            playTone(freq, type, duration) {
+            playTone(freq, type, duration, vol=0.3) {
                 if (!this.enabled || !this.ctx) return;
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.type = type;
                 osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-                
-                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
-
                 osc.connect(gain);
                 gain.connect(this.masterGain);
                 osc.start();
@@ -370,15 +364,11 @@
                 const bufferSize = this.ctx.sampleRate * duration;
                 const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
                 const data = buffer.getChannelData(0);
-                for (let i = 0; i < bufferSize; i++) {
-                    data[i] = Math.random() * 2 - 1;
-                }
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
 
                 const noise = this.ctx.createBufferSource();
                 noise.buffer = buffer;
                 const gain = this.ctx.createGain();
-                
-                // Lowpass Filter for Explosion/Thrust
                 const filter = this.ctx.createBiquadFilter();
                 filter.type = 'lowpass';
                 filter.frequency.value = 1000;
@@ -386,45 +376,27 @@
                 noise.connect(filter);
                 filter.connect(gain);
                 gain.connect(this.masterGain);
-
                 gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
-                
                 noise.start();
             }
 
-            // 사운드 이펙트 메소드들
-            playThrust() {
-                // 짧은 화이트 노이즈로 엔진 소리 흉내 (매 프레임 호출되므로 아주 짧게)
-                if (!this.enabled || !this.ctx) return;
-                // 연속 재생 시 부하를 줄이기 위해 매번 생성하지 않고, 실제로는 루핑되는 노이즈를 켜고 끄는 게 좋지만
-                // 간단한 구현을 위해 아주 짧은 노이즈를 겹쳐서 소리냄
-                if (Math.random() < 0.3) this.playNoise(0.1); 
-            }
-
-            playExplosion() {
-                this.playNoise(1.0); // 긴 노이즈
-                this.playTone(100, 'sawtooth', 0.5); // 저음 추가
-            }
-
+            playThrust() { if (Math.random() < 0.3) this.playNoise(0.1); }
+            playExplosion() { this.playNoise(1.0); this.playTone(100, 'sawtooth', 0.5); }
             playWin() {
-                this.playTone(523.25, 'sine', 0.2); // Do
-                setTimeout(() => this.playTone(659.25, 'sine', 0.2), 200); // Mi
-                setTimeout(() => this.playTone(783.99, 'sine', 0.4), 400); // Sol
+                this.playTone(523.25, 'sine', 0.2); 
+                setTimeout(() => this.playTone(659.25, 'sine', 0.2), 200); 
+                setTimeout(() => this.playTone(783.99, 'sine', 0.4), 400); 
             }
-
             playFail() {
                 this.playTone(150, 'sawtooth', 0.3);
                 setTimeout(() => this.playTone(100, 'sawtooth', 0.6), 300);
             }
-
-            playClick() {
-                this.playTone(800, 'sine', 0.1);
-            }
+            playClick() { this.playTone(800, 'sine', 0.1); }
+            playCollect() { this.playTone(1200, 'sine', 0.1, 0.1); setTimeout(()=>this.playTone(1800, 'sine', 0.1, 0.1), 50); }
         }
 
         const audio = new AudioController();
-
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const uiLayer = document.getElementById('ui-layer');
@@ -442,6 +414,7 @@
 
         const TUTORIALS = {
             1: { title: "비행 훈련", pc: "방향키 [↑] 엔진\n[←/→] 회전\n\n속도를 줄여 안착하세요.", mobile: "[🔥] 버튼: 엔진\n[◀/▶] 버튼: 회전\n\n속도를 줄여 안착하세요." },
+            2: { title: "연료 아이템", text: "공중에 떠있는 노란 아이템을 먹으면\n연료가 충전되고 점수를 얻습니다." },
             5: { title: "환경 경보: 바람", text: "바람이 붑니다.\n기체를 기울여 저항하세요." },
             11: { title: "경보: 장애물", text: "드론을 피하세요.\n부딪히면 폭발합니다." },
             21: { title: "환경 경보: 폭풍", text: "시야가 나쁘고 바람이 거셉니다." },
@@ -464,14 +437,15 @@
         let gameOffsetX = 0;
         let gameOffsetY = 0;
         
-        // 화면 흔들림 효과 변수
         let shakeIntensity = 0;
+        let currentScore = 0; // 현재 레벨 점수
 
         let terrainPoints = [];
         let landingPad = { x: 0, width: 0, y: 0 };
         let particles = [];
         let obstacles = [];
-        let debris = []; // 폭발 파편
+        let debris = []; 
+        let collectibles = []; // 연료 아이템
         let levelConfig = {};
         const lander = { x: 0, y: 0, vx: 0, vy: 0, angle: 0, fuel: 0, visible: true };
 
@@ -495,7 +469,6 @@
             renderLevelGrid();
             setupMobileControls();
             
-            // 유저 인터랙션 시 오디오 초기화 (브라우저 정책)
             window.addEventListener('click', () => audio.init(), { once: true });
             window.addEventListener('touchstart', () => audio.init(), { once: true });
             window.addEventListener('keydown', () => audio.init(), { once: true });
@@ -506,14 +479,11 @@
         function resizeGame() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-
             const scaleX = canvas.width / LOGICAL_WIDTH;
             const scaleY = canvas.height / LOGICAL_HEIGHT;
             gameScale = Math.min(scaleX, scaleY); 
-
             gameOffsetX = (canvas.width - LOGICAL_WIDTH * gameScale) / 2;
             gameOffsetY = (canvas.height - LOGICAL_HEIGHT * gameScale) / 2;
-
             uiLayer.style.width = `${LOGICAL_WIDTH * gameScale}px`;
             uiLayer.style.height = `${LOGICAL_HEIGHT * gameScale}px`;
         }
@@ -522,21 +492,17 @@
             if (!lastTime) lastTime = timestamp;
             const dt = timestamp - lastTime;
             lastTime = timestamp;
-
             if (dt > 100) accumulator = 0; 
             else accumulator += dt;
-
             while (accumulator >= STEP) {
                 update(); 
                 accumulator -= STEP;
             }
-
             draw();
             requestAnimationFrame(loop);
         }
 
         function update() {
-            // 화면 흔들림 감소
             if (shakeIntensity > 0) shakeIntensity *= 0.9;
             if (shakeIntensity < 0.5) shakeIntensity = 0;
 
@@ -555,12 +521,11 @@
                 lander.vx += Math.sin(lander.angle) * 0.12;
                 lander.vy -= Math.cos(lander.angle) * 0.12;
                 lander.fuel -= 0.3;
-                audio.playThrust(); // 엔진 소리 재생
+                audio.playThrust(); 
             }
 
             lander.vy += levelConfig.gravity * 0.85; 
             lander.vx += levelConfig.wind;
-
             lander.x += lander.vx;
             lander.y += lander.vy;
 
@@ -568,14 +533,28 @@
             if (lander.x > LOGICAL_WIDTH) lander.x = 0;
             if (lander.y < 0) { lander.y = 0; lander.vy = 0; }
 
+            // 장애물 충돌
             obstacles.forEach(obs => {
                 obs.x += obs.speed;
                 obs.y += Math.sin(Date.now() / 500 + obs.phase) * 0.5;
                 if (obs.x < 0 || obs.x > LOGICAL_WIDTH) obs.speed *= -1;
-                
                 const dist = Math.hypot(lander.x - obs.x, lander.y - obs.y);
                 if (dist < obs.radius + LANDER_SIZE/2) endGame(false, "장애물 충돌!");
             });
+
+            // 아이템 수집
+            for (let i = collectibles.length - 1; i >= 0; i--) {
+                const c = collectibles[i];
+                // 회전하는 애니메이션
+                c.angle += 0.05;
+                const dist = Math.hypot(lander.x - c.x, lander.y - c.y);
+                if (dist < c.radius + LANDER_SIZE/2) {
+                    collectibles.splice(i, 1);
+                    lander.fuel += 20; // 연료 충전
+                    currentScore += 100; // 점수 획득
+                    audio.playCollect();
+                }
+            }
 
             checkTerrainCollision();
             updateUI();
@@ -583,25 +562,20 @@
 
         function updateDebris() {
             debris.forEach(p => {
-                p.x += p.vx;
-                p.y += p.vy;
-                p.vy += 0.1; // 중력
-                p.life -= 0.02;
+                p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.life -= 0.02;
             });
             debris = debris.filter(p => p.life > 0);
         }
 
         function triggerExplosion(x, y) {
-            shakeIntensity = 20; // 화면 흔들림!
+            shakeIntensity = 20; 
             audio.playExplosion();
             debris = [];
             for (let i = 0; i < 20; i++) {
                 debris.push({
                     x: x, y: y,
-                    vx: (Math.random() - 0.5) * 10,
-                    vy: (Math.random() - 0.5) * 10,
-                    life: 1.0,
-                    color: Math.random() < 0.5 ? 'orange' : 'red'
+                    vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10,
+                    life: 1.0, color: Math.random() < 0.5 ? 'orange' : 'red'
                 });
             }
         }
@@ -646,6 +620,7 @@
         function updateUI() {
             document.getElementById('ui-fuel').innerText = Math.floor(lander.fuel);
             document.getElementById('ui-alt').innerText = Math.max(0, Math.floor(landingPad.y - lander.y));
+            document.getElementById('ui-score').innerText = currentScore;
             
             const vSpd = document.getElementById('ui-vspeed');
             vSpd.innerText = Math.abs(lander.vy).toFixed(1);
@@ -672,10 +647,7 @@
             drawGlobalParticles();
 
             ctx.save();
-            
-            // 게임 영역 그리기 및 스크린 쉐이크 적용
-            let shakeX = 0;
-            let shakeY = 0;
+            let shakeX = 0; let shakeY = 0;
             if (shakeIntensity > 0) {
                 shakeX = (Math.random() - 0.5) * shakeIntensity;
                 shakeY = (Math.random() - 0.5) * shakeIntensity;
@@ -684,12 +656,31 @@
             ctx.translate(gameOffsetX + shakeX, gameOffsetY + shakeY);
             ctx.scale(gameScale, gameScale);
             
-            // 경계선
-            ctx.strokeStyle = '#333';
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
             ctx.strokeRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
 
             drawGameWorld();
+
+            // 착륙장 화살표 그리기 (화면 밖으로 나갈 때)
+            // 논리 좌표계 기준 착륙장 센터
+            const padCenterX = landingPad.x + landingPad.width/2;
+            const dist = padCenterX - lander.x;
+            
+            // 기체로부터 일정 거리 이상 떨어져 있으면 화살표 표시
+            if (Math.abs(dist) > 300 || (lander.x < 0 || lander.x > LOGICAL_WIDTH)) {
+                 const dir = dist > 0 ? 1 : -1;
+                 const arrowX = lander.x + dir * 100; // 기체 주변
+                 // 화면 안에 고정하려면:
+                 const clampedArrowX = dir > 0 ? LOGICAL_WIDTH - 40 : 40;
+                 
+                 ctx.fillStyle = "rgba(0, 255, 0, 0.5)";
+                 ctx.beginPath();
+                 // 간단한 삼각형
+                 ctx.moveTo(clampedArrowX, lander.y);
+                 ctx.lineTo(clampedArrowX - dir * 10, lander.y - 10);
+                 ctx.lineTo(clampedArrowX - dir * 10, lander.y + 10);
+                 ctx.fill();
+            }
 
             ctx.restore();
         }
@@ -697,7 +688,6 @@
         function drawGlobalParticles() {
             ctx.fillStyle = (levelConfig.weather === 'ember') ? '#ff5500' : 'white';
             if (levelConfig.weather === 'rain') ctx.fillStyle = '#6688cc';
-            
             particles.forEach(p => {
                 if (gameState === 'playing') {
                     p.x += (p.vx + levelConfig.wind * 20) * gameScale; 
@@ -706,17 +696,13 @@
                     if(p.x < 0) p.x = canvas.width;
                     if(p.y > canvas.height) p.y = 0;
                 }
-                
                 if (levelConfig.weather === 'rain') ctx.fillRect(p.x, p.y, 1 * gameScale, p.size * 4 * gameScale);
-                else { 
-                    ctx.beginPath(); 
-                    ctx.arc(p.x, p.y, (p.size/2) * gameScale, 0, Math.PI*2); 
-                    ctx.fill(); 
-                }
+                else { ctx.beginPath(); ctx.arc(p.x, p.y, (p.size/2) * gameScale, 0, Math.PI*2); ctx.fill(); }
             });
         }
 
         function drawGameWorld() {
+            // 지형
             if (terrainPoints.length > 0) {
                 ctx.beginPath();
                 ctx.moveTo(terrainPoints[0].x, terrainPoints[0].y);
@@ -726,59 +712,78 @@
                 ctx.fill();
             }
 
-            ctx.fillStyle = '#ff0'; 
-            ctx.fillRect(landingPad.x, landingPad.y, landingPad.width, 4);
+            // 착륙장
+            ctx.fillStyle = '#ff0'; ctx.fillRect(landingPad.x, landingPad.y, landingPad.width, 4);
             if (Math.floor(Date.now() / 500) % 2 === 0) {
                  ctx.fillStyle = '#0f0';
                  ctx.fillRect(landingPad.x, landingPad.y - 10, 2, 10);
                  ctx.fillRect(landingPad.x + landingPad.width - 2, landingPad.y - 10, 2, 10);
             }
 
+            // 아이템
+            collectibles.forEach(c => {
+                ctx.save();
+                ctx.translate(c.x, c.y);
+                ctx.rotate(Math.sin(c.angle) * 0.2); // 살짝 흔들림
+                ctx.fillStyle = '#ffd700'; // Gold
+                // 연료통 모양
+                ctx.fillRect(-6, -8, 12, 16);
+                ctx.fillStyle = '#ff0';
+                ctx.font = "10px monospace";
+                ctx.fillText("F", -3, 3);
+                ctx.restore();
+            });
+
+            // 장애물
             obstacles.forEach(obs => {
                 ctx.fillStyle = 'red';
                 ctx.beginPath(); ctx.arc(obs.x, obs.y, obs.radius, 0, Math.PI*2); ctx.fill();
                 ctx.strokeStyle = '#fff'; ctx.lineWidth=1; ctx.stroke();
             });
 
+            // 플레이어
             if (lander.visible) {
                 ctx.save();
                 ctx.translate(lander.x, lander.y);
                 ctx.rotate(lander.angle);
                 
-                ctx.fillStyle = '#eee'; ctx.fillRect(-10, -10, 20, 20);
-                ctx.fillStyle = '#3cf'; ctx.fillRect(-5, -5, 10, 10);
-                
+                // 조금 더 디테일한 기체 드로잉
+                ctx.fillStyle = '#eee'; 
+                // 몸체
+                ctx.beginPath();
+                ctx.moveTo(-10, -10); ctx.lineTo(10, -10); ctx.lineTo(12, 10); ctx.lineTo(-12, 10);
+                ctx.fill();
+                // 창문
+                ctx.fillStyle = '#3cf'; ctx.fillRect(-5, -5, 10, 8);
+                // 다리
                 ctx.strokeStyle = '#aaa'; ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.moveTo(-10, 10); ctx.lineTo(-15, 18); ctx.lineTo(-18, 18);
-                ctx.moveTo(10, 10); ctx.lineTo(15, 18); ctx.lineTo(18, 18);
+                ctx.moveTo(-10, 10); ctx.lineTo(-16, 20); ctx.lineTo(-20, 20);
+                ctx.moveTo(10, 10); ctx.lineTo(16, 20); ctx.lineTo(20, 20);
                 ctx.stroke();
 
                 if (keys['ArrowUp'] && lander.fuel > 0 && gameState === 'playing') {
                     ctx.fillStyle = 'orange';
-                    ctx.beginPath(); ctx.moveTo(-6, 10); ctx.lineTo(6, 10); ctx.lineTo(0, 25 + Math.random()*10); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(-6, 12); ctx.lineTo(6, 12); ctx.lineTo(0, 30 + Math.random()*15); ctx.fill();
                 }
-                if (keys['ArrowLeft']) { ctx.fillStyle = '#aaf'; ctx.fillRect(8, -8, 6, 3); }
-                if (keys['ArrowRight']) { ctx.fillStyle = '#aaf'; ctx.fillRect(-14, -8, 6, 3); }
-                
+                if (keys['ArrowLeft']) { ctx.fillStyle = '#aaf'; ctx.fillRect(10, -8, 6, 3); }
+                if (keys['ArrowRight']) { ctx.fillStyle = '#aaf'; ctx.fillRect(-16, -8, 6, 3); }
                 ctx.restore();
             }
 
-            // 폭발 잔해 그리기
+            // 폭발 잔해
             if (debris.length > 0) {
                 debris.forEach(p => {
                     ctx.fillStyle = p.color;
                     ctx.globalAlpha = p.life;
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
-                    ctx.fill();
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
                     ctx.globalAlpha = 1.0;
                 });
             }
         }
 
         function toggleFullScreen() {
-            audio.init(); // 풀스크린 누르면 오디오 컨텍스트 시작
+            audio.init(); 
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen().catch(err => console.log(err));
             } else {
@@ -791,11 +796,9 @@
             const btn = document.getElementById('sound-btn');
             if (enabled) {
                 btn.style.opacity = 1;
-                // 스피커 켜짐 아이콘
                 btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
             } else {
                 btn.style.opacity = 0.5;
-                // 스피커 꺼짐 아이콘
                 btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73 4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>';
             }
         }
@@ -807,7 +810,7 @@
 
             const handleTouch = (code, start, elem) => (e) => {
                 e.preventDefault(); 
-                audio.init(); // 모바일 터치 시 오디오 시작
+                audio.init(); 
                 keys[code] = start;
                 start ? elem.classList.add('active') : elem.classList.remove('active');
             };
@@ -868,12 +871,14 @@
         function startLevel(lvl) {
             currentLevel = lvl;
             levelConfig = getLevelConfig(lvl);
+            currentScore = 0; // 점수 초기화
             
             resetLander();
             generateTerrain(levelConfig.padSizeMult);
             
             initEnvironment(levelConfig); 
             initObstacles(levelConfig.obstacleCount);
+            initCollectibles(levelConfig.collectibleCount);
 
             document.getElementById('ui-level').innerText = lvl;
             document.getElementById('ui-planet').innerText = levelConfig.theme;
@@ -921,8 +926,12 @@
 
             let obstacleCount = 0;
             if (level >= 11) obstacleCount = Math.floor((level - 1) / 10);
+            
+            // 아이템 수 (레벨 2부터 등장, 5레벨마다 증가)
+            let collectibleCount = 0;
+            if (level >= 2) collectibleCount = 1 + Math.floor((level - 2) / 10);
 
-            return { theme, bgColor, groundColor, weather, gravity, fuel, padSizeMult, wind, obstacleCount };
+            return { theme, bgColor, groundColor, weather, gravity, fuel, padSizeMult, wind, obstacleCount, collectibleCount };
         }
 
         function generateTerrain(padMult) {
@@ -984,6 +993,18 @@
             }
         }
 
+        function initCollectibles(count) {
+            collectibles = [];
+            for (let i = 0; i < count; i++) {
+                collectibles.push({
+                    x: Math.random() * (LOGICAL_WIDTH - 100) + 50,
+                    y: Math.random() * 300 + 50,
+                    radius: 12,
+                    angle: 0
+                });
+            }
+        }
+
         function showScreen(name) {
             Object.values(uiScreens).forEach(el => el.style.display = 'none');
             if (uiScreens[name]) uiScreens[name].style.display = 'flex';
@@ -1008,10 +1029,13 @@
         
         function endGame(success, reason) {
             if (!success) {
-                // 폭발 처리
                 triggerExplosion(lander.x, lander.y);
             } else {
                 audio.playWin();
+                // 점수 계산 (연료 + 착륙 보너스)
+                const fuelBonus = Math.floor(lander.fuel * 2);
+                currentScore += fuelBonus + 500;
+                reason = `PERFECT LANDING!\nSCORE: ${currentScore}`;
             }
 
             gameState = 'result'; lander.visible = !success;
@@ -1033,7 +1057,7 @@
                     btn.className = 'btn btn-green'; btn.innerText = 'NEXT';
                     btn.onclick = () => { audio.playClick(); startLevel(currentLevel + 1); };
                     btns.appendChild(btn);
-                } else { text.innerText = "All Missions Completed!"; }
+                } else { text.innerText = `All Missions Completed!\nFinal Score: ${currentScore}`; }
             } else {
                 const btn = document.createElement('button');
                 btn.className = 'btn'; btn.innerText = 'RETRY';
@@ -1045,7 +1069,6 @@
             menu.onclick = goToLevelSelect;
             btns.appendChild(menu);
             
-            // 폭발 효과를 잠시 보여주기 위해 딜레이 후 결과창 표시
             if (!success) {
                 setTimeout(() => showScreen('result'), 1000);
             } else {
@@ -1054,7 +1077,7 @@
         }
 
         document.addEventListener('keydown', (e) => {
-            audio.init(); // 키 입력 시 오디오 시작
+            audio.init(); 
             if (gameState === 'tutorial' && (e.code === 'Enter' || e.code === 'Space')) closeTutorial();
             keys[e.code] = true;
             if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
