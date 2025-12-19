@@ -2,1456 +2,730 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>이미지 땅따먹기 DX (Canvas)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>땅따먹기 게임 (Qix Style) - Fixed</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
             background-color: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
             color: white;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
         }
-
+        #gameContainer {
+            position: relative;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);
+        }
         canvas {
             display: block;
-            margin: 0 auto;
             background-color: #000;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-            image-rendering: pixelated; 
         }
-
-        /* 상단 UI 바 */
-        #ui-layer {
+        #uiLayer {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            padding: 10px 15px;
-            box-sizing: border-box;
+            top: 10px;
+            left: 10px;
             pointer-events: none;
-            text-shadow: 2px 2px 4px black;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            font-weight: bold;
-            font-size: 1.1rem;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
-            z-index: 30;
-            transition: opacity 0.5s;
+            text-shadow: 1px 1px 2px black;
         }
-
-        .stat-group { display: flex; flex-direction: column; gap: 4px; }
-        .stat-item span { color: #ffcc00; }
-        
-        #right-ui {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 10px;
-            pointer-events: auto;
+        .hud-text {
+            font-size: 18px;
+            margin-bottom: 5px;
         }
-
-        .btn-group { display: flex; gap: 8px; }
-
-        .game-btn {
-            background: rgba(255, 255, 255, 0.25);
-            border: 1px solid rgba(255, 255, 255, 0.6);
-            color: white;
-            padding: 6px 12px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 0.85rem;
-            transition: 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(4px);
-        }
-        .game-btn:hover { background: rgba(255, 255, 255, 0.5); transform: scale(1.05); }
-        .icon-btn { font-size: 1.1rem; padding: 6px 10px; }
-
-        #msg-overlay {
-            position: absolute;
-            top: 30%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #fff;
-            text-shadow: 0 0 10px #fff;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.5s;
-            z-index: 60;
-        }
-
-        #victory-msg {
-            display: none;
-            position: absolute;
-            top: 15%;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.7);
-            padding: 10px 20px;
-            border-radius: 30px;
-            color: #00ff00;
-            font-size: 1.2rem;
-            font-weight: bold;
-            pointer-events: none;
-            z-index: 50;
-            border: 2px solid #fff;
-            animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse {
-            0% { transform: translateX(-50%) scale(1); }
-            50% { transform: translateX(-50%) scale(1.05); }
-            100% { transform: translateX(-50%) scale(1); }
-        }
-
-        #result-modal {
-            display: none;
+        #message {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.9);
-            border: 4px solid #fff;
-            padding: 40px;
+            font-size: 40px;
+            font-weight: bold;
+            display: none;
             text-align: center;
-            border-radius: 15px;
-            pointer-events: auto;
-            z-index: 100;
-            box-shadow: 0 0 50px rgba(255,255,255,0.2);
-            min-width: 280px;
-        }
-        #result-title { font-size: 2.5rem; margin-bottom: 10px; color: #ff3333; }
-        #result-sub { font-size: 1.2rem; margin-bottom: 25px; color: #ccc; }
-        
-        #restart-btn {
-            padding: 12px 25px;
-            font-size: 1.2rem;
-            background: #333;
-            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
             border: 2px solid white;
-            cursor: pointer;
-            transition: 0.2s;
-            border-radius: 5px;
-        }
-        #restart-btn:hover { background: #555; transform: scale(1.05); }
-
-        #mobile-controls {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: none;
-            z-index: 20;
-            pointer-events: none;
-        }
-
-        #zone-left {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 50%;
-            height: 100%;
-            pointer-events: auto;
-        }
-
-        #zone-right {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 50%;
-            height: 100%;
-            pointer-events: auto;
-        }
-
-        #dynamic-joystick {
-            position: absolute;
-            width: 100px;
-            height: 100px;
-            background: rgba(255, 255, 255, 0.15);
-            border: 2px solid rgba(255, 255, 255, 0.4);
-            border-radius: 50%;
-            display: none;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            backdrop-filter: blur(2px);
-        }
-
-        #dynamic-knob {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 40px;
-            height: 40px;
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
-        }
-
-        #action-btn {
-            position: absolute;
-            bottom: 40px;
-            right: 40px;
-            width: 90px;
-            height: 90px;
-            background: rgba(255, 60, 60, 0.5);
-            border-radius: 50%;
-            border: 4px solid rgba(255, 255, 255, 0.7);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 1.4rem;
-            color: white;
-            pointer-events: none;
-            transition: transform 0.1s, background 0.1s;
-        }
-        #action-btn.active {
-            transform: scale(0.9);
-            background: rgba(255, 60, 60, 0.9);
-            box-shadow: 0 0 20px rgba(255, 60, 60, 0.6);
         }
     </style>
 </head>
 <body>
 
-    <div id="ui-layer">
-        <div class="stat-group">
-            <div class="stat-item">LEVEL <span id="level-val">1</span></div>
-            <div class="stat-item" id="area-stat">AREA: <span id="score-val">0.0</span>% / <span id="target-val">80</span>%</div>
-            <div class="stat-item">LIFE: <span id="life-val">❤️❤️❤️</span></div>
-        </div>
-
-        <div id="right-ui">
-            <div class="btn-group">
-                <input type="file" id="img-input" accept="image/*" style="display: none;">
-                <button class="game-btn" onclick="document.getElementById('img-input').click()">📷 사진</button>
-                <button class="game-btn icon-btn" onclick="toggleFullscreen()">⛶</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="msg-overlay"></div>
-    <div id="victory-msg">성공! 터치하여 다음 레벨로 ▶</div>
-
-    <div id="result-modal">
-        <div id="result-title">GAME OVER</div>
-        <div id="result-sub">다시 도전하세요!</div>
-        <button id="restart-btn" onclick="resetGame(true)">다시하기</button>
-    </div>
-
+<div id="gameContainer">
     <canvas id="gameCanvas"></canvas>
-
-    <div id="mobile-controls">
-        <div id="zone-left"></div>
-        <div id="zone-right"></div>
-        <div id="dynamic-joystick">
-            <div id="dynamic-knob"></div>
-        </div>
-        <div id="action-btn">GO!</div>
+    <div id="uiLayer">
+        <div class="hud-text">땅따먹기: <span id="percentDisplay">0</span>% (목표: 80%)</div>
+        <div class="hud-text">생명: <span id="livesDisplay">3</span></div>
+        <div class="hud-text">레벨: <span id="levelDisplay">1</span></div>
     </div>
+    <div id="message"></div>
+</div>
 
 <script>
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    
-    // UI Elements
-    const levelEl = document.getElementById('level-val');
-    const scoreEl = document.getElementById('score-val');
-    const targetEl = document.getElementById('target-val');
-    const lifeEl = document.getElementById('life-val');
-    const modal = document.getElementById('result-modal');
-    const resultTitle = document.getElementById('result-title');
-    const resultSub = document.getElementById('result-sub');
-    const victoryMsg = document.getElementById('victory-msg');
-    const uiLayer = document.getElementById('ui-layer');
-    const imgInput = document.getElementById('img-input');
-    const msgOverlay = document.getElementById('msg-overlay');
+/**
+ * 게임 설정 및 상수
+ */
+const CONFIG = {
+    gridSize: 8,         // 그리드 크기 (작을수록 정교함)
+    playerSpeed: 4,      // 플레이어 속도 (gridSize의 약수 권장)
+    bossSpeed: 3,        // 보스 속도
+    targetPercent: 80,   // 클리어 목표 퍼센트
+    lives: 3,            // 목숨
+    bgImageCount: 5,     // 준비된 배경 이미지 수 (bg_1 ~ bg_5)
+    extensions: ['webp', 'png'] // 지원할 확장자 우선순위
+};
 
-    // 게임 상수
-    const BASE_PLAYER_SIZE = 5;
-    const BASE_PLAYER_SPEED = 6; 
-    const BASE_RETRACT_SPEED = 12;
-    const BOSS_BASE_SPEED = 2; 
-    
-    const MAX_MINIONS = 6;
-    const MINION_LIFETIME = 700;
-    const FALLBACK_IMG = "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80";
-    
-    const ITEM_TYPES = {
-        SPEED: { color: '#FFFF00', icon: '⚡', duration: 300, label: "SPEED UP!" }, 
-        FREEZE: { color: '#00FFFF', icon: '❄️', duration: 300, label: "FREEZE!" },
-        LIFE: { color: '#FF0000', icon: '❤️', duration: 0, label: "LIFE UP!" }
-    };
+/**
+ * 전역 변수
+ */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const uiPercent = document.getElementById('percentDisplay');
+const uiLives = document.getElementById('livesDisplay');
+const uiLevel = document.getElementById('levelDisplay');
+const msgBox = document.getElementById('message');
 
-    let gameScale = 1.0;
-    let gameSpeedMultiplier = 1.0; 
+let width, height;
+let cols, rows;
+let grid = []; // 0: 빈공간, 1: 플레이어 경로(임시), 2: 확정된 땅
+let player;
+let bosses = [];
+let items = []; // 프리즈 아이템 등
+let gameState = 'playing'; // playing, gameover, win, levelup
+let currentLevel = 1;
+let totalArea = 0;
+let claimedArea = 0;
+let bgImage = null; // 현재 배경 이미지 객체
+
+// 효과음 (간단한 오실레이터)
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playSound(type) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
     
-    let s_playerSize, s_playerSpeed, s_retractSpeed, s_bossSpeed;
-    let imgParams = { x: 0, y: 0, w: 0, h: 0 };
+    if (type === 'move') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.05);
+    } else if (type === 'claim') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.3);
+    } else if (type === 'die') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.5);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5);
+    } else if (type === 'freeze') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5);
+    }
+}
 
-    // 상태 변수
-    let width, height;
-    let level = 1;
-    let lives = 3;
-    let totalPixels = 0;
-    let capturedPixels = 0;
-    let gameState = 'playing'; 
-    let isInitialized = false;
-    let currentTargetPercent = 80;
-    let frameCount = 0; 
+/**
+ * 이미지 로더 (WebP -> PNG 순차 시도)
+ */
+function loadRandomBackground() {
+    // 1부터 CONFIG.bgImageCount 사이의 랜덤 숫자
+    const idx = Math.floor(Math.random() * CONFIG.bgImageCount) + 1;
+    const filenameBase = `bg_${idx}`; // 파일명 예: bg_1, bg_2...
     
-    let buffs = { speed: 0, freeze: 0 };
-    let availableImages = [];
-    
-    let grid = null; 
-    let landCanvas = document.createElement('canvas'); 
-    let landCtx = landCanvas.getContext('2d');
-    let bgCanvas = document.createElement('canvas'); 
-    let bgCtx = bgCanvas.getContext('2d');
-    let bgImage = new Image();
+    // 재귀적으로 확장자를 시도하는 함수
+    function tryLoad(extIndex) {
+        if (extIndex >= CONFIG.extensions.length) {
+            console.log("이미지 로드 실패: 기본 검은 배경 사용");
+            bgImage = null;
+            return;
+        }
+        
+        const ext = CONFIG.extensions[extIndex];
+        const img = new Image();
+        // 실제 파일 경로 예시: assets/bg_1.webp (폴더 구조에 맞게 수정 필요)
+        // 여기서는 같은 폴더에 있다고 가정하거나 플레이스홀더 사용
+        // 테스트를 위해 picsum 사용 (실제 코드 적용시 아래 주석 해제 및 경로 수정)
+        
+        /* [실제 파일 사용 시 이 부분 주석 해제]
+        img.src = `${filenameBase}.${ext}`; 
+        */
 
-    bgImage.crossOrigin = "Anonymous";
-    scanLocalImages(1);
+        // [데모용 랜덤 이미지]
+        img.src = `https://picsum.photos/800/600?random=${Date.now()}`; 
 
-    let player = { x: 0, y: 0, color: '#00ff00', state: 'safe' };
-    let path = []; 
-    let enemies = []; 
-    let projectiles = []; 
-    let items = []; 
-    let input = { left: false, right: false, up: false, down: false, action: false, joyX: 0, joyY: 0 };
-
-    function scanLocalImages(index) {
-        let testImg = new Image();
-        testImg.onload = function() {
-            availableImages.push(index);
-            scanLocalImages(index + 1);
+        img.onload = () => {
+            console.log(`배경 로드 성공: ${img.src}`);
+            bgImage = img;
         };
-        testImg.onerror = function() {
-            setRandomBackground();
+        
+        img.onerror = () => {
+            console.log(`${ext} 로드 실패, 다음 확장자 시도...`);
+            // picsum을 쓰고 있어서 에러가 잘 안나지만, 로컬 파일 사용시 중요
+            // tryLoad(extIndex + 1); // 실제 파일 사용시 주석 해제
         };
-        testImg.src = `img/${index}.png`;
     }
 
-    function setRandomBackground() {
-        if (availableImages.length > 0) {
-            let randIdx = Math.floor(Math.random() * availableImages.length);
-            let imgNum = availableImages[randIdx];
-            bgImage.src = `img/${imgNum}.png`;
-        } else {
-            if (!bgImage.src || bgImage.src === "") {
-                bgImage.src = FALLBACK_IMG;
-            } else if (!isInitialized) {
-                bgImage.src = FALLBACK_IMG;
+    tryLoad(0);
+}
+
+/**
+ * 초기화
+ */
+function init() {
+    width = 800;
+    height = 600;
+    canvas.width = width;
+    canvas.height = height;
+    
+    cols = Math.ceil(width / CONFIG.gridSize);
+    rows = Math.ceil(height / CONFIG.gridSize);
+    
+    resetGame();
+    loadRandomBackground();
+    requestAnimationFrame(gameLoop);
+}
+
+function resetGame() {
+    // 그리드 초기화 (가장자리는 이미 먹은 땅으로 처리)
+    grid = [];
+    for(let c=0; c<cols; c++) {
+        grid[c] = [];
+        for(let r=0; r<rows; r++) {
+            if (c===0 || c===cols-1 || r===0 || r===rows-1) {
+                grid[c][r] = 2; // 벽
+            } else {
+                grid[c][r] = 0; // 빈 땅
             }
         }
     }
+    
+    // 플레이어 초기 위치
+    player = {
+        x: 0, 
+        y: 0, 
+        dirX: 0, 
+        dirY: 0,
+        drawing: false,
+        path: [] // 현재 그리고 있는 선의 좌표들
+    };
 
-    document.addEventListener('click', handleGlobalClick);
-    document.addEventListener('touchstart', handleGlobalClick);
-
-    function handleGlobalClick() {
-        if (gameState === 'victory_view') {
-            nextLevel();
-        }
-        window.focus();
+    // 보스 초기화
+    bosses = [];
+    // 레벨에 따라 보스 수 증가 등 난이도 조절 가능
+    for(let i=0; i < 1 + Math.floor(currentLevel/2); i++) {
+        spawnBoss();
     }
 
-    imgInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => { bgImage.src = event.target.result; };
-            reader.readAsDataURL(file);
+    // 아이템 초기화
+    items = [];
+    spawnItemTimer();
+
+    calculateArea();
+    gameState = 'playing';
+    msgBox.style.display = 'none';
+    uiLevel.innerText = currentLevel;
+    uiLives.innerText = CONFIG.lives;
+}
+
+function spawnBoss() {
+    bosses.push({
+        x: width / 2,
+        y: height / 2,
+        vx: (Math.random() > 0.5 ? 1 : -1) * CONFIG.bossSpeed,
+        vy: (Math.random() > 0.5 ? 1 : -1) * CONFIG.bossSpeed,
+        radius: 10,
+        frozen: false,
+        freezeTimer: 0
+    });
+}
+
+function spawnItemTimer() {
+    setTimeout(() => {
+        if(gameState !== 'playing') return;
+        // 빈 공간 중 랜덤 위치
+        let valid = false;
+        let rx, ry;
+        let attempts = 0;
+        while(!valid && attempts < 100) {
+            rx = Math.floor(Math.random() * (cols-2)) + 1;
+            ry = Math.floor(Math.random() * (rows-2)) + 1;
+            if (grid[rx][ry] === 0) valid = true;
+            attempts++;
+        }
+        if(valid) {
+            items.push({
+                x: rx * CONFIG.gridSize + CONFIG.gridSize/2,
+                y: ry * CONFIG.gridSize + CONFIG.gridSize/2,
+                type: 'freeze',
+                radius: 10
+            });
+        }
+        spawnItemTimer(); // 재귀 호출로 계속 생성 시도
+    }, 5000 + Math.random() * 5000);
+}
+
+/**
+ * 게임 루프
+ */
+function gameLoop() {
+    if (gameState === 'playing') {
+        update();
+    }
+    render();
+    requestAnimationFrame(gameLoop);
+}
+
+function update() {
+    // 1. 플레이어 이동
+    // 그리드 좌표계로 변환하여 처리
+    let nextX = player.x + player.dirX * CONFIG.playerSpeed;
+    let nextY = player.y + player.dirY * CONFIG.playerSpeed;
+
+    // 캔버스 경계 체크
+    if (nextX < 0) nextX = 0;
+    if (nextX > width) nextX = width;
+    if (nextY < 0) nextY = 0;
+    if (nextY > height) nextY = height;
+
+    // 현재 위치의 그리드 상태 확인
+    let pc = Math.floor((player.x + player.dirX * (CONFIG.playerSpeed/2)) / CONFIG.gridSize); // 약간 앞선 위치 체크
+    let pr = Math.floor((player.y + player.dirY * (CONFIG.playerSpeed/2)) / CONFIG.gridSize);
+    
+    // 범위 안전장치
+    if (pc < 0) pc = 0; if (pc >= cols) pc = cols-1;
+    if (pr < 0) pr = 0; if (pr >= rows) pr = rows-1;
+
+    let cellState = grid[pc][pr];
+
+    // 그리기 시작/종료 로직
+    if (cellState === 0) {
+        // 빈 땅에 들어오면 그리기 모드
+        if (!player.drawing) {
+            player.drawing = true;
+            player.path = [{x: player.x, y: player.y}]; // 시작점
+        }
+    } else if (cellState === 2) {
+        // 안전한 땅에 들어옴
+        if (player.drawing) {
+            // 경로 완성!
+            finishPath();
+            player.drawing = false;
+            player.path = [];
+            player.dirX = 0; player.dirY = 0; // 멈춤
+            playSound('claim');
+        }
+    } else if (cellState === 1) {
+        // 자기 경로(꼬리)를 밟음 -> 사망
+        if (player.drawing && player.path.length > 5) { // 바로 뒤돌아서 죽는거 방지용 버퍼
+             die();
+             return;
+        }
+    }
+
+    player.x = nextX;
+    player.y = nextY;
+
+    // 경로 기록 (드로잉 중일 때만)
+    if (player.drawing) {
+        // 너무 촘촘하게 저장하지 않도록 거리 체크 또는 그리드 단위 체크
+        // 여기서는 픽셀 단위로 선을 긋되, 충돌 판정은 그리드에 마킹
+        
+        // 현재 플레이어가 지나가는 그리드를 임시 경로(1)로 표시
+        // 픽셀 -> 그리드 변환 시 약간의 여유를 두어 정확도 향상
+        let gc = Math.floor(player.x / CONFIG.gridSize);
+        let gr = Math.floor(player.y / CONFIG.gridSize);
+        if (gc>=0 && gc<cols && gr>=0 && gr<rows) {
+            if (grid[gc][gr] === 0) {
+                grid[gc][gr] = 1; // 임시 경로
+            }
+        }
+        player.path.push({x: player.x, y: player.y});
+    }
+
+    // 2. 보스 이동
+    bosses.forEach(boss => {
+        // 프리즈 상태 확인 (버그 수정됨)
+        if (boss.frozen) {
+            boss.freezeTimer--;
+            if (boss.freezeTimer <= 0) {
+                boss.frozen = false;
+            }
+            return; // 이동 로직 스킵
+        }
+
+        let bx = boss.x + boss.vx;
+        let by = boss.y + boss.vy;
+
+        // 벽/경로 충돌 체크 (그리드 기반 반사)
+        // 보스의 네 귀퉁이+중심을 체크하여 정밀도 향상
+        let hit = false;
+        
+        // 캔버스 외곽 체크
+        if (bx - boss.radius < 0 || bx + boss.radius > width) {
+            boss.vx *= -1; hit = true;
+        }
+        if (by - boss.radius < 0 || by + boss.radius > height) {
+            boss.vy *= -1; hit = true;
+        }
+
+        // 내부 그리드(완성된 땅 또는 플레이어 경로) 충돌 체크
+        if (!hit) {
+            // 보스의 바운딩 박스 체크
+            let checkPoints = [
+                {x: bx + boss.radius, y: by},
+                {x: bx - boss.radius, y: by},
+                {x: bx, y: by + boss.radius},
+                {x: bx, y: by - boss.radius}
+            ];
+
+            for (let p of checkPoints) {
+                let c = Math.floor(p.x / CONFIG.gridSize);
+                let r = Math.floor(p.y / CONFIG.gridSize);
+                if (c>=0 && c<cols && r>=0 && r<rows) {
+                    if (grid[c][r] === 2) { // 완성된 땅에 부딪힘 -> 튕김
+                        // 간단하게 X, Y 반전 (정교한 물리엔진 대신)
+                        if (Math.abs(p.x - bx) > Math.abs(p.y - by)) boss.vx *= -1;
+                        else boss.vy *= -1;
+                        hit = true;
+                        break;
+                    } else if (grid[c][r] === 1) { // 플레이어 경로(선)에 부딪힘 -> 플레이어 사망
+                        die();
+                        return;
+                    }
+                }
+            }
+        }
+
+        if(!hit) {
+            boss.x = bx;
+            boss.y = by;
+        }
+    });
+    
+    // 3. 아이템 충돌 체크
+    for(let i = items.length - 1; i >= 0; i--) {
+        let it = items[i];
+        let dx = player.x - it.x;
+        let dy = player.y - it.y;
+        let dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < it.radius + 10) { // 플레이어 크기 고려
+            // 획득
+            if (it.type === 'freeze') {
+                playSound('freeze');
+                bosses.forEach(b => {
+                    b.frozen = true;
+                    b.freezeTimer = 300; // 약 5초 (60fps 기준)
+                });
+                showMessage("FREEZE!", 1000);
+            }
+            items.splice(i, 1);
+        }
+    }
+}
+
+/**
+ * 영역 채우기 알고리즘
+ */
+function finishPath() {
+    // 1. 임시 경로(1)를 모두 확정(2) 상태로 변경할지, 아니면 플러드필을 할지 결정
+    // 일단 경로 자체를 2로 바꿈
+    for(let c=0; c<cols; c++) {
+        for(let r=0; r<rows; r++) {
+            if (grid[c][r] === 1) grid[c][r] = 2;
+        }
+    }
+
+    // 2. 보스가 없는 영역을 찾아 채우기 (Flood Fill)
+    // 두 개의 영역(A, B)으로 나뉘었을 때, 보스가 *없는* 쪽을 채워야 함.
+    // 간단한 방법: 전체 빈 공간에 대해 플러드필 그룹링을 하고, 보스가 포함된 그룹만 남기고 나머지는 다 채운다.
+
+    // 방문 배열 초기화
+    let visited = new Array(cols).fill(0).map(() => new Array(rows).fill(false));
+    
+    // 보스가 위치한 좌표들의 그룹 ID를 찾기
+    let bossGroups = new Set();
+
+    bosses.forEach(boss => {
+        let bc = Math.floor(boss.x / CONFIG.gridSize);
+        let br = Math.floor(boss.y / CONFIG.gridSize);
+        // 보스가 벽 안에 있을 확률은 낮지만 체크
+        if (bc >=0 && bc < cols && br >= 0 && br < rows) {
+             // 이 보스 위치에서 플러드필하여 연결된 모든 빈칸을 '보스 영역'으로 간주
+             // 하지만 매 프레임 전체 검사는 무거우므로,
+             // 여기서는 역발상:
+             // "보스가 있는 위치"에서 시작하는 플러드필은 '살아남는 땅'이다.
+             // 이 플러드필에 닿지 않는 모든 '0'(빈땅)은 '죽는 땅(채워질 땅)'이다.
         }
     });
 
-    bgImage.onload = () => {
-        if (!isInitialized) { init(); isInitialized = true; }
-        else { resize(); }
-    };
-    bgImage.onerror = () => { 
-        if(bgImage.src !== FALLBACK_IMG) bgImage.src = FALLBACK_IMG; 
-        if (!isInitialized) { init(); isInitialized = true; }
-    }
+    // 효율적인 로직:
+    // 1. visited 배열을 사용하여 보스 위치에서부터 BFS/DFS로 갈 수 있는 모든 0을 방문 표시한다.
+    // 2. 방문되지 않은 나머지 0들은 갇힌 영역이므로 2로 바꾼다.
 
-    function toggleFullscreen() {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen();
-        } else {
-            if (document.exitFullscreen) document.exitFullscreen();
+    let queue = [];
+    bosses.forEach(boss => {
+        let bc = Math.floor(boss.x / CONFIG.gridSize);
+        let br = Math.floor(boss.y / CONFIG.gridSize);
+        if (bc>=0 && bc<cols && br>=0 && br<rows && grid[bc][br] === 0) {
+            queue.push({c: bc, r: br});
+            visited[bc][br] = true;
         }
-    }
+    });
 
-    function init() {
-        window.addEventListener('resize', resize);
-        
-        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-            document.getElementById('mobile-controls').style.display = 'block';
-            setupMobileControls();
-            gameSpeedMultiplier = 0.5;
-        } else {
-            gameSpeedMultiplier = 1.0;
-        }
+    // BFS
+    let head = 0;
+    while(head < queue.length) {
+        let curr = queue[head++];
+        let cx = curr.c;
+        let cy = curr.r;
 
-        setupPCControls();
-        resize();
-        requestAnimationFrame(gameLoop);
-    }
-
-    function resize() {
-        width = window.innerWidth || 320;
-        height = window.innerHeight || 240;
-        
-        gameScale = Math.min(width, height) / 720;
-        
-        s_playerSize = BASE_PLAYER_SIZE * gameScale;
-        s_playerSpeed = BASE_PLAYER_SPEED * gameScale * gameSpeedMultiplier;
-        s_retractSpeed = BASE_RETRACT_SPEED * gameScale * gameSpeedMultiplier;
-        s_bossSpeed = BOSS_BASE_SPEED * gameScale * gameSpeedMultiplier;
-
-        canvas.width = width; canvas.height = height;
-        landCanvas.width = width; landCanvas.height = height;
-        bgCanvas.width = width; bgCanvas.height = height;
-        
-        if (bgImage.complete && bgImage.naturalWidth !== 0) {
-            let sRatio = bgImage.width / bgImage.height;
-            let dRatio = width / height;
+        const dirs = [[1,0], [-1,0], [0,1], [0,-1]];
+        for(let d of dirs) {
+            let nc = cx + d[0];
+            let nr = cy + d[1];
             
-            if (dRatio > sRatio) { 
-                imgParams.w = width; 
-                imgParams.h = width / sRatio; 
-                imgParams.x = 0; 
-                imgParams.y = (height - imgParams.h) / 2; 
-            } else { 
-                imgParams.h = height; 
-                imgParams.w = height * sRatio; 
-                imgParams.x = (width - imgParams.w) / 2; 
-                imgParams.y = 0; 
+            if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) {
+                if (!visited[nc][nr] && grid[nc][nr] === 0) {
+                    visited[nc][nr] = true;
+                    queue.push({c: nc, r: nr});
+                }
             }
-            
-            bgCtx.drawImage(bgImage, imgParams.x, imgParams.y, imgParams.w, imgParams.h);
-        } else {
-            bgCtx.fillStyle = '#3333aa'; bgCtx.fillRect(0,0,width,height);
-        }
-
-        if(width > 0 && height > 0) resetGame(false); 
-    }
-
-    function resetGame(fullReset = true) {
-        if (width === 0 || height === 0) return;
-
-        if (fullReset) {
-            level = 1;
-            lives = 3;
-            if(availableImages.length > 0) setRandomBackground();
-        }
-
-        currentTargetPercent = Math.min(80 + (level - 1) * 2, 95);
-
-        gameState = 'playing';
-        updateUI();
-        
-        modal.style.display = 'none';
-        victoryMsg.style.display = 'none';
-        uiLayer.style.opacity = '1'; 
-        
-        grid = new Uint8Array(width * height);
-        totalPixels = width * height; 
-        capturedPixels = 0;
-        
-        // --- 배경 실루엣 그리기 ---
-        if (bgImage.complete && bgImage.naturalWidth !== 0) {
-            landCtx.drawImage(bgImage, imgParams.x, imgParams.y, imgParams.w, imgParams.h);
-            
-            // [수정] 더 어둡게 (93%)
-            landCtx.fillStyle = 'rgba(0, 0, 0, 0.93)';
-            landCtx.fillRect(0, 0, width, height);
-        } else {
-            landCtx.fillStyle = '#111111'; 
-            landCtx.fillRect(0, 0, width, height);
-        }
-        
-        const border = 40 * gameScale;
-        // [버그 수정] 정수형으로 변환하여 revealArea 호출
-        revealArea(0, 0, Math.ceil(width), Math.ceil(border)); 
-        revealArea(0, Math.floor(height - border), Math.ceil(width), Math.ceil(border)); 
-        revealArea(0, Math.floor(border), Math.ceil(border), Math.floor(height - 2*border)); 
-        revealArea(Math.floor(width - border), Math.floor(border), Math.ceil(border), Math.floor(height - 2*border)); 
-
-        let borderPixels = capturedPixels;
-        totalPixels = (width * height) - borderPixels; 
-        capturedPixels = 0; 
-        
-        buffs = { speed: 0, freeze: 0 };
-        frameCount = 0;
-        items = [];
-        
-        updateUI();
-        respawnPlayer();
-        initEnemies();
-    }
-
-    function nextLevel() {
-        level++;
-        setRandomBackground();
-    }
-
-    function respawnPlayer() {
-        player.x = 20 * gameScale; 
-        player.y = height / 2; 
-        player.state = 'safe'; player.color = '#00ff00';
-        path = [];
-    }
-
-    function initEnemies() {
-        enemies = [];
-        projectiles = [];
-        
-        let bossSpeed = s_bossSpeed + (level * 0.4 * gameScale * gameSpeedMultiplier); 
-        
-        enemies.push({ 
-            type: 'boss', 
-            x: width/2, y: height/2, 
-            dx: bossSpeed, dy: bossSpeed, 
-            radius: (12 + (level)) * gameScale, 
-            cooldown: 0,
-            baseSpeed: bossSpeed,
-            laserState: 0,
-            laserTimer: 0,
-            laserAngle: 0
-        });
-
-        let minionCount = Math.floor((level - 1) * 1.5); 
-        for(let i=0; i<minionCount; i++) {
-            let type = level < 3 ? 'bouncer' : 'bouncer'; 
-            spawnMinion(width/2, height/2, bossSpeed * 0.8, type); 
         }
     }
+
+    // 채우기 수행
+    let filledCount = 0;
+    for(let c=0; c<cols; c++) {
+        for(let r=0; r<rows; r++) {
+            if (grid[c][r] === 0 && !visited[c][r]) {
+                grid[c][r] = 2; // 갇힌 영역 채우기
+                filledCount++;
+            }
+        }
+    }
+
+    calculateArea();
+}
+
+function calculateArea() {
+    let totalCells = (cols-2) * (rows-2); // 테두리 제외
+    let claimed = 0;
+    for(let c=1; c<cols-1; c++) {
+        for(let r=1; r<rows-1; r++) {
+            if (grid[c][r] === 2) claimed++;
+        }
+    }
+    let percent = Math.floor((claimed / totalCells) * 100);
+    uiPercent.innerText = percent;
     
-    function spawnMinion(x, y, speed, subType) {
-         let angle = Math.random() * Math.PI * 2;
-         enemies.push({
-            type: 'minion',
-            subType: subType || 'bouncer',
-            x: x, y: y,
-            dx: Math.cos(angle) * speed,
-            dy: Math.sin(angle) * speed,
-            radius: 6 * gameScale,
-            baseSpeed: speed,
-            isChasing: false,
-            stateTimer: Math.random() * 60 + 60,
-            life: MINION_LIFETIME + Math.random() * 200 
-        });
+    if (percent >= CONFIG.targetPercent) {
+        levelUp();
     }
+}
 
-    function spawnItem() {
-        let attempts = 0;
-        let margin = 20 * gameScale;
-        while(attempts < 50) {
-            let rx = Math.random() * width;
-            let ry = Math.random() * height;
-            if(rx > margin && rx < width-margin && ry > margin && ry < height-margin) {
-                if(!isSafe(rx, ry)) {
-                    const keys = Object.keys(ITEM_TYPES);
-                    const typeKey = keys[Math.floor(Math.random() * keys.length)];
-                    items.push({
-                        type: typeKey,
-                        x: rx, y: ry,
-                        radius: 10 * gameScale,
-                        life: 600
-                    });
-                    break;
-                }
-            }
-            attempts++;
-        }
-    }
-
-    function showMsg(text, color) {
-        msgOverlay.innerText = text;
-        msgOverlay.style.color = color;
-        msgOverlay.style.textShadow = `0 0 10px ${color}`;
-        msgOverlay.style.opacity = 1;
-        setTimeout(() => msgOverlay.style.opacity = 0, 1500);
-    }
-
-    function gameLoop() {
-        if (gameState === 'playing') {
-            update();
-        }
-        draw();
-        requestAnimationFrame(gameLoop);
-    }
-
-    function update() {
-        frameCount++;
-        if (frameCount % 500 === 0 && items.length < 3) spawnItem();
-
-        if (buffs.speed > 0) buffs.speed--;
-        if (buffs.freeze > 0) buffs.freeze--;
-
-        let speedMult = buffs.speed > 0 ? 1.5 : 1.0;
-        let activePlayerSpeed = s_playerSpeed * speedMult;
-        let activeRetractSpeed = s_retractSpeed * speedMult;
-
-        updateEnemies();
-        updateProjectiles();
-        updateItems();
-
-        if (player.state === 'retracting') {
-            let moveDist = activeRetractSpeed; 
-            while (moveDist > 0 && path.length > 0) {
-                let target = path[path.length - 1];
-                let dx = target.x - player.x;
-                let dy = target.y - player.y;
-                let dist = Math.hypot(dx, dy);
-
-                if (dist <= moveDist) {
-                    player.x = target.x; player.y = target.y;
-                    moveDist -= dist; path.pop(); 
-                } else {
-                    player.x += (dx / dist) * moveDist;
-                    player.y += (dy / dist) * moveDist;
-                    moveDist = 0;
-                }
-            }
-            if (path.length === 0) {
-                player.state = 'safe'; player.color = '#00ff00';
-            }
-            if (checkCollision()) return; 
-            return; 
-        }
-
-        let dx = 0, dy = 0;
-        if (input.left) dx -= 1; if (input.right) dx += 1;
-        if (input.up) dy -= 1; if (input.down) dy += 1;
-        
-        if (input.joyX !== 0 || input.joyY !== 0) { 
-            dx = input.joyX; 
-            dy = input.joyY; 
-        } else if (dx !== 0 || dy !== 0) {
-            const len = Math.hypot(dx, dy);
-            if(len > 1) { dx /= len; dy /= len; }
-        }
-
-        let nextX = player.x + dx * activePlayerSpeed;
-        let nextY = player.y + dy * activePlayerSpeed;
-        
-        nextX = Math.max(0, Math.min(width-1, nextX));
-        nextY = Math.max(0, Math.min(height-1, nextY));
-
-        const currentlySafe = isSafe(player.x, player.y);
-        const nextIsSafe = isSafe(nextX, nextY);
-
-        if (checkCollision()) return;
-        checkItemCollection();
-
-        if (input.action) {
-            if (player.state === 'safe' && !nextIsSafe) {
-                player.state = 'drawing';
-                path = [{x: player.x, y: player.y}]; 
-            }
-            player.x = nextX; player.y = nextY;
-
-            if (player.state === 'drawing') {
-                player.color = '#ff3333';
-                const lastPt = path[path.length-1];
-                const dist = Math.hypot(player.x - lastPt.x, player.y - lastPt.y);
-                if (dist > 4 * gameScale) path.push({x: player.x, y: player.y});
-
-                if (nextIsSafe) {
-                    path.push({x: player.x, y: player.y});
-                    fillLand(); 
-                    player.state = 'safe'; path = [];
-                }
-            }
-        } else {
-            if (player.state === 'drawing') {
-                player.state = 'retracting'; player.color = '#ffff00'; 
-            } else {
-                player.state = 'safe'; player.color = '#00ff00';
-                if (nextIsSafe) { player.x = nextX; player.y = nextY; }
-                else {
-                    if (isSafe(nextX, player.y)) player.x = nextX;
-                    else if (isSafe(player.x, nextY)) player.y = nextY;
-                }
-            }
-        }
-    }
-
-    function updateItems() {
-        for (let i = items.length - 1; i >= 0; i--) {
-            items[i].life--;
-            if (items[i].life <= 0 || isSafe(items[i].x, items[i].y)) {
-                items.splice(i, 1);
-            }
-        }
-    }
-
-    function checkItemCollection() {
-        for (let i = items.length - 1; i >= 0; i--) {
-            let item = items[i];
-            let dist = Math.hypot(player.x - item.x, player.y - item.y);
-            if (dist < s_playerSize + item.radius) {
-                applyItemEffect(item.type);
-                items.splice(i, 1);
-            }
-        }
-    }
-
-    function applyItemEffect(type) {
-        const itemData = ITEM_TYPES[type];
-        showMsg(itemData.label, itemData.color);
-        if (type === 'SPEED') buffs.speed = itemData.duration;
-        else if (type === 'FREEZE') buffs.freeze = itemData.duration;
-        else if (type === 'LIFE') { lives++; updateUI(); }
-    }
-
-    function updateEnemies() {
-        for (let i = enemies.length - 1; i >= 0; i--) {
-            let en = enemies[i];
-            if (en.type === 'minion') {
-                en.life--;
-                if (en.life <= 0) {
-                    enemies.splice(i, 1);
-                    continue;
-                }
-            }
-        }
-
-        enemies.forEach(en => {
-            if (buffs.freeze > 0) return;
-
-            if (en.type === 'boss') {
-                if (en.laserState === 1) { 
-                    en.laserTimer--;
-                    if (en.laserTimer <= 0) {
-                        en.laserState = 2; 
-                        en.laserTimer = 30; 
-                        checkLaserHit(en); 
-                    }
-                    return; 
-                } else if (en.laserState === 2) { 
-                    en.laserTimer--;
-                    if (en.laserTimer <= 0) {
-                        en.laserState = 0; 
-                        en.cooldown = 120; 
-                    }
-                    checkLaserHit(en); 
-                    return; 
-                }
-            }
-
-            if (en.subType === 'chaser') {
-                if (en.stateTimer > 0) en.stateTimer--;
-                
-                if (en.stateTimer <= 0) {
-                    en.isChasing = !en.isChasing;
-                    if (en.isChasing) {
-                        en.stateTimer = 60 + (level * 20); 
-                    } else {
-                        en.stateTimer = Math.max(60, 180 - (level * 10));
-                        let randAngle = Math.random() * Math.PI * 2;
-                        en.dx = Math.cos(randAngle) * en.baseSpeed;
-                        en.dy = Math.sin(randAngle) * en.baseSpeed;
-                    }
-                }
-
-                if (en.isChasing) {
-                    let angle = Math.atan2(player.y - en.y, player.x - en.x);
-                    let chaserSpeed = en.baseSpeed * 0.7; 
-                    en.dx = Math.cos(angle) * chaserSpeed;
-                    en.dy = Math.sin(angle) * chaserSpeed;
-                }
-            }
-
-            let maxSpeed = en.baseSpeed * 2.5; 
-            let currentSpeedSq = en.dx*en.dx + en.dy*en.dy;
-            if (currentSpeedSq > maxSpeed*maxSpeed) {
-                let scale = maxSpeed / Math.sqrt(currentSpeedSq);
-                en.dx *= scale; en.dy *= scale;
-            }
-            let currentSpeed = Math.sqrt(currentSpeedSq);
-            let minSpeed = en.baseSpeed * 0.5;
-            if (currentSpeed < minSpeed && currentSpeed > 0.1) {
-                let angle = Math.atan2(en.dy, en.dx);
-                en.dx = Math.cos(angle) * minSpeed; en.dy = Math.sin(angle) * minSpeed;
-            }
-
-            let nextX = en.x + en.dx;
-            let checkX = nextX + (en.dx > 0 ? en.radius : -en.radius);
-            
-            if (isSafe(checkX, en.y) || isSafe(checkX, en.y - en.radius*0.7) || isSafe(checkX, en.y + en.radius*0.7)) {
-                if (en.subType !== 'chaser') en.dx *= -1; 
-                else en.dx = 0; 
-            } else {
-                en.x = nextX;
-            }
-
-            let nextY = en.y + en.dy;
-            let checkY = nextY + (en.dy > 0 ? en.radius : -en.radius);
-            
-            if (isSafe(en.x, checkY) || isSafe(en.x - en.radius*0.7, checkY) || isSafe(en.x + en.radius*0.7, checkY)) {
-                if (en.subType !== 'chaser') en.dy *= -1;
-                else en.dy = 0;
-            } else {
-                en.y = nextY;
-            }
-
-            if (en.x < en.radius) { en.x = en.radius; if(en.subType !== 'chaser') en.dx = Math.abs(en.dx); }
-            else if (en.x > width - en.radius) { en.x = width - en.radius; if(en.subType !== 'chaser') en.dx = -Math.abs(en.dx); }
-            if (en.y < en.radius) { en.y = en.radius; if(en.subType !== 'chaser') en.dy = Math.abs(en.dy); }
-            else if (en.y > height - en.radius) { en.y = height - en.radius; if(en.subType !== 'chaser') en.dy = -Math.abs(en.dy); }
-
-            if (en.type === 'boss' && en.laserState === 0) {
-                if (en.cooldown > 0) en.cooldown--;
-                else {
-                    if (Math.random() < 0.03 + (level * 0.005)) { 
-                        bossAttack(en);
-                        if(en.laserState === 0) en.cooldown = Math.max(40, 80 - (level * 5)); 
-                    }
-                }
-                if (Math.random() < 0.03) {
-                    let angle = Math.random() * Math.PI * 2;
-                    let speed = Math.max(Math.hypot(en.dx, en.dy), en.baseSpeed);
-                    en.dx = Math.cos(angle) * speed; en.dy = Math.sin(angle) * speed;
-                }
-                else if (Math.random() < 0.01) { en.dx *= 1.5; en.dy *= 1.5; }
-            }
-        });
-    }
-
-    function bossAttack(boss) {
-        let rand = Math.random();
-        if (rand < 0.3) {
-            let type = level >= 3 ? 'chaser' : 'bouncer';
-            shootMinion(boss, type);
-        } else if (rand < 0.5) shootSpreadMissile(boss);
-        else if (rand < 0.6) {
-            boss.laserState = 1; 
-            boss.laserTimer = 60; 
-            boss.laserAngle = Math.atan2(player.y - boss.y, player.x - boss.x);
-        } else {
-            shootMissile(boss);
-        }
-    }
-
-    function checkLaserHit(boss) {
-        let maxDist = Math.max(width, height) * 1.5;
-        let ex = boss.x + Math.cos(boss.laserAngle) * maxDist;
-        let ey = boss.y + Math.sin(boss.laserAngle) * maxDist;
-        
-        if (player.state !== 'safe' && !isSafe(player.x, player.y)) {
-            let dist = pointToLineDist(player.x, player.y, boss.x, boss.y, ex, ey);
-            if (dist < s_playerSize + 10 * gameScale) { 
-                handleDeath("레이저에 맞았습니다!"); return;
-            }
-        }
-
-        if (path.length > 0) {
-            for(let p of path) {
-                let dist = pointToLineDist(p.x, p.y, boss.x, boss.y, ex, ey);
-                if (dist < 10 * gameScale) { 
-                    handleDeath("레이저에 선이 끊겼습니다!"); return;
-                }
-            }
-        }
-    }
-
-    function pointToLineDist(px, py, x1, y1, x2, y2) {
-        let A = px - x1; let B = py - y1; let C = x2 - x1; let D = y2 - y1;
-        let dot = A * C + B * D;
-        let len_sq = C * C + D * D;
-        let param = -1;
-        if (len_sq != 0) param = dot / len_sq;
-        let xx, yy;
-        if (param < 0) { xx = x1; yy = y1; }
-        else if (param > 1) { xx = x2; yy = y2; }
-        else { xx = x1 + param * C; yy = y1 + param * D; }
-        let dx = px - xx; let dy = py - yy;
-        return Math.sqrt(dx * dx + dy * dy);
-    }
-
-    function shootMinion(boss, type) {
-        let currentMinions = enemies.filter(e => e.type === 'minion').length;
-        if (currentMinions >= MAX_MINIONS) return;
-
-        let angle = Math.atan2(player.y - boss.y, player.x - boss.x);
-        let speed = (4 + (level * 0.5)) * gameScale * gameSpeedMultiplier;
-        enemies.push({
-            type: 'minion', subType: type || 'bouncer',
-            x: boss.x, y: boss.y,
-            dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed,
-            radius: 6 * gameScale, baseSpeed: speed,
-            isChasing: false, stateTimer: 60,
-            life: MINION_LIFETIME + Math.random() * 200
-        });
-    }
-
-    function shootMissile(boss) {
-        let angle = Math.atan2(player.y - boss.y, player.x - boss.x);
-        let speed = (7 + (level * 0.8)) * gameScale * gameSpeedMultiplier; 
-        projectiles.push({
-            x: boss.x, y: boss.y,
-            dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed, radius: 4 * gameScale
-        });
-    }
+function die() {
+    playSound('die');
+    CONFIG.lives--;
+    uiLives.innerText = CONFIG.lives;
     
-    function shootSpreadMissile(boss) {
-        let baseAngle = Math.atan2(player.y - boss.y, player.x - boss.x);
-        let speed = (6 + (level * 0.8)) * gameScale * gameSpeedMultiplier;
-        for(let i = -1; i <= 1; i++) {
-            let angle = baseAngle + (i * 0.3); 
-            projectiles.push({
-                x: boss.x, y: boss.y,
-                dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed, radius: 4 * gameScale
-            });
+    // 경로 초기화 (죽으면 그리던 선 사라짐)
+    player.drawing = false;
+    player.path = [];
+    for(let c=0; c<cols; c++) {
+        for(let r=0; r<rows; r++) {
+            if (grid[c][r] === 1) grid[c][r] = 0;
         }
     }
 
-    function updateProjectiles() {
-        if (buffs.freeze > 0) return; 
-        for (let i = projectiles.length - 1; i >= 0; i--) {
-            let p = projectiles[i];
-            p.x += p.dx; p.y += p.dy;
-            if (isSafe(p.x, p.y)) projectiles.splice(i, 1);
-            else if (p.x < 0 || p.x > width || p.y < 0 || p.y > height) projectiles.splice(i, 1);
-        }
-    }
-
-    function checkCollision() {
-        // [버그 수정] 안전지대에 있을 때는 무적
-        if (player.state === 'safe') return false;
-
-        const isOnSafeGround = isSafe(player.x, player.y);
-        let dead = false;
-        enemies.forEach(en => {
-            if ((player.state === 'drawing' || player.state === 'retracting') && path.length > 0) {
-                for (let p of path) {
-                    if (Math.hypot(p.x - en.x, p.y - en.y) < en.radius + 4 * gameScale) {
-                        handleDeath("선을 건드렸습니다!"); dead = true; return;
-                    }
-                }
-            }
-            if (!isOnSafeGround) {
-                if (Math.hypot(player.x - en.x, player.y - en.y) < en.radius + s_playerSize + 2 * gameScale) {
-                    handleDeath("적에게 잡혔습니다!"); dead = true; return;
-                }
-            }
-        });
-        if(dead) return true;
-        projectiles.forEach(p => {
-             if ((player.state === 'drawing' || player.state === 'retracting') && path.length > 0) {
-                for (let pt of path) {
-                    if (Math.hypot(pt.x - p.x, pt.y - p.y) < p.radius + 4 * gameScale) {
-                        handleDeath("미사일에 선이 끊겼습니다!"); dead = true; return;
-                    }
-                }
-            }
-            if (!isOnSafeGround) {
-                if (Math.hypot(player.x - p.x, player.y - p.y) < p.radius + s_playerSize + 2 * gameScale) {
-                    handleDeath("미사일에 맞았습니다!"); dead = true; return;
-                }
-            }
-        });
-        if(dead) return true;
-        return false;
-    }
-
-    function handleDeath(reason) {
-        lives--;
-        updateUI();
-        canvas.style.opacity = 0.5;
-        setTimeout(() => canvas.style.opacity = 1, 100);
-        if (lives <= 0) {
-            endGame(false, reason);
-        } else {
-            respawnPlayer();
-            projectiles = [];
-            enemies.forEach(e => { if(e.type === 'boss') e.laserState = 0; });
-        }
-    }
-
-    function endGame(win, msg) {
-        if (win) {
-            gameState = 'victory_view';
-            revealArea(0, 0, width, height); 
-            victoryMsg.style.display = 'block'; 
-            uiLayer.style.opacity = '0.5'; 
-        } else {
-            gameState = 'gameover';
-            resultTitle.innerText = "GAME OVER";
-            resultSub.innerText = msg;
-            modal.style.display = 'block';
-        }
-    }
-
-    function fillLand() {
-        if(path.length > 0) {
-             for (let i = 0; i < path.length - 1; i++) {
-                drawLineOnGrid(path[i].x, path[i].y, path[i+1].x, path[i+1].y);
-            }
-        }
-        
-        let boss = enemies.find(e => e.type === 'boss') || enemies[0];
-        let bx = boss ? Math.floor(boss.x) : Math.floor(width/2);
-        let by = boss ? Math.floor(boss.y) : Math.floor(height/2);
-        if (bx < 0) bx = 0; if (bx >= width) bx = width-1;
-        if (by < 0) by = 0; if (by >= height) by = height-1;
-
-        let stack = [bx + by * width];
-        let visited = new Uint8Array(width * height);
-        visited[bx + by * width] = 1;
-
-        while(stack.length > 0) {
-            let idx = stack.pop();
-            const neighbors = [idx-1, idx+1, idx-width, idx+width];
-            for(let nIdx of neighbors) {
-                if(nIdx >= 0 && nIdx < grid.length && visited[nIdx] === 0) {
-                    if (grid[nIdx] === 0) { 
-                        visited[nIdx] = 1;
-                        stack.push(nIdx);
-                    }
-                }
-            }
-        }
-
-        for (let i = enemies.length - 1; i >= 0; i--) {
-            let en = enemies[i];
-            if (en.type === 'boss') continue; 
-            let cx = Math.floor(en.x);
-            let cy = Math.floor(en.y);
-            if (cx >= 0 && cx < width && cy >= 0 && cy < height) {
-                let idx = cy * width + cx;
-                if (visited[idx] === 0) {
-                    enemies.splice(i, 1);
-                }
-            }
-        }
-
-        let landImgData = landCtx.getImageData(0, 0, width, height);
-        let landData = landImgData.data;
-        let bgImgData = bgCtx.getImageData(0, 0, width, height);
-        let bgData = bgImgData.data;
-        let newPixels = 0;
-
-        for (let i = 0; i < grid.length; i++) {
-            if (grid[i] === 0 && visited[i] === 0) {
-                grid[i] = 1; 
-                newPixels++;
-                let idx = i * 4;
-                landData[idx] = bgData[idx];     
-                landData[idx+1] = bgData[idx+1]; 
-                landData[idx+2] = bgData[idx+2]; 
-                landData[idx+3] = bgData[idx+3]; 
-            }
-        }
-
-        if (path.length > 1) {
-            for (let i = 0; i < path.length - 1; i++) {
-                let p1 = path[i];
-                let p2 = path[i+1];
-                let dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-                let steps = Math.ceil(dist); 
-                for (let s = 0; s <= steps; s++) {
-                    let t = s / steps;
-                    let lx = p1.x + (p2.x - p1.x) * t;
-                    let ly = p1.y + (p2.y - p1.y) * t;
-                    let radius = 4 * gameScale; 
-                    for(let py = Math.floor(ly)-radius; py <= Math.floor(ly)+radius; py++) {
-                        for(let px = Math.floor(lx)-radius; px <= Math.floor(lx)+radius; px++) {
-                            if(px >= 0 && px < width && py >= 0 && py < height) {
-                                let idx = (py * width + px) * 4;
-                                landData[idx] = bgData[idx];
-                                landData[idx+1] = bgData[idx+1];
-                                landData[idx+2] = bgData[idx+2];
-                                landData[idx+3] = bgData[idx+3];
-                                let gIdx = py * width + px;
-                                if (grid[gIdx] === 0) grid[gIdx] = 1;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        capturedPixels += newPixels;
-        landCtx.putImageData(landImgData, 0, 0);
-
-        for (let i = items.length - 1; i >= 0; i--) {
-            if (isSafe(items[i].x, items[i].y)) {
-                applyItemEffect(items[i].type);
-                items.splice(i, 1);
-            }
-        }
-
-        updateUI();
-    }
-
-    function drawLineOnGrid(x0, y0, x1, y1) {
-        x0 = Math.floor(x0); y0 = Math.floor(y0);
-        x1 = Math.floor(x1); y1 = Math.floor(y1);
-        let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
-        let sx = (x0 < x1) ? 1 : -1, sy = (y0 < y1) ? 1 : -1;
-        let err = dx - dy;
-        while(true) {
-            if (x0 >= 0 && x0 < width && y0 >= 0 && y0 < height) grid[y0 * width + x0] = 1; 
-            if (x0 === x1 && y0 === y1) break;
-            let e2 = 2 * err;
-            if (e2 > -dy) { err -= dy; x0 += sx; }
-            if (e2 < dx) { err += dx; y0 += sy; }
-        }
-    }
-
-    // [버그 수정] 정수형 좌표 사용
-    function revealArea(x, y, w, h) {
-        if (bgCanvas.width === 0) return;
-        
-        landCtx.drawImage(bgCanvas, x, y, w, h);
-        
-        let ix = Math.floor(x);
-        let iy = Math.floor(y);
-        let iw = Math.ceil(w);
-        let ih = Math.ceil(h);
-
-        for(let j=iy; j<iy+ih; j++) {
-            for(let i=ix; i<ix+iw; i++) {
-                if(i >= 0 && i < width && j >= 0 && j < height) {
-                    let idx = j*width + i;
-                    if (grid[idx] === 0) { 
-                        grid[idx] = 1; 
-                        capturedPixels++; 
-                    }
-                }
-            }
-        }
-        updateUI();
-    }
-
-    function isSafe(x, y) {
-        if (x < 0 || x >= width || y < 0 || y >= height) return true;
-        let ix = Math.floor(x);
-        let iy = Math.floor(y);
-        
-        if (grid[iy * width + ix] === 1) return true;
-        
-        for(let dy=-1; dy<=1; dy++) {
-            for(let dx=-1; dx<=1; dx++) {
-                if(dx===0 && dy===0) continue;
-                let nx = ix + dx;
-                let ny = iy + dy;
-                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                    if (grid[ny * width + nx] === 1) return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    function draw() {
-        ctx.drawImage(landCanvas, 0, 0);
-        if (gameState === 'victory_view') return;
-
-        items.forEach(item => {
-            let info = ITEM_TYPES[item.type];
-            ctx.shadowBlur = 10 * gameScale;
-            ctx.shadowColor = info.color;
-            ctx.fillStyle = info.color;
-            ctx.beginPath();
-            ctx.arc(item.x, item.y, item.radius, 0, Math.PI*2);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = 'black';
-            ctx.font = (12 * gameScale) + 'px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(info.icon, item.x, item.y);
-        });
-
-        if (path.length > 1) {
-            ctx.beginPath();
-            ctx.strokeStyle = player.state === 'retracting' ? '#ffff00' : '#ff3333';
-            ctx.lineWidth = 8 * gameScale; 
-            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-            ctx.moveTo(path[0].x, path[0].y);
-            for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y);
-            ctx.lineTo(player.x, player.y);
-            ctx.stroke();
-        }
-
-        enemies.forEach(en => {
-            if (en.type === 'boss') {
-                if (en.laserState === 1) { 
-                    ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
-                    ctx.lineWidth = 2 * gameScale;
-                    ctx.setLineDash([5 * gameScale, 5 * gameScale]);
-                    ctx.beginPath();
-                    ctx.moveTo(en.x, en.y);
-                    let ex = en.x + Math.cos(en.laserAngle) * 2000;
-                    let ey = en.y + Math.sin(en.laserAngle) * 2000;
-                    ctx.lineTo(ex, ey);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
-                } else if (en.laserState === 2) { 
-                    ctx.strokeStyle = '#ff0000';
-                    ctx.lineWidth = 20 * gameScale; 
-                    ctx.shadowBlur = 20 * gameScale;
-                    ctx.shadowColor = 'red';
-                    ctx.beginPath();
-                    ctx.moveTo(en.x, en.y);
-                    let ex = en.x + Math.cos(en.laserAngle) * 2000;
-                    let ey = en.y + Math.sin(en.laserAngle) * 2000;
-                    ctx.lineTo(ex, ey);
-                    ctx.stroke();
-                    ctx.shadowBlur = 0;
-                    ctx.lineWidth = 8 * gameScale;
-                    ctx.strokeStyle = 'white';
-                    ctx.stroke();
-                }
-
-                let grd = ctx.createRadialGradient(en.x, en.y, en.radius * 0.2, en.x, en.y, en.radius);
-                grd.addColorStop(0, "#ff4444");
-                grd.addColorStop(1, "#880000");
-                ctx.fillStyle = grd;
-                
-                const spikes = 8;
-                ctx.beginPath();
-                for (let i = 0; i < spikes; i++) {
-                    const angle = (Math.PI * 2 / spikes) * i + (Date.now() / 500); 
-                    const outerR = en.radius * 1.4;
-                    const innerR = en.radius;
-                    const sx = en.x + Math.cos(angle) * outerR;
-                    const sy = en.y + Math.sin(angle) * outerR;
-                    const ix = en.x + Math.cos(angle + Math.PI/spikes) * innerR;
-                    const iy = en.y + Math.sin(angle + Math.PI/spikes) * innerR;
-                    if (i === 0) ctx.moveTo(sx, sy);
-                    else ctx.lineTo(sx, sy);
-                    ctx.lineTo(ix, iy);
-                }
-                ctx.closePath();
-                ctx.fill();
-                ctx.strokeStyle = "#440000";
-                ctx.lineWidth = 2 * gameScale;
-                ctx.stroke();
-
-                ctx.beginPath();
-                ctx.arc(en.x, en.y, en.radius, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.fillStyle = "white";
-                ctx.beginPath();
-                ctx.arc(en.x, en.y, en.radius * 0.6, 0, Math.PI * 2);
-                ctx.fill();
-
-                let angle = Math.atan2(player.y - en.y, player.x - en.x);
-                let dist = en.radius * 0.25;
-                let px = en.x + Math.cos(angle) * dist;
-                let py = en.y + Math.sin(angle) * dist;
-                
-                ctx.fillStyle = "black";
-                ctx.beginPath();
-                ctx.arc(px, py, en.radius * 0.25, 0, Math.PI * 2);
-                ctx.fill();
-                
-                ctx.fillStyle = "white";
-                ctx.beginPath();
-                ctx.arc(px - en.radius*0.1, py - en.radius*0.1, en.radius * 0.08, 0, Math.PI * 2);
-                ctx.fill();
-
-            } else {
-                ctx.globalAlpha = Math.min(1, en.life / 100 + 0.3); 
-                ctx.fillStyle = en.subType === 'chaser' ? "#ff00ff" : "#ff8800";
-                ctx.beginPath();
-                ctx.arc(en.x, en.y, en.radius, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = "#884400";
-                ctx.lineWidth = 1 * gameScale;
-                ctx.stroke();
-                
-                ctx.fillStyle = "white";
-                ctx.beginPath();
-                ctx.arc(en.x, en.y, en.radius * 0.5, 0, Math.PI * 2);
-                ctx.fill();
-                
-                let angle = Math.atan2(player.y - en.y, player.x - en.x);
-                let px = en.x + Math.cos(angle) * (en.radius * 0.15);
-                let py = en.y + Math.sin(angle) * (en.radius * 0.15);
-                
-                ctx.fillStyle = "black";
-                ctx.beginPath();
-                ctx.arc(px, py, en.radius * 0.2, 0, Math.PI * 2);
-                ctx.fill();
-                
-                ctx.globalAlpha = 1.0; 
-            }
-        });
-
-        ctx.fillStyle = '#ff00ff';
-        projectiles.forEach(p => {
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
-            ctx.fill();
-        });
-
-        ctx.fillStyle = player.color;
-        if (buffs.speed > 0) {
-            ctx.shadowBlur = 15 * gameScale;
-            ctx.shadowColor = 'yellow';
-        } else {
-            ctx.shadowBlur = 10 * gameScale;
-            ctx.shadowColor = 'black';
-        }
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, s_playerSize, 0, Math.PI*2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-    }
-
-    function updateUI() {
-        const percent = totalPixels > 0 ? (capturedPixels / totalPixels * 100).toFixed(2) : "0.00";
-        scoreEl.innerText = percent;
-        levelEl.innerText = level;
-        targetEl.innerText = currentTargetPercent;
-        
-        let hearts = "";
-        for(let i=0; i<lives; i++) hearts += "❤️";
-        lifeEl.innerText = hearts.length > 0 ? hearts : "💀";
-
-        if (gameState === 'playing' && parseFloat(percent) >= currentTargetPercent) {
-            endGame(true, `레벨 ${level} 클리어!`);
-        }
-    }
-
-    function setupPCControls() {
-        window.addEventListener('keydown', (e) => {
-            switch(e.code) {
-                case 'ArrowLeft': input.left = true; break;
-                case 'ArrowRight': input.right = true; break;
-                case 'ArrowUp': input.up = true; break;
-                case 'ArrowDown': input.down = true; break;
-                case 'KeyA': input.left = true; break;
-                case 'KeyD': input.right = true; break;
-                case 'KeyW': input.up = true; break;
-                case 'KeyS': input.down = true; break;
-                case 'Space': input.action = true; break;
-            }
-        });
-        window.addEventListener('keyup', (e) => {
-            switch(e.code) {
-                case 'ArrowLeft': input.left = false; break;
-                case 'ArrowRight': input.right = false; break;
-                case 'ArrowUp': input.up = false; break;
-                case 'ArrowDown': input.down = false; break;
-                case 'KeyA': input.left = false; break;
-                case 'KeyD': input.right = false; break;
-                case 'KeyW': input.up = false; break;
-                case 'KeyS': input.down = false; break;
-                case 'Space': input.action = false; break;
-            }
-        });
-    }
-
-    function setupMobileControls() {
-        const zoneLeft = document.getElementById('zone-left');
-        const zoneRight = document.getElementById('zone-right');
-        const dJoystick = document.getElementById('dynamic-joystick');
-        const dKnob = document.getElementById('dynamic-knob');
-        const actionBtn = document.getElementById('action-btn');
-        
-        let joyStartX, joyStartY;
-        let joyActiveId = null;
-
-        zoneLeft.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            if (joyActiveId !== null) return;
-
-            const touch = e.changedTouches[0];
-            joyActiveId = touch.identifier;
-            joyStartX = touch.clientX;
-            joyStartY = touch.clientY;
-
-            dJoystick.style.display = 'block';
-            dJoystick.style.left = joyStartX + 'px';
-            dJoystick.style.top = joyStartY + 'px';
-            dKnob.style.transform = `translate(-50%, -50%)`;
-
-            input.joyX = 0;
-            input.joyY = 0;
-        });
-
-        zoneLeft.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            if (joyActiveId === null) return;
-
-            let touch = null;
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                if (e.changedTouches[i].identifier === joyActiveId) {
-                    touch = e.changedTouches[i];
-                    break;
-                }
-            }
-            if (!touch) return;
-
-            let dx = touch.clientX - joyStartX;
-            let dy = touch.clientY - joyStartY;
-            const maxDist = 40 * gameScale; 
-            const dist = Math.min(Math.hypot(dx, dy), maxDist);
-            const angle = Math.atan2(dy, dx);
-
-            const moveX = Math.cos(angle) * dist;
-            const moveY = Math.sin(angle) * dist;
-
-            dKnob.style.transform = `translate(calc(-50% + ${moveX}px), calc(-50% + ${moveY}px))`;
-
-            input.joyX = moveX / maxDist;
-            input.joyY = moveY / maxDist;
-        });
-
-        const endJoystick = (e) => {
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                if (e.changedTouches[i].identifier === joyActiveId) {
-                    joyActiveId = null;
-                    dJoystick.style.display = 'none';
-                    input.joyX = 0;
-                    input.joyY = 0;
-                    break;
-                }
-            }
+    if (CONFIG.lives <= 0) {
+        showMessage("GAME OVER<br><small>Click to Restart</small>");
+        gameState = 'gameover';
+        canvas.onclick = () => {
+            canvas.onclick = null;
+            currentLevel = 1;
+            CONFIG.lives = 3;
+            init();
         };
-        zoneLeft.addEventListener('touchend', endJoystick);
-        zoneLeft.addEventListener('touchcancel', endJoystick);
-
-        zoneRight.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            input.action = true;
-            actionBtn.classList.add('active');
-        });
-
-        zoneRight.addEventListener('touchend', (e) => {
-             e.preventDefault();
-             let hasRightTouch = false;
-             for (let i=0; i<e.touches.length; i++) {
-                 if (e.touches[i].clientX > window.innerWidth / 2) {
-                     hasRightTouch = true;
-                     break;
-                 }
-             }
-             if (!hasRightTouch) {
-                 input.action = false;
-                 actionBtn.classList.remove('active');
-             }
-        });
+    } else {
+        // 위치 리셋 (안전한 곳으로 - 보통 (0,0)은 항상 안전)
+        player.x = 0; player.y = 0;
+        player.dirX = 0; player.dirY = 0;
+        showMessage("OUCH!", 1000);
     }
+}
+
+function levelUp() {
+    gameState = 'levelup';
+    playSound('claim'); // 승리음
+    showMessage(`LEVEL ${currentLevel} CLEARED!`);
+    setTimeout(() => {
+        currentLevel++;
+        resetGame();
+    }, 2000);
+}
+
+function showMessage(html, duration) {
+    msgBox.innerHTML = html;
+    msgBox.style.display = 'block';
+    if (duration) {
+        setTimeout(() => {
+            msgBox.style.display = 'none';
+        }, duration);
+    }
+}
+
+/**
+ * 렌더링 (검은줄 버그 수정됨)
+ */
+function render() {
+    // 1. 전체 지우기
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, width, height);
+
+    // 2. 배경 이미지 그리기 (마스킹을 위해 먼저 전체를 그림)
+    // 하지만 땅따먹기는 '벗겨내는' 게임이므로,
+    // 정복한 땅(2)에만 이미지를 보여주고,
+    // 정복하지 못한 땅(0)은 검은색(또는 그림자)으로 덮는 방식이 예쁩니다.
+    
+    // (A) 배경 이미지 전체 그리기
+    if (bgImage) {
+        // 비율 유지하며 꽉 채우기
+        ctx.drawImage(bgImage, 0, 0, width, height);
+    } else {
+        // 이미지 없으면 예쁜 그라데이션
+        let grad = ctx.createLinearGradient(0, 0, width, height);
+        grad.addColorStop(0, '#222');
+        grad.addColorStop(1, '#444');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, width, height);
+    }
+
+    // (B) 정복되지 않은 땅(0)과 임시경로(1) 위에 '어둠' 덮어씌우기
+    // 성능 최적화 + 검은줄 제거를 위해:
+    // 개별 rect를 그리는 대신 path를 모아서 한번에 그립니다.
+    
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.85)'; // 미정복 지역 색상 (약간 투명하게 해서 뒤가 살짝 비치게 할 수도 있음)
+    ctx.beginPath();
+    
+    // 팁: 검은 줄이 생기는 이유인 "인접 타일간의 틈"을 막기 위해
+    // fillRect로 하나씩 그릴때 Math.ceil을 쓰거나
+    // 아래처럼 path로 묶어서 그리면 해결됩니다.
+    // 여기서는 가장 확실한 방법인 "타일 크기 + 여유분"을 사용하여 틈새를 메꿉니다.
+    
+    const overlap = 0.5; // 틈새 방지용 겹침
+    
+    for(let c=0; c<cols; c++) {
+        for(let r=0; r<rows; r++) {
+            if (grid[c][r] === 0 || grid[c][r] === 1) {
+                // grid[c][r] == 1 (경로) 도 일단 어둠으로 덮고, 나중에 선을 위에 그린다
+                ctx.rect(
+                    c * CONFIG.gridSize, 
+                    r * CONFIG.gridSize, 
+                    CONFIG.gridSize + overlap, 
+                    CONFIG.gridSize + overlap
+                );
+            }
+        }
+    }
+    ctx.fill();
+
+    // 3. 현재 그리고 있는 선(Path) 강조
+    if (player.drawing && player.path.length > 0) {
+        ctx.strokeStyle = '#00ff00'; // 네온 그린
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#00ff00';
+        ctx.beginPath();
+        ctx.moveTo(player.path[0].x, player.path[0].y);
+        for(let i=1; i<player.path.length; i++) {
+            ctx.lineTo(player.path[i].x, player.path[i].y);
+        }
+        ctx.lineTo(player.x, player.y);
+        ctx.stroke();
+        
+        ctx.shadowBlur = 0; // 리셋
+    }
+
+    // 4. 플레이어 그리기
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(player.x - 3, player.y - 3, 6, 6);
+
+    // 5. 보스 그리기
+    bosses.forEach(boss => {
+        ctx.beginPath();
+        ctx.arc(boss.x, boss.y, boss.radius, 0, Math.PI * 2);
+        if (boss.frozen) {
+            ctx.fillStyle = '#00ffff'; // 얼어있을 때 색상
+            ctx.strokeStyle = '#fff';
+            // 얼음 효과 텍스트
+            ctx.font = "10px Arial";
+            ctx.fillStyle = "white";
+            ctx.fillText("❄️", boss.x - 5, boss.y + 4);
+        } else {
+            ctx.fillStyle = '#ff0000';
+        }
+        ctx.fill();
+        ctx.closePath();
+    });
+
+    // 6. 아이템 그리기
+    items.forEach(item => {
+        ctx.beginPath();
+        ctx.arc(item.x, item.y, item.radius, 0, Math.PI * 2);
+        if (item.type === 'freeze') {
+            ctx.fillStyle = 'blue';
+            ctx.strokeStyle = 'cyan';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fill();
+            // 아이콘
+            ctx.fillStyle = 'white';
+            ctx.font = '12px Arial';
+            ctx.fillText("F", item.x-4, item.y+4);
+        }
+    });
+}
+
+/**
+ * 키보드 입력
+ */
+const keys = {};
+window.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    updateDirection();
+});
+window.addEventListener('keyup', e => {
+    keys[e.code] = false;
+    updateDirection();
+});
+
+function updateDirection() {
+    // 대각선 이동 방지 & 부드러운 전환
+    if (keys['ArrowUp']) { player.dirX = 0; player.dirY = -1; }
+    else if (keys['ArrowDown']) { player.dirX = 0; player.dirY = 1; }
+    else if (keys['ArrowLeft']) { player.dirX = -1; player.dirY = 0; }
+    else if (keys['ArrowRight']) { player.dirX = 1; player.dirY = 0; }
+    else { player.dirX = 0; player.dirY = 0; }
+}
+
+// 게임 시작
+init();
+
 </script>
 </body>
 </html>
