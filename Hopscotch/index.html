@@ -149,74 +149,15 @@
         /* 모바일 컨트롤러 */
         #mobile-controls {
             position: absolute;
-            bottom: 30px;
-            left: 0;
-            width: 100%;
-            height: 150px;
-            display: none; 
-            pointer-events: none;
-            justify-content: space-between;
-            padding: 0 50px;
-            box-sizing: border-box;
-            z-index: 20;
-        }
-
-        #joystick-area {
-            width: 140px;
-            height: 140px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 50%;
-            position: relative;
-            pointer-events: auto;
-            backdrop-filter: blur(4px);
-            border: 2px solid rgba(255,255,255,0.3);
-        }
-
-        #joystick-knob {
-            width: 60px;
-            height: 60px;
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 50%;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        }
-
-        #action-btn {
-            width: 110px;
-            height: 110px;
-            background: rgba(255, 60, 60, 0.6);
-            border-radius: 50%;
-            border: 5px solid rgba(255, 255, 255, 0.8);
-            pointer-events: auto;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 1.5rem;
-            user-select: none;
-            transition: transform 0.1s, background 0.1s;
-        }
-        #action-btn:active, #action-btn.active {
-            transform: scale(0.95);
-            background: rgba(255, 60, 60, 0.9);
-        }
-
-        /* --- 모바일 컨트롤러 (수정됨) --- */
-        #mobile-controls {
-            position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            display: none; /* JS로 활성화 */
+            display: none;
             z-index: 20;
-            pointer-events: none; /* 자식 요소인 zone들이 이벤트를 받음 */
+            pointer-events: none;
         }
 
-        /* 왼쪽 터치 영역 (조이스틱) */
         #zone-left {
             position: absolute;
             top: 0;
@@ -226,7 +167,6 @@
             pointer-events: auto;
         }
 
-        /* 오른쪽 터치 영역 (액션 버튼) */
         #zone-right {
             position: absolute;
             top: 0;
@@ -236,7 +176,6 @@
             pointer-events: auto;
         }
 
-        /* 동적 조이스틱 비주얼 */
         #dynamic-joystick {
             position: absolute;
             width: 100px;
@@ -244,7 +183,7 @@
             background: rgba(255, 255, 255, 0.15);
             border: 2px solid rgba(255, 255, 255, 0.4);
             border-radius: 50%;
-            display: none; /* 터치 시 표시 */
+            display: none;
             transform: translate(-50%, -50%);
             pointer-events: none;
             backdrop-filter: blur(2px);
@@ -262,7 +201,6 @@
             box-shadow: 0 0 10px rgba(0,0,0,0.5);
         }
 
-        /* 액션 버튼 비주얼 */
         #action-btn {
             position: absolute;
             bottom: 40px;
@@ -278,10 +216,9 @@
             font-weight: bold;
             font-size: 1.4rem;
             color: white;
-            pointer-events: none; /* zone-right가 터치를 대신 받음 */
+            pointer-events: none;
             transition: transform 0.1s, background 0.1s;
         }
-        /* zone-right가 눌렸을 때 시각적 효과를 주기 위한 클래스 */
         #action-btn.active {
             transform: scale(0.9);
             background: rgba(255, 60, 60, 0.9);
@@ -307,13 +244,9 @@
         </div>
     </div>
 
-    <!-- 아이템/효과 메시지 -->
     <div id="msg-overlay"></div>
-
-    <!-- 승리 메시지 -->
     <div id="victory-msg">성공! 터치하여 다음 레벨로 ▶</div>
 
-    <!-- 게임오버 모달 -->
     <div id="result-modal">
         <div id="result-title">GAME OVER</div>
         <div id="result-sub">다시 도전하세요!</div>
@@ -322,16 +255,12 @@
 
     <canvas id="gameCanvas"></canvas>
 
-    <!-- 모바일 컨트롤러 레이어 -->
     <div id="mobile-controls">
-        <div id="zone-left"></div>  <!-- 왼쪽: 이동 -->
-        <div id="zone-right"></div> <!-- 오른쪽: 액션 -->
-        
-        <!-- 동적 조이스틱 비주얼 -->
+        <div id="zone-left"></div>
+        <div id="zone-right"></div>
         <div id="dynamic-joystick">
             <div id="dynamic-knob"></div>
         </div>
-        <!-- 액션 버튼 비주얼 -->
         <div id="action-btn">GO!</div>
     </div>
 
@@ -356,7 +285,13 @@
     const PLAYER_SIZE = 5;
     const BASE_PLAYER_SPEED = 6; 
     const BASE_RETRACT_SPEED = 12;
-    const BOSS_BASE_SPEED = 3; 
+    // [난이도] 보스 기본 속도 하향 (3 -> 2)
+    const BOSS_BASE_SPEED = 2; 
+    // [난이도] 최대 미니언 수 제한
+    const MAX_MINIONS = 6;
+    // [난이도] 미니언 수명 (프레임 단위, 60fps 기준 약 10~15초)
+    const MINION_LIFETIME = 700;
+    
     const FALLBACK_IMG = "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80";
     
     const ITEM_TYPES = {
@@ -381,7 +316,6 @@
     let frameCount = 0; 
     
     let buffs = { speed: 0, freeze: 0 };
-    // [수정] 로컬 이미지 경로들을 저장할 배열
     let availableImages = [];
     
     let grid = null; 
@@ -392,8 +326,6 @@
     let bgImage = new Image();
 
     bgImage.crossOrigin = "Anonymous";
-    
-    // 초기 실행 시 이미지 스캔 시작
     scanLocalImages(1);
 
     let player = { x: 0, y: 0, color: '#00ff00', state: 'safe' };
@@ -403,36 +335,23 @@
     let items = []; 
     let input = { left: false, right: false, up: false, down: false, action: false, joyX: 0, joyY: 0 };
 
-    // --- [수정] 동적 이미지 로딩 (PNG & WebP 지원) ---
     function scanLocalImages(index) {
-        // 우선 PNG 시도
-        let pngImg = new Image();
-        pngImg.onload = function() {
-            availableImages.push(`img/${index}.png`);
+        let testImg = new Image();
+        testImg.onload = function() {
+            availableImages.push(index);
             scanLocalImages(index + 1);
         };
-        pngImg.onerror = function() {
-            // PNG 실패시 WebP 시도
-            let webpImg = new Image();
-            webpImg.onload = function() {
-                availableImages.push(`img/${index}.webp`);
-                scanLocalImages(index + 1);
-            };
-            webpImg.onerror = function() {
-                // 둘 다 실패하면 스캔 종료
-                console.log(`이미지 스캔 완료: 총 ${availableImages.length}개 발견`);
-                setRandomBackground();
-            };
-            webpImg.src = `img/${index}.webp`;
+        testImg.onerror = function() {
+            setRandomBackground();
         };
-        pngImg.src = `img/${index}.png`;
+        testImg.src = `img/${index}.png`;
     }
 
     function setRandomBackground() {
         if (availableImages.length > 0) {
             let randIdx = Math.floor(Math.random() * availableImages.length);
-            // [수정] 전체 경로를 저장했으므로 그대로 사용
-            bgImage.src = availableImages[randIdx];
+            let imgNum = availableImages[randIdx];
+            bgImage.src = `img/${imgNum}.png`;
         } else {
             if (!bgImage.src || bgImage.src === "") {
                 bgImage.src = FALLBACK_IMG;
@@ -442,7 +361,6 @@
         }
     }
 
-    // --- 이벤트 핸들러 ---
     document.addEventListener('click', handleGlobalClick);
     document.addEventListener('touchstart', handleGlobalClick);
 
@@ -466,7 +384,7 @@
         else { resize(); }
     };
     bgImage.onerror = () => { 
-        if(bgImage.src !== FALLBACK_IMG && availableImages.length === 0) bgImage.src = FALLBACK_IMG; 
+        if(bgImage.src !== FALLBACK_IMG) bgImage.src = FALLBACK_IMG; 
         if (!isInitialized) { init(); isInitialized = true; }
     }
 
@@ -484,7 +402,6 @@
         if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
             document.getElementById('mobile-controls').style.display = 'block';
             setupMobileControls();
-            
             gameSpeedMultiplier = 0.5;
         } else {
             gameSpeedMultiplier = 1.0;
@@ -580,7 +497,7 @@
         enemies = [];
         projectiles = [];
         
-        let bossSpeed = (BOSS_BASE_SPEED + (level * 0.5)) * gameSpeedMultiplier;
+        let bossSpeed = (BOSS_BASE_SPEED + (level * 0.4)) * gameSpeedMultiplier; // 레벨당 속도 증가폭도 완화
         
         enemies.push({ 
             type: 'boss', 
@@ -594,9 +511,9 @@
             laserAngle: 0
         });
 
+        // 초기 미니언도 수명 적용
         let minionCount = Math.floor((level - 1) * 1.5); 
         for(let i=0; i<minionCount; i++) {
-            // [난이도] 초기 미니언도 레벨 3 미만이면 bouncer만 생성
             let type = level < 3 ? 'bouncer' : 'bouncer'; 
             spawnMinion(width/2, height/2, bossSpeed * 0.8, type); 
         }
@@ -613,11 +530,13 @@
             radius: 6,
             baseSpeed: speed,
             isChasing: false,
-            stateTimer: Math.random() * 60 + 60 // 랜덤 초기화
+            stateTimer: Math.random() * 60 + 60,
+            life: MINION_LIFETIME + Math.random() * 200 // 수명 랜덤 부여
         });
     }
 
     function spawnItem() {
+        // [난이도] 아이템 생성 주기 단축 (500프레임 약 8초)
         let attempts = 0;
         while(attempts < 50) {
             let rx = Math.random() * width;
@@ -657,7 +576,7 @@
 
     function update() {
         frameCount++;
-        if (frameCount % 600 === 0 && items.length < 3) spawnItem();
+        if (frameCount % 500 === 0 && items.length < 3) spawnItem();
 
         if (buffs.speed > 0) buffs.speed--;
         if (buffs.freeze > 0) buffs.freeze--;
@@ -778,6 +697,19 @@
     }
 
     function updateEnemies() {
+        // [난이도] 미니언 수명 관리
+        for (let i = enemies.length - 1; i >= 0; i--) {
+            let en = enemies[i];
+            if (en.type === 'minion') {
+                en.life--;
+                if (en.life <= 0) {
+                    // 수명 다하면 소멸 이펙트(간단히) 후 삭제
+                    enemies.splice(i, 1);
+                    continue;
+                }
+            }
+        }
+
         enemies.forEach(en => {
             if (buffs.freeze > 0) return;
 
@@ -801,20 +733,15 @@
                 }
             }
 
-            // [추적자 AI 개선] 간헐적 추적
             if (en.subType === 'chaser') {
                 if (en.stateTimer > 0) en.stateTimer--;
                 
-                // 상태 전환 (추적 <-> 배회)
                 if (en.stateTimer <= 0) {
                     en.isChasing = !en.isChasing;
                     if (en.isChasing) {
-                        // 추적 시간: 레벨 비례 증가 (1초 ~ 3초)
                         en.stateTimer = 60 + (level * 20); 
                     } else {
-                        // 배회 시간: 레벨 비례 감소 (3초 ~ 1초)
                         en.stateTimer = Math.max(60, 180 - (level * 10));
-                        // 배회 방향 랜덤 설정
                         let randAngle = Math.random() * Math.PI * 2;
                         en.dx = Math.cos(randAngle) * en.baseSpeed;
                         en.dy = Math.sin(randAngle) * en.baseSpeed;
@@ -822,13 +749,11 @@
                 }
 
                 if (en.isChasing) {
-                    // 추적 중일 때만 플레이어 방향으로 갱신
                     let angle = Math.atan2(player.y - en.y, player.x - en.x);
-                    let chaserSpeed = en.baseSpeed * 0.7; // 추적 시 약간 감속
+                    let chaserSpeed = en.baseSpeed * 0.7; 
                     en.dx = Math.cos(angle) * chaserSpeed;
                     en.dy = Math.sin(angle) * chaserSpeed;
                 }
-                // 배회 중일 때는 기존 dx, dy 유지 (벽 튕기기 적용)
             }
 
             let maxSpeed = en.baseSpeed * 2.5; 
@@ -849,11 +774,7 @@
             
             if (isSafe(checkX, en.y) || isSafe(checkX, en.y - en.radius*0.7) || isSafe(checkX, en.y + en.radius*0.7)) {
                 if (en.subType !== 'chaser') en.dx *= -1; 
-                else {
-                    // 추적자가 벽에 닿으면 멈춤 (안전지대 침범 방지)
-                    en.dx = 0; 
-                    // 벽에 닿으면 즉시 배회 모드로 전환하거나 방향 전환 시도 가능
-                }
+                else en.dx = 0; 
             } else {
                 en.x = nextX;
             }
@@ -893,11 +814,10 @@
 
     function bossAttack(boss) {
         let rand = Math.random();
-        if (rand < 0.2) {
-            // [난이도] 레벨 3 이상일 때만 추적자 소환
+        if (rand < 0.3) { // 미니언 소환 확률 30%
             let type = level >= 3 ? 'chaser' : 'bouncer';
             shootMinion(boss, type);
-        } else if (rand < 0.4) shootSpreadMissile(boss);
+        } else if (rand < 0.5) shootSpreadMissile(boss);
         else if (rand < 0.6) {
             boss.laserState = 1; 
             boss.laserTimer = 60; 
@@ -944,18 +864,19 @@
     }
 
     function shootMinion(boss, type) {
+        // [난이도] 현재 미니언 수 체크
+        let currentMinions = enemies.filter(e => e.type === 'minion').length;
+        if (currentMinions >= MAX_MINIONS) return;
+
         let angle = Math.atan2(player.y - boss.y, player.x - boss.x);
         let speed = (4 + (level * 0.5)) * gameSpeedMultiplier;
         enemies.push({
-            type: 'minion',
-            subType: type || 'bouncer',
+            type: 'minion', subType: type || 'bouncer',
             x: boss.x, y: boss.y,
-            dx: Math.cos(angle) * speed,
-            dy: Math.sin(angle) * speed,
-            radius: 6,
-            baseSpeed: speed,
-            isChasing: false,
-            stateTimer: Math.random() * 60 + 60 // 랜덤 초기화
+            dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed,
+            radius: 6, baseSpeed: speed,
+            isChasing: false, stateTimer: 60,
+            life: MINION_LIFETIME + Math.random() * 200
         });
     }
 
@@ -964,9 +885,7 @@
         let speed = (7 + (level * 0.8)) * gameSpeedMultiplier; 
         projectiles.push({
             x: boss.x, y: boss.y,
-            dx: Math.cos(angle) * speed,
-            dy: Math.sin(angle) * speed,
-            radius: 4
+            dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed, radius: 4
         });
     }
     
@@ -977,9 +896,7 @@
             let angle = baseAngle + (i * 0.3); 
             projectiles.push({
                 x: boss.x, y: boss.y,
-                dx: Math.cos(angle) * speed,
-                dy: Math.sin(angle) * speed,
-                radius: 4
+                dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed, radius: 4
             });
         }
     }
@@ -1149,6 +1066,14 @@
 
         capturedPixels += newPixels;
         landCtx.putImageData(landImgData, 0, 0);
+
+        for (let i = items.length - 1; i >= 0; i--) {
+            if (isSafe(items[i].x, items[i].y)) {
+                applyItemEffect(items[i].type);
+                items.splice(i, 1);
+            }
+        }
+
         updateUI();
     }
 
@@ -1296,6 +1221,8 @@
                 ctx.fill();
 
             } else {
+                // Minion life indicator (opacity)
+                ctx.globalAlpha = Math.min(1, en.life / 100 + 0.3); // 사라지기 전 투명해짐
                 ctx.fillStyle = en.subType === 'chaser' ? "#ff00ff" : "#ff8800";
                 ctx.beginPath();
                 ctx.arc(en.x, en.y, en.radius, 0, Math.PI * 2);
@@ -1317,6 +1244,8 @@
                 ctx.beginPath();
                 ctx.arc(px, py, en.radius * 0.2, 0, Math.PI * 2);
                 ctx.fill();
+                
+                ctx.globalAlpha = 1.0; // Reset alpha
             }
         });
 
