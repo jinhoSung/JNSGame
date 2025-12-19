@@ -297,8 +297,6 @@
     let gameSpeedMultiplier = 1.0; 
     
     let s_playerSize, s_playerSpeed, s_retractSpeed, s_bossSpeed;
-    
-    // 이미지 렌더링 파라미터 (좌표 동기화용)
     let imgParams = { x: 0, y: 0, w: 0, h: 0 };
 
     // 상태 변수
@@ -365,6 +363,7 @@
         if (gameState === 'victory_view') {
             nextLevel();
         }
+        window.focus();
     }
 
     imgInput.addEventListener('change', (e) => {
@@ -424,7 +423,6 @@
         landCanvas.width = width; landCanvas.height = height;
         bgCanvas.width = width; bgCanvas.height = height;
         
-        // 이미지 위치 및 크기 계산 (Cover 모드)
         if (bgImage.complete && bgImage.naturalWidth !== 0) {
             let sRatio = bgImage.width / bgImage.height;
             let dRatio = width / height;
@@ -441,7 +439,6 @@
                 imgParams.y = 0; 
             }
             
-            // 원본 캔버스에 그리기 (밝은 이미지)
             bgCtx.drawImage(bgImage, imgParams.x, imgParams.y, imgParams.w, imgParams.h);
         } else {
             bgCtx.fillStyle = '#3333aa'; bgCtx.fillRect(0,0,width,height);
@@ -472,26 +469,24 @@
         totalPixels = width * height; 
         capturedPixels = 0;
         
-        // --- [수정] 배경 실루엣 그리기 ---
-        // 1. 이미지가 있으면 그림
+        // --- 배경 실루엣 그리기 ---
         if (bgImage.complete && bgImage.naturalWidth !== 0) {
             landCtx.drawImage(bgImage, imgParams.x, imgParams.y, imgParams.w, imgParams.h);
             
-            // 2. 어둡게 덮어서 실루엣 효과 (검은색 85%)
-            landCtx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+            // [수정] 더 어둡게 (93%)
+            landCtx.fillStyle = 'rgba(0, 0, 0, 0.93)';
             landCtx.fillRect(0, 0, width, height);
         } else {
-            // 이미지가 없으면 그냥 검은색
             landCtx.fillStyle = '#111111'; 
             landCtx.fillRect(0, 0, width, height);
         }
         
-        // 테두리도 스케일 적용
         const border = 40 * gameScale;
-        revealArea(0, 0, width, border); 
-        revealArea(0, height - border, width, border); 
-        revealArea(0, border, border, height - 2*border); 
-        revealArea(width - border, border, border, height - 2*border); 
+        // [버그 수정] 정수형으로 변환하여 revealArea 호출
+        revealArea(0, 0, Math.ceil(width), Math.ceil(border)); 
+        revealArea(0, Math.floor(height - border), Math.ceil(width), Math.ceil(border)); 
+        revealArea(0, Math.floor(border), Math.ceil(border), Math.floor(height - 2*border)); 
+        revealArea(Math.floor(width - border), Math.floor(border), Math.ceil(border), Math.floor(height - 2*border)); 
 
         let borderPixels = capturedPixels;
         totalPixels = (width * height) - borderPixels; 
@@ -640,9 +635,11 @@
         let dx = 0, dy = 0;
         if (input.left) dx -= 1; if (input.right) dx += 1;
         if (input.up) dy -= 1; if (input.down) dy += 1;
-        if (input.joyX !== 0 || input.joyY !== 0) { dx = input.joyX; dy = input.joyY; }
         
-        if (dx !== 0 || dy !== 0 && input.joyX === 0) {
+        if (input.joyX !== 0 || input.joyY !== 0) { 
+            dx = input.joyX; 
+            dy = input.joyY; 
+        } else if (dx !== 0 || dy !== 0) {
             const len = Math.hypot(dx, dy);
             if(len > 1) { dx /= len; dy /= len; }
         }
@@ -854,7 +851,7 @@
         let ex = boss.x + Math.cos(boss.laserAngle) * maxDist;
         let ey = boss.y + Math.sin(boss.laserAngle) * maxDist;
         
-        if (!isSafe(player.x, player.y)) {
+        if (player.state !== 'safe' && !isSafe(player.x, player.y)) {
             let dist = pointToLineDist(player.x, player.y, boss.x, boss.y, ex, ey);
             if (dist < s_playerSize + 10 * gameScale) { 
                 handleDeath("레이저에 맞았습니다!"); return;
@@ -933,6 +930,9 @@
     }
 
     function checkCollision() {
+        // [버그 수정] 안전지대에 있을 때는 무적
+        if (player.state === 'safe') return false;
+
         const isOnSafeGround = isSafe(player.x, player.y);
         let dead = false;
         enemies.forEach(en => {
@@ -1113,23 +1113,49 @@
         }
     }
 
+    // [버그 수정] 정수형 좌표 사용
     function revealArea(x, y, w, h) {
         if (bgCanvas.width === 0) return;
-        if (x < 0) x = 0; if (y < 0) y = 0;
-        if (x + w > width) w = width - x; if (y + h > height) h = height - y;
-        for(let j=y; j<y+h; j++) {
-            for(let i=x; i<x+w; i++) {
-                let idx = j*width + i;
-                if (grid[idx] === 0) { grid[idx] = 1; capturedPixels++; }
+        
+        landCtx.drawImage(bgCanvas, x, y, w, h);
+        
+        let ix = Math.floor(x);
+        let iy = Math.floor(y);
+        let iw = Math.ceil(w);
+        let ih = Math.ceil(h);
+
+        for(let j=iy; j<iy+ih; j++) {
+            for(let i=ix; i<ix+iw; i++) {
+                if(i >= 0 && i < width && j >= 0 && j < height) {
+                    let idx = j*width + i;
+                    if (grid[idx] === 0) { 
+                        grid[idx] = 1; 
+                        capturedPixels++; 
+                    }
+                }
             }
         }
-        landCtx.drawImage(bgCanvas, x, y, w, h, x, y, w, h);
         updateUI();
     }
 
     function isSafe(x, y) {
         if (x < 0 || x >= width || y < 0 || y >= height) return true;
-        return grid[Math.floor(y) * width + Math.floor(x)] === 1;
+        let ix = Math.floor(x);
+        let iy = Math.floor(y);
+        
+        if (grid[iy * width + ix] === 1) return true;
+        
+        for(let dy=-1; dy<=1; dy++) {
+            for(let dx=-1; dx<=1; dx++) {
+                if(dx===0 && dy===0) continue;
+                let nx = ix + dx;
+                let ny = iy + dy;
+                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                    if (grid[ny * width + nx] === 1) return true;
+                }
+            }
+        }
+        return false;
     }
 
     function draw() {
@@ -1155,7 +1181,8 @@
         if (path.length > 1) {
             ctx.beginPath();
             ctx.strokeStyle = player.state === 'retracting' ? '#ffff00' : '#ff3333';
-            ctx.lineWidth = 3 * gameScale; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            ctx.lineWidth = 8 * gameScale; 
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
             ctx.moveTo(path[0].x, path[0].y);
             for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y);
             ctx.lineTo(player.x, player.y);
@@ -1312,6 +1339,10 @@
                 case 'ArrowRight': input.right = true; break;
                 case 'ArrowUp': input.up = true; break;
                 case 'ArrowDown': input.down = true; break;
+                case 'KeyA': input.left = true; break;
+                case 'KeyD': input.right = true; break;
+                case 'KeyW': input.up = true; break;
+                case 'KeyS': input.down = true; break;
                 case 'Space': input.action = true; break;
             }
         });
@@ -1321,6 +1352,10 @@
                 case 'ArrowRight': input.right = false; break;
                 case 'ArrowUp': input.up = false; break;
                 case 'ArrowDown': input.down = false; break;
+                case 'KeyA': input.left = false; break;
+                case 'KeyD': input.right = false; break;
+                case 'KeyW': input.up = false; break;
+                case 'KeyS': input.down = false; break;
                 case 'Space': input.action = false; break;
             }
         });
@@ -1336,7 +1371,6 @@
         let joyStartX, joyStartY;
         let joyActiveId = null;
 
-        // --- 왼쪽 영역: 동적 조이스틱 ---
         zoneLeft.addEventListener('touchstart', (e) => {
             e.preventDefault();
             if (joyActiveId !== null) return;
@@ -1346,7 +1380,6 @@
             joyStartX = touch.clientX;
             joyStartY = touch.clientY;
 
-            // 조이스틱 비주얼 표시
             dJoystick.style.display = 'block';
             dJoystick.style.left = joyStartX + 'px';
             dJoystick.style.top = joyStartY + 'px';
@@ -1360,7 +1393,6 @@
             e.preventDefault();
             if (joyActiveId === null) return;
 
-            // 활성 터치 찾기
             let touch = null;
             for (let i = 0; i < e.changedTouches.length; i++) {
                 if (e.changedTouches[i].identifier === joyActiveId) {
@@ -1372,17 +1404,15 @@
 
             let dx = touch.clientX - joyStartX;
             let dy = touch.clientY - joyStartY;
-            const maxDist = 40 * gameScale; // [스케일] 조이스틱 반경
+            const maxDist = 40 * gameScale; 
             const dist = Math.min(Math.hypot(dx, dy), maxDist);
             const angle = Math.atan2(dy, dx);
 
             const moveX = Math.cos(angle) * dist;
             const moveY = Math.sin(angle) * dist;
 
-            // 놉 이동
             dKnob.style.transform = `translate(calc(-50% + ${moveX}px), calc(-50% + ${moveY}px))`;
 
-            // 입력 업데이트
             input.joyX = moveX / maxDist;
             input.joyY = moveY / maxDist;
         });
@@ -1401,25 +1431,14 @@
         zoneLeft.addEventListener('touchend', endJoystick);
         zoneLeft.addEventListener('touchcancel', endJoystick);
 
-        // --- 오른쪽 영역: 액션 버튼 ---
         zoneRight.addEventListener('touchstart', (e) => {
             e.preventDefault();
             input.action = true;
             actionBtn.classList.add('active');
         });
 
-        const endAction = (e) => {
-            e.preventDefault();
-            // 모든 터치가 끝났는지 체크하거나 단순히 액션 해제
-            if (e.touches.length === 0 || Array.from(e.touches).every(t => t.clientX < window.innerWidth / 2)) {
-                 input.action = false;
-                 actionBtn.classList.remove('active');
-            }
-        };
-        
         zoneRight.addEventListener('touchend', (e) => {
              e.preventDefault();
-             // 이 영역에 남은 터치가 없으면 액션 해제
              let hasRightTouch = false;
              for (let i=0; i<e.touches.length; i++) {
                  if (e.touches[i].clientX > window.innerWidth / 2) {
