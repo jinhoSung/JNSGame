@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Lunar Lander: Ultimate Edition</title>
+    <title>Lunar Lander: Masterpiece Edition</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
@@ -146,7 +146,6 @@
             position: absolute; bottom: 0; left: 0; height: 4px; background: #0f0; width: 0%;
         }
 
-        /* 연료 부족 경고 애니메이션 */
         @keyframes blink-red {
             0% { color: white; }
             50% { color: red; }
@@ -161,7 +160,6 @@
         .warn { color: #ff0; }
         .danger { color: #f00; }
 
-        /* 카운트다운 오버레이 */
         #countdown-overlay {
             position: absolute;
             top: 50%; left: 50%;
@@ -242,6 +240,10 @@
         #pagination-controls { display: flex; justify-content: space-between; align-items: center; width: 100%; }
         .page-btn { background: none; border: none; color: white; font-size: 24px; padding: 10px; cursor: pointer; }
         
+        #high-score-display {
+            font-size: 12px; color: #ffd700; margin-top: 5px;
+        }
+
         @media (max-width: 600px) {
             #ui-layer { width: 100%; height: 100%; max-width: none; max-height: none; }
             .modal-box { padding: 15px; }
@@ -265,7 +267,6 @@
         <div id="hud">
             <div class="hud-group">
                 <div>LV.<span id="ui-level" style="color:#0f0">1</span> <span id="ui-planet" style="color:#aaa">MOON</span></div>
-                <!-- 연료 표시 부분에 ID 부여 -->
                 <div id="fuel-container">FUEL <span id="ui-fuel">100</span></div>
             </div>
             
@@ -285,6 +286,7 @@
 
             <div class="hud-group hud-right">
                 <div>SCORE <span id="ui-score" style="color:#ff0">0</span></div>
+                <div id="high-score-display">HI <span id="ui-highscore">0</span></div>
                 <div>ALT <span id="ui-alt">0</span></div>
                 <div>V.SPD <span id="ui-vspeed">0</span></div>
                 <div>H.SPD <span id="ui-hspeed">0</span></div>
@@ -347,7 +349,7 @@
 
     <script>
         /**
-         * LUNAR LANDER: ULTIMATE EDITION
+         * LUNAR LANDER: MASTERPIECE EDITION
          */
 
         class AudioController {
@@ -355,6 +357,8 @@
                 this.ctx = null;
                 this.enabled = true;
                 this.masterGain = null;
+                this.thrustSource = null;
+                this.thrustGain = null;
                 this.lastFuelWarning = 0;
             }
 
@@ -387,43 +391,83 @@
                 osc.stop(this.ctx.currentTime + duration);
             }
 
-            playNoise(duration) {
-                if (!this.enabled || !this.ctx) return;
-                const bufferSize = this.ctx.sampleRate * duration;
+            // Continuous Thrust Audio
+            startThrust() {
+                if (!this.enabled || !this.ctx || this.thrustSource) return;
+                
+                const bufferSize = this.ctx.sampleRate * 2.0; // 2 seconds buffer
                 const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
                 const data = buffer.getChannelData(0);
                 for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
 
+                this.thrustSource = this.ctx.createBufferSource();
+                this.thrustSource.buffer = buffer;
+                this.thrustSource.loop = true;
+
+                this.thrustGain = this.ctx.createGain();
+                // Lowpass filter for rocket rumble
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 800;
+
+                this.thrustSource.connect(filter);
+                filter.connect(this.thrustGain);
+                this.thrustGain.connect(this.masterGain);
+                
+                this.thrustGain.gain.setValueAtTime(0, this.ctx.currentTime);
+                this.thrustGain.gain.linearRampToValueAtTime(0.5, this.ctx.currentTime + 0.1);
+                
+                this.thrustSource.start();
+            }
+
+            stopThrust() {
+                if (this.thrustSource && this.thrustGain) {
+                    const now = this.ctx.currentTime;
+                    this.thrustGain.gain.cancelScheduledValues(now);
+                    this.thrustGain.gain.setValueAtTime(this.thrustGain.gain.value, now);
+                    this.thrustGain.gain.linearRampToValueAtTime(0, now + 0.2);
+                    this.thrustSource.stop(now + 0.2);
+                    this.thrustSource = null;
+                    this.thrustGain = null;
+                }
+            }
+
+            playExplosion() { 
+                this.stopThrust(); // Ensure engine stops
+                this.playTone(100, 'sawtooth', 0.8, 0.8);
+                // Heavy noise
+                if (!this.enabled || !this.ctx) return;
+                const dur = 1.0;
+                const bufferSize = this.ctx.sampleRate * dur;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for(let i=0; i<bufferSize; i++) data[i] = Math.random()*2-1;
                 const noise = this.ctx.createBufferSource();
                 noise.buffer = buffer;
                 const gain = this.ctx.createGain();
                 const filter = this.ctx.createBiquadFilter();
                 filter.type = 'lowpass';
-                filter.frequency.value = 1000;
-
-                noise.connect(filter);
-                filter.connect(gain);
-                gain.connect(this.masterGain);
-                gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                filter.frequency.value = 500;
+                noise.connect(filter); filter.connect(gain); gain.connect(this.masterGain);
+                gain.gain.setValueAtTime(0.8, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + dur);
                 noise.start();
             }
 
-            playThrust() { if (Math.random() < 0.3) this.playNoise(0.1); }
-            playExplosion() { this.playNoise(1.0); this.playTone(100, 'sawtooth', 0.5); }
             playWin() {
+                this.stopThrust();
                 this.playTone(523.25, 'sine', 0.2); 
                 setTimeout(() => this.playTone(659.25, 'sine', 0.2), 200); 
                 setTimeout(() => this.playTone(783.99, 'sine', 0.4), 400); 
             }
             playFail() {
+                this.stopThrust();
                 this.playTone(150, 'sawtooth', 0.3);
                 setTimeout(() => this.playTone(100, 'sawtooth', 0.6), 300);
             }
             playClick() { this.playTone(800, 'sine', 0.1); }
             playCollect() { this.playTone(1200, 'sine', 0.1, 0.1); setTimeout(()=>this.playTone(1800, 'sine', 0.1, 0.1), 50); }
             
-            // 연료 경고음 (1초에 한번)
             playLowFuel() {
                 if (!this.enabled || !this.ctx) return;
                 const now = this.ctx.currentTime;
@@ -462,8 +506,9 @@
 
         let currentLevel = 1;
         let maxUnlocked = parseInt(localStorage.getItem('lunar_max_level')) || 1;
+        let highScore = parseInt(localStorage.getItem('lunar_high_score')) || 0;
         let menuPage = 0;
-        let gameState = 'menu'; // menu, tutorial, countdown, playing, paused, result
+        let gameState = 'menu'; 
         let keys = {};
         let isMobile = false;
 
@@ -484,10 +529,10 @@
         let particles = [];
         let obstacles = [];
         let debris = []; 
-        let thrustParticles = []; // 엔진 입자
+        let thrustParticles = []; 
         let collectibles = []; 
         let levelConfig = {};
-        const lander = { x: 0, y: 0, vx: 0, vy: 0, angle: 0, fuel: 0, visible: true };
+        const lander = { x: 0, y: 0, vx: 0, vy: 0, angle: 0, fuel: 0, visible: true, thrusting: false };
 
         const uiScreens = {
             menu: document.getElementById('screen-level-select'),
@@ -508,6 +553,7 @@
             menuPage = Math.floor((maxUnlocked - 1) / LEVELS_PER_PAGE);
             renderLevelGrid();
             setupMobileControls();
+            updateHighScoreDisplay();
             
             window.addEventListener('click', () => audio.init(), { once: true });
             window.addEventListener('touchstart', () => audio.init(), { once: true });
@@ -551,14 +597,16 @@
                 updateParticles();
             } else if (gameState === 'result') {
                 if (debris.length > 0) updateDebris();
-                updateParticles(); // 배경 계속 움직이게
+                updateParticles(); 
+                audio.stopThrust(); // 결과 화면에서 엔진 소리 중지
             } else if (gameState === 'countdown') {
                 updateParticles();
+            } else {
+                audio.stopThrust(); // 그 외 상태에서 중지
             }
         }
 
         function updateParticles() {
-            // 엔진 파티클 업데이트
             for (let i = thrustParticles.length - 1; i >= 0; i--) {
                 const p = thrustParticles[i];
                 p.x += p.vx;
@@ -572,24 +620,33 @@
             if (keys['ArrowLeft']) lander.angle -= ROTATION_SPEED;
             if (keys['ArrowRight']) lander.angle += ROTATION_SPEED;
             
+            // 엔진 로직
             if (keys['ArrowUp'] && lander.fuel > 0) {
+                if (!lander.thrusting) {
+                    lander.thrusting = true;
+                    audio.startThrust();
+                }
                 lander.vx += Math.sin(lander.angle) * 0.12;
                 lander.vy -= Math.cos(lander.angle) * 0.12;
                 lander.fuel -= 0.3;
-                audio.playThrust(); 
                 
-                // 엔진 파티클 생성
-                for(let i=0; i<2; i++) {
-                    const angle = lander.angle + (Math.random() - 0.5) * 0.5 + Math.PI; // 뒤쪽으로
-                    const speed = Math.random() * 2 + 1;
+                // 파티클 생성
+                for(let i=0; i<3; i++) {
+                    const angle = lander.angle + (Math.random() - 0.5) * 0.6 + Math.PI; 
+                    const speed = Math.random() * 3 + 2;
                     thrustParticles.push({
                         x: lander.x - Math.sin(lander.angle) * 10,
                         y: lander.y + Math.cos(lander.angle) * 10,
                         vx: lander.vx + Math.sin(angle) * speed,
                         vy: lander.vy - Math.cos(angle) * speed,
                         life: 1.0,
-                        color: Math.random() < 0.3 ? 'white' : 'orange'
+                        color: Math.random() < 0.3 ? 'white' : 'rgba(255,165,0,0.8)'
                     });
+                }
+            } else {
+                if (lander.thrusting) {
+                    lander.thrusting = false;
+                    audio.stopThrust();
                 }
             }
 
@@ -602,7 +659,6 @@
             if (lander.x > LOGICAL_WIDTH) lander.x = 0;
             if (lander.y < 0) { lander.y = 0; lander.vy = 0; }
 
-            // 장애물 충돌
             obstacles.forEach(obs => {
                 obs.x += obs.speed;
                 obs.y += Math.sin(Date.now() / 500 + obs.phase) * 0.5;
@@ -611,7 +667,6 @@
                 if (dist < obs.radius + LANDER_SIZE/2) endGame(false, "장애물 충돌!");
             });
 
-            // 아이템 수집
             for (let i = collectibles.length - 1; i >= 0; i--) {
                 const c = collectibles[i];
                 c.angle += 0.05;
@@ -690,7 +745,6 @@
             const fuelContainer = document.getElementById('fuel-container');
             fuelEl.innerText = Math.floor(lander.fuel);
             
-            // 연료 부족 경고
             if (lander.fuel < 30) {
                 fuelContainer.classList.add('low-fuel');
                 audio.playLowFuel();
@@ -719,6 +773,10 @@
             }
         }
 
+        function updateHighScoreDisplay() {
+            document.getElementById('ui-highscore').innerText = highScore;
+        }
+
         function draw() {
             ctx.fillStyle = levelConfig.bgColor || '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -735,6 +793,17 @@
             ctx.translate(gameOffsetX + shakeX, gameOffsetY + shakeY);
             ctx.scale(gameScale, gameScale);
             
+            // Dynamic Light from Thrust
+            if (lander.thrusting) {
+                const gradient = ctx.createRadialGradient(lander.x, lander.y, 10, lander.x, lander.y, 150);
+                gradient.addColorStop(0, "rgba(255, 200, 100, 0.4)");
+                gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+                ctx.fillStyle = gradient;
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+                ctx.globalCompositeOperation = 'source-over';
+            }
+
             ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
             ctx.strokeRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
 
@@ -769,7 +838,6 @@
                     if(p.y > canvas.height) p.y = 0;
                 }
                 
-                // 반짝임 효과 (Twinkle)
                 let alpha = 1.0;
                 if (p.type === 'star') alpha = 0.5 + Math.sin(Date.now() / 200 + p.x) * 0.5;
                 ctx.globalAlpha = alpha;
@@ -819,7 +887,6 @@
                 ctx.strokeStyle = '#fff'; ctx.lineWidth=1; ctx.stroke();
             });
 
-            // 엔진 입자 그리기
             thrustParticles.forEach(p => {
                 ctx.fillStyle = p.color;
                 ctx.globalAlpha = p.life;
@@ -839,13 +906,14 @@
                 ctx.moveTo(-10, -10); ctx.lineTo(10, -10); ctx.lineTo(12, 10); ctx.lineTo(-12, 10);
                 ctx.fill();
                 ctx.fillStyle = '#3cf'; ctx.fillRect(-5, -5, 10, 8);
+                
+                // 다리 서스펜션 효과 (착륙 시 살짝 눌리는 연출 가능하지만 여기서는 간단히 그리기)
                 ctx.strokeStyle = '#aaa'; ctx.lineWidth = 2;
                 ctx.beginPath();
                 ctx.moveTo(-10, 10); ctx.lineTo(-16, 20); ctx.lineTo(-20, 20);
                 ctx.moveTo(10, 10); ctx.lineTo(16, 20); ctx.lineTo(20, 20);
                 ctx.stroke();
 
-                // 좌우 스러스터 입자 (간단히)
                 if (keys['ArrowLeft']) { ctx.fillStyle = '#aaf'; ctx.fillRect(10, -8, 6, 3); }
                 if (keys['ArrowRight']) { ctx.fillStyle = '#aaf'; ctx.fillRect(-16, -8, 6, 3); }
                 ctx.restore();
@@ -983,14 +1051,14 @@
             overlay.innerText = countdownVal;
             
             const timer = setInterval(() => {
-                if (gameState !== 'countdown') { clearInterval(timer); return; } // 중단 시
+                if (gameState !== 'countdown') { clearInterval(timer); return; } 
                 countdownVal--;
                 if (countdownVal > 0) {
                     overlay.innerText = countdownVal;
                     audio.playClick();
                 } else {
                     overlay.innerText = "GO!";
-                    audio.playWin(); // High tone
+                    audio.playWin(); 
                     clearInterval(timer);
                     setTimeout(() => {
                         overlay.style.display = 'none';
@@ -1003,7 +1071,7 @@
         function closeTutorial() { 
             audio.playClick();
             showScreen(null); 
-            startCountdown(); // 튜토리얼 후 카운트다운
+            startCountdown(); 
         }
 
         function resetLander() {
@@ -1011,6 +1079,7 @@
             lander.y = 50;
             lander.vx = 0; lander.vy = 0; lander.angle = 0;
             lander.fuel = levelConfig.fuel; lander.visible = true;
+            lander.thrusting = false;
             debris = [];
             thrustParticles = [];
         }
@@ -1121,11 +1190,15 @@
         }
         function goToLevelSelect() { 
             audio.playClick();
+            audio.stopThrust();
             gameState = 'menu'; renderLevelGrid(); showScreen('menu'); 
         }
         function togglePause() { 
             audio.playClick();
-            if (gameState === 'playing') { gameState = 'paused'; showScreen('pause'); }
+            if (gameState === 'playing') { 
+                audio.stopThrust();
+                gameState = 'paused'; showScreen('pause'); 
+            }
             else if (gameState === 'paused') { gameState = 'playing'; showScreen(null); }
         }
         function restartCurrentLevel() { 
@@ -1134,12 +1207,21 @@
         }
         
         function endGame(success, reason) {
+            audio.stopThrust();
             if (!success) {
                 triggerExplosion(lander.x, lander.y);
             } else {
                 audio.playWin();
                 const fuelBonus = Math.floor(lander.fuel * 2);
                 currentScore += fuelBonus + 500;
+                
+                // 최고 점수 갱신
+                if (currentScore > highScore) {
+                    highScore = currentScore;
+                    localStorage.setItem('lunar_high_score', highScore);
+                    updateHighScoreDisplay();
+                }
+                
                 reason = `PERFECT LANDING!\nSCORE: ${currentScore}`;
             }
 
