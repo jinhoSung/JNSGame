@@ -72,6 +72,22 @@
         .game-btn:hover { background: rgba(255, 255, 255, 0.5); transform: scale(1.05); }
         .icon-btn { font-size: 1.1rem; padding: 6px 10px; }
 
+        /* 메시지 오버레이 (아이템 획득 등) */
+        #msg-overlay {
+            position: absolute;
+            top: 30%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 10px #fff;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s;
+            z-index: 60;
+        }
+
         /* 승리 시 상단 안내 메시지 */
         #victory-msg {
             display: none;
@@ -96,7 +112,7 @@
             100% { transform: translateX(-50%) scale(1); }
         }
 
-        /* 결과 모달 (게임오버 시에만 사용) */
+        /* 결과 모달 */
         #result-modal {
             display: none;
             position: absolute;
@@ -205,6 +221,9 @@
         </div>
     </div>
 
+    <!-- 아이템/효과 메시지 -->
+    <div id="msg-overlay"></div>
+
     <!-- 승리 메시지 -->
     <div id="victory-msg">성공! 터치하여 다음 레벨로 ▶</div>
 
@@ -237,6 +256,7 @@
     const victoryMsg = document.getElementById('victory-msg');
     const uiLayer = document.getElementById('ui-layer');
     const imgInput = document.getElementById('img-input');
+    const msgOverlay = document.getElementById('msg-overlay');
 
     // 게임 상수
     const PLAYER_SIZE = 5;
@@ -245,6 +265,13 @@
     const BOSS_BASE_SPEED = 3; 
     const FALLBACK_IMG = "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80";
     
+    // 아이템 타입 정의
+    const ITEM_TYPES = {
+        SPEED: { color: '#FFFF00', icon: '⚡', duration: 300, label: "SPEED UP!" }, // 5초 (60fps 기준)
+        FREEZE: { color: '#00FFFF', icon: '❄️', duration: 300, label: "FREEZE!" },
+        LIFE: { color: '#FF0000', icon: '❤️', duration: 0, label: "LIFE UP!" }
+    };
+
     let currentPlayerSpeed = BASE_PLAYER_SPEED;
     let currentRetractSpeed = BASE_RETRACT_SPEED;
 
@@ -257,10 +284,16 @@
     let gameState = 'playing'; 
     let isInitialized = false;
     let currentTargetPercent = 80;
+    let frameCount = 0; // 프레임 카운터 (아이템 스폰용)
     
+    // 버프 상태
+    let buffs = {
+        speed: 0,
+        freeze: 0
+    };
+
     // 로컬 이미지 관련 변수
-    let availableImages = []; // 스캔된 이미지 번호들 (예: [1, 2, 3, 4, 5, 6])
-    let currentImageIndex = -1; // 현재 사용 중인 이미지 인덱스
+    let availableImages = [];
     
     // Grid System
     let grid = null; 
@@ -273,44 +306,38 @@
     bgImage.crossOrigin = "Anonymous";
     
     // 초기 실행 시 이미지 스캔 시작
-    // 스캔이 끝나면 init() 호출
     scanLocalImages(1);
 
     let player = { x: 0, y: 0, color: '#00ff00', state: 'safe' };
     let path = []; 
     let enemies = []; 
     let projectiles = []; 
+    let items = []; // 아이템 배열
     let input = { left: false, right: false, up: false, down: false, action: false, joyX: 0, joyY: 0 };
 
     // --- 동적 이미지 로딩 로직 ---
     function scanLocalImages(index) {
         let testImg = new Image();
         testImg.onload = function() {
-            // 로드 성공 -> 리스트에 추가하고 다음 번호 확인
             availableImages.push(index);
             scanLocalImages(index + 1);
         };
         testImg.onerror = function() {
-            // 로드 실패 -> 스캔 종료 및 게임 시작
             console.log(`이미지 스캔 완료: 총 ${availableImages.length}개 발견`);
-            setRandomBackground(); // 첫 배경 설정
+            setRandomBackground();
         };
         testImg.src = `img/${index}.png`;
     }
 
     function setRandomBackground() {
         if (availableImages.length > 0) {
-            // 발견된 로컬 이미지가 있으면 그 중에서 랜덤 선택
             let randIdx = Math.floor(Math.random() * availableImages.length);
             let imgNum = availableImages[randIdx];
             bgImage.src = `img/${imgNum}.png`;
         } else {
-            // 없으면 기본 온라인 이미지 사용
             if (!bgImage.src || bgImage.src === "") {
                 bgImage.src = FALLBACK_IMG;
             } else if (!isInitialized) {
-                // 이미지가 설정되어 있다면 그냥 진행 (수동 변경 등)
-                // 만약 src가 비어있다면 초기화
                 bgImage.src = FALLBACK_IMG;
             }
         }
@@ -333,8 +360,6 @@
             const reader = new FileReader();
             reader.onload = (event) => { 
                 bgImage.src = event.target.result; 
-                // 수동 변경 시에는 자동 변경 로직이 덮어쓰지 않도록 주의해야 함
-                // 하지만 다음 레벨로 가면 다시 랜덤이 됨 (의도된 동작)
             };
             reader.readAsDataURL(file);
         }
@@ -342,7 +367,7 @@
 
     bgImage.onload = () => {
         if (!isInitialized) { init(); isInitialized = true; }
-        else { resize(); } // 이미지가 바뀌면 리사이즈(리셋) 호출
+        else { resize(); }
     };
     bgImage.onerror = () => { 
         console.log("이미지 로드 실패, 기본값 사용");
@@ -408,7 +433,6 @@
         if (fullReset) {
             level = 1;
             lives = 3;
-            // 게임 완전히 새로 시작할 때도 랜덤 배경 한 번 변경
             if(availableImages.length > 0) setRandomBackground();
         }
 
@@ -439,6 +463,11 @@
         totalPixels = (width * height) - borderPixels; 
         capturedPixels = 0; 
         
+        // 버프 및 카운터 초기화
+        buffs = { speed: 0, freeze: 0 };
+        frameCount = 0;
+        items = [];
+        
         updateUI();
 
         respawnPlayer();
@@ -447,8 +476,6 @@
 
     function nextLevel() {
         level++;
-        // 레벨업 시 랜덤 배경 변경
-        // 이미지가 바뀌면 onload -> resize -> resetGame(false)가 호출됨
         setRandomBackground();
     }
 
@@ -469,27 +496,64 @@
             type: 'boss', 
             x: width/2, y: height/2, 
             dx: bossSpeed, dy: bossSpeed, 
-            radius: 8 + (level), 
+            radius: 12 + (level), // 보스 크기 키움
             cooldown: 0,
-            baseSpeed: bossSpeed
+            baseSpeed: bossSpeed,
+            laserState: 0, // 0:None, 1:Warning, 2:Firing
+            laserTimer: 0,
+            laserAngle: 0
         });
 
         let minionCount = Math.floor((level - 1) * 1.5); 
         for(let i=0; i<minionCount; i++) {
-            spawnMinion(width/2, height/2, bossSpeed * 0.8); 
+            spawnMinion(width/2, height/2, bossSpeed * 0.8, 'bouncer'); 
         }
     }
     
-    function spawnMinion(x, y, speed) {
+    function spawnMinion(x, y, speed, subType) {
          let angle = Math.random() * Math.PI * 2;
          enemies.push({
             type: 'minion',
+            subType: subType || 'bouncer', // 'bouncer' or 'chaser'
             x: x, y: y,
             dx: Math.cos(angle) * speed,
             dy: Math.sin(angle) * speed,
-            radius: 5,
+            radius: 6,
             baseSpeed: speed
         });
+    }
+
+    function spawnItem() {
+        // 안전하지 않은 구역(0)에 랜덤 스폰
+        let attempts = 0;
+        while(attempts < 50) {
+            let rx = Math.random() * width;
+            let ry = Math.random() * height;
+            // 캔버스 범위 안이고, Grid가 0인 곳
+            if(rx > 20 && rx < width-20 && ry > 20 && ry < height-20) {
+                if(!isSafe(rx, ry)) {
+                    // 아이템 종류 랜덤
+                    const keys = Object.keys(ITEM_TYPES);
+                    const typeKey = keys[Math.floor(Math.random() * keys.length)];
+                    items.push({
+                        type: typeKey,
+                        x: rx, y: ry,
+                        radius: 10,
+                        life: 600 // 10초 후 사라짐
+                    });
+                    break;
+                }
+            }
+            attempts++;
+        }
+    }
+
+    function showMsg(text, color) {
+        msgOverlay.innerText = text;
+        msgOverlay.style.color = color;
+        msgOverlay.style.textShadow = `0 0 10px ${color}`;
+        msgOverlay.style.opacity = 1;
+        setTimeout(() => msgOverlay.style.opacity = 0, 1500);
     }
 
     function gameLoop() {
@@ -501,11 +565,28 @@
     }
 
     function update() {
+        frameCount++;
+        
+        // 아이템 스폰 (약 10초마다)
+        if (frameCount % 600 === 0 && items.length < 3) {
+            spawnItem();
+        }
+
+        // 버프 감소
+        if (buffs.speed > 0) buffs.speed--;
+        if (buffs.freeze > 0) buffs.freeze--;
+
+        // 속도 계산 (버프 적용)
+        let speedMult = buffs.speed > 0 ? 1.5 : 1.0;
+        let activePlayerSpeed = currentPlayerSpeed * speedMult;
+        let activeRetractSpeed = currentRetractSpeed * speedMult;
+
         updateEnemies();
         updateProjectiles();
+        updateItems();
 
         if (player.state === 'retracting') {
-            let moveDist = currentRetractSpeed; 
+            let moveDist = activeRetractSpeed; 
             while (moveDist > 0 && path.length > 0) {
                 let target = path[path.length - 1];
                 let dx = target.x - player.x;
@@ -538,8 +619,8 @@
             if(len > 1) { dx /= len; dy /= len; }
         }
 
-        let nextX = player.x + dx * currentPlayerSpeed;
-        let nextY = player.y + dy * currentPlayerSpeed;
+        let nextX = player.x + dx * activePlayerSpeed;
+        let nextY = player.y + dy * activePlayerSpeed;
         
         nextX = Math.max(0, Math.min(width-1, nextX));
         nextY = Math.max(0, Math.min(height-1, nextY));
@@ -548,6 +629,7 @@
         const nextIsSafe = isSafe(nextX, nextY);
 
         if (checkCollision()) return;
+        checkItemCollection(); // 아이템 획득 체크
 
         if (input.action) {
             if (player.state === 'safe' && !nextIsSafe) {
@@ -582,27 +664,93 @@
         }
     }
 
+    function updateItems() {
+        for (let i = items.length - 1; i >= 0; i--) {
+            items[i].life--;
+            // 영역 안에 갇히거나(안전지대됨) 수명 다하면 삭제
+            if (items[i].life <= 0 || isSafe(items[i].x, items[i].y)) {
+                items.splice(i, 1);
+            }
+        }
+    }
+
+    function checkItemCollection() {
+        for (let i = items.length - 1; i >= 0; i--) {
+            let item = items[i];
+            let dist = Math.hypot(player.x - item.x, player.y - item.y);
+            // 플레이어와 충돌 (반경 합)
+            if (dist < PLAYER_SIZE + item.radius) {
+                applyItemEffect(item.type);
+                items.splice(i, 1);
+            }
+        }
+    }
+
+    function applyItemEffect(type) {
+        const itemData = ITEM_TYPES[type];
+        showMsg(itemData.label, itemData.color);
+        
+        if (type === 'SPEED') {
+            buffs.speed = itemData.duration;
+        } else if (type === 'FREEZE') {
+            buffs.freeze = itemData.duration;
+        } else if (type === 'LIFE') {
+            lives++;
+            updateUI();
+        }
+    }
+
     function updateEnemies() {
         enemies.forEach(en => {
+            // 프리즈 상태면 업데이트 건너뜀 (단, 레이저 발사 중인 보스는 예외 처리 가능하나 일단 다 멈춤)
+            if (buffs.freeze > 0) return;
+
+            // 보스 레이저 패턴 처리
+            if (en.type === 'boss') {
+                if (en.laserState === 1) { // Warning
+                    en.laserTimer--;
+                    if (en.laserTimer <= 0) {
+                        en.laserState = 2; // Fire
+                        en.laserTimer = 30; // 0.5초간 발사
+                        checkLaserHit(en); // 발사 시 즉시 판정
+                    }
+                    return; // 이동 안함
+                } else if (en.laserState === 2) { // Firing
+                    en.laserTimer--;
+                    if (en.laserTimer <= 0) {
+                        en.laserState = 0; // End
+                        en.cooldown = 120; // 쿨타임
+                    }
+                    checkLaserHit(en); // 지속 판정
+                    return; // 이동 안함
+                }
+            }
+
+            // 일반 이동 로직
+            // 추적자(chaser) AI
+            if (en.subType === 'chaser') {
+                let angle = Math.atan2(player.y - en.y, player.x - en.x);
+                // 추적자는 약간 느리게
+                let chaserSpeed = en.baseSpeed * 0.6;
+                en.dx = Math.cos(angle) * chaserSpeed;
+                en.dy = Math.sin(angle) * chaserSpeed;
+            }
+
+            // 속도 제한 및 최소 속도 보장
             let maxSpeed = en.baseSpeed * 2.5; 
             let currentSpeedSq = en.dx*en.dx + en.dy*en.dy;
             if (currentSpeedSq > maxSpeed*maxSpeed) {
                 let scale = maxSpeed / Math.sqrt(currentSpeedSq);
-                en.dx *= scale;
-                en.dy *= scale;
+                en.dx *= scale; en.dy *= scale;
             }
-
             let currentSpeed = Math.sqrt(currentSpeedSq);
             let minSpeed = en.baseSpeed * 0.5;
-            
             if (currentSpeed < minSpeed && currentSpeed > 0.1) {
                 let angle = Math.atan2(en.dy, en.dx);
-                en.dx = Math.cos(angle) * minSpeed;
-                en.dy = Math.sin(angle) * minSpeed;
+                en.dx = Math.cos(angle) * minSpeed; en.dy = Math.sin(angle) * minSpeed;
             }
 
-            en.x += en.dx;
-            en.y += en.dy;
+            en.x += en.dx; en.y += en.dy;
 
             let hitX = isSafe(en.x + (en.dx > 0 ? en.radius : -en.radius), en.y);
             let hitY = isSafe(en.x, en.y + (en.dy > 0 ? en.radius : -en.radius));
@@ -612,28 +760,24 @@
             
             if (en.x < en.radius) { en.x = en.radius; en.dx = Math.abs(en.dx); }
             else if (en.x > width - en.radius) { en.x = width - en.radius; en.dx = -Math.abs(en.dx); }
-            
             if (en.y < en.radius) { en.y = en.radius; en.dy = Math.abs(en.dy); }
             else if (en.y > height - en.radius) { en.y = height - en.radius; en.dy = -Math.abs(en.dy); }
 
-            if (en.type === 'boss') {
+            if (en.type === 'boss' && en.laserState === 0) {
                 if (en.cooldown > 0) en.cooldown--;
                 else {
                     if (Math.random() < 0.03 + (level * 0.005)) { 
                         bossAttack(en);
-                        en.cooldown = Math.max(40, 80 - (level * 5)); 
+                        // 레이저가 아닐 때만 일반 쿨타임
+                        if(en.laserState === 0) en.cooldown = Math.max(40, 80 - (level * 5)); 
                     }
                 }
                 if (Math.random() < 0.03) {
                     let angle = Math.random() * Math.PI * 2;
                     let speed = Math.max(Math.hypot(en.dx, en.dy), en.baseSpeed);
-                    en.dx = Math.cos(angle) * speed;
-                    en.dy = Math.sin(angle) * speed;
+                    en.dx = Math.cos(angle) * speed; en.dy = Math.sin(angle) * speed;
                 }
-                else if (Math.random() < 0.01) {
-                     en.dx *= 1.5;
-                     en.dy *= 1.5;
-                }
+                else if (Math.random() < 0.01) { en.dx *= 1.5; en.dy *= 1.5; }
             }
         });
     }
@@ -641,23 +785,81 @@
     function bossAttack(boss) {
         let rand = Math.random();
         if (rand < 0.2) {
-            shootMinion(boss);
+            shootMinion(boss, 'chaser'); // 추적자 소환
         } else if (rand < 0.4) {
             shootSpreadMissile(boss);
+        } else if (rand < 0.6) {
+            // 레이저 공격 시작
+            boss.laserState = 1; // Warning
+            boss.laserTimer = 60; // 1초 경고
+            // 플레이어 방향 조준
+            boss.laserAngle = Math.atan2(player.y - boss.y, player.x - boss.x);
         } else {
             shootMissile(boss);
         }
     }
 
-    function shootMinion(boss) {
+    function checkLaserHit(boss) {
+        // 레이저는 보스 중심에서 laserAngle 방향으로 뻗어나가는 선분
+        // 화면 끝까지 닿음
+        let maxDist = Math.max(width, height) * 1.5;
+        let ex = boss.x + Math.cos(boss.laserAngle) * maxDist;
+        let ey = boss.y + Math.sin(boss.laserAngle) * maxDist;
+
+        // 선분(boss.x, boss.y) ~ (ex, ey) 와 플레이어/경로 충돌 체크
+        // 간단히 플레이어와의 거리 체크 (직선과 점의 거리)
+        
+        // 1. 플레이어 본체 (안전지대 아니면)
+        if (!isSafe(player.x, player.y)) {
+            let dist = pointToLineDist(player.x, player.y, boss.x, boss.y, ex, ey);
+            if (dist < PLAYER_SIZE + 10) { // 레이저 두께 20px 가정
+                handleDeath("레이저에 맞았습니다!"); return;
+            }
+        }
+
+        // 2. 경로 (선)
+        if (path.length > 0) {
+            for(let p of path) {
+                let dist = pointToLineDist(p.x, p.y, boss.x, boss.y, ex, ey);
+                if (dist < 10) { // 선이 끊김
+                    handleDeath("레이저에 선이 끊겼습니다!"); return;
+                }
+            }
+        }
+    }
+
+    function pointToLineDist(px, py, x1, y1, x2, y2) {
+        let A = px - x1;
+        let B = py - y1;
+        let C = x2 - x1;
+        let D = y2 - y1;
+
+        let dot = A * C + B * D;
+        let len_sq = C * C + D * D;
+        let param = -1;
+        if (len_sq != 0) param = dot / len_sq;
+
+        let xx, yy;
+
+        if (param < 0) { xx = x1; yy = y1; }
+        else if (param > 1) { xx = x2; yy = y2; }
+        else { xx = x1 + param * C; yy = y1 + param * D; }
+
+        let dx = px - xx;
+        let dy = py - yy;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function shootMinion(boss, type) {
         let angle = Math.atan2(player.y - boss.y, player.x - boss.x);
         let speed = 4 + (level * 0.5);
         enemies.push({
             type: 'minion',
+            subType: type || 'bouncer',
             x: boss.x, y: boss.y,
             dx: Math.cos(angle) * speed,
             dy: Math.sin(angle) * speed,
-            radius: 5,
+            radius: 6,
             baseSpeed: speed
         });
     }
@@ -688,6 +890,8 @@
     }
 
     function updateProjectiles() {
+        if (buffs.freeze > 0) return; // 프리즈 시 투사체도 정지
+
         for (let i = projectiles.length - 1; i >= 0; i--) {
             let p = projectiles[i];
             p.x += p.dx;
@@ -706,6 +910,7 @@
         const isOnSafeGround = isSafe(player.x, player.y);
         let dead = false;
 
+        // 적 충돌
         enemies.forEach(en => {
             if ((player.state === 'drawing' || player.state === 'retracting') && path.length > 0) {
                 for (let p of path) {
@@ -722,6 +927,7 @@
         });
         if(dead) return true;
 
+        // 미사일 충돌
         projectiles.forEach(p => {
              if ((player.state === 'drawing' || player.state === 'retracting') && path.length > 0) {
                 for (let pt of path) {
@@ -752,6 +958,8 @@
         } else {
             respawnPlayer();
             projectiles = [];
+            // 보스 레이저 상태 초기화
+            enemies.forEach(e => { if(e.type === 'boss') e.laserState = 0; });
         }
     }
 
@@ -910,6 +1118,25 @@
 
         if (gameState === 'victory_view') return;
 
+        // 아이템 그리기
+        items.forEach(item => {
+            let info = ITEM_TYPES[item.type];
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = info.color;
+            ctx.fillStyle = info.color;
+            ctx.beginPath();
+            ctx.arc(item.x, item.y, item.radius, 0, Math.PI*2);
+            ctx.fill();
+            
+            // 텍스트 아이콘
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'black';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(info.icon, item.x, item.y);
+        });
+
         if (path.length > 1) {
             ctx.beginPath();
             ctx.strokeStyle = player.state === 'retracting' ? '#ffff00' : '#ff3333';
@@ -923,6 +1150,35 @@
         enemies.forEach(en => {
             // [Design] Boss Design
             if (en.type === 'boss') {
+                // 레이저 발사 이펙트
+                if (en.laserState === 1) { // Warning
+                    ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.beginPath();
+                    ctx.moveTo(en.x, en.y);
+                    let ex = en.x + Math.cos(en.laserAngle) * 2000;
+                    let ey = en.y + Math.sin(en.laserAngle) * 2000;
+                    ctx.lineTo(ex, ey);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                } else if (en.laserState === 2) { // Fire
+                    ctx.strokeStyle = '#ff0000';
+                    ctx.lineWidth = 20; // 굵은 레이저
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = 'red';
+                    ctx.beginPath();
+                    ctx.moveTo(en.x, en.y);
+                    let ex = en.x + Math.cos(en.laserAngle) * 2000;
+                    let ey = en.y + Math.sin(en.laserAngle) * 2000;
+                    ctx.lineTo(ex, ey);
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
+                    ctx.lineWidth = 8;
+                    ctx.strokeStyle = 'white';
+                    ctx.stroke();
+                }
+
                 // Body Gradient
                 let grd = ctx.createRadialGradient(en.x, en.y, en.radius * 0.2, en.x, en.y, en.radius);
                 grd.addColorStop(0, "#ff4444");
@@ -933,7 +1189,6 @@
                 const spikes = 8;
                 ctx.beginPath();
                 for (let i = 0; i < spikes; i++) {
-                    // Rotate slowly over time
                     const angle = (Math.PI * 2 / spikes) * i + (Date.now() / 500); 
                     const outerR = en.radius * 1.4;
                     const innerR = en.radius;
@@ -983,7 +1238,8 @@
 
             } else {
                 // [Design] Minion Design
-                ctx.fillStyle = "#ff8800";
+                // 추적자는 색상을 다르게
+                ctx.fillStyle = en.subType === 'chaser' ? "#ff00ff" : "#ff8800";
                 ctx.beginPath();
                 ctx.arc(en.x, en.y, en.radius, 0, Math.PI * 2);
                 ctx.fill();
@@ -1016,7 +1272,14 @@
         });
 
         ctx.fillStyle = player.color;
-        ctx.shadowColor = 'black'; ctx.shadowBlur = 10;
+        // 스피드업 상태면 잔상 효과
+        if (buffs.speed > 0) {
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = 'yellow';
+        } else {
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'black';
+        }
         ctx.beginPath();
         ctx.arc(player.x, player.y, PLAYER_SIZE, 0, Math.PI*2);
         ctx.fill();
