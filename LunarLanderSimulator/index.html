@@ -27,6 +27,17 @@
             height: 100%;
         }
 
+        /* 위험 경고 오버레이 (화면 붉은 점멸) */
+        #danger-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            box-shadow: inset 0 0 50px red;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.1s;
+            z-index: 50;
+        }
+
         #ui-layer {
             position: absolute;
             top: 50%; left: 50%;
@@ -136,25 +147,30 @@
             justify-content: center;
             transition: transform 0.1s;
         }
-        .icon-btn:active {
-            transform: scale(0.9);
-            background: rgba(255,255,255,0.2);
-        }
+        .icon-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.2); }
         .icon-btn svg { fill: white; }
 
-        #progress-bar {
-            position: absolute; bottom: 0; left: 0; height: 4px; background: #0f0; width: 0%;
+        /* 연료 게이지 바 스타일 */
+        #fuel-wrapper {
+            width: 120px;
+            height: 10px;
+            border: 1px solid #fff;
+            background: rgba(0,0,0,0.5);
+            margin-top: 2px;
+            position: relative;
         }
+        #fuel-bar {
+            height: 100%;
+            background: #0f0;
+            width: 100%;
+            transition: width 0.1s, background-color 0.3s;
+        }
+        #fuel-text { font-size: 10px; margin-bottom: 2px; color: #ccc; }
 
-        @keyframes blink-red {
-            0% { color: white; }
-            50% { color: red; }
-            100% { color: white; }
-        }
-        .low-fuel {
-            animation: blink-red 0.5s infinite;
-            font-weight: bold;
-        }
+        #progress-bar { position: absolute; bottom: 0; left: 0; height: 4px; background: #0f0; width: 0%; }
+
+        @keyframes blink-red { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .blink { animation: blink-red 0.5s infinite; color: #ff4444 !important; }
 
         .safe { color: #0f0; }
         .warn { color: #ff0; }
@@ -196,22 +212,16 @@
         .touch-pad.right { right: 30px; }
 
         .control-btn {
-            width: 70px;
-            height: 70px;
+            width: 70px; height: 70px;
             background: rgba(255, 255, 255, 0.15);
             border: 2px solid rgba(255, 255, 255, 0.4);
             border-radius: 50%;
             color: rgba(255, 255, 255, 0.8);
             font-size: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: flex; align-items: center; justify-content: center;
             backdrop-filter: blur(2px);
         }
-        .control-btn.active {
-            background: rgba(255, 255, 255, 0.5);
-            transform: scale(0.95);
-        }
+        .control-btn.active { background: rgba(255, 255, 255, 0.5); transform: scale(0.95); }
         .btn-thrust {
             width: 90px; height: 90px;
             border-color: rgba(255, 80, 80, 0.5);
@@ -240,9 +250,7 @@
         #pagination-controls { display: flex; justify-content: space-between; align-items: center; width: 100%; }
         .page-btn { background: none; border: none; color: white; font-size: 24px; padding: 10px; cursor: pointer; }
         
-        #high-score-display {
-            font-size: 12px; color: #ffd700; margin-top: 5px;
-        }
+        #high-score-display { font-size: 12px; color: #ffd700; margin-top: 5px; }
 
         @media (max-width: 600px) {
             #ui-layer { width: 100%; height: 100%; max-width: none; max-height: none; }
@@ -257,6 +265,9 @@
 
     <canvas id="gameCanvas"></canvas>
     
+    <!-- 위험 경고용 오버레이 -->
+    <div id="danger-overlay"></div>
+
     <button id="fullscreen-btn" onclick="toggleFullScreen()">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
             <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
@@ -267,7 +278,11 @@
         <div id="hud">
             <div class="hud-group">
                 <div>LV.<span id="ui-level" style="color:#0f0">1</span> <span id="ui-planet" style="color:#aaa">MOON</span></div>
-                <div id="fuel-container">FUEL <span id="ui-fuel">100</span></div>
+                <!-- 연료 게이지 UI 개선 -->
+                <div>
+                    <div id="fuel-text">FUEL</div>
+                    <div id="fuel-wrapper"><div id="fuel-bar"></div></div>
+                </div>
             </div>
             
             <div class="hud-center">
@@ -395,7 +410,7 @@
             startThrust() {
                 if (!this.enabled || !this.ctx || this.thrustSource) return;
                 
-                const bufferSize = this.ctx.sampleRate * 2.0; // 2 seconds buffer
+                const bufferSize = this.ctx.sampleRate * 2.0; 
                 const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
                 const data = buffer.getChannelData(0);
                 for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
@@ -405,7 +420,6 @@
                 this.thrustSource.loop = true;
 
                 this.thrustGain = this.ctx.createGain();
-                // Lowpass filter for rocket rumble
                 const filter = this.ctx.createBiquadFilter();
                 filter.type = 'lowpass';
                 filter.frequency.value = 800;
@@ -433,9 +447,8 @@
             }
 
             playExplosion() { 
-                this.stopThrust(); // Ensure engine stops
+                this.stopThrust(); 
                 this.playTone(100, 'sawtooth', 0.8, 0.8);
-                // Heavy noise
                 if (!this.enabled || !this.ctx) return;
                 const dur = 1.0;
                 const bufferSize = this.ctx.sampleRate * dur;
@@ -523,6 +536,7 @@
         let shakeIntensity = 0;
         let currentScore = 0; 
         let countdownVal = 3;
+        let maxFuel = 100; // 최대 연료량 (비율 계산용)
 
         let terrainPoints = [];
         let landingPad = { x: 0, width: 0, y: 0 };
@@ -598,11 +612,11 @@
             } else if (gameState === 'result') {
                 if (debris.length > 0) updateDebris();
                 updateParticles(); 
-                audio.stopThrust(); // 결과 화면에서 엔진 소리 중지
+                audio.stopThrust();
             } else if (gameState === 'countdown') {
                 updateParticles();
             } else {
-                audio.stopThrust(); // 그 외 상태에서 중지
+                audio.stopThrust();
             }
         }
 
@@ -620,7 +634,6 @@
             if (keys['ArrowLeft']) lander.angle -= ROTATION_SPEED;
             if (keys['ArrowRight']) lander.angle += ROTATION_SPEED;
             
-            // 엔진 로직
             if (keys['ArrowUp'] && lander.fuel > 0) {
                 if (!lander.thrusting) {
                     lander.thrusting = true;
@@ -659,6 +672,15 @@
             if (lander.x > LOGICAL_WIDTH) lander.x = 0;
             if (lander.y < 0) { lander.y = 0; lander.vy = 0; }
 
+            // 위험 감지 (땅에 가깝고 속도가 빠를 때)
+            const distToGround = landingPad.y - lander.y;
+            if (distToGround < 200 && lander.vy > SAFE_V_SPEED * 1.5) {
+                document.getElementById('danger-overlay').style.opacity = 0.5 + Math.sin(Date.now()/100)*0.5;
+            } else {
+                document.getElementById('danger-overlay').style.opacity = 0;
+            }
+
+            // 장애물
             obstacles.forEach(obs => {
                 obs.x += obs.speed;
                 obs.y += Math.sin(Date.now() / 500 + obs.phase) * 0.5;
@@ -667,6 +689,7 @@
                 if (dist < obs.radius + LANDER_SIZE/2) endGame(false, "장애물 충돌!");
             });
 
+            // 아이템
             for (let i = collectibles.length - 1; i >= 0; i--) {
                 const c = collectibles[i];
                 c.angle += 0.05;
@@ -674,6 +697,7 @@
                 if (dist < c.radius + LANDER_SIZE/2) {
                     collectibles.splice(i, 1);
                     lander.fuel += 20; 
+                    if(lander.fuel > maxFuel) lander.fuel = maxFuel;
                     currentScore += 100; 
                     audio.playCollect();
                 }
@@ -693,6 +717,7 @@
         function triggerExplosion(x, y) {
             shakeIntensity = 20; 
             audio.playExplosion();
+            document.getElementById('danger-overlay').style.opacity = 0;
             debris = [];
             for (let i = 0; i < 30; i++) {
                 debris.push({
@@ -726,7 +751,7 @@
                     const safeH = Math.abs(lander.vx) < SAFE_H_SPEED;
                     const safeA = Math.abs(lander.angle) < SAFE_ANGLE;
 
-                    if (safeV && safeH && safeA) endGame(true, "착륙 성공!");
+                    if (safeV && safeH && safeA) endGame(true, "LANDING SUCCESS"); // 메시지는 endGame에서 재설정
                     else {
                         let reason = "";
                         if (!safeV) reason = "하강 속도 과다";
@@ -741,15 +766,22 @@
         }
 
         function updateUI() {
-            const fuelEl = document.getElementById('ui-fuel');
-            const fuelContainer = document.getElementById('fuel-container');
-            fuelEl.innerText = Math.floor(lander.fuel);
+            // 연료 바 업데이트
+            const fuelBar = document.getElementById('fuel-bar');
+            const fuelText = document.getElementById('fuel-text');
+            const pct = Math.max(0, (lander.fuel / maxFuel) * 100);
+            fuelBar.style.width = `${pct}%`;
             
-            if (lander.fuel < 30) {
-                fuelContainer.classList.add('low-fuel');
+            if (pct < 30) {
+                fuelBar.style.backgroundColor = 'red';
+                fuelText.classList.add('blink');
                 audio.playLowFuel();
+            } else if (pct < 60) {
+                fuelBar.style.backgroundColor = 'yellow';
+                fuelText.classList.remove('blink');
             } else {
-                fuelContainer.classList.remove('low-fuel');
+                fuelBar.style.backgroundColor = '#0f0';
+                fuelText.classList.remove('blink');
             }
 
             document.getElementById('ui-alt').innerText = Math.max(0, Math.floor(landingPad.y - lander.y));
@@ -793,7 +825,6 @@
             ctx.translate(gameOffsetX + shakeX, gameOffsetY + shakeY);
             ctx.scale(gameScale, gameScale);
             
-            // Dynamic Light from Thrust
             if (lander.thrusting) {
                 const gradient = ctx.createRadialGradient(lander.x, lander.y, 10, lander.x, lander.y, 150);
                 gradient.addColorStop(0, "rgba(255, 200, 100, 0.4)");
@@ -853,13 +884,27 @@
         }
 
         function drawGameWorld() {
+            // 지형 (그라데이션 적용)
             if (terrainPoints.length > 0) {
+                // 그라데이션 생성
+                const grad = ctx.createLinearGradient(0, 0, 0, LOGICAL_HEIGHT);
+                grad.addColorStop(0, levelConfig.groundColor);
+                grad.addColorStop(1, '#000');
+
+                ctx.fillStyle = grad;
                 ctx.beginPath();
                 ctx.moveTo(terrainPoints[0].x, terrainPoints[0].y);
                 for(let i=1; i<terrainPoints.length; i++) ctx.lineTo(terrainPoints[i].x, terrainPoints[i].y);
                 ctx.lineTo(LOGICAL_WIDTH, LOGICAL_HEIGHT); ctx.lineTo(0, LOGICAL_HEIGHT);
-                ctx.fillStyle = levelConfig.groundColor || '#aaa';
                 ctx.fill();
+                
+                // 지표면 라인
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(terrainPoints[0].x, terrainPoints[0].y);
+                for(let i=1; i<terrainPoints.length; i++) ctx.lineTo(terrainPoints[i].x, terrainPoints[i].y);
+                ctx.stroke();
             }
 
             ctx.fillStyle = '#ff0'; ctx.fillRect(landingPad.x, landingPad.y, landingPad.width, 4);
@@ -907,7 +952,6 @@
                 ctx.fill();
                 ctx.fillStyle = '#3cf'; ctx.fillRect(-5, -5, 10, 8);
                 
-                // 다리 서스펜션 효과 (착륙 시 살짝 눌리는 연출 가능하지만 여기서는 간단히 그리기)
                 ctx.strokeStyle = '#aaa'; ctx.lineWidth = 2;
                 ctx.beginPath();
                 ctx.moveTo(-10, 10); ctx.lineTo(-16, 20); ctx.lineTo(-20, 20);
@@ -1018,7 +1062,9 @@
         function startLevel(lvl) {
             currentLevel = lvl;
             levelConfig = getLevelConfig(lvl);
+            maxFuel = levelConfig.fuel; // 최대 연료 저장
             currentScore = 0; 
+            document.getElementById('danger-overlay').style.opacity = 0;
             
             resetLander();
             generateTerrain(levelConfig.padSizeMult);
@@ -1191,6 +1237,7 @@
         function goToLevelSelect() { 
             audio.playClick();
             audio.stopThrust();
+            document.getElementById('danger-overlay').style.opacity = 0;
             gameState = 'menu'; renderLevelGrid(); showScreen('menu'); 
         }
         function togglePause() { 
@@ -1208,21 +1255,31 @@
         
         function endGame(success, reason) {
             audio.stopThrust();
+            document.getElementById('danger-overlay').style.opacity = 0;
             if (!success) {
                 triggerExplosion(lander.x, lander.y);
             } else {
                 audio.playWin();
+                // 점수 계산: (연료 * 2) + 착륙 등급 보너스
                 const fuelBonus = Math.floor(lander.fuel * 2);
-                currentScore += fuelBonus + 500;
+                let gradeBonus = 0;
+                let gradeText = "GOOD";
                 
-                // 최고 점수 갱신
+                // 착륙 판정 (수직 속도 기준)
+                // SAFE_V_SPEED = 3.5
+                if (Math.abs(lander.vy) < 1.0) { gradeText = "PERFECT!!"; gradeBonus = 1000; }
+                else if (Math.abs(lander.vy) < 2.0) { gradeText = "SMOOTH"; gradeBonus = 500; }
+                else { gradeText = "HARD"; gradeBonus = 100; }
+
+                currentScore += fuelBonus + gradeBonus;
+                
                 if (currentScore > highScore) {
                     highScore = currentScore;
                     localStorage.setItem('lunar_high_score', highScore);
                     updateHighScoreDisplay();
                 }
                 
-                reason = `PERFECT LANDING!\nSCORE: ${currentScore}`;
+                reason = `${gradeText} LANDING!\n+${fuelBonus} Fuel\n+${gradeBonus} Grade\nTOTAL: ${currentScore}`;
             }
 
             gameState = 'result'; lander.visible = !success;
