@@ -272,6 +272,7 @@
         LIFE: { color: '#FF0000', icon: '❤️', duration: 0, label: "LIFE UP!" }
     };
 
+    let gameSpeedMultiplier = 1.0; 
     let currentPlayerSpeed = BASE_PLAYER_SPEED;
     let currentRetractSpeed = BASE_RETRACT_SPEED;
 
@@ -284,7 +285,7 @@
     let gameState = 'playing'; 
     let isInitialized = false;
     let currentTargetPercent = 80;
-    let frameCount = 0; // 프레임 카운터 (아이템 스폰용)
+    let frameCount = 0; 
     
     // 버프 상태
     let buffs = {
@@ -312,7 +313,7 @@
     let path = []; 
     let enemies = []; 
     let projectiles = []; 
-    let items = []; // 아이템 배열
+    let items = []; 
     let input = { left: false, right: false, up: false, down: false, action: false, joyX: 0, joyY: 0 };
 
     // --- 동적 이미지 로딩 로직 ---
@@ -392,12 +393,15 @@
             document.getElementById('mobile-controls').style.display = 'flex';
             setupMobileControls();
             
-            currentPlayerSpeed = BASE_PLAYER_SPEED * 0.5;
-            currentRetractSpeed = BASE_RETRACT_SPEED * 0.5;
+            // [속도 조절] 모바일은 전체 속도 50%
+            gameSpeedMultiplier = 0.5;
         } else {
-            currentPlayerSpeed = BASE_PLAYER_SPEED;
-            currentRetractSpeed = BASE_RETRACT_SPEED;
+            gameSpeedMultiplier = 1.0;
         }
+
+        // 플레이어 속도 설정
+        currentPlayerSpeed = BASE_PLAYER_SPEED * gameSpeedMultiplier;
+        currentRetractSpeed = BASE_RETRACT_SPEED * gameSpeedMultiplier;
 
         setupPCControls();
         
@@ -490,13 +494,14 @@
         enemies = [];
         projectiles = [];
         
-        let bossSpeed = BOSS_BASE_SPEED + (level * 0.5);
+        // [속도 조절] 보스 속도에도 배율 적용
+        let bossSpeed = (BOSS_BASE_SPEED + (level * 0.5)) * gameSpeedMultiplier;
         
         enemies.push({ 
             type: 'boss', 
             x: width/2, y: height/2, 
             dx: bossSpeed, dy: bossSpeed, 
-            radius: 12 + (level), // 보스 크기 키움
+            radius: 12 + (level), 
             cooldown: 0,
             baseSpeed: bossSpeed,
             laserState: 0, // 0:None, 1:Warning, 2:Firing
@@ -506,6 +511,7 @@
 
         let minionCount = Math.floor((level - 1) * 1.5); 
         for(let i=0; i<minionCount; i++) {
+            // [속도 조절] 미니언 생성 시 속도
             spawnMinion(width/2, height/2, bossSpeed * 0.8, 'bouncer'); 
         }
     }
@@ -702,7 +708,6 @@
 
     function updateEnemies() {
         enemies.forEach(en => {
-            // 프리즈 상태면 업데이트 건너뜀 (단, 레이저 발사 중인 보스는 예외 처리 가능하나 일단 다 멈춤)
             if (buffs.freeze > 0) return;
 
             // 보스 레이저 패턴 처리
@@ -711,26 +716,24 @@
                     en.laserTimer--;
                     if (en.laserTimer <= 0) {
                         en.laserState = 2; // Fire
-                        en.laserTimer = 30; // 0.5초간 발사
-                        checkLaserHit(en); // 발사 시 즉시 판정
+                        en.laserTimer = 30; 
+                        checkLaserHit(en); 
                     }
-                    return; // 이동 안함
+                    return; 
                 } else if (en.laserState === 2) { // Firing
                     en.laserTimer--;
                     if (en.laserTimer <= 0) {
                         en.laserState = 0; // End
-                        en.cooldown = 120; // 쿨타임
+                        en.cooldown = 120; 
                     }
-                    checkLaserHit(en); // 지속 판정
-                    return; // 이동 안함
+                    checkLaserHit(en); 
+                    return; 
                 }
             }
 
-            // 일반 이동 로직
             // 추적자(chaser) AI
             if (en.subType === 'chaser') {
                 let angle = Math.atan2(player.y - en.y, player.x - en.x);
-                // 추적자는 약간 느리게
                 let chaserSpeed = en.baseSpeed * 0.6;
                 en.dx = Math.cos(angle) * chaserSpeed;
                 en.dy = Math.sin(angle) * chaserSpeed;
@@ -750,25 +753,49 @@
                 en.dx = Math.cos(angle) * minSpeed; en.dy = Math.sin(angle) * minSpeed;
             }
 
-            en.x += en.dx; en.y += en.dy;
-
-            let hitX = isSafe(en.x + (en.dx > 0 ? en.radius : -en.radius), en.y);
-            let hitY = isSafe(en.x, en.y + (en.dy > 0 ? en.radius : -en.radius));
-
-            if (hitX) en.dx *= -1;
-            if (hitY) en.dy *= -1;
+            // [수정된 충돌 로직: 먼저 체크하고 안전할 때만 이동]
+            // X축 이동 시도
+            let nextX = en.x + en.dx;
+            let checkX = nextX + (en.dx > 0 ? en.radius : -en.radius);
             
-            if (en.x < en.radius) { en.x = en.radius; en.dx = Math.abs(en.dx); }
-            else if (en.x > width - en.radius) { en.x = width - en.radius; en.dx = -Math.abs(en.dx); }
-            if (en.y < en.radius) { en.y = en.radius; en.dy = Math.abs(en.dy); }
-            else if (en.y > height - en.radius) { en.y = height - en.radius; en.dy = -Math.abs(en.dy); }
+            // X축 방향 벽 충돌 확인 (중심, 위, 아래 3포인트 체크로 끼임 방지)
+            if (isSafe(checkX, en.y) || isSafe(checkX, en.y - en.radius*0.7) || isSafe(checkX, en.y + en.radius*0.7)) {
+                if (en.subType !== 'chaser') {
+                    en.dx *= -1; // 일반 적은 튕기기
+                } else {
+                    en.dx = 0; // 추적자는 멈춤 (벽에 붙음)
+                }
+            } else {
+                en.x = nextX; // 안전하면 이동
+            }
+
+            // Y축 이동 시도
+            let nextY = en.y + en.dy;
+            let checkY = nextY + (en.dy > 0 ? en.radius : -en.radius);
+            
+            // Y축 방향 벽 충돌 확인
+            if (isSafe(en.x, checkY) || isSafe(en.x - en.radius*0.7, checkY) || isSafe(en.x + en.radius*0.7, checkY)) {
+                if (en.subType !== 'chaser') {
+                    en.dy *= -1;
+                } else {
+                    en.dy = 0;
+                }
+            } else {
+                en.y = nextY;
+            }
+
+            // 화면 밖 이탈 방지
+            if (en.x < en.radius) { en.x = en.radius; if(en.subType !== 'chaser') en.dx = Math.abs(en.dx); }
+            else if (en.x > width - en.radius) { en.x = width - en.radius; if(en.subType !== 'chaser') en.dx = -Math.abs(en.dx); }
+            
+            if (en.y < en.radius) { en.y = en.radius; if(en.subType !== 'chaser') en.dy = Math.abs(en.dy); }
+            else if (en.y > height - en.radius) { en.y = height - en.radius; if(en.subType !== 'chaser') en.dy = -Math.abs(en.dy); }
 
             if (en.type === 'boss' && en.laserState === 0) {
                 if (en.cooldown > 0) en.cooldown--;
                 else {
                     if (Math.random() < 0.03 + (level * 0.005)) { 
                         bossAttack(en);
-                        // 레이저가 아닐 때만 일반 쿨타임
                         if(en.laserState === 0) en.cooldown = Math.max(40, 80 - (level * 5)); 
                     }
                 }
@@ -800,28 +827,21 @@
     }
 
     function checkLaserHit(boss) {
-        // 레이저는 보스 중심에서 laserAngle 방향으로 뻗어나가는 선분
-        // 화면 끝까지 닿음
         let maxDist = Math.max(width, height) * 1.5;
         let ex = boss.x + Math.cos(boss.laserAngle) * maxDist;
         let ey = boss.y + Math.sin(boss.laserAngle) * maxDist;
-
-        // 선분(boss.x, boss.y) ~ (ex, ey) 와 플레이어/경로 충돌 체크
-        // 간단히 플레이어와의 거리 체크 (직선과 점의 거리)
         
-        // 1. 플레이어 본체 (안전지대 아니면)
         if (!isSafe(player.x, player.y)) {
             let dist = pointToLineDist(player.x, player.y, boss.x, boss.y, ex, ey);
-            if (dist < PLAYER_SIZE + 10) { // 레이저 두께 20px 가정
+            if (dist < PLAYER_SIZE + 10) { 
                 handleDeath("레이저에 맞았습니다!"); return;
             }
         }
 
-        // 2. 경로 (선)
         if (path.length > 0) {
             for(let p of path) {
                 let dist = pointToLineDist(p.x, p.y, boss.x, boss.y, ex, ey);
-                if (dist < 10) { // 선이 끊김
+                if (dist < 10) { 
                     handleDeath("레이저에 선이 끊겼습니다!"); return;
                 }
             }
@@ -852,7 +872,8 @@
 
     function shootMinion(boss, type) {
         let angle = Math.atan2(player.y - boss.y, player.x - boss.x);
-        let speed = 4 + (level * 0.5);
+        // [속도 조절] 미니언 발사 속도
+        let speed = (4 + (level * 0.5)) * gameSpeedMultiplier;
         enemies.push({
             type: 'minion',
             subType: type || 'bouncer',
@@ -866,7 +887,8 @@
 
     function shootMissile(boss) {
         let angle = Math.atan2(player.y - boss.y, player.x - boss.x);
-        let speed = 7 + (level * 0.8); 
+        // [속도 조절] 미사일 발사 속도
+        let speed = (7 + (level * 0.8)) * gameSpeedMultiplier; 
         projectiles.push({
             x: boss.x, y: boss.y,
             dx: Math.cos(angle) * speed,
@@ -877,7 +899,8 @@
     
     function shootSpreadMissile(boss) {
         let baseAngle = Math.atan2(player.y - boss.y, player.x - boss.x);
-        let speed = 6 + (level * 0.8);
+        // [속도 조절] 산탄 미사일 속도
+        let speed = (6 + (level * 0.8)) * gameSpeedMultiplier;
         for(let i = -1; i <= 1; i++) {
             let angle = baseAngle + (i * 0.3); 
             projectiles.push({
