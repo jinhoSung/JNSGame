@@ -12,6 +12,8 @@
             color: white;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             touch-action: none;
+            user-select: none; /* 텍스트 선택 방지 */
+            -webkit-user-select: none;
         }
 
         canvas {
@@ -22,7 +24,7 @@
             image-rendering: pixelated; 
         }
 
-        /* 상단 UI 바 */
+        /* 상단 UI 바 (Z-Index 높임) */
         #ui-layer {
             position: absolute;
             top: 0;
@@ -38,7 +40,7 @@
             font-weight: bold;
             font-size: 1.1rem;
             background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
-            z-index: 10;
+            z-index: 30; /* 컨트롤러보다 위에 배치 */
             transition: opacity 0.5s;
         }
 
@@ -50,7 +52,7 @@
             flex-direction: column;
             align-items: flex-end;
             gap: 10px;
-            pointer-events: auto;
+            pointer-events: auto; /* 버튼 클릭 가능하게 */
         }
 
         .btn-group { display: flex; gap: 8px; }
@@ -72,7 +74,7 @@
         .game-btn:hover { background: rgba(255, 255, 255, 0.5); transform: scale(1.05); }
         .icon-btn { font-size: 1.1rem; padding: 6px 10px; }
 
-        /* 메시지 오버레이 (아이템 획득 등) */
+        /* 메시지 오버레이 */
         #msg-overlay {
             position: absolute;
             top: 30%;
@@ -88,7 +90,7 @@
             z-index: 60;
         }
 
-        /* 승리 시 상단 안내 메시지 */
+        /* 승리 메시지 */
         #victory-msg {
             display: none;
             position: absolute;
@@ -144,62 +146,90 @@
         }
         #restart-btn:hover { background: #555; transform: scale(1.05); }
 
-        /* 모바일 컨트롤러 */
+        /* --- 모바일 컨트롤러 (수정됨) --- */
         #mobile-controls {
             position: absolute;
-            bottom: 30px;
+            top: 0;
             left: 0;
             width: 100%;
-            height: 150px;
-            display: none; 
-            pointer-events: none;
-            justify-content: space-between;
-            padding: 0 50px;
-            box-sizing: border-box;
+            height: 100%;
+            display: none; /* JS로 활성화 */
             z-index: 20;
+            pointer-events: none; /* 자식 요소인 zone들이 이벤트를 받음 */
         }
 
-        #joystick-area {
-            width: 140px;
-            height: 140px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 50%;
-            position: relative;
+        /* 왼쪽 터치 영역 (조이스틱) */
+        #zone-left {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 50%;
+            height: 100%;
             pointer-events: auto;
-            backdrop-filter: blur(4px);
-            border: 2px solid rgba(255,255,255,0.3);
+            /* background: rgba(0, 255, 0, 0.1); 디버깅용 */
         }
 
-        #joystick-knob {
-            width: 60px;
-            height: 60px;
-            background: rgba(255, 255, 255, 0.9);
+        /* 오른쪽 터치 영역 (액션 버튼) */
+        #zone-right {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 50%;
+            height: 100%;
+            pointer-events: auto;
+            /* background: rgba(255, 0, 0, 0.1); 디버깅용 */
+        }
+
+        /* 동적 조이스틱 비주얼 */
+        #dynamic-joystick {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.4);
             border-radius: 50%;
+            display: none; /* 터치 시 표시 */
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            backdrop-filter: blur(2px);
+        }
+
+        #dynamic-knob {
             position: absolute;
             top: 50%;
             left: 50%;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
             transform: translate(-50%, -50%);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
         }
 
+        /* 액션 버튼 비주얼 */
         #action-btn {
-            width: 110px;
-            height: 110px;
-            background: rgba(255, 60, 60, 0.6);
+            position: absolute;
+            bottom: 40px;
+            right: 40px;
+            width: 90px;
+            height: 90px;
+            background: rgba(255, 60, 60, 0.5);
             border-radius: 50%;
-            border: 5px solid rgba(255, 255, 255, 0.8);
-            pointer-events: auto;
+            border: 4px solid rgba(255, 255, 255, 0.7);
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            font-size: 1.5rem;
-            user-select: none;
+            font-size: 1.4rem;
+            color: white;
+            pointer-events: none; /* zone-right가 터치를 대신 받음 */
             transition: transform 0.1s, background 0.1s;
         }
-        #action-btn:active, #action-btn.active {
-            transform: scale(0.95);
+        /* zone-right가 눌렸을 때 시각적 효과를 주기 위한 클래스 */
+        #action-btn.active {
+            transform: scale(0.9);
             background: rgba(255, 60, 60, 0.9);
+            box-shadow: 0 0 20px rgba(255, 60, 60, 0.6);
         }
     </style>
 </head>
@@ -236,8 +266,16 @@
 
     <canvas id="gameCanvas"></canvas>
 
+    <!-- 모바일 컨트롤러 레이어 -->
     <div id="mobile-controls">
-        <div id="joystick-area"><div id="joystick-knob"></div></div>
+        <div id="zone-left"></div>  <!-- 왼쪽: 이동 -->
+        <div id="zone-right"></div> <!-- 오른쪽: 액션 -->
+        
+        <!-- 동적 조이스틱 비주얼 -->
+        <div id="dynamic-joystick">
+            <div id="dynamic-knob"></div>
+        </div>
+        <!-- 액션 버튼 비주얼 -->
         <div id="action-btn">GO!</div>
     </div>
 
@@ -265,9 +303,8 @@
     const BOSS_BASE_SPEED = 3; 
     const FALLBACK_IMG = "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80";
     
-    // 아이템 타입 정의
     const ITEM_TYPES = {
-        SPEED: { color: '#FFFF00', icon: '⚡', duration: 300, label: "SPEED UP!" }, // 5초 (60fps 기준)
+        SPEED: { color: '#FFFF00', icon: '⚡', duration: 300, label: "SPEED UP!" }, 
         FREEZE: { color: '#00FFFF', icon: '❄️', duration: 300, label: "FREEZE!" },
         LIFE: { color: '#FF0000', icon: '❤️', duration: 0, label: "LIFE UP!" }
     };
@@ -287,16 +324,9 @@
     let currentTargetPercent = 80;
     let frameCount = 0; 
     
-    // 버프 상태
-    let buffs = {
-        speed: 0,
-        freeze: 0
-    };
-
-    // 로컬 이미지 관련 변수
+    let buffs = { speed: 0, freeze: 0 };
     let availableImages = [];
     
-    // Grid System
     let grid = null; 
     let landCanvas = document.createElement('canvas'); 
     let landCtx = landCanvas.getContext('2d');
@@ -305,8 +335,6 @@
     let bgImage = new Image();
 
     bgImage.crossOrigin = "Anonymous";
-    
-    // 초기 실행 시 이미지 스캔 시작
     scanLocalImages(1);
 
     let player = { x: 0, y: 0, color: '#00ff00', state: 'safe' };
@@ -316,7 +344,7 @@
     let items = []; 
     let input = { left: false, right: false, up: false, down: false, action: false, joyX: 0, joyY: 0 };
 
-    // --- 동적 이미지 로딩 로직 ---
+    // --- 동적 이미지 로딩 ---
     function scanLocalImages(index) {
         let testImg = new Image();
         testImg.onload = function() {
@@ -324,7 +352,6 @@
             scanLocalImages(index + 1);
         };
         testImg.onerror = function() {
-            console.log(`이미지 스캔 완료: 총 ${availableImages.length}개 발견`);
             setRandomBackground();
         };
         testImg.src = `img/${index}.png`;
@@ -345,7 +372,6 @@
     }
 
     // --- 이벤트 핸들러 ---
-    
     document.addEventListener('click', handleGlobalClick);
     document.addEventListener('touchstart', handleGlobalClick);
 
@@ -359,9 +385,7 @@
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
-            reader.onload = (event) => { 
-                bgImage.src = event.target.result; 
-            };
+            reader.onload = (event) => { bgImage.src = event.target.result; };
             reader.readAsDataURL(file);
         }
     });
@@ -371,10 +395,7 @@
         else { resize(); }
     };
     bgImage.onerror = () => { 
-        console.log("이미지 로드 실패, 기본값 사용");
-        if(bgImage.src !== FALLBACK_IMG) {
-            bgImage.src = FALLBACK_IMG; 
-        }
+        if(bgImage.src !== FALLBACK_IMG) bgImage.src = FALLBACK_IMG; 
         if (!isInitialized) { init(); isInitialized = true; }
     }
 
@@ -390,21 +411,19 @@
         window.addEventListener('resize', resize);
         
         if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-            document.getElementById('mobile-controls').style.display = 'flex';
+            document.getElementById('mobile-controls').style.display = 'block';
             setupMobileControls();
             
-            // [속도 조절] 모바일은 전체 속도 50%
+            // 모바일 속도 50%
             gameSpeedMultiplier = 0.5;
         } else {
             gameSpeedMultiplier = 1.0;
         }
 
-        // 플레이어 속도 설정
         currentPlayerSpeed = BASE_PLAYER_SPEED * gameSpeedMultiplier;
         currentRetractSpeed = BASE_RETRACT_SPEED * gameSpeedMultiplier;
 
         setupPCControls();
-        
         resize();
         requestAnimationFrame(gameLoop);
     }
@@ -462,18 +481,15 @@
         revealArea(0, border, border, height - 2*border); 
         revealArea(width - border, border, border, height - 2*border); 
 
-        // 0% 시작 로직
         let borderPixels = capturedPixels;
         totalPixels = (width * height) - borderPixels; 
         capturedPixels = 0; 
         
-        // 버프 및 카운터 초기화
         buffs = { speed: 0, freeze: 0 };
         frameCount = 0;
         items = [];
         
         updateUI();
-
         respawnPlayer();
         initEnemies();
     }
@@ -494,7 +510,6 @@
         enemies = [];
         projectiles = [];
         
-        // [속도 조절] 보스 속도에도 배율 적용
         let bossSpeed = (BOSS_BASE_SPEED + (level * 0.5)) * gameSpeedMultiplier;
         
         enemies.push({ 
@@ -504,14 +519,13 @@
             radius: 12 + (level), 
             cooldown: 0,
             baseSpeed: bossSpeed,
-            laserState: 0, // 0:None, 1:Warning, 2:Firing
+            laserState: 0,
             laserTimer: 0,
             laserAngle: 0
         });
 
         let minionCount = Math.floor((level - 1) * 1.5); 
         for(let i=0; i<minionCount; i++) {
-            // [속도 조절] 미니언 생성 시 속도
             spawnMinion(width/2, height/2, bossSpeed * 0.8, 'bouncer'); 
         }
     }
@@ -520,7 +534,7 @@
          let angle = Math.random() * Math.PI * 2;
          enemies.push({
             type: 'minion',
-            subType: subType || 'bouncer', // 'bouncer' or 'chaser'
+            subType: subType || 'bouncer',
             x: x, y: y,
             dx: Math.cos(angle) * speed,
             dy: Math.sin(angle) * speed,
@@ -530,22 +544,19 @@
     }
 
     function spawnItem() {
-        // 안전하지 않은 구역(0)에 랜덤 스폰
         let attempts = 0;
         while(attempts < 50) {
             let rx = Math.random() * width;
             let ry = Math.random() * height;
-            // 캔버스 범위 안이고, Grid가 0인 곳
             if(rx > 20 && rx < width-20 && ry > 20 && ry < height-20) {
                 if(!isSafe(rx, ry)) {
-                    // 아이템 종류 랜덤
                     const keys = Object.keys(ITEM_TYPES);
                     const typeKey = keys[Math.floor(Math.random() * keys.length)];
                     items.push({
                         type: typeKey,
                         x: rx, y: ry,
                         radius: 10,
-                        life: 600 // 10초 후 사라짐
+                        life: 600
                     });
                     break;
                 }
@@ -572,17 +583,11 @@
 
     function update() {
         frameCount++;
-        
-        // 아이템 스폰 (약 10초마다)
-        if (frameCount % 600 === 0 && items.length < 3) {
-            spawnItem();
-        }
+        if (frameCount % 600 === 0 && items.length < 3) spawnItem();
 
-        // 버프 감소
         if (buffs.speed > 0) buffs.speed--;
         if (buffs.freeze > 0) buffs.freeze--;
 
-        // 속도 계산 (버프 적용)
         let speedMult = buffs.speed > 0 ? 1.5 : 1.0;
         let activePlayerSpeed = currentPlayerSpeed * speedMult;
         let activeRetractSpeed = currentRetractSpeed * speedMult;
@@ -635,7 +640,7 @@
         const nextIsSafe = isSafe(nextX, nextY);
 
         if (checkCollision()) return;
-        checkItemCollection(); // 아이템 획득 체크
+        checkItemCollection();
 
         if (input.action) {
             if (player.state === 'safe' && !nextIsSafe) {
@@ -673,7 +678,6 @@
     function updateItems() {
         for (let i = items.length - 1; i >= 0; i--) {
             items[i].life--;
-            // 영역 안에 갇히거나(안전지대됨) 수명 다하면 삭제
             if (items[i].life <= 0 || isSafe(items[i].x, items[i].y)) {
                 items.splice(i, 1);
             }
@@ -684,7 +688,6 @@
         for (let i = items.length - 1; i >= 0; i--) {
             let item = items[i];
             let dist = Math.hypot(player.x - item.x, player.y - item.y);
-            // 플레이어와 충돌 (반경 합)
             if (dist < PLAYER_SIZE + item.radius) {
                 applyItemEffect(item.type);
                 items.splice(i, 1);
@@ -695,35 +698,28 @@
     function applyItemEffect(type) {
         const itemData = ITEM_TYPES[type];
         showMsg(itemData.label, itemData.color);
-        
-        if (type === 'SPEED') {
-            buffs.speed = itemData.duration;
-        } else if (type === 'FREEZE') {
-            buffs.freeze = itemData.duration;
-        } else if (type === 'LIFE') {
-            lives++;
-            updateUI();
-        }
+        if (type === 'SPEED') buffs.speed = itemData.duration;
+        else if (type === 'FREEZE') buffs.freeze = itemData.duration;
+        else if (type === 'LIFE') { lives++; updateUI(); }
     }
 
     function updateEnemies() {
         enemies.forEach(en => {
             if (buffs.freeze > 0) return;
 
-            // 보스 레이저 패턴 처리
             if (en.type === 'boss') {
-                if (en.laserState === 1) { // Warning
+                if (en.laserState === 1) { 
                     en.laserTimer--;
                     if (en.laserTimer <= 0) {
-                        en.laserState = 2; // Fire
+                        en.laserState = 2; 
                         en.laserTimer = 30; 
                         checkLaserHit(en); 
                     }
                     return; 
-                } else if (en.laserState === 2) { // Firing
+                } else if (en.laserState === 2) { 
                     en.laserTimer--;
                     if (en.laserTimer <= 0) {
-                        en.laserState = 0; // End
+                        en.laserState = 0; 
                         en.cooldown = 120; 
                     }
                     checkLaserHit(en); 
@@ -731,7 +727,6 @@
                 }
             }
 
-            // 추적자(chaser) AI
             if (en.subType === 'chaser') {
                 let angle = Math.atan2(player.y - en.y, player.x - en.x);
                 let chaserSpeed = en.baseSpeed * 0.6;
@@ -739,7 +734,6 @@
                 en.dy = Math.sin(angle) * chaserSpeed;
             }
 
-            // 속도 제한 및 최소 속도 보장
             let maxSpeed = en.baseSpeed * 2.5; 
             let currentSpeedSq = en.dx*en.dx + en.dy*en.dy;
             if (currentSpeedSq > maxSpeed*maxSpeed) {
@@ -753,41 +747,29 @@
                 en.dx = Math.cos(angle) * minSpeed; en.dy = Math.sin(angle) * minSpeed;
             }
 
-            // [수정된 충돌 로직: 먼저 체크하고 안전할 때만 이동]
-            // X축 이동 시도
+            // 충돌 로직: 먼저 체크하고 안전할 때만 이동
             let nextX = en.x + en.dx;
             let checkX = nextX + (en.dx > 0 ? en.radius : -en.radius);
             
-            // X축 방향 벽 충돌 확인 (중심, 위, 아래 3포인트 체크로 끼임 방지)
             if (isSafe(checkX, en.y) || isSafe(checkX, en.y - en.radius*0.7) || isSafe(checkX, en.y + en.radius*0.7)) {
-                if (en.subType !== 'chaser') {
-                    en.dx *= -1; // 일반 적은 튕기기
-                } else {
-                    en.dx = 0; // 추적자는 멈춤 (벽에 붙음)
-                }
+                if (en.subType !== 'chaser') en.dx *= -1; 
+                else en.dx = 0; 
             } else {
-                en.x = nextX; // 안전하면 이동
+                en.x = nextX;
             }
 
-            // Y축 이동 시도
             let nextY = en.y + en.dy;
             let checkY = nextY + (en.dy > 0 ? en.radius : -en.radius);
             
-            // Y축 방향 벽 충돌 확인
             if (isSafe(en.x, checkY) || isSafe(en.x - en.radius*0.7, checkY) || isSafe(en.x + en.radius*0.7, checkY)) {
-                if (en.subType !== 'chaser') {
-                    en.dy *= -1;
-                } else {
-                    en.dy = 0;
-                }
+                if (en.subType !== 'chaser') en.dy *= -1;
+                else en.dy = 0;
             } else {
                 en.y = nextY;
             }
 
-            // 화면 밖 이탈 방지
             if (en.x < en.radius) { en.x = en.radius; if(en.subType !== 'chaser') en.dx = Math.abs(en.dx); }
             else if (en.x > width - en.radius) { en.x = width - en.radius; if(en.subType !== 'chaser') en.dx = -Math.abs(en.dx); }
-            
             if (en.y < en.radius) { en.y = en.radius; if(en.subType !== 'chaser') en.dy = Math.abs(en.dy); }
             else if (en.y > height - en.radius) { en.y = height - en.radius; if(en.subType !== 'chaser') en.dy = -Math.abs(en.dy); }
 
@@ -811,15 +793,11 @@
 
     function bossAttack(boss) {
         let rand = Math.random();
-        if (rand < 0.2) {
-            shootMinion(boss, 'chaser'); // 추적자 소환
-        } else if (rand < 0.4) {
-            shootSpreadMissile(boss);
-        } else if (rand < 0.6) {
-            // 레이저 공격 시작
-            boss.laserState = 1; // Warning
-            boss.laserTimer = 60; // 1초 경고
-            // 플레이어 방향 조준
+        if (rand < 0.2) shootMinion(boss, 'chaser');
+        else if (rand < 0.4) shootSpreadMissile(boss);
+        else if (rand < 0.6) {
+            boss.laserState = 1; 
+            boss.laserTimer = 60; 
             boss.laserAngle = Math.atan2(player.y - boss.y, player.x - boss.x);
         } else {
             shootMissile(boss);
@@ -849,91 +827,64 @@
     }
 
     function pointToLineDist(px, py, x1, y1, x2, y2) {
-        let A = px - x1;
-        let B = py - y1;
-        let C = x2 - x1;
-        let D = y2 - y1;
-
+        let A = px - x1; let B = py - y1; let C = x2 - x1; let D = y2 - y1;
         let dot = A * C + B * D;
         let len_sq = C * C + D * D;
         let param = -1;
         if (len_sq != 0) param = dot / len_sq;
-
         let xx, yy;
-
         if (param < 0) { xx = x1; yy = y1; }
         else if (param > 1) { xx = x2; yy = y2; }
         else { xx = x1 + param * C; yy = y1 + param * D; }
-
-        let dx = px - xx;
-        let dy = py - yy;
+        let dx = px - xx; let dy = py - yy;
         return Math.sqrt(dx * dx + dy * dy);
     }
 
     function shootMinion(boss, type) {
         let angle = Math.atan2(player.y - boss.y, player.x - boss.x);
-        // [속도 조절] 미니언 발사 속도
         let speed = (4 + (level * 0.5)) * gameSpeedMultiplier;
         enemies.push({
-            type: 'minion',
-            subType: type || 'bouncer',
+            type: 'minion', subType: type || 'bouncer',
             x: boss.x, y: boss.y,
-            dx: Math.cos(angle) * speed,
-            dy: Math.sin(angle) * speed,
-            radius: 6,
-            baseSpeed: speed
+            dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed,
+            radius: 6, baseSpeed: speed
         });
     }
 
     function shootMissile(boss) {
         let angle = Math.atan2(player.y - boss.y, player.x - boss.x);
-        // [속도 조절] 미사일 발사 속도
         let speed = (7 + (level * 0.8)) * gameSpeedMultiplier; 
         projectiles.push({
             x: boss.x, y: boss.y,
-            dx: Math.cos(angle) * speed,
-            dy: Math.sin(angle) * speed,
-            radius: 4
+            dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed, radius: 4
         });
     }
     
     function shootSpreadMissile(boss) {
         let baseAngle = Math.atan2(player.y - boss.y, player.x - boss.x);
-        // [속도 조절] 산탄 미사일 속도
         let speed = (6 + (level * 0.8)) * gameSpeedMultiplier;
         for(let i = -1; i <= 1; i++) {
             let angle = baseAngle + (i * 0.3); 
             projectiles.push({
                 x: boss.x, y: boss.y,
-                dx: Math.cos(angle) * speed,
-                dy: Math.sin(angle) * speed,
-                radius: 4
+                dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed, radius: 4
             });
         }
     }
 
     function updateProjectiles() {
-        if (buffs.freeze > 0) return; // 프리즈 시 투사체도 정지
-
+        if (buffs.freeze > 0) return; 
         for (let i = projectiles.length - 1; i >= 0; i--) {
             let p = projectiles[i];
-            p.x += p.dx;
-            p.y += p.dy;
-
-            if (isSafe(p.x, p.y)) {
-                projectiles.splice(i, 1);
-            }
-            else if (p.x < 0 || p.x > width || p.y < 0 || p.y > height) {
-                projectiles.splice(i, 1);
-            }
+            p.x += p.dx; p.y += p.dy;
+            if (isSafe(p.x, p.y)) projectiles.splice(i, 1);
+            else if (p.x < 0 || p.x > width || p.y < 0 || p.y > height) projectiles.splice(i, 1);
         }
     }
 
     function checkCollision() {
         const isOnSafeGround = isSafe(player.x, player.y);
         let dead = false;
-
-        // 적 충돌
         enemies.forEach(en => {
             if ((player.state === 'drawing' || player.state === 'retracting') && path.length > 0) {
                 for (let p of path) {
@@ -949,8 +900,6 @@
             }
         });
         if(dead) return true;
-
-        // 미사일 충돌
         projectiles.forEach(p => {
              if ((player.state === 'drawing' || player.state === 'retracting') && path.length > 0) {
                 for (let pt of path) {
@@ -966,7 +915,6 @@
             }
         });
         if(dead) return true;
-        
         return false;
     }
 
@@ -975,13 +923,11 @@
         updateUI();
         canvas.style.opacity = 0.5;
         setTimeout(() => canvas.style.opacity = 1, 100);
-
         if (lives <= 0) {
             endGame(false, reason);
         } else {
             respawnPlayer();
             projectiles = [];
-            // 보스 레이저 상태 초기화
             enemies.forEach(e => { if(e.type === 'boss') e.laserState = 0; });
         }
     }
@@ -1010,7 +956,6 @@
         let boss = enemies.find(e => e.type === 'boss') || enemies[0];
         let bx = boss ? Math.floor(boss.x) : Math.floor(width/2);
         let by = boss ? Math.floor(boss.y) : Math.floor(height/2);
-        
         if (bx < 0) bx = 0; if (bx >= width) bx = width-1;
         if (by < 0) by = 0; if (by >= height) by = height-1;
 
@@ -1034,7 +979,6 @@
         for (let i = enemies.length - 1; i >= 0; i--) {
             let en = enemies[i];
             if (en.type === 'boss') continue; 
-
             let cx = Math.floor(en.x);
             let cy = Math.floor(en.y);
             if (cx >= 0 && cx < width && cy >= 0 && cy < height) {
@@ -1069,12 +1013,10 @@
                 let p2 = path[i+1];
                 let dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
                 let steps = Math.ceil(dist); 
-                
                 for (let s = 0; s <= steps; s++) {
                     let t = s / steps;
                     let lx = p1.x + (p2.x - p1.x) * t;
                     let ly = p1.y + (p2.y - p1.y) * t;
-                    
                     let radius = 4; 
                     for(let py = Math.floor(ly)-radius; py <= Math.floor(ly)+radius; py++) {
                         for(let px = Math.floor(lx)-radius; px <= Math.floor(lx)+radius; px++) {
@@ -1084,11 +1026,8 @@
                                 landData[idx+1] = bgData[idx+1];
                                 landData[idx+2] = bgData[idx+2];
                                 landData[idx+3] = bgData[idx+3];
-                                
                                 let gIdx = py * width + px;
-                                if (grid[gIdx] === 0) {
-                                    grid[gIdx] = 1;
-                                }
+                                if (grid[gIdx] === 0) grid[gIdx] = 1;
                             }
                         }
                     }
@@ -1120,7 +1059,6 @@
         if (bgCanvas.width === 0) return;
         if (x < 0) x = 0; if (y < 0) y = 0;
         if (x + w > width) w = width - x; if (y + h > height) h = height - y;
-
         for(let j=y; j<y+h; j++) {
             for(let i=x; i<x+w; i++) {
                 let idx = j*width + i;
@@ -1138,10 +1076,8 @@
 
     function draw() {
         ctx.drawImage(landCanvas, 0, 0);
-
         if (gameState === 'victory_view') return;
 
-        // 아이템 그리기
         items.forEach(item => {
             let info = ITEM_TYPES[item.type];
             ctx.shadowBlur = 10;
@@ -1150,8 +1086,6 @@
             ctx.beginPath();
             ctx.arc(item.x, item.y, item.radius, 0, Math.PI*2);
             ctx.fill();
-            
-            // 텍스트 아이콘
             ctx.shadowBlur = 0;
             ctx.fillStyle = 'black';
             ctx.font = '12px Arial';
@@ -1171,10 +1105,8 @@
         }
 
         enemies.forEach(en => {
-            // [Design] Boss Design
             if (en.type === 'boss') {
-                // 레이저 발사 이펙트
-                if (en.laserState === 1) { // Warning
+                if (en.laserState === 1) { 
                     ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
                     ctx.lineWidth = 2;
                     ctx.setLineDash([5, 5]);
@@ -1185,9 +1117,9 @@
                     ctx.lineTo(ex, ey);
                     ctx.stroke();
                     ctx.setLineDash([]);
-                } else if (en.laserState === 2) { // Fire
+                } else if (en.laserState === 2) { 
                     ctx.strokeStyle = '#ff0000';
-                    ctx.lineWidth = 20; // 굵은 레이저
+                    ctx.lineWidth = 20; 
                     ctx.shadowBlur = 20;
                     ctx.shadowColor = 'red';
                     ctx.beginPath();
@@ -1202,25 +1134,21 @@
                     ctx.stroke();
                 }
 
-                // Body Gradient
                 let grd = ctx.createRadialGradient(en.x, en.y, en.radius * 0.2, en.x, en.y, en.radius);
                 grd.addColorStop(0, "#ff4444");
                 grd.addColorStop(1, "#880000");
                 ctx.fillStyle = grd;
                 
-                // Rotating Spikes
                 const spikes = 8;
                 ctx.beginPath();
                 for (let i = 0; i < spikes; i++) {
                     const angle = (Math.PI * 2 / spikes) * i + (Date.now() / 500); 
                     const outerR = en.radius * 1.4;
                     const innerR = en.radius;
-                    
                     const sx = en.x + Math.cos(angle) * outerR;
                     const sy = en.y + Math.sin(angle) * outerR;
                     const ix = en.x + Math.cos(angle + Math.PI/spikes) * innerR;
                     const iy = en.y + Math.sin(angle + Math.PI/spikes) * innerR;
-                    
                     if (i === 0) ctx.moveTo(sx, sy);
                     else ctx.lineTo(sx, sy);
                     ctx.lineTo(ix, iy);
@@ -1231,18 +1159,15 @@
                 ctx.lineWidth = 2;
                 ctx.stroke();
 
-                // Main Body
                 ctx.beginPath();
                 ctx.arc(en.x, en.y, en.radius, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Big White Eye
                 ctx.fillStyle = "white";
                 ctx.beginPath();
                 ctx.arc(en.x, en.y, en.radius * 0.6, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Tracking Pupil
                 let angle = Math.atan2(player.y - en.y, player.x - en.x);
                 let dist = en.radius * 0.25;
                 let px = en.x + Math.cos(angle) * dist;
@@ -1253,15 +1178,12 @@
                 ctx.arc(px, py, en.radius * 0.25, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Eye Shine
                 ctx.fillStyle = "white";
                 ctx.beginPath();
                 ctx.arc(px - en.radius*0.1, py - en.radius*0.1, en.radius * 0.08, 0, Math.PI * 2);
                 ctx.fill();
 
             } else {
-                // [Design] Minion Design
-                // 추적자는 색상을 다르게
                 ctx.fillStyle = en.subType === 'chaser' ? "#ff00ff" : "#ff8800";
                 ctx.beginPath();
                 ctx.arc(en.x, en.y, en.radius, 0, Math.PI * 2);
@@ -1270,7 +1192,6 @@
                 ctx.lineWidth = 1;
                 ctx.stroke();
                 
-                // Eye
                 ctx.fillStyle = "white";
                 ctx.beginPath();
                 ctx.arc(en.x, en.y, en.radius * 0.5, 0, Math.PI * 2);
@@ -1295,7 +1216,6 @@
         });
 
         ctx.fillStyle = player.color;
-        // 스피드업 상태면 잔상 효과
         if (buffs.speed > 0) {
             ctx.shadowBlur = 15;
             ctx.shadowColor = 'yellow';
@@ -1310,7 +1230,6 @@
     }
 
     function updateUI() {
-        // [버그수정] 분모가 0이 되는 경우 방지
         const percent = totalPixels > 0 ? (capturedPixels / totalPixels * 100).toFixed(2) : "0.00";
         scoreEl.innerText = percent;
         levelEl.innerText = level;
@@ -1347,44 +1266,113 @@
     }
 
     function setupMobileControls() {
-        const joyArea = document.getElementById('joystick-area');
-        const joyKnob = document.getElementById('joystick-knob');
+        const zoneLeft = document.getElementById('zone-left');
+        const zoneRight = document.getElementById('zone-right');
+        const dJoystick = document.getElementById('dynamic-joystick');
+        const dKnob = document.getElementById('dynamic-knob');
         const actionBtn = document.getElementById('action-btn');
-        let startX, startY;
+        
+        let joyStartX, joyStartY;
+        let joyActiveId = null;
 
-        joyArea.addEventListener('touchstart', (e) => {
+        // --- 왼쪽 영역: 동적 조이스틱 ---
+        zoneLeft.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            const touch = e.touches[0];
-            const rect = joyArea.getBoundingClientRect();
-            startX = rect.left + rect.width/2;
-            startY = rect.top + rect.height/2;
-            updateJoystick(touch.clientX, touch.clientY);
-        }, {passive:false});
+            if (joyActiveId !== null) return;
 
-        joyArea.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            const touch = e.touches[0];
-            updateJoystick(touch.clientX, touch.clientY);
-        }, {passive:false});
+            const touch = e.changedTouches[0];
+            joyActiveId = touch.identifier;
+            joyStartX = touch.clientX;
+            joyStartY = touch.clientY;
 
-        joyArea.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            input.joyX = 0; input.joyY = 0;
-            joyKnob.style.transform = `translate(-50%, -50%)`;
+            // 조이스틱 비주얼 표시
+            dJoystick.style.display = 'block';
+            dJoystick.style.left = joyStartX + 'px';
+            dJoystick.style.top = joyStartY + 'px';
+            dKnob.style.transform = `translate(-50%, -50%)`;
+
+            input.joyX = 0;
+            input.joyY = 0;
         });
 
-        function updateJoystick(cx, cy) {
-            const max = 40;
-            let dx = cx - startX, dy = cy - startY;
-            const dist = Math.min(Math.hypot(dx, dy), max);
-            const ang = Math.atan2(dy, dx);
-            const mx = Math.cos(ang)*dist, my = Math.sin(ang)*dist;
-            joyKnob.style.transform = `translate(calc(-50% + ${mx}px), calc(-50% + ${my}px))`;
-            input.joyX = mx/max; input.joyY = my/max;
-        }
+        zoneLeft.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (joyActiveId === null) return;
 
-        actionBtn.addEventListener('touchstart', (e) => { e.preventDefault(); input.action = true; actionBtn.classList.add('active'); }, {passive:false});
-        actionBtn.addEventListener('touchend', (e) => { e.preventDefault(); input.action = false; actionBtn.classList.remove('active'); }, {passive:false});
+            // 활성 터치 찾기
+            let touch = null;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === joyActiveId) {
+                    touch = e.changedTouches[i];
+                    break;
+                }
+            }
+            if (!touch) return;
+
+            let dx = touch.clientX - joyStartX;
+            let dy = touch.clientY - joyStartY;
+            const maxDist = 40; // 조이스틱 반경
+            const dist = Math.min(Math.hypot(dx, dy), maxDist);
+            const angle = Math.atan2(dy, dx);
+
+            const moveX = Math.cos(angle) * dist;
+            const moveY = Math.sin(angle) * dist;
+
+            // 놉 이동
+            dKnob.style.transform = `translate(calc(-50% + ${moveX}px), calc(-50% + ${moveY}px))`;
+
+            // 입력 업데이트
+            input.joyX = moveX / maxDist;
+            input.joyY = moveY / maxDist;
+        });
+
+        const endJoystick = (e) => {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === joyActiveId) {
+                    joyActiveId = null;
+                    dJoystick.style.display = 'none';
+                    input.joyX = 0;
+                    input.joyY = 0;
+                    break;
+                }
+            }
+        };
+        zoneLeft.addEventListener('touchend', endJoystick);
+        zoneLeft.addEventListener('touchcancel', endJoystick);
+
+        // --- 오른쪽 영역: 액션 버튼 ---
+        zoneRight.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            input.action = true;
+            actionBtn.classList.add('active');
+        });
+
+        const endAction = (e) => {
+            e.preventDefault();
+            // 모든 터치가 끝났는지 체크하거나 단순히 액션 해제
+            // 멀티터치를 고려해 터치 목록이 비었거나 해당 영역 터치가 끝났을 때 해제해야 함
+            // 간단하게는 그냥 해제
+            if (e.touches.length === 0 || Array.from(e.touches).every(t => t.clientX < window.innerWidth / 2)) {
+                 input.action = false;
+                 actionBtn.classList.remove('active');
+            }
+        };
+        // zoneRight는 간단히 터치 시작/끝만 감지해도 됨
+        zoneRight.addEventListener('touchend', (e) => {
+             e.preventDefault();
+             // 이 영역에 남은 터치가 없으면 액션 해제
+             let hasRightTouch = false;
+             for (let i=0; i<e.touches.length; i++) {
+                 if (e.touches[i].clientX > window.innerWidth / 2) {
+                     hasRightTouch = true;
+                     break;
+                 }
+             }
+             if (!hasRightTouch) {
+                 input.action = false;
+                 actionBtn.classList.remove('active');
+             }
+        });
     }
 </script>
 </body>
