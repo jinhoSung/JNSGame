@@ -10,43 +10,35 @@
         body {
             margin: 0;
             padding: 0;
-            background-color: #111;
+            background-color: #000;
             color: white;
             width: 100vw;
             height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Courier New', monospace;
             overflow: hidden;
+            font-family: 'Courier New', monospace;
             user-select: none;
-            -webkit-user-select: none; /* 모바일 롱터치 방지 */
-        }
-
-        /* 게임 래퍼: 비율 유지를 위한 컨테이너 */
-        #game-wrapper {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            max-width: 800px;
-            max-height: 600px;
-            /* 비율 유지를 위해 aspect-ratio 사용 (지원 브라우저용) 또는 JS로 제어 */
-            aspect-ratio: 4/3; 
+            -webkit-user-select: none;
+            touch-action: none;
         }
 
         canvas {
             display: block;
-            background-color: #000;
             width: 100%;
             height: 100%;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-            border: 2px solid #333;
-            box-sizing: border-box;
         }
 
-        /* 공통 UI 스타일 */
-        .modal {
+        #ui-layer {
             position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 800px; 
+            height: 600px;
+            pointer-events: none;
+            transform-origin: center;
+        }
+
+        .modal {
+            position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.85);
             display: flex;
@@ -55,25 +47,25 @@
             justify-content: center;
             z-index: 100;
             display: none;
+            pointer-events: auto;
         }
 
         .modal-box {
             background: #222;
             border: 2px solid #fff;
             padding: 20px;
-            width: 80%;
-            max-width: 400px;
+            width: 85%;
+            max-width: 450px;
             text-align: center;
-            box-shadow: 5px 5px 0px #666;
-            position: relative;
+            box-shadow: 0 0 20px rgba(255,255,255,0.1);
         }
 
         .modal-title {
             font-family: 'Press Start 2P', cursive;
             color: #ffff00;
             font-size: 1.2rem;
-            margin-bottom: 15px;
-            line-height: 1.5;
+            margin-bottom: 20px;
+            line-height: 1.4;
         }
 
         .modal-text {
@@ -88,105 +80,90 @@
             background: #444;
             color: white;
             border: 2px solid #fff;
-            padding: 10px 15px;
+            padding: 12px 20px;
             font-family: 'Press Start 2P', cursive;
-            font-size: 10px;
+            font-size: 12px;
             cursor: pointer;
             margin: 5px;
-            transition: all 0.1s;
             box-shadow: 3px 3px 0 #000;
-            /* 모바일 터치감 개선 */
-            touch-action: manipulation; 
+            touch-action: manipulation;
         }
         .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
         .btn-green { background: #2a662a; }
         .btn-red { background: #882222; }
 
-        /* 레벨 선택 그리드 */
-        #level-grid {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 10px;
-            margin: 15px 0;
-            justify-content: center;
-        }
-        .level-btn {
-            aspect-ratio: 1;
-            background: #333;
-            border: 1px solid #666;
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 14px;
-        }
-        .level-btn.locked { background: #111; color: #333; cursor: not-allowed; }
-        .level-btn.cleared { border-color: #0f0; color: #0f0; }
-
-        /* 전체화면 버튼 */
         #fullscreen-btn {
             position: absolute;
-            top: 10px;
-            right: 10px;
+            top: 10px; right: 10px;
             background: rgba(0,0,0,0.5);
-            border: 1px solid white;
+            border: 1px solid rgba(255,255,255,0.5);
             color: white;
             padding: 8px;
             border-radius: 4px;
             cursor: pointer;
-            z-index: 50;
-            font-size: 16px;
+            z-index: 200;
+            pointer-events: auto;
+            display: flex; /* 아이콘 정렬 */
+            align-items: center;
+            justify-content: center;
+            width: 32px; height: 32px;
         }
 
-        /* HUD */
         #hud {
             position: absolute;
-            top: 10px; left: 10px; right: 50px; /* 전체화면 버튼 공간 확보 */
+            top: 10px; left: 10px; right: 10px;
             display: flex;
             justify-content: space-between;
-            pointer-events: none;
-            font-size: 12px;
+            align-items: flex-start; /* 상단 정렬 */
+            font-size: 14px;
             font-weight: bold;
             text-shadow: 1px 1px 2px black;
         }
+        
         .hud-group { display: flex; flex-direction: column; gap: 4px; }
         .hud-right { text-align: right; }
-        
+
+        /* 일시정지 버튼 스타일 개선 */
         #pause-btn {
             pointer-events: auto;
             cursor: pointer;
-            border: 1px solid white;
-            padding: 5px 8px;
-            background: rgba(0,0,0,0.5);
-            margin-right: 5px;
+            width: 36px;
+            height: 36px;
+            border: 2px solid white;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.1s;
+        }
+        #pause-btn:active {
+            transform: scale(0.9);
+            background: rgba(255,255,255,0.2);
+        }
+        /* 일시정지 아이콘 (SVG) */
+        .pause-icon rect {
+            fill: white;
+        }
+
+        #progress-bar {
+            position: absolute; bottom: 0; left: 0; height: 4px; background: #0f0; width: 0%;
         }
 
         .safe { color: #0f0; }
         .warn { color: #ff0; }
         .danger { color: #f00; }
 
-        #progress-bar {
-            position: absolute; bottom: 0; left: 0; height: 4px; background: #0f0; width: 0%;
-        }
-
-        /* 페이지네이션 */
-        #pagination-controls {
-            display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 10px;
-        }
-        .page-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; padding: 10px; }
-
-        /* --- 모바일 컨트롤러 --- */
         #mobile-controls {
-            position: absolute;
+            position: fixed;
             bottom: 20px;
             left: 0;
             width: 100%;
-            height: 120px;
-            pointer-events: none; /* 버튼 외 영역 터치 통과 */
-            display: none; /* JS로 모바일 감지 시 block 처리 */
+            height: 140px;
+            pointer-events: none;
+            display: none;
             z-index: 90;
+            padding: 0 20px;
+            box-sizing: border-box;
         }
         
         .touch-pad {
@@ -194,70 +171,88 @@
             bottom: 10px;
             pointer-events: auto;
             display: flex;
-            gap: 15px;
+            gap: 20px;
         }
-        
-        .touch-pad.left { left: 20px; }
-        .touch-pad.right { right: 20px; }
+        .touch-pad.left { left: 30px; }
+        .touch-pad.right { right: 30px; }
 
         .control-btn {
-            width: 60px;
-            height: 60px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.3);
+            width: 70px;
+            height: 70px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.4);
             border-radius: 50%;
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 24px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 28px;
             display: flex;
             align-items: center;
             justify-content: center;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
+            backdrop-filter: blur(2px);
         }
-        
-        .control-btn:active, .control-btn.active {
-            background: rgba(255, 255, 255, 0.4);
-            border-color: white;
-            color: white;
+        .control-btn.active {
+            background: rgba(255, 255, 255, 0.5);
             transform: scale(0.95);
         }
-
         .btn-thrust {
-            width: 80px;
-            height: 80px;
-            border-color: rgba(255, 100, 100, 0.4);
-            background: rgba(255, 50, 50, 0.1);
+            width: 90px; height: 90px;
+            border-color: rgba(255, 80, 80, 0.5);
+            background: rgba(255, 50, 50, 0.2);
         }
-        .btn-thrust:active, .btn-thrust.active {
-            background: rgba(255, 50, 50, 0.4);
-        }
+        .btn-thrust.active { background: rgba(255, 50, 50, 0.6); }
 
-        /* 미디어 쿼리: 작은 화면에서 폰트 크기 조절 */
+        #level-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin: 20px 0;
+            justify-content: center;
+        }
+        .level-btn {
+            aspect-ratio: 1;
+            background: #333;
+            border: 1px solid #666;
+            color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-weight: bold; font-size: 16px;
+        }
+        .level-btn.cleared { border-color: #0f0; color: #0f0; }
+        .level-btn.locked { background: #111; color: #444; border-color: #333; cursor: default; }
+
+        #pagination-controls { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .page-btn { background: none; border: none; color: white; font-size: 24px; padding: 10px; cursor: pointer; }
+        
         @media (max-width: 600px) {
-            #game-wrapper { width: 100vw; height: 100vh; max-width: none; max-height: none; border: none; }
-            canvas { border: none; }
-            .modal-box { width: 90%; padding: 15px; }
-            .hud-group { font-size: 10px; }
+            #ui-layer { width: 100%; height: 100%; max-width: none; max-height: none; }
+            .modal-box { padding: 15px; }
+            .control-btn { width: 60px; height: 60px; font-size: 20px; }
+            .btn-thrust { width: 80px; height: 80px; }
         }
     </style>
 </head>
 <body>
 
-    <div id="game-wrapper">
-        <canvas id="gameCanvas" width="800" height="600"></canvas>
-        
-        <!-- 전체화면 토글 버튼 -->
-        <button id="fullscreen-btn" onclick="toggleFullScreen()">⛶</button>
+    <canvas id="gameCanvas"></canvas>
+    
+    <!-- 전체화면 토글 아이콘 변경 -->
+    <button id="fullscreen-btn" onclick="toggleFullScreen()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+        </svg>
+    </button>
 
-        <!-- HUD Interface -->
+    <div id="ui-layer">
         <div id="hud">
             <div class="hud-group">
                 <div>LV.<span id="ui-level" style="color:#0f0">1</span> <span id="ui-planet" style="color:#aaa">MOON</span></div>
                 <div>FUEL <span id="ui-fuel">100</span></div>
             </div>
             
-            <div style="display:flex; align-items:flex-start;">
-                 <div id="pause-btn" onclick="togglePause()">II</div>
+            <!-- SVG 아이콘 적용된 일시정지 버튼 -->
+            <div id="pause-btn" onclick="togglePause()">
+                <svg class="pause-icon" width="14" height="14" viewBox="0 0 14 14">
+                    <rect x="2" y="1" width="4" height="12"/>
+                    <rect x="8" y="1" width="4" height="12"/>
+                </svg>
             </div>
 
             <div class="hud-group hud-right">
@@ -269,105 +264,97 @@
         </div>
 
         <div id="progress-bar"></div>
+    </div>
 
-        <!-- 모바일 컨트롤러 -->
-        <div id="mobile-controls">
-            <div class="touch-pad left">
-                <div class="control-btn" id="btn-left">◀</div>
-                <div class="control-btn" id="btn-right">▶</div>
-            </div>
-            <div class="touch-pad right">
-                <div class="control-btn btn-thrust" id="btn-thrust">🔥</div>
+    <div id="mobile-controls">
+        <div class="touch-pad left">
+            <div class="control-btn" id="btn-left">◀</div>
+            <div class="control-btn" id="btn-right">▶</div>
+        </div>
+        <div class="touch-pad right">
+            <div class="control-btn btn-thrust" id="btn-thrust">🔥</div>
+        </div>
+    </div>
+
+    <div id="screen-level-select" class="modal" style="display: flex;">
+        <div class="modal-box">
+            <div class="modal-title">MISSION SELECT</div>
+            <div id="page-theme-name" style="font-size:12px; color:#888; margin-bottom:5px;"></div>
+            <div id="level-grid"></div>
+            
+            <div id="pagination-controls">
+                <button class="page-btn" id="btn-prev" onclick="changeMenuPage(-1)">◀</button>
+                <span id="page-indicator" style="font-size: 14px; color: #aaa;">P1</span>
+                <button class="page-btn" id="btn-next" onclick="changeMenuPage(1)">▶</button>
             </div>
         </div>
+    </div>
 
-        <!-- 메뉴 화면 -->
-        <div id="screen-level-select" class="modal" style="display: flex;">
-            <div class="modal-box">
-                <div class="modal-title">MISSION SELECT</div>
-                <div id="page-theme-name" style="font-size:12px; color:#888; margin-bottom:5px;"></div>
-                <div id="level-grid"></div>
-                
-                <div id="pagination-controls">
-                    <button class="page-btn" id="btn-prev" onclick="changeMenuPage(-1)">◀</button>
-                    <span id="page-indicator" style="font-size: 12px; color: #aaa;">P1</span>
-                    <button class="page-btn" id="btn-next" onclick="changeMenuPage(1)">▶</button>
-                </div>
-            </div>
+    <div id="screen-tutorial" class="modal">
+        <div class="modal-box">
+            <div class="modal-title" id="tut-title">TUTORIAL</div>
+            <div class="modal-text" id="tut-text">...</div>
+            <button class="btn btn-green" onclick="closeTutorial()">READY</button>
         </div>
+    </div>
 
-        <!-- 튜토리얼 팝업 -->
-        <div id="screen-tutorial" class="modal">
-            <div class="modal-box">
-                <div class="modal-title" id="tut-title">TUTORIAL</div>
-                <div class="modal-text" id="tut-text">...</div>
-                <button class="btn btn-green" onclick="closeTutorial()">OK</button>
-            </div>
+    <div id="screen-pause" class="modal">
+        <div class="modal-box">
+            <div class="modal-title">PAUSED</div>
+            <button class="btn" onclick="togglePause()">RESUME</button>
+            <button class="btn" onclick="restartCurrentLevel()">RETRY</button>
+            <button class="btn btn-red" onclick="goToLevelSelect()">EXIT</button>
         </div>
+    </div>
 
-        <!-- 일시정지 메뉴 -->
-        <div id="screen-pause" class="modal">
-            <div class="modal-box">
-                <div class="modal-title">PAUSED</div>
-                <button class="btn" onclick="togglePause()">RESUME</button>
-                <button class="btn" onclick="restartCurrentLevel()">RETRY</button>
-                <button class="btn btn-red" onclick="goToLevelSelect()">EXIT</button>
-            </div>
-        </div>
-
-        <!-- 결과 화면 -->
-        <div id="screen-result" class="modal">
-            <div class="modal-box">
-                <div class="modal-title" id="res-title">RESULT</div>
-                <div class="modal-text" id="res-text">...</div>
-                <div id="res-buttons"></div>
-            </div>
+    <div id="screen-result" class="modal">
+        <div class="modal-box">
+            <div class="modal-title" id="res-title">RESULT</div>
+            <div class="modal-text" id="res-text">...</div>
+            <div id="res-buttons"></div>
         </div>
     </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const wrapper = document.getElementById('game-wrapper');
+        const uiLayer = document.getElementById('ui-layer');
 
-        // 반응형 처리를 위한 캔버스 크기 조정
-        // 로직 해상도는 800x600 고정, 화면 표시는 CSS로 처리
         const LOGICAL_WIDTH = 800;
         const LOGICAL_HEIGHT = 600;
 
-        // 게임 상수
         const MAX_LEVEL = 50;
         const LEVELS_PER_PAGE = 10;
-        const SAFE_V_SPEED = 2.5;
-        const SAFE_H_SPEED = 1.5;
-        const SAFE_ANGLE = 0.25;
+        const SAFE_V_SPEED = 3.5;
+        const SAFE_H_SPEED = 2.5;
+        const SAFE_ANGLE = 0.35;
         const LANDER_SIZE = 20;
+        const ROTATION_SPEED = 0.035;
 
-        // 튜토리얼 데이터 (모바일/PC 구분)
         const TUTORIALS = {
-            1: { 
-                title: "비행 훈련", 
-                pc: "[↑] 엔진 분사\n[← / →] 기체 회전\n\n속도를 2.0 이하로 줄이세요.",
-                mobile: "[🔥] 버튼: 엔진 분사\n[◀ / ▶] 버튼: 기체 회전\n\n속도를 2.0 이하로 줄이세요."
-            },
-            5: { title: "환경 경보: 바람", text: "바람이 붑니다.\n기체가 밀리니 반대로 기울여 버티세요." },
-            11: { title: "경보: 장애물", text: "붉은 드론을 피하세요.\n부딪히면 폭발합니다." },
-            21: { title: "환경 경보: 폭풍우", text: "강한 비바람으로 시야가 나쁩니다." },
-            31: { title: "경보: 좁은 지형", text: "착륙 패드가 매우 좁아집니다." },
-            41: { title: "최종 구역", text: "극한의 중력 상태입니다." }
+            1: { title: "비행 훈련", pc: "방향키 [↑] 엔진\n[←/→] 회전\n\n속도를 줄여 안착하세요.", mobile: "[🔥] 버튼: 엔진\n[◀/▶] 버튼: 회전\n\n속도를 줄여 안착하세요." },
+            5: { title: "환경 경보: 바람", text: "바람이 붑니다.\n기체를 기울여 저항하세요." },
+            11: { title: "경보: 장애물", text: "드론을 피하세요.\n부딪히면 폭발합니다." },
+            21: { title: "환경 경보: 폭풍", text: "시야가 나쁘고 바람이 거셉니다." },
+            41: { title: "최종 구역", text: "고중력 상태입니다. 연료 주의!" }
         };
-        
         const THEME_NAMES = ["THE MOON", "MARS", "EARTH", "ICE PLANET", "VOLCANIC"];
 
-        // 전역 변수
         let currentLevel = 1;
         let maxUnlocked = parseInt(localStorage.getItem('lunar_max_level')) || 1;
         let menuPage = 0;
         let gameState = 'menu';
         let keys = {};
-        let isMobile = false; // 모바일 감지 플래그
+        let isMobile = false;
 
-        // 게임 객체
+        let lastTime = 0;
+        let accumulator = 0;
+        const STEP = 1000 / 60;
+
+        let gameScale = 1;
+        let gameOffsetX = 0;
+        let gameOffsetY = 0;
+
         let terrainPoints = [];
         let landingPad = { x: 0, width: 0, y: 0 };
         let particles = [];
@@ -375,231 +362,368 @@
         let levelConfig = {};
         const lander = { x: 0, y: 0, vx: 0, vy: 0, angle: 0, fuel: 0, visible: true };
 
-        // DOM UI Refs
         const uiScreens = {
             menu: document.getElementById('screen-level-select'),
             tutorial: document.getElementById('screen-tutorial'),
             pause: document.getElementById('screen-pause'),
             result: document.getElementById('screen-result')
         };
-        const uiHud = {
-            level: document.getElementById('ui-level'),
-            planet: document.getElementById('ui-planet'),
-            fuel: document.getElementById('ui-fuel'),
-            alt: document.getElementById('ui-alt'),
-            vspeed: document.getElementById('ui-vspeed'),
-            hspeed: document.getElementById('ui-hspeed'),
-            wind: document.getElementById('ui-wind'),
-            prog: document.getElementById('progress-bar')
-        };
 
-        // --- 초기화 ---
         function init() {
-            // 모바일 감지 (터치 지원 여부)
             isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-            
             if (isMobile) {
                 document.getElementById('mobile-controls').style.display = 'block';
             }
 
-            // 초기 페이지 설정
+            window.addEventListener('resize', resizeGame);
+            resizeGame();
+
             menuPage = Math.floor((maxUnlocked - 1) / LEVELS_PER_PAGE);
             renderLevelGrid();
-            
             setupMobileControls();
+            
             requestAnimationFrame(loop);
         }
 
-        // --- 모바일 컨트롤 설정 ---
+        function resizeGame() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const scaleX = canvas.width / LOGICAL_WIDTH;
+            const scaleY = canvas.height / LOGICAL_HEIGHT;
+            gameScale = Math.min(scaleX, scaleY); 
+
+            gameOffsetX = (canvas.width - LOGICAL_WIDTH * gameScale) / 2;
+            gameOffsetY = (canvas.height - LOGICAL_HEIGHT * gameScale) / 2;
+
+            uiLayer.style.width = `${LOGICAL_WIDTH * gameScale}px`;
+            uiLayer.style.height = `${LOGICAL_HEIGHT * gameScale}px`;
+        }
+
+        function loop(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            const dt = timestamp - lastTime;
+            lastTime = timestamp;
+
+            if (dt > 100) accumulator = 0; 
+            else accumulator += dt;
+
+            while (accumulator >= STEP) {
+                update(); 
+                accumulator -= STEP;
+            }
+
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function update() {
+            if (gameState !== 'playing') return;
+
+            if (keys['ArrowLeft']) lander.angle -= ROTATION_SPEED;
+            if (keys['ArrowRight']) lander.angle += ROTATION_SPEED;
+            
+            if (keys['ArrowUp'] && lander.fuel > 0) {
+                lander.vx += Math.sin(lander.angle) * 0.12;
+                lander.vy -= Math.cos(lander.angle) * 0.12;
+                lander.fuel -= 0.3;
+            }
+
+            lander.vy += levelConfig.gravity * 0.85; 
+            lander.vx += levelConfig.wind;
+
+            lander.x += lander.vx;
+            lander.y += lander.vy;
+
+            if (lander.x < 0) lander.x = LOGICAL_WIDTH;
+            if (lander.x > LOGICAL_WIDTH) lander.x = 0;
+            if (lander.y < 0) { lander.y = 0; lander.vy = 0; }
+
+            obstacles.forEach(obs => {
+                obs.x += obs.speed;
+                obs.y += Math.sin(Date.now() / 500 + obs.phase) * 0.5;
+                if (obs.x < 0 || obs.x > LOGICAL_WIDTH) obs.speed *= -1;
+                
+                const dist = Math.hypot(lander.x - obs.x, lander.y - obs.y);
+                if (dist < obs.radius + LANDER_SIZE/2) endGame(false, "장애물 충돌!");
+            });
+
+            checkTerrainCollision();
+            updateUI();
+        }
+
+        function checkTerrainCollision() {
+            const bottomX = lander.x;
+            const bottomY = lander.y + LANDER_SIZE/2;
+            const onPadX = bottomX >= landingPad.x && bottomX <= landingPad.x + landingPad.width;
+            
+            let terrainH = LOGICAL_HEIGHT;
+            const segmentWidth = LOGICAL_WIDTH / (terrainPoints.length - 1);
+            const idx = Math.floor(bottomX / segmentWidth);
+            
+            if (idx >= 0 && idx < terrainPoints.length - 1) {
+                const p1 = terrainPoints[idx];
+                const p2 = terrainPoints[idx + 1];
+                terrainH = p1.y + (bottomX - p1.x) * (p2.y - p1.y) / (p2.x - p1.x);
+            }
+            if (onPadX && Math.abs(bottomY - landingPad.y) < 15) terrainH = landingPad.y;
+
+            if (bottomY >= terrainH) {
+                lander.y = terrainH - LANDER_SIZE/2;
+                if (onPadX) {
+                    const safeV = lander.vy < SAFE_V_SPEED;
+                    const safeH = Math.abs(lander.vx) < SAFE_H_SPEED;
+                    const safeA = Math.abs(lander.angle) < SAFE_ANGLE;
+
+                    if (safeV && safeH && safeA) endGame(true, "착륙 성공!");
+                    else {
+                        let reason = "";
+                        if (!safeV) reason = "하강 속도 과다";
+                        else if (!safeH) reason = "수평 속도 과다";
+                        else reason = "기울기 불량";
+                        endGame(false, reason);
+                    }
+                } else {
+                    endGame(false, "지형 충돌!");
+                }
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('ui-fuel').innerText = Math.floor(lander.fuel);
+            document.getElementById('ui-alt').innerText = Math.max(0, Math.floor(landingPad.y - lander.y));
+            
+            const vSpd = document.getElementById('ui-vspeed');
+            vSpd.innerText = Math.abs(lander.vy).toFixed(1);
+            vSpd.className = lander.vy > SAFE_V_SPEED ? 'danger' : 'safe';
+
+            const hSpd = document.getElementById('ui-hspeed');
+            hSpd.innerText = Math.abs(lander.vx).toFixed(1);
+            hSpd.className = Math.abs(lander.vx) > SAFE_H_SPEED ? 'danger' : 'safe';
+            
+            const windEl = document.getElementById('ui-wind');
+            if (Math.abs(levelConfig.wind) > 0.001) {
+                windEl.innerText = (levelConfig.wind > 0 ? ">> " : "<< ") + Math.abs(levelConfig.wind*1000).toFixed(0);
+                windEl.className = 'warn';
+            } else {
+                windEl.innerText = "0";
+                windEl.className = 'safe';
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = levelConfig.bgColor || '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            drawGlobalParticles();
+
+            ctx.save();
+            ctx.translate(gameOffsetX, gameOffsetY);
+            ctx.scale(gameScale, gameScale);
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+
+            drawGameWorld();
+
+            ctx.restore();
+        }
+
+        function drawGlobalParticles() {
+            ctx.fillStyle = (levelConfig.weather === 'ember') ? '#ff5500' : 'white';
+            if (levelConfig.weather === 'rain') ctx.fillStyle = '#6688cc';
+            
+            particles.forEach(p => {
+                if (gameState === 'playing') {
+                    p.x += (p.vx + levelConfig.wind * 20) * gameScale; 
+                    p.y += p.vy * gameScale;
+                    if(p.x > canvas.width) p.x = 0; 
+                    if(p.x < 0) p.x = canvas.width;
+                    if(p.y > canvas.height) p.y = 0;
+                }
+                
+                if (levelConfig.weather === 'rain') ctx.fillRect(p.x, p.y, 1 * gameScale, p.size * 4 * gameScale);
+                else { 
+                    ctx.beginPath(); 
+                    ctx.arc(p.x, p.y, (p.size/2) * gameScale, 0, Math.PI*2); 
+                    ctx.fill(); 
+                }
+            });
+        }
+
+        function drawGameWorld() {
+            if (terrainPoints.length > 0) {
+                ctx.beginPath();
+                ctx.moveTo(terrainPoints[0].x, terrainPoints[0].y);
+                for(let i=1; i<terrainPoints.length; i++) ctx.lineTo(terrainPoints[i].x, terrainPoints[i].y);
+                ctx.lineTo(LOGICAL_WIDTH, LOGICAL_HEIGHT); ctx.lineTo(0, LOGICAL_HEIGHT);
+                ctx.fillStyle = levelConfig.groundColor || '#aaa';
+                ctx.fill();
+            }
+
+            ctx.fillStyle = '#ff0'; 
+            ctx.fillRect(landingPad.x, landingPad.y, landingPad.width, 4);
+            if (Math.floor(Date.now() / 500) % 2 === 0) {
+                 ctx.fillStyle = '#0f0';
+                 ctx.fillRect(landingPad.x, landingPad.y - 10, 2, 10);
+                 ctx.fillRect(landingPad.x + landingPad.width - 2, landingPad.y - 10, 2, 10);
+            }
+
+            obstacles.forEach(obs => {
+                ctx.fillStyle = 'red';
+                ctx.beginPath(); ctx.arc(obs.x, obs.y, obs.radius, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth=1; ctx.stroke();
+            });
+
+            if (lander.visible) {
+                ctx.save();
+                ctx.translate(lander.x, lander.y);
+                ctx.rotate(lander.angle);
+                
+                ctx.fillStyle = '#eee'; ctx.fillRect(-10, -10, 20, 20);
+                ctx.fillStyle = '#3cf'; ctx.fillRect(-5, -5, 10, 10);
+                
+                ctx.strokeStyle = '#aaa'; ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(-10, 10); ctx.lineTo(-15, 18); ctx.lineTo(-18, 18);
+                ctx.moveTo(10, 10); ctx.lineTo(15, 18); ctx.lineTo(18, 18);
+                ctx.stroke();
+
+                if (keys['ArrowUp'] && lander.fuel > 0 && gameState === 'playing') {
+                    ctx.fillStyle = 'orange';
+                    ctx.beginPath(); ctx.moveTo(-6, 10); ctx.lineTo(6, 10); ctx.lineTo(0, 25 + Math.random()*10); ctx.fill();
+                }
+                if (keys['ArrowLeft']) { ctx.fillStyle = '#aaf'; ctx.fillRect(8, -8, 6, 3); }
+                if (keys['ArrowRight']) { ctx.fillStyle = '#aaf'; ctx.fillRect(-14, -8, 6, 3); }
+                
+                ctx.restore();
+            } else if (gameState === 'result' && !lander.visible) {
+                ctx.fillStyle = 'orange'; ctx.beginPath(); ctx.arc(lander.x, lander.y, 20, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => console.log(err));
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+            }
+        }
+
         function setupMobileControls() {
             const btnLeft = document.getElementById('btn-left');
             const btnRight = document.getElementById('btn-right');
             const btnThrust = document.getElementById('btn-thrust');
 
-            const handleTouch = (elem, code, start) => {
-                const handler = (e) => {
-                    e.preventDefault(); // 스크롤/줌 방지
-                    keys[code] = start;
-                    if (start) elem.classList.add('active');
-                    else elem.classList.remove('active');
-                };
-                return handler;
+            const handleTouch = (code, start, elem) => (e) => {
+                e.preventDefault(); 
+                keys[code] = start;
+                start ? elem.classList.add('active') : elem.classList.remove('active');
             };
 
-            // 터치 시작/끝 이벤트 연결
-            btnLeft.addEventListener('touchstart', handleTouch(btnLeft, 'ArrowLeft', true), {passive: false});
-            btnLeft.addEventListener('touchend', handleTouch(btnLeft, 'ArrowLeft', false));
-            
-            btnRight.addEventListener('touchstart', handleTouch(btnRight, 'ArrowRight', true), {passive: false});
-            btnRight.addEventListener('touchend', handleTouch(btnRight, 'ArrowRight', false));
-            
-            btnThrust.addEventListener('touchstart', handleTouch(btnThrust, 'ArrowUp', true), {passive: false});
-            btnThrust.addEventListener('touchend', handleTouch(btnThrust, 'ArrowUp', false));
+            const bindBtn = (elem, code) => {
+                elem.addEventListener('touchstart', handleTouch(code, true, elem), {passive:false});
+                elem.addEventListener('touchend', handleTouch(code, false, elem));
+            };
+
+            bindBtn(btnLeft, 'ArrowLeft');
+            bindBtn(btnRight, 'ArrowRight');
+            bindBtn(btnThrust, 'ArrowUp');
         }
 
-        // --- 전체화면 토글 ---
-        function toggleFullScreen() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => {
-                    console.log(`Error attempting to enable full-screen mode: ${err.message}`);
-                });
-            } else {
-                if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                }
-            }
-        }
-
-        // --- 레벨 선택 UI ---
         function changeMenuPage(delta) {
             const maxPage = Math.ceil(MAX_LEVEL / LEVELS_PER_PAGE) - 1;
             const newPage = menuPage + delta;
-            if (newPage < 0 || newPage > maxPage) return;
-
             const unlockedPage = Math.floor((maxUnlocked - 1) / LEVELS_PER_PAGE);
-            if (newPage > unlockedPage) return;
-
-            menuPage = newPage;
-            renderLevelGrid();
+            
+            if (newPage >= 0 && newPage <= maxPage && newPage <= unlockedPage) {
+                menuPage = newPage;
+                renderLevelGrid();
+            }
         }
 
         function renderLevelGrid() {
             const grid = document.getElementById('level-grid');
             grid.innerHTML = '';
+            const pageStart = menuPage * LEVELS_PER_PAGE + 1;
+            const pageEnd = Math.min(pageStart + LEVELS_PER_PAGE - 1, MAX_LEVEL);
             
-            const pageStartLevel = menuPage * LEVELS_PER_PAGE + 1;
-            const endLevel = Math.min(pageStartLevel + LEVELS_PER_PAGE - 1, MAX_LEVEL);
-
-            const themeIndex = Math.min(menuPage, THEME_NAMES.length - 1);
-            document.getElementById('page-theme-name').innerText = `${THEME_NAMES[themeIndex]} SECTOR`;
+            const themeName = THEME_NAMES[Math.min(menuPage, THEME_NAMES.length-1)];
+            document.getElementById('page-theme-name').innerText = `${themeName} SECTOR`;
             document.getElementById('page-indicator').innerText = `PAGE ${menuPage + 1}`;
 
-            for (let i = pageStartLevel; i <= endLevel; i++) {
+            for (let i = pageStart; i <= pageEnd; i++) {
                 const btn = document.createElement('div');
                 btn.className = 'level-btn';
                 btn.innerText = i;
-                
-                if (i > maxUnlocked) {
-                    btn.classList.add('locked');
-                } else {
+                if (i > maxUnlocked) btn.classList.add('locked');
+                else {
                     if (i < maxUnlocked) btn.classList.add('cleared');
                     btn.onclick = () => startLevel(i);
                 }
                 grid.appendChild(btn);
             }
 
-            // 버튼 활성/비활성 처리
-            const btnPrev = document.getElementById('btn-prev');
+            const nextStart = (menuPage + 1) * LEVELS_PER_PAGE + 1;
+            const hasNext = (menuPage < Math.ceil(MAX_LEVEL/LEVELS_PER_PAGE)-1) && (maxUnlocked >= nextStart);
+            
+            document.getElementById('btn-prev').style.opacity = menuPage > 0 ? 1 : 0.3;
             const btnNext = document.getElementById('btn-next');
-            
-            btnPrev.disabled = (menuPage === 0);
-            btnPrev.style.opacity = (menuPage === 0) ? 0.3 : 1;
-
-            const maxPage = Math.ceil(MAX_LEVEL / LEVELS_PER_PAGE) - 1;
-            const nextStartLevel = (menuPage + 1) * LEVELS_PER_PAGE + 1;
-            const isLockedNext = maxUnlocked < nextStartLevel;
-            
-            if (menuPage >= maxPage || isLockedNext) {
-                btnNext.disabled = true;
-                btnNext.style.opacity = 0.3;
-                btnNext.innerText = "🔒";
-            } else {
-                btnNext.disabled = false;
-                btnNext.style.opacity = 1;
-                btnNext.innerText = "▶";
-            }
+            btnNext.innerText = hasNext ? "▶" : "🔒";
+            btnNext.style.opacity = hasNext ? 1 : 0.3;
         }
 
-        function showScreen(name) {
-            Object.values(uiScreens).forEach(el => el.style.display = 'none');
-            if (uiScreens[name]) uiScreens[name].style.display = 'flex';
-        }
-
-        function goToLevelSelect() {
-            gameState = 'menu';
-            renderLevelGrid();
-            showScreen('menu');
-        }
-
-        // --- 게임 실행 ---
         function startLevel(lvl) {
             currentLevel = lvl;
             levelConfig = getLevelConfig(lvl);
             
             resetLander();
             generateTerrain(levelConfig.padSizeMult);
-            initEnvironment(levelConfig);
+            
+            initEnvironment(levelConfig); 
             initObstacles(levelConfig.obstacleCount);
 
-            uiHud.level.innerText = lvl;
-            uiHud.planet.innerText = levelConfig.theme;
-            uiHud.prog.style.width = `${(lvl/MAX_LEVEL)*100}%`;
+            document.getElementById('ui-level').innerText = lvl;
+            document.getElementById('ui-planet').innerText = levelConfig.theme;
             showScreen(null);
 
             if (TUTORIALS[lvl]) {
                 gameState = 'tutorial';
                 const tut = TUTORIALS[lvl];
                 document.getElementById('tut-title').innerText = tut.title;
-                // 모바일이면 모바일 설명, 아니면 PC 설명 (공통 text가 있으면 그걸 씀)
-                let desc = tut.text;
-                if (!desc) {
-                    desc = isMobile ? tut.mobile : tut.pc;
-                }
-                document.getElementById('tut-text').innerText = desc;
+                const desc = isMobile ? (tut.mobile || tut.text) : (tut.pc || tut.text);
+                document.getElementById('tut-text').innerText = desc || tut.text;
                 showScreen('tutorial');
             } else {
                 gameState = 'playing';
             }
         }
 
-        function closeTutorial() {
-            showScreen(null);
-            gameState = 'playing';
-        }
-
-        function togglePause() {
-            if (gameState === 'playing') {
-                gameState = 'paused';
-                showScreen('pause');
-            } else if (gameState === 'paused') {
-                gameState = 'playing';
-                showScreen(null);
-            }
-        }
-
-        function restartCurrentLevel() {
-            startLevel(currentLevel);
-        }
-
         function resetLander() {
             lander.x = LOGICAL_WIDTH / 2;
             lander.y = 50;
-            lander.vx = 0;
-            lander.vy = 0;
-            lander.angle = 0;
-            lander.fuel = levelConfig.fuel;
-            lander.visible = true;
+            lander.vx = 0; lander.vy = 0; lander.angle = 0;
+            lander.fuel = levelConfig.fuel; lander.visible = true;
         }
 
         function getLevelConfig(level) {
             const progress = (level - 1) / (MAX_LEVEL - 1); 
-            let theme = 'MOON'; let bgColor = '#050505'; let groundColor = '#aaa'; let weather = 'none';
+            let theme = 'MOON'; let bgColor = '#000'; let groundColor = '#aaa'; let weather = 'none';
 
-            if (level <= 10) { theme = 'THE MOON'; bgColor='#050505'; groundColor='#bbb'; weather='none'; }
-            else if (level <= 20) { theme = 'MARS'; bgColor='#2b0e0e'; groundColor='#c1440e'; weather='dust'; }
-            else if (level <= 30) { theme = 'EARTH'; bgColor='#0a1a2a'; groundColor='#2a5a1a'; weather='rain'; }
-            else if (level <= 40) { theme = 'ICE PLANET'; bgColor='#0b1021'; groundColor='#aaccff'; weather='snow'; }
-            else { theme = 'VOLCANIC'; bgColor='#1a0500'; groundColor='#4a1100'; weather='ember'; }
+            if (level <= 10) { theme = 'THE MOON'; }
+            else if (level <= 20) { theme = 'MARS'; bgColor='#1a0505'; groundColor='#c1440e'; weather='dust'; }
+            else if (level <= 30) { theme = 'EARTH'; bgColor='#051020'; groundColor='#2a5a1a'; weather='rain'; }
+            else if (level <= 40) { theme = 'ICE PLANET'; bgColor='#050a15'; groundColor='#aaccff'; weather='snow'; }
+            else { theme = 'VOLCANIC'; bgColor='#150500'; groundColor='#4a1100'; weather='ember'; }
 
-            const gravity = 0.05 + (0.07 * progress);
-            const fuel = Math.max(70, 120 - (progress * 50));
-            const padSizeMult = Math.max(1.2, 3.5 - (2.3 * progress));
+            const gravity = 0.035 + (0.05 * progress); 
+            const fuel = Math.max(80, 130 - (progress * 50)); 
+            const padSizeMult = Math.max(1.5, 4.0 - (2.5 * progress)); 
 
             let wind = 0;
             if (level >= 5) {
-                const strength = Math.min(0.04, (level - 4) * 0.0015);
-                const direction = (level % 2 === 0) ? 1 : -1;
-                wind = direction * strength;
+                const strength = Math.min(0.03, (level - 4) * 0.001);
+                wind = (level % 2 === 0 ? 1 : -1) * strength;
             }
 
             let obstacleCount = 0;
@@ -624,9 +748,9 @@
                 let y;
                 if (x >= landingPad.x - segmentWidth/2 && x <= landingPad.x + landingPad.width + segmentWidth/2) {
                     if (x >= landingPad.x && x <= landingPad.x + landingPad.width) y = landingPad.y; 
-                    else y = landingPad.y + 10;
+                    else y = landingPad.y + 10; 
                 } else {
-                    currentHeight += (Math.random() - 0.5) * 80;
+                    currentHeight += (Math.random() - 0.5) * 60; 
                     currentHeight = Math.max(200, Math.min(580, currentHeight));
                     y = currentHeight;
                 }
@@ -636,16 +760,16 @@
 
         function initEnvironment(config) {
             particles = [];
-            let count = 50; let type = 'star';
-            if (config.weather === 'dust') { count = 80; type = 'dust'; }
+            let count = 60; let type = 'star';
+            if (config.weather === 'dust') count = 80;
             if (config.weather === 'rain') { count = 150; type = 'rain'; }
-            if (config.weather === 'snow') { count = 120; type = 'snow'; }
-            if (config.weather === 'ember') { count = 100; type = 'ember'; }
+            if (config.weather === 'snow') { count = 100; type = 'snow'; }
+            if (config.weather === 'ember') { count = 80; type = 'ember'; }
 
             for(let i=0; i<count; i++) {
                 particles.push({
-                    x: Math.random() * LOGICAL_WIDTH,
-                    y: Math.random() * LOGICAL_HEIGHT,
+                    x: Math.random() * canvas.width, 
+                    y: Math.random() * canvas.height,
                     vx: (Math.random() - 0.5) * 0.5,
                     vy: Math.random() * 2 + 0.5,
                     size: Math.random() * 2,
@@ -660,102 +784,27 @@
                 obstacles.push({
                     x: Math.random() * LOGICAL_WIDTH,
                     y: 100 + Math.random() * 300,
-                    speed: (1.5 + (currentLevel * 0.05)) * (Math.random() < 0.5 ? 1 : -1),
+                    speed: (1.2 + (currentLevel * 0.03)) * (Math.random() < 0.5 ? 1 : -1),
                     radius: 8 + Math.random() * 5,
                     phase: Math.random() * Math.PI * 2
                 });
             }
         }
 
-        // --- 루프 ---
-        function update() {
-            if (gameState !== 'playing') return;
-
-            if (keys['ArrowLeft']) lander.angle -= 0.06;
-            if (keys['ArrowRight']) lander.angle += 0.06;
-            if (keys['ArrowUp'] && lander.fuel > 0) {
-                lander.vx += Math.sin(lander.angle) * 0.15;
-                lander.vy -= Math.cos(lander.angle) * 0.15;
-                lander.fuel -= 0.35;
-            }
-
-            lander.vy += levelConfig.gravity;
-            lander.vx += levelConfig.wind;
-            lander.x += lander.vx; lander.y += lander.vy;
-
-            // 경계 처리
-            if (lander.x < 0) lander.x = LOGICAL_WIDTH;
-            if (lander.x > LOGICAL_WIDTH) lander.x = 0;
-            if (lander.y < 0) { lander.y = 0; lander.vy = 0; }
-
-            obstacles.forEach(obs => {
-                obs.x += obs.speed;
-                obs.y += Math.sin(Date.now() / 500 + obs.phase) * 0.5;
-                if (obs.x < 0 || obs.x > LOGICAL_WIDTH) obs.speed *= -1;
-                const dist = Math.hypot(lander.x - obs.x, lander.y - obs.y);
-                if (dist < obs.radius + LANDER_SIZE/2) endGame(false, "장애물 충돌!");
-            });
-
-            checkTerrainCollision();
-
-            // UI 업데이트
-            uiHud.fuel.innerText = Math.floor(lander.fuel);
-            uiHud.fuel.className = lander.fuel < 20 ? 'danger' : '';
-            uiHud.alt.innerText = Math.max(0, Math.floor(landingPad.y - lander.y));
-            uiHud.vspeed.innerText = Math.abs(lander.vy).toFixed(2);
-            uiHud.vspeed.className = lander.vy > SAFE_V_SPEED ? 'danger' : 'safe';
-            uiHud.hspeed.innerText = Math.abs(lander.vx).toFixed(2);
-            uiHud.hspeed.className = Math.abs(lander.vx) > SAFE_H_SPEED ? 'danger' : 'safe';
-            
-            if (levelConfig.wind !== 0) {
-                const dir = levelConfig.wind > 0 ? ">>" : "<<";
-                uiHud.wind.innerText = `${dir} ${Math.abs(levelConfig.wind*1000).toFixed(0)}`;
-                uiHud.wind.className = 'warn';
-            } else {
-                uiHud.wind.innerText = "0";
-                uiHud.wind.className = 'safe';
-            }
+        function showScreen(name) {
+            Object.values(uiScreens).forEach(el => el.style.display = 'none');
+            if (uiScreens[name]) uiScreens[name].style.display = 'flex';
         }
-
-        function checkTerrainCollision() {
-            const bottomX = lander.x;
-            const bottomY = lander.y + LANDER_SIZE/2;
-            const onPadX = bottomX >= landingPad.x && bottomX <= landingPad.x + landingPad.width;
-            let terrainH = LOGICAL_HEIGHT;
-            const segmentWidth = LOGICAL_WIDTH / (terrainPoints.length - 1);
-            const idx = Math.floor(bottomX / segmentWidth);
-            
-            if (idx >= 0 && idx < terrainPoints.length - 1) {
-                const p1 = terrainPoints[idx];
-                const p2 = terrainPoints[idx + 1];
-                terrainH = p1.y + (bottomX - p1.x) * (p2.y - p1.y) / (p2.x - p1.x);
-            }
-            if (onPadX && Math.abs(bottomY - landingPad.y) < 10) terrainH = landingPad.y;
-
-            if (bottomY >= terrainH) {
-                lander.y = terrainH - LANDER_SIZE/2;
-                if (onPadX) {
-                    const safeV = lander.vy < SAFE_V_SPEED;
-                    const safeH = Math.abs(lander.vx) < SAFE_H_SPEED;
-                    const safeA = Math.abs(lander.angle) < SAFE_ANGLE;
-                    if (safeV && safeH && safeA) endGame(true, "완벽한 착륙!");
-                    else {
-                        let reason = "";
-                        if (!safeV) reason = "하강 속도 초과!";
-                        else if (!safeH) reason = "수평 속도 초과!";
-                        else reason = "착륙 각도 불량!";
-                        endGame(false, reason);
-                    }
-                } else {
-                    endGame(false, "지형 충돌!");
-                }
-            }
+        function goToLevelSelect() { gameState = 'menu'; renderLevelGrid(); showScreen('menu'); }
+        function closeTutorial() { showScreen(null); gameState = 'playing'; }
+        function togglePause() { 
+            if (gameState === 'playing') { gameState = 'paused'; showScreen('pause'); }
+            else if (gameState === 'paused') { gameState = 'playing'; showScreen(null); }
         }
-
+        function restartCurrentLevel() { startLevel(currentLevel); }
+        
         function endGame(success, reason) {
-            gameState = 'result';
-            lander.visible = !success;
-            
+            gameState = 'result'; lander.visible = !success;
             const title = document.getElementById('res-title');
             const text = document.getElementById('res-text');
             const btns = document.getElementById('res-buttons');
@@ -763,114 +812,33 @@
             title.innerText = success ? "MISSION SUCCESS" : "MISSION FAILED";
             title.style.color = success ? "#0f0" : "#f00";
             text.innerText = reason;
-            
             btns.innerHTML = '';
 
             if (success) {
                 if (currentLevel === maxUnlocked && currentLevel < MAX_LEVEL) {
-                    maxUnlocked++;
-                    localStorage.setItem('lunar_max_level', maxUnlocked);
+                    maxUnlocked++; localStorage.setItem('lunar_max_level', maxUnlocked);
                 }
                 if (currentLevel < MAX_LEVEL) {
-                    const nextBtn = document.createElement('button');
-                    nextBtn.className = 'btn btn-green';
-                    nextBtn.innerText = 'NEXT LEVEL';
-                    nextBtn.onclick = () => startLevel(currentLevel + 1);
-                    btns.appendChild(nextBtn);
-                } else {
-                    text.innerText = "전설적인 파일럿 등극!\n모든 미션을 완료했습니다.";
-                }
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-green'; btn.innerText = 'NEXT';
+                    btn.onclick = () => startLevel(currentLevel + 1);
+                    btns.appendChild(btn);
+                } else { text.innerText = "All Missions Completed!"; }
             } else {
-                const retryBtn = document.createElement('button');
-                retryBtn.className = 'btn';
-                retryBtn.innerText = 'RETRY';
-                retryBtn.onclick = () => startLevel(currentLevel);
-                btns.appendChild(retryBtn);
+                const btn = document.createElement('button');
+                btn.className = 'btn'; btn.innerText = 'RETRY';
+                btn.onclick = () => startLevel(currentLevel);
+                btns.appendChild(btn);
             }
-
-            const menuBtn = document.createElement('button');
-            menuBtn.className = 'btn btn-red';
-            menuBtn.innerText = 'MENU';
-            menuBtn.onclick = goToLevelSelect;
-            btns.appendChild(menuBtn);
-
+            const menu = document.createElement('button');
+            menu.className = 'btn btn-red'; menu.innerText = 'MENU';
+            menu.onclick = goToLevelSelect;
+            btns.appendChild(menu);
             showScreen('result');
         }
 
-        function draw() {
-            ctx.fillStyle = levelConfig.bgColor || '#000';
-            ctx.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
-
-            ctx.fillStyle = (levelConfig.weather === 'ember') ? '#ff5500' : 'white';
-            if (levelConfig.weather === 'rain') ctx.fillStyle = '#6688cc';
-            particles.forEach(p => {
-                if (gameState === 'playing') {
-                    p.x += p.vx + levelConfig.wind * 20;
-                    p.y += p.vy;
-                    if(p.x > LOGICAL_WIDTH) p.x = 0; if(p.x < 0) p.x = LOGICAL_WIDTH;
-                    if(p.y > LOGICAL_HEIGHT) p.y = 0;
-                }
-                if (levelConfig.weather === 'rain') ctx.fillRect(p.x, p.y, 1, p.size * 3);
-                else { ctx.beginPath(); ctx.arc(p.x, p.y, p.size/2, 0, Math.PI*2); ctx.fill(); }
-            });
-
-            if (terrainPoints.length > 0) {
-                ctx.beginPath();
-                ctx.moveTo(terrainPoints[0].x, terrainPoints[0].y);
-                for(let i=1; i<terrainPoints.length; i++) ctx.lineTo(terrainPoints[i].x, terrainPoints[i].y);
-                ctx.lineTo(LOGICAL_WIDTH, LOGICAL_HEIGHT); ctx.lineTo(0, LOGICAL_HEIGHT);
-                ctx.fillStyle = levelConfig.groundColor || '#aaa';
-                ctx.fill();
-            }
-
-            ctx.fillStyle = '#ff0'; ctx.fillRect(landingPad.x, landingPad.y, landingPad.width, 4);
-            if (Math.floor(Date.now() / 500) % 2 === 0) {
-                 ctx.fillStyle = '#0f0';
-                 ctx.fillRect(landingPad.x, landingPad.y - 10, 2, 10);
-                 ctx.fillRect(landingPad.x + landingPad.width - 2, landingPad.y - 10, 2, 10);
-            }
-
-            obstacles.forEach(obs => {
-                ctx.fillStyle = 'red';
-                ctx.beginPath(); ctx.arc(obs.x, obs.y, obs.radius, 0, Math.PI*2); ctx.fill();
-                ctx.strokeStyle = '#fff'; ctx.stroke();
-            });
-
-            if (lander.visible) {
-                ctx.save();
-                ctx.translate(lander.x, lander.y);
-                ctx.rotate(lander.angle);
-                ctx.fillStyle = '#eee'; ctx.fillRect(-10, -10, 20, 20);
-                ctx.fillStyle = '#3cf'; ctx.fillRect(-5, -5, 10, 10);
-                ctx.strokeStyle = '#aaa'; ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(-10, 10); ctx.lineTo(-15, 18); ctx.lineTo(-18, 18);
-                ctx.moveTo(10, 10); ctx.lineTo(15, 18); ctx.lineTo(18, 18);
-                ctx.stroke();
-
-                if (keys['ArrowUp'] && lander.fuel > 0 && gameState === 'playing') {
-                    ctx.fillStyle = 'orange';
-                    ctx.beginPath(); ctx.moveTo(-6, 10); ctx.lineTo(6, 10); ctx.lineTo(0, 25 + Math.random()*10); ctx.fill();
-                }
-                if (keys['ArrowLeft'] && gameState === 'playing') { ctx.fillStyle = '#aaf'; ctx.fillRect(8, -8, 5, 3); }
-                if (keys['ArrowRight'] && gameState === 'playing') { ctx.fillStyle = '#aaf'; ctx.fillRect(-13, -8, 5, 3); }
-                ctx.restore();
-            } else if (gameState === 'result' && !lander.visible) {
-                ctx.fillStyle = 'orange'; ctx.beginPath(); ctx.arc(lander.x, lander.y, 20, 0, Math.PI*2); ctx.fill();
-            }
-        }
-
-        function loop() {
-            update();
-            draw();
-            requestAnimationFrame(loop);
-        }
-
         document.addEventListener('keydown', (e) => {
-            if (gameState === 'tutorial') {
-                if (e.code === 'Enter' || e.code === 'Space') closeTutorial();
-                return;
-            }
+            if (gameState === 'tutorial' && (e.code === 'Enter' || e.code === 'Space')) closeTutorial();
             keys[e.code] = true;
             if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
         });
