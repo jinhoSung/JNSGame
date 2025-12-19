@@ -74,7 +74,6 @@
         .game-btn:hover { background: rgba(255, 255, 255, 0.5); transform: scale(1.05); }
         .icon-btn { font-size: 1.1rem; padding: 6px 10px; }
 
-        /* 메시지 오버레이 (아이템 획득 등) */
         #msg-overlay {
             position: absolute;
             top: 30%;
@@ -90,7 +89,6 @@
             z-index: 60;
         }
 
-        /* 승리 시 상단 안내 메시지 */
         #victory-msg {
             display: none;
             position: absolute;
@@ -114,7 +112,6 @@
             100% { transform: translateX(-50%) scale(1); }
         }
 
-        /* 결과 모달 */
         #result-modal {
             display: none;
             position: absolute;
@@ -146,7 +143,6 @@
         }
         #restart-btn:hover { background: #555; transform: scale(1.05); }
 
-        /* 모바일 컨트롤러 */
         #mobile-controls {
             position: absolute;
             top: 0;
@@ -281,17 +277,15 @@
     const imgInput = document.getElementById('img-input');
     const msgOverlay = document.getElementById('msg-overlay');
 
-    // 게임 상수
-    const PLAYER_SIZE = 5;
+    // [중요] 게임 상수 (기본 해상도 720p 기준 값)
+    // 이 값들은 resize()에서 gameScale에 따라 곱해져서 실제 값으로 변환됩니다.
+    const BASE_PLAYER_SIZE = 5;
     const BASE_PLAYER_SPEED = 6; 
     const BASE_RETRACT_SPEED = 12;
-    // [난이도] 보스 기본 속도 하향 (3 -> 2)
-    const BOSS_BASE_SPEED = 2; 
-    // [난이도] 최대 미니언 수 제한
-    const MAX_MINIONS = 6;
-    // [난이도] 미니언 수명 (프레임 단위, 60fps 기준 약 10~15초)
-    const MINION_LIFETIME = 700;
+    const BOSS_BASE_SPEED = 2; // 난이도 완화
     
+    const MAX_MINIONS = 6;
+    const MINION_LIFETIME = 700;
     const FALLBACK_IMG = "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80";
     
     const ITEM_TYPES = {
@@ -300,9 +294,11 @@
         LIFE: { color: '#FF0000', icon: '❤️', duration: 0, label: "LIFE UP!" }
     };
 
-    let gameSpeedMultiplier = 1.0; 
-    let currentPlayerSpeed = BASE_PLAYER_SPEED;
-    let currentRetractSpeed = BASE_RETRACT_SPEED;
+    // 스케일링 변수
+    let gameScale = 1.0;
+    
+    // 실제 적용될 변수들 (resize에서 계산됨)
+    let s_playerSize, s_playerSpeed, s_retractSpeed, s_bossSpeed;
 
     // 상태 변수
     let width, height;
@@ -402,13 +398,7 @@
         if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
             document.getElementById('mobile-controls').style.display = 'block';
             setupMobileControls();
-            gameSpeedMultiplier = 0.5;
-        } else {
-            gameSpeedMultiplier = 1.0;
         }
-
-        currentPlayerSpeed = BASE_PLAYER_SPEED * gameSpeedMultiplier;
-        currentRetractSpeed = BASE_RETRACT_SPEED * gameSpeedMultiplier;
 
         setupPCControls();
         resize();
@@ -419,6 +409,16 @@
         width = window.innerWidth || 320;
         height = window.innerHeight || 240;
         
+        // [핵심] 해상도 비례 스케일 계산 (기준: 짧은 변 720px)
+        // 720p보다 화면이 작으면 gameScale < 1, 크면 gameScale > 1
+        gameScale = Math.min(width, height) / 720;
+        
+        // 스케일 적용 값 계산
+        s_playerSize = BASE_PLAYER_SIZE * gameScale;
+        s_playerSpeed = BASE_PLAYER_SPEED * gameScale;
+        s_retractSpeed = BASE_RETRACT_SPEED * gameScale;
+        s_bossSpeed = BOSS_BASE_SPEED * gameScale;
+
         canvas.width = width; canvas.height = height;
         landCanvas.width = width; landCanvas.height = height;
         bgCanvas.width = width; bgCanvas.height = height;
@@ -462,7 +462,8 @@
         landCtx.fillStyle = '#111111'; 
         landCtx.fillRect(0, 0, width, height);
         
-        const border = 40;
+        // 테두리도 스케일 적용
+        const border = 40 * gameScale;
         revealArea(0, 0, width, border); 
         revealArea(0, height - border, width, border); 
         revealArea(0, border, border, height - 2*border); 
@@ -487,7 +488,8 @@
     }
 
     function respawnPlayer() {
-        player.x = 20; 
+        // 시작 위치도 스케일 적용
+        player.x = 20 * gameScale; 
         player.y = height / 2; 
         player.state = 'safe'; player.color = '#00ff00';
         path = [];
@@ -497,13 +499,14 @@
         enemies = [];
         projectiles = [];
         
-        let bossSpeed = (BOSS_BASE_SPEED + (level * 0.4)) * gameSpeedMultiplier; // 레벨당 속도 증가폭도 완화
+        // 보스 속도 계산 (레벨 비례 + 스케일)
+        let bossSpeed = s_bossSpeed + (level * 0.4 * gameScale); 
         
         enemies.push({ 
             type: 'boss', 
             x: width/2, y: height/2, 
             dx: bossSpeed, dy: bossSpeed, 
-            radius: 12 + (level), 
+            radius: (12 + (level)) * gameScale, 
             cooldown: 0,
             baseSpeed: bossSpeed,
             laserState: 0,
@@ -511,7 +514,6 @@
             laserAngle: 0
         });
 
-        // 초기 미니언도 수명 적용
         let minionCount = Math.floor((level - 1) * 1.5); 
         for(let i=0; i<minionCount; i++) {
             let type = level < 3 ? 'bouncer' : 'bouncer'; 
@@ -527,28 +529,28 @@
             x: x, y: y,
             dx: Math.cos(angle) * speed,
             dy: Math.sin(angle) * speed,
-            radius: 6,
+            radius: 6 * gameScale,
             baseSpeed: speed,
             isChasing: false,
             stateTimer: Math.random() * 60 + 60,
-            life: MINION_LIFETIME + Math.random() * 200 // 수명 랜덤 부여
+            life: MINION_LIFETIME + Math.random() * 200 
         });
     }
 
     function spawnItem() {
-        // [난이도] 아이템 생성 주기 단축 (500프레임 약 8초)
         let attempts = 0;
+        let margin = 20 * gameScale;
         while(attempts < 50) {
             let rx = Math.random() * width;
             let ry = Math.random() * height;
-            if(rx > 20 && rx < width-20 && ry > 20 && ry < height-20) {
+            if(rx > margin && rx < width-margin && ry > margin && ry < height-margin) {
                 if(!isSafe(rx, ry)) {
                     const keys = Object.keys(ITEM_TYPES);
                     const typeKey = keys[Math.floor(Math.random() * keys.length)];
                     items.push({
                         type: typeKey,
                         x: rx, y: ry,
-                        radius: 10,
+                        radius: 10 * gameScale,
                         life: 600
                     });
                     break;
@@ -582,8 +584,8 @@
         if (buffs.freeze > 0) buffs.freeze--;
 
         let speedMult = buffs.speed > 0 ? 1.5 : 1.0;
-        let activePlayerSpeed = currentPlayerSpeed * speedMult;
-        let activeRetractSpeed = currentRetractSpeed * speedMult;
+        let activePlayerSpeed = s_playerSpeed * speedMult;
+        let activeRetractSpeed = s_retractSpeed * speedMult;
 
         updateEnemies();
         updateProjectiles();
@@ -644,9 +646,10 @@
 
             if (player.state === 'drawing') {
                 player.color = '#ff3333';
+                // 선 긋기 간격도 스케일 고려
                 const lastPt = path[path.length-1];
                 const dist = Math.hypot(player.x - lastPt.x, player.y - lastPt.y);
-                if (dist > 4) path.push({x: player.x, y: player.y});
+                if (dist > 4 * gameScale) path.push({x: player.x, y: player.y});
 
                 if (nextIsSafe) {
                     path.push({x: player.x, y: player.y});
@@ -681,7 +684,8 @@
         for (let i = items.length - 1; i >= 0; i--) {
             let item = items[i];
             let dist = Math.hypot(player.x - item.x, player.y - item.y);
-            if (dist < PLAYER_SIZE + item.radius) {
+            // 플레이어 크기 + 아이템 반경 스케일 고려
+            if (dist < s_playerSize + item.radius) {
                 applyItemEffect(item.type);
                 items.splice(i, 1);
             }
@@ -697,13 +701,11 @@
     }
 
     function updateEnemies() {
-        // [난이도] 미니언 수명 관리
         for (let i = enemies.length - 1; i >= 0; i--) {
             let en = enemies[i];
             if (en.type === 'minion') {
                 en.life--;
                 if (en.life <= 0) {
-                    // 수명 다하면 소멸 이펙트(간단히) 후 삭제
                     enemies.splice(i, 1);
                     continue;
                 }
@@ -814,7 +816,7 @@
 
     function bossAttack(boss) {
         let rand = Math.random();
-        if (rand < 0.3) { // 미니언 소환 확률 30%
+        if (rand < 0.3) {
             let type = level >= 3 ? 'chaser' : 'bouncer';
             shootMinion(boss, type);
         } else if (rand < 0.5) shootSpreadMissile(boss);
@@ -834,7 +836,7 @@
         
         if (!isSafe(player.x, player.y)) {
             let dist = pointToLineDist(player.x, player.y, boss.x, boss.y, ex, ey);
-            if (dist < PLAYER_SIZE + 10) { 
+            if (dist < s_playerSize + 10 * gameScale) { 
                 handleDeath("레이저에 맞았습니다!"); return;
             }
         }
@@ -842,7 +844,7 @@
         if (path.length > 0) {
             for(let p of path) {
                 let dist = pointToLineDist(p.x, p.y, boss.x, boss.y, ex, ey);
-                if (dist < 10) { 
+                if (dist < 10 * gameScale) { 
                     handleDeath("레이저에 선이 끊겼습니다!"); return;
                 }
             }
@@ -864,17 +866,16 @@
     }
 
     function shootMinion(boss, type) {
-        // [난이도] 현재 미니언 수 체크
         let currentMinions = enemies.filter(e => e.type === 'minion').length;
         if (currentMinions >= MAX_MINIONS) return;
 
         let angle = Math.atan2(player.y - boss.y, player.x - boss.x);
-        let speed = (4 + (level * 0.5)) * gameSpeedMultiplier;
+        let speed = (4 + (level * 0.5)) * gameScale; // 속도 스케일링
         enemies.push({
             type: 'minion', subType: type || 'bouncer',
             x: boss.x, y: boss.y,
             dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed,
-            radius: 6, baseSpeed: speed,
+            radius: 6 * gameScale, baseSpeed: speed,
             isChasing: false, stateTimer: 60,
             life: MINION_LIFETIME + Math.random() * 200
         });
@@ -882,21 +883,21 @@
 
     function shootMissile(boss) {
         let angle = Math.atan2(player.y - boss.y, player.x - boss.x);
-        let speed = (7 + (level * 0.8)) * gameSpeedMultiplier; 
+        let speed = (7 + (level * 0.8)) * gameScale; 
         projectiles.push({
             x: boss.x, y: boss.y,
-            dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed, radius: 4
+            dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed, radius: 4 * gameScale
         });
     }
     
     function shootSpreadMissile(boss) {
         let baseAngle = Math.atan2(player.y - boss.y, player.x - boss.x);
-        let speed = (6 + (level * 0.8)) * gameSpeedMultiplier;
+        let speed = (6 + (level * 0.8)) * gameScale;
         for(let i = -1; i <= 1; i++) {
             let angle = baseAngle + (i * 0.3); 
             projectiles.push({
                 x: boss.x, y: boss.y,
-                dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed, radius: 4
+                dx: Math.cos(angle) * speed, dy: Math.sin(angle) * speed, radius: 4 * gameScale
             });
         }
     }
@@ -917,13 +918,13 @@
         enemies.forEach(en => {
             if ((player.state === 'drawing' || player.state === 'retracting') && path.length > 0) {
                 for (let p of path) {
-                    if (Math.hypot(p.x - en.x, p.y - en.y) < en.radius + 4) {
+                    if (Math.hypot(p.x - en.x, p.y - en.y) < en.radius + 4 * gameScale) {
                         handleDeath("선을 건드렸습니다!"); dead = true; return;
                     }
                 }
             }
             if (!isOnSafeGround) {
-                if (Math.hypot(player.x - en.x, player.y - en.y) < en.radius + PLAYER_SIZE + 2) {
+                if (Math.hypot(player.x - en.x, player.y - en.y) < en.radius + s_playerSize + 2 * gameScale) {
                     handleDeath("적에게 잡혔습니다!"); dead = true; return;
                 }
             }
@@ -932,13 +933,13 @@
         projectiles.forEach(p => {
              if ((player.state === 'drawing' || player.state === 'retracting') && path.length > 0) {
                 for (let pt of path) {
-                    if (Math.hypot(pt.x - p.x, pt.y - p.y) < p.radius + 4) {
+                    if (Math.hypot(pt.x - p.x, pt.y - p.y) < p.radius + 4 * gameScale) {
                         handleDeath("미사일에 선이 끊겼습니다!"); dead = true; return;
                     }
                 }
             }
             if (!isOnSafeGround) {
-                if (Math.hypot(player.x - p.x, player.y - p.y) < p.radius + PLAYER_SIZE + 2) {
+                if (Math.hypot(player.x - p.x, player.y - p.y) < p.radius + s_playerSize + 2 * gameScale) {
                     handleDeath("미사일에 맞았습니다!"); dead = true; return;
                 }
             }
@@ -1046,7 +1047,7 @@
                     let t = s / steps;
                     let lx = p1.x + (p2.x - p1.x) * t;
                     let ly = p1.y + (p2.y - p1.y) * t;
-                    let radius = 4; 
+                    let radius = 4 * gameScale; // [스케일] 선 두께 적용
                     for(let py = Math.floor(ly)-radius; py <= Math.floor(ly)+radius; py++) {
                         for(let px = Math.floor(lx)-radius; px <= Math.floor(lx)+radius; px++) {
                             if(px >= 0 && px < width && py >= 0 && py < height) {
@@ -1117,7 +1118,7 @@
 
         items.forEach(item => {
             let info = ITEM_TYPES[item.type];
-            ctx.shadowBlur = 10;
+            ctx.shadowBlur = 10 * gameScale;
             ctx.shadowColor = info.color;
             ctx.fillStyle = info.color;
             ctx.beginPath();
@@ -1125,7 +1126,7 @@
             ctx.fill();
             ctx.shadowBlur = 0;
             ctx.fillStyle = 'black';
-            ctx.font = '12px Arial';
+            ctx.font = (12 * gameScale) + 'px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(info.icon, item.x, item.y);
@@ -1134,7 +1135,7 @@
         if (path.length > 1) {
             ctx.beginPath();
             ctx.strokeStyle = player.state === 'retracting' ? '#ffff00' : '#ff3333';
-            ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            ctx.lineWidth = 3 * gameScale; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
             ctx.moveTo(path[0].x, path[0].y);
             for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y);
             ctx.lineTo(player.x, player.y);
@@ -1145,8 +1146,8 @@
             if (en.type === 'boss') {
                 if (en.laserState === 1) { 
                     ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
-                    ctx.lineWidth = 2;
-                    ctx.setLineDash([5, 5]);
+                    ctx.lineWidth = 2 * gameScale;
+                    ctx.setLineDash([5 * gameScale, 5 * gameScale]);
                     ctx.beginPath();
                     ctx.moveTo(en.x, en.y);
                     let ex = en.x + Math.cos(en.laserAngle) * 2000;
@@ -1156,8 +1157,8 @@
                     ctx.setLineDash([]);
                 } else if (en.laserState === 2) { 
                     ctx.strokeStyle = '#ff0000';
-                    ctx.lineWidth = 20; 
-                    ctx.shadowBlur = 20;
+                    ctx.lineWidth = 20 * gameScale; 
+                    ctx.shadowBlur = 20 * gameScale;
                     ctx.shadowColor = 'red';
                     ctx.beginPath();
                     ctx.moveTo(en.x, en.y);
@@ -1166,7 +1167,7 @@
                     ctx.lineTo(ex, ey);
                     ctx.stroke();
                     ctx.shadowBlur = 0;
-                    ctx.lineWidth = 8;
+                    ctx.lineWidth = 8 * gameScale;
                     ctx.strokeStyle = 'white';
                     ctx.stroke();
                 }
@@ -1193,7 +1194,7 @@
                 ctx.closePath();
                 ctx.fill();
                 ctx.strokeStyle = "#440000";
-                ctx.lineWidth = 2;
+                ctx.lineWidth = 2 * gameScale;
                 ctx.stroke();
 
                 ctx.beginPath();
@@ -1221,14 +1222,13 @@
                 ctx.fill();
 
             } else {
-                // Minion life indicator (opacity)
-                ctx.globalAlpha = Math.min(1, en.life / 100 + 0.3); // 사라지기 전 투명해짐
+                ctx.globalAlpha = Math.min(1, en.life / 100 + 0.3); 
                 ctx.fillStyle = en.subType === 'chaser' ? "#ff00ff" : "#ff8800";
                 ctx.beginPath();
                 ctx.arc(en.x, en.y, en.radius, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.strokeStyle = "#884400";
-                ctx.lineWidth = 1;
+                ctx.lineWidth = 1 * gameScale;
                 ctx.stroke();
                 
                 ctx.fillStyle = "white";
@@ -1245,7 +1245,7 @@
                 ctx.arc(px, py, en.radius * 0.2, 0, Math.PI * 2);
                 ctx.fill();
                 
-                ctx.globalAlpha = 1.0; // Reset alpha
+                ctx.globalAlpha = 1.0; 
             }
         });
 
@@ -1258,14 +1258,14 @@
 
         ctx.fillStyle = player.color;
         if (buffs.speed > 0) {
-            ctx.shadowBlur = 15;
+            ctx.shadowBlur = 15 * gameScale;
             ctx.shadowColor = 'yellow';
         } else {
-            ctx.shadowBlur = 10;
+            ctx.shadowBlur = 10 * gameScale;
             ctx.shadowColor = 'black';
         }
         ctx.beginPath();
-        ctx.arc(player.x, player.y, PLAYER_SIZE, 0, Math.PI*2);
+        ctx.arc(player.x, player.y, s_playerSize, 0, Math.PI*2);
         ctx.fill();
         ctx.shadowBlur = 0;
     }
@@ -1352,7 +1352,7 @@
 
             let dx = touch.clientX - joyStartX;
             let dy = touch.clientY - joyStartY;
-            const maxDist = 40; // 조이스틱 반경
+            const maxDist = 40 * gameScale; // [스케일] 조이스틱 반경
             const dist = Math.min(Math.hypot(dx, dy), maxDist);
             const angle = Math.atan2(dy, dx);
 
@@ -1391,14 +1391,12 @@
         const endAction = (e) => {
             e.preventDefault();
             // 모든 터치가 끝났는지 체크하거나 단순히 액션 해제
-            // 멀티터치를 고려해 터치 목록이 비었거나 해당 영역 터치가 끝났을 때 해제해야 함
-            // 간단하게는 그냥 해제
             if (e.touches.length === 0 || Array.from(e.touches).every(t => t.clientX < window.innerWidth / 2)) {
                  input.action = false;
                  actionBtn.classList.remove('active');
             }
         };
-        // zoneRight는 간단히 터치 시작/끝만 감지해도 됨
+        
         zoneRight.addEventListener('touchend', (e) => {
              e.preventDefault();
              // 이 영역에 남은 터치가 없으면 액션 해제
