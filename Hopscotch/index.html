@@ -205,7 +205,7 @@
         </div>
     </div>
 
-    <!-- 승리 메시지 (배경 감상 모드) -->
+    <!-- 승리 메시지 -->
     <div id="victory-msg">성공! 터치하여 다음 레벨로 ▶</div>
 
     <!-- 게임오버 모달 -->
@@ -240,19 +240,27 @@
 
     // 게임 상수
     const PLAYER_SIZE = 5;
-    const PLAYER_SPEED = 6; 
-    const RETRACT_SPEED = 12;
-    const BOSS_BASE_SPEED = 5; 
+    const BASE_PLAYER_SPEED = 6; 
+    const BASE_RETRACT_SPEED = 12;
+    const BOSS_BASE_SPEED = 3; 
+    const FALLBACK_IMG = "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80";
     
+    let currentPlayerSpeed = BASE_PLAYER_SPEED;
+    let currentRetractSpeed = BASE_RETRACT_SPEED;
+
     // 상태 변수
     let width, height;
     let level = 1;
     let lives = 3;
     let totalPixels = 0;
     let capturedPixels = 0;
-    let gameState = 'playing'; // 'playing', 'gameover', 'victory_view'
+    let gameState = 'playing'; 
     let isInitialized = false;
     let currentTargetPercent = 80;
+    
+    // 로컬 이미지 관련 변수
+    let availableImages = []; // 스캔된 이미지 번호들 (예: [1, 2, 3, 4, 5, 6])
+    let currentImageIndex = -1; // 현재 사용 중인 이미지 인덱스
     
     // Grid System
     let grid = null; 
@@ -262,20 +270,54 @@
     let bgCtx = bgCanvas.getContext('2d');
     let bgImage = new Image();
 
-    // 기본 이미지
     bgImage.crossOrigin = "Anonymous";
-    bgImage.src = "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80";
+    
+    // 초기 실행 시 이미지 스캔 시작
+    // 스캔이 끝나면 init() 호출
+    scanLocalImages(1);
 
-    // 엔티티
     let player = { x: 0, y: 0, color: '#00ff00', state: 'safe' };
     let path = []; 
     let enemies = []; 
     let projectiles = []; 
     let input = { left: false, right: false, up: false, down: false, action: false, joyX: 0, joyY: 0 };
 
+    // --- 동적 이미지 로딩 로직 ---
+    function scanLocalImages(index) {
+        let testImg = new Image();
+        testImg.onload = function() {
+            // 로드 성공 -> 리스트에 추가하고 다음 번호 확인
+            availableImages.push(index);
+            scanLocalImages(index + 1);
+        };
+        testImg.onerror = function() {
+            // 로드 실패 -> 스캔 종료 및 게임 시작
+            console.log(`이미지 스캔 완료: 총 ${availableImages.length}개 발견`);
+            setRandomBackground(); // 첫 배경 설정
+        };
+        testImg.src = `img/${index}.png`;
+    }
+
+    function setRandomBackground() {
+        if (availableImages.length > 0) {
+            // 발견된 로컬 이미지가 있으면 그 중에서 랜덤 선택
+            let randIdx = Math.floor(Math.random() * availableImages.length);
+            let imgNum = availableImages[randIdx];
+            bgImage.src = `img/${imgNum}.png`;
+        } else {
+            // 없으면 기본 온라인 이미지 사용
+            if (!bgImage.src || bgImage.src === "") {
+                bgImage.src = FALLBACK_IMG;
+            } else if (!isInitialized) {
+                // 이미지가 설정되어 있다면 그냥 진행 (수동 변경 등)
+                // 만약 src가 비어있다면 초기화
+                bgImage.src = FALLBACK_IMG;
+            }
+        }
+    }
+
     // --- 이벤트 핸들러 ---
     
-    // 화면 클릭/터치 시 다음 레벨로 (승리 뷰 상태일 때)
     document.addEventListener('click', handleGlobalClick);
     document.addEventListener('touchstart', handleGlobalClick);
 
@@ -289,16 +331,26 @@
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
-            reader.onload = (event) => { bgImage.src = event.target.result; };
+            reader.onload = (event) => { 
+                bgImage.src = event.target.result; 
+                // 수동 변경 시에는 자동 변경 로직이 덮어쓰지 않도록 주의해야 함
+                // 하지만 다음 레벨로 가면 다시 랜덤이 됨 (의도된 동작)
+            };
             reader.readAsDataURL(file);
         }
     });
 
     bgImage.onload = () => {
         if (!isInitialized) { init(); isInitialized = true; }
-        else { resize(); }
+        else { resize(); } // 이미지가 바뀌면 리사이즈(리셋) 호출
     };
-    bgImage.onerror = () => { init(); isInitialized = true; }
+    bgImage.onerror = () => { 
+        console.log("이미지 로드 실패, 기본값 사용");
+        if(bgImage.src !== FALLBACK_IMG) {
+            bgImage.src = FALLBACK_IMG; 
+        }
+        if (!isInitialized) { init(); isInitialized = true; }
+    }
 
     function toggleFullscreen() {
         if (!document.fullscreenElement) {
@@ -314,7 +366,14 @@
         if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
             document.getElementById('mobile-controls').style.display = 'flex';
             setupMobileControls();
+            
+            currentPlayerSpeed = BASE_PLAYER_SPEED * 0.5;
+            currentRetractSpeed = BASE_RETRACT_SPEED * 0.5;
+        } else {
+            currentPlayerSpeed = BASE_PLAYER_SPEED;
+            currentRetractSpeed = BASE_RETRACT_SPEED;
         }
+
         setupPCControls();
         
         resize();
@@ -349,6 +408,8 @@
         if (fullReset) {
             level = 1;
             lives = 3;
+            // 게임 완전히 새로 시작할 때도 랜덤 배경 한 번 변경
+            if(availableImages.length > 0) setRandomBackground();
         }
 
         currentTargetPercent = Math.min(80 + (level - 1) * 2, 95);
@@ -356,13 +417,12 @@
         gameState = 'playing';
         updateUI();
         
-        // UI 초기화
         modal.style.display = 'none';
         victoryMsg.style.display = 'none';
-        uiLayer.style.opacity = '1'; // UI 다시 보이기
+        uiLayer.style.opacity = '1'; 
         
         grid = new Uint8Array(width * height);
-        totalPixels = width * height;
+        totalPixels = width * height; 
         capturedPixels = 0;
         
         landCtx.fillStyle = '#111111'; 
@@ -374,13 +434,22 @@
         revealArea(0, border, border, height - 2*border); 
         revealArea(width - border, border, border, height - 2*border); 
 
+        // 0% 시작 로직
+        let borderPixels = capturedPixels;
+        totalPixels = (width * height) - borderPixels; 
+        capturedPixels = 0; 
+        
+        updateUI();
+
         respawnPlayer();
         initEnemies();
     }
 
     function nextLevel() {
         level++;
-        resetGame(false); 
+        // 레벨업 시 랜덤 배경 변경
+        // 이미지가 바뀌면 onload -> resize -> resetGame(false)가 호출됨
+        setRandomBackground();
     }
 
     function respawnPlayer() {
@@ -394,28 +463,32 @@
         enemies = [];
         projectiles = [];
         
-        let speed = BOSS_BASE_SPEED + (level * 0.8);
+        let bossSpeed = BOSS_BASE_SPEED + (level * 0.5);
+        
         enemies.push({ 
             type: 'boss', 
             x: width/2, y: height/2, 
-            dx: speed, dy: speed, 
+            dx: bossSpeed, dy: bossSpeed, 
             radius: 8 + (level), 
-            cooldown: 0 
+            cooldown: 0,
+            baseSpeed: bossSpeed
         });
 
         let minionCount = Math.floor((level - 1) * 1.5); 
         for(let i=0; i<minionCount; i++) {
-            spawnMinion(width/2, height/2, speed * 0.8); 
+            spawnMinion(width/2, height/2, bossSpeed * 0.8); 
         }
     }
     
     function spawnMinion(x, y, speed) {
+         let angle = Math.random() * Math.PI * 2;
          enemies.push({
             type: 'minion',
             x: x, y: y,
-            dx: (Math.random()-0.5)*speed*1.5,
-            dy: (Math.random()-0.5)*speed*1.5,
-            radius: 5
+            dx: Math.cos(angle) * speed,
+            dy: Math.sin(angle) * speed,
+            radius: 5,
+            baseSpeed: speed
         });
     }
 
@@ -432,7 +505,7 @@
         updateProjectiles();
 
         if (player.state === 'retracting') {
-            let moveDist = RETRACT_SPEED; 
+            let moveDist = currentRetractSpeed; 
             while (moveDist > 0 && path.length > 0) {
                 let target = path[path.length - 1];
                 let dx = target.x - player.x;
@@ -451,7 +524,7 @@
             if (path.length === 0) {
                 player.state = 'safe'; player.color = '#00ff00';
             }
-            checkCollision();
+            if (checkCollision()) return; 
             return; 
         }
 
@@ -465,8 +538,8 @@
             if(len > 1) { dx /= len; dy /= len; }
         }
 
-        let nextX = player.x + dx * PLAYER_SPEED;
-        let nextY = player.y + dy * PLAYER_SPEED;
+        let nextX = player.x + dx * currentPlayerSpeed;
+        let nextY = player.y + dy * currentPlayerSpeed;
         
         nextX = Math.max(0, Math.min(width-1, nextX));
         nextY = Math.max(0, Math.min(height-1, nextY));
@@ -474,7 +547,7 @@
         const currentlySafe = isSafe(player.x, player.y);
         const nextIsSafe = isSafe(nextX, nextY);
 
-        checkCollision();
+        if (checkCollision()) return;
 
         if (input.action) {
             if (player.state === 'safe' && !nextIsSafe) {
@@ -511,6 +584,23 @@
 
     function updateEnemies() {
         enemies.forEach(en => {
+            let maxSpeed = en.baseSpeed * 2.5; 
+            let currentSpeedSq = en.dx*en.dx + en.dy*en.dy;
+            if (currentSpeedSq > maxSpeed*maxSpeed) {
+                let scale = maxSpeed / Math.sqrt(currentSpeedSq);
+                en.dx *= scale;
+                en.dy *= scale;
+            }
+
+            let currentSpeed = Math.sqrt(currentSpeedSq);
+            let minSpeed = en.baseSpeed * 0.5;
+            
+            if (currentSpeed < minSpeed && currentSpeed > 0.1) {
+                let angle = Math.atan2(en.dy, en.dx);
+                en.dx = Math.cos(angle) * minSpeed;
+                en.dy = Math.sin(angle) * minSpeed;
+            }
+
             en.x += en.dx;
             en.y += en.dy;
 
@@ -520,28 +610,40 @@
             if (hitX) en.dx *= -1;
             if (hitY) en.dy *= -1;
             
-            if (en.x < en.radius || en.x > width-en.radius) en.dx *= -1;
-            if (en.y < en.radius || en.y > height-en.radius) en.dy *= -1;
+            if (en.x < en.radius) { en.x = en.radius; en.dx = Math.abs(en.dx); }
+            else if (en.x > width - en.radius) { en.x = width - en.radius; en.dx = -Math.abs(en.dx); }
+            
+            if (en.y < en.radius) { en.y = en.radius; en.dy = Math.abs(en.dy); }
+            else if (en.y > height - en.radius) { en.y = height - en.radius; en.dy = -Math.abs(en.dy); }
 
             if (en.type === 'boss') {
                 if (en.cooldown > 0) en.cooldown--;
                 else {
                     if (Math.random() < 0.03 + (level * 0.005)) { 
                         bossAttack(en);
-                        en.cooldown = Math.max(60, 100 - (level * 5)); 
+                        en.cooldown = Math.max(40, 80 - (level * 5)); 
                     }
                 }
-                if (Math.random() < 0.02) {
-                    en.dx = (Math.random() - 0.5) * Math.abs(en.dx) * 2.5; 
-                    en.dy = (Math.random() - 0.5) * Math.abs(en.dy) * 2.5;
+                if (Math.random() < 0.03) {
+                    let angle = Math.random() * Math.PI * 2;
+                    let speed = Math.max(Math.hypot(en.dx, en.dy), en.baseSpeed);
+                    en.dx = Math.cos(angle) * speed;
+                    en.dy = Math.sin(angle) * speed;
+                }
+                else if (Math.random() < 0.01) {
+                     en.dx *= 1.5;
+                     en.dy *= 1.5;
                 }
             }
         });
     }
 
     function bossAttack(boss) {
-        if (Math.random() < 0.3) {
+        let rand = Math.random();
+        if (rand < 0.2) {
             shootMinion(boss);
+        } else if (rand < 0.4) {
+            shootSpreadMissile(boss);
         } else {
             shootMissile(boss);
         }
@@ -555,19 +657,34 @@
             x: boss.x, y: boss.y,
             dx: Math.cos(angle) * speed,
             dy: Math.sin(angle) * speed,
-            radius: 5
+            radius: 5,
+            baseSpeed: speed
         });
     }
 
     function shootMissile(boss) {
         let angle = Math.atan2(player.y - boss.y, player.x - boss.x);
-        let speed = 6 + (level * 0.8); 
+        let speed = 7 + (level * 0.8); 
         projectiles.push({
             x: boss.x, y: boss.y,
             dx: Math.cos(angle) * speed,
             dy: Math.sin(angle) * speed,
             radius: 4
         });
+    }
+    
+    function shootSpreadMissile(boss) {
+        let baseAngle = Math.atan2(player.y - boss.y, player.x - boss.x);
+        let speed = 6 + (level * 0.8);
+        for(let i = -1; i <= 1; i++) {
+            let angle = baseAngle + (i * 0.3); 
+            projectiles.push({
+                x: boss.x, y: boss.y,
+                dx: Math.cos(angle) * speed,
+                dy: Math.sin(angle) * speed,
+                radius: 4
+            });
+        }
     }
 
     function updateProjectiles() {
@@ -587,36 +704,41 @@
 
     function checkCollision() {
         const isOnSafeGround = isSafe(player.x, player.y);
+        let dead = false;
 
         enemies.forEach(en => {
             if ((player.state === 'drawing' || player.state === 'retracting') && path.length > 0) {
                 for (let p of path) {
                     if (Math.hypot(p.x - en.x, p.y - en.y) < en.radius + 4) {
-                        handleDeath("선을 건드렸습니다!"); return;
+                        handleDeath("선을 건드렸습니다!"); dead = true; return;
                     }
                 }
             }
             if (!isOnSafeGround) {
                 if (Math.hypot(player.x - en.x, player.y - en.y) < en.radius + PLAYER_SIZE + 2) {
-                    handleDeath("적에게 잡혔습니다!"); return;
+                    handleDeath("적에게 잡혔습니다!"); dead = true; return;
                 }
             }
         });
+        if(dead) return true;
 
         projectiles.forEach(p => {
              if ((player.state === 'drawing' || player.state === 'retracting') && path.length > 0) {
                 for (let pt of path) {
                     if (Math.hypot(pt.x - p.x, pt.y - p.y) < p.radius + 4) {
-                        handleDeath("미사일에 선이 끊겼습니다!"); return;
+                        handleDeath("미사일에 선이 끊겼습니다!"); dead = true; return;
                     }
                 }
             }
             if (!isOnSafeGround) {
                 if (Math.hypot(player.x - p.x, player.y - p.y) < p.radius + PLAYER_SIZE + 2) {
-                    handleDeath("미사일에 맞았습니다!"); return;
+                    handleDeath("미사일에 맞았습니다!"); dead = true; return;
                 }
             }
         });
+        if(dead) return true;
+        
+        return false;
     }
 
     function handleDeath(reason) {
@@ -635,13 +757,11 @@
 
     function endGame(win, msg) {
         if (win) {
-            // 승리 모드 (배경 감상)
             gameState = 'victory_view';
-            revealArea(0, 0, width, height); // 전체 공개
-            victoryMsg.style.display = 'block'; // 터치 안내 메시지
-            uiLayer.style.opacity = '0.5'; // UI 살짝 숨김
+            revealArea(0, 0, width, height); 
+            victoryMsg.style.display = 'block'; 
+            uiLayer.style.opacity = '0.5'; 
         } else {
-            // 패배 모드
             gameState = 'gameover';
             resultTitle.innerText = "GAME OVER";
             resultSub.innerText = msg;
@@ -650,14 +770,12 @@
     }
 
     function fillLand() {
-        // [1] 선을 Grid에 기록
         if(path.length > 0) {
              for (let i = 0; i < path.length - 1; i++) {
                 drawLineOnGrid(path[i].x, path[i].y, path[i+1].x, path[i+1].y);
             }
         }
         
-        // [2] Flood Fill로 갇힌 영역 찾기
         let boss = enemies.find(e => e.type === 'boss') || enemies[0];
         let bx = boss ? Math.floor(boss.x) : Math.floor(width/2);
         let by = boss ? Math.floor(boss.y) : Math.floor(height/2);
@@ -682,19 +800,30 @@
             }
         }
 
+        for (let i = enemies.length - 1; i >= 0; i--) {
+            let en = enemies[i];
+            if (en.type === 'boss') continue; 
+
+            let cx = Math.floor(en.x);
+            let cy = Math.floor(en.y);
+            if (cx >= 0 && cx < width && cy >= 0 && cy < height) {
+                let idx = cy * width + cx;
+                if (visited[idx] === 0) {
+                    enemies.splice(i, 1);
+                }
+            }
+        }
+
         let landImgData = landCtx.getImageData(0, 0, width, height);
         let landData = landImgData.data;
         let bgImgData = bgCtx.getImageData(0, 0, width, height);
         let bgData = bgImgData.data;
         let newPixels = 0;
 
-        // [3] Grid 전체 갱신 (새로 획득한 땅 + 기존 땅 모두 이미지로 덮음)
-        // 성능을 위해 새로 획득한 곳만 처리
         for (let i = 0; i < grid.length; i++) {
             if (grid[i] === 0 && visited[i] === 0) {
                 grid[i] = 1; 
                 newPixels++;
-                // 이미지 픽셀 복사
                 let idx = i * 4;
                 landData[idx] = bgData[idx];     
                 landData[idx+1] = bgData[idx+1]; 
@@ -703,21 +832,18 @@
             }
         }
 
-        // [4] 자국 제거 로직 개선: 경로(path) 주변을 강제로 이미지로 덮어쓰기
-        // 점과 점 사이를 촘촘하게 메움
         if (path.length > 1) {
             for (let i = 0; i < path.length - 1; i++) {
                 let p1 = path[i];
                 let p2 = path[i+1];
                 let dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-                let steps = Math.ceil(dist); // 픽셀 단위로 이동
+                let steps = Math.ceil(dist); 
                 
                 for (let s = 0; s <= steps; s++) {
                     let t = s / steps;
                     let lx = p1.x + (p2.x - p1.x) * t;
                     let ly = p1.y + (p2.y - p1.y) * t;
                     
-                    // 해당 위치 주변 4px 반경을 이미지로 칠함 (선 두께보다 약간 넓게)
                     let radius = 4; 
                     for(let py = Math.floor(ly)-radius; py <= Math.floor(ly)+radius; py++) {
                         for(let px = Math.floor(lx)-radius; px <= Math.floor(lx)+radius; px++) {
@@ -727,6 +853,11 @@
                                 landData[idx+1] = bgData[idx+1];
                                 landData[idx+2] = bgData[idx+2];
                                 landData[idx+3] = bgData[idx+3];
+                                
+                                let gIdx = py * width + px;
+                                if (grid[gIdx] === 0) {
+                                    grid[gIdx] = 1;
+                                }
                             }
                         }
                     }
@@ -777,7 +908,6 @@
     function draw() {
         ctx.drawImage(landCanvas, 0, 0);
 
-        // 승리 뷰 상태라면 게임 요소(플레이어, 적)는 그리지 않음
         if (gameState === 'victory_view') return;
 
         if (path.length > 1) {
@@ -791,14 +921,91 @@
         }
 
         enemies.forEach(en => {
-            ctx.fillStyle = en.type === 'boss' ? '#ff0000' : '#ff8800';
-            ctx.beginPath();
-            ctx.arc(en.x, en.y, en.radius, 0, Math.PI*2);
-            ctx.fill();
-            ctx.fillStyle = 'white';
-            ctx.beginPath();
-            ctx.arc(en.x + en.dx, en.y + en.dy, en.radius/3, 0, Math.PI*2);
-            ctx.fill();
+            // [Design] Boss Design
+            if (en.type === 'boss') {
+                // Body Gradient
+                let grd = ctx.createRadialGradient(en.x, en.y, en.radius * 0.2, en.x, en.y, en.radius);
+                grd.addColorStop(0, "#ff4444");
+                grd.addColorStop(1, "#880000");
+                ctx.fillStyle = grd;
+                
+                // Rotating Spikes
+                const spikes = 8;
+                ctx.beginPath();
+                for (let i = 0; i < spikes; i++) {
+                    // Rotate slowly over time
+                    const angle = (Math.PI * 2 / spikes) * i + (Date.now() / 500); 
+                    const outerR = en.radius * 1.4;
+                    const innerR = en.radius;
+                    
+                    const sx = en.x + Math.cos(angle) * outerR;
+                    const sy = en.y + Math.sin(angle) * outerR;
+                    const ix = en.x + Math.cos(angle + Math.PI/spikes) * innerR;
+                    const iy = en.y + Math.sin(angle + Math.PI/spikes) * innerR;
+                    
+                    if (i === 0) ctx.moveTo(sx, sy);
+                    else ctx.lineTo(sx, sy);
+                    ctx.lineTo(ix, iy);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = "#440000";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Main Body
+                ctx.beginPath();
+                ctx.arc(en.x, en.y, en.radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Big White Eye
+                ctx.fillStyle = "white";
+                ctx.beginPath();
+                ctx.arc(en.x, en.y, en.radius * 0.6, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Tracking Pupil
+                let angle = Math.atan2(player.y - en.y, player.x - en.x);
+                let dist = en.radius * 0.25;
+                let px = en.x + Math.cos(angle) * dist;
+                let py = en.y + Math.sin(angle) * dist;
+                
+                ctx.fillStyle = "black";
+                ctx.beginPath();
+                ctx.arc(px, py, en.radius * 0.25, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Eye Shine
+                ctx.fillStyle = "white";
+                ctx.beginPath();
+                ctx.arc(px - en.radius*0.1, py - en.radius*0.1, en.radius * 0.08, 0, Math.PI * 2);
+                ctx.fill();
+
+            } else {
+                // [Design] Minion Design
+                ctx.fillStyle = "#ff8800";
+                ctx.beginPath();
+                ctx.arc(en.x, en.y, en.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = "#884400";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                // Eye
+                ctx.fillStyle = "white";
+                ctx.beginPath();
+                ctx.arc(en.x, en.y, en.radius * 0.5, 0, Math.PI * 2);
+                ctx.fill();
+                
+                let angle = Math.atan2(player.y - en.y, player.x - en.x);
+                let px = en.x + Math.cos(angle) * (en.radius * 0.15);
+                let py = en.y + Math.sin(angle) * (en.radius * 0.15);
+                
+                ctx.fillStyle = "black";
+                ctx.beginPath();
+                ctx.arc(px, py, en.radius * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+            }
         });
 
         ctx.fillStyle = '#ff00ff';
@@ -817,7 +1024,8 @@
     }
 
     function updateUI() {
-        const percent = (capturedPixels / totalPixels * 100).toFixed(2);
+        // [버그수정] 분모가 0이 되는 경우 방지
+        const percent = totalPixels > 0 ? (capturedPixels / totalPixels * 100).toFixed(2) : "0.00";
         scoreEl.innerText = percent;
         levelEl.innerText = level;
         targetEl.innerText = currentTargetPercent;
