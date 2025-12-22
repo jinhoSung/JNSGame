@@ -116,7 +116,6 @@
     const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
 
     // --- 유틸리티 ---
-    // [수정] Math.round 제거: 도로 깨짐 현상(1px 갭)을 방지하기 위해 실수 좌표 그대로 사용
     function project(p, cameraX, cameraY, cameraZ, cameraDepth, width, height, roadWidth) {
         p.camera.x = (p.world.x || 0) - cameraX;
         p.camera.y = (p.world.y || 0) - cameraY;
@@ -128,7 +127,7 @@
         p.screen.w = (p.screen.scale * roadWidth * width / 2);
     }
 
-    // 도로 틈새 방지를 위한 폴리곤 그리기 (약간 겹치게 처리 가능하지만 round 제거로 대부분 해결)
+    // 폴리곤 그리기
     function polygon(ctx, x1, y1, x2, y2, x3, y3, x4, y4, color) {
         ctx.fillStyle = color;
         ctx.beginPath();
@@ -198,21 +197,23 @@
 
             x += dx; dx += segment.curve;
 
-            // [수정] maxy 클리핑 조건 완화: 소수점 오차로 인한 깜빡임 방지 (>= 대신 > 사용 및 0.1 여유)
             if (segment.p1.camera.z <= CAMERA_DEPTH || segment.p2.screen.y > maxy - 0.5 || segment.p2.screen.y >= segment.p1.screen.y) continue;
 
             let r1 = segment.p1.screen.w; let r2 = segment.p2.screen.w;
             let l1 = segment.p1.screen.x; let l2 = segment.p2.screen.x;
             let y1 = segment.p1.screen.y; let y2 = segment.p2.screen.y;
 
+            // [수정] 도로 깨짐 방지: 윗변(y2)을 1픽셀 올려서(빼서) 겹치게 만듦
+            let renderY2 = y2 - 1;
+
             ctx.fillStyle = '#001100';
-            ctx.fillRect(0, y2, width, y1 - y2);
+            ctx.fillRect(0, renderY2, width, y1 - renderY2); // 땅도 겹치게
 
-            polygon(ctx, l1 - r1 * 1.2, y1, l1 - r1, y1, l2 - r2, y2, l2 - r2 * 1.2, y2, segment.color.rumble);
-            polygon(ctx, l1 + r1 * 1.2, y1, l1 + r1, y1, l2 + r2, y2, l2 + r2 * 1.2, y2, segment.color.rumble);
-            polygon(ctx, l1 - r1, y1, l1 + r1, y1, l2 + r2, y2, l2 - r2, y2, segment.color.road);
+            polygon(ctx, l1 - r1 * 1.2, y1, l1 - r1, y1, l2 - r2, renderY2, l2 - r2 * 1.2, renderY2, segment.color.rumble);
+            polygon(ctx, l1 + r1 * 1.2, y1, l1 + r1, y1, l2 + r2, renderY2, l2 + r2 * 1.2, renderY2, segment.color.rumble);
+            polygon(ctx, l1 - r1, y1, l1 + r1, y1, l2 + r2, renderY2, l2 - r2, renderY2, segment.color.road);
 
-            maxy = y2;
+            maxy = y2; // 클리핑은 원래 좌표 기준
         }
 
         drawSkidMarks();
@@ -260,11 +261,8 @@
         ctx.save();
         ctx.translate(cx, cy);
         ctx.scale(scale, scale);
-
-        // [수정] 부드러운 애니메이션을 위해 모드를 나누지 않고,
-        // playerTurn 값(-1 ~ 1)을 그대로 사용하여 차체 모양을 변형시킵니다.
         
-        // 회전량 계산 (드리프트 중이면 각도가 더 커짐)
+        // 회전량 계산
         const turnAngle = playerTurn * (driftMode ? 1.5 : 0.8);
 
         drawAE86_Dynamic(ctx, turnAngle);
@@ -272,52 +270,34 @@
         ctx.restore();
     }
 
-    // [통합] 동적 AE86 그리기 (turn: -1(좌) ~ 0(직진) ~ 1(우))
     function drawAE86_Dynamic(ctx, turn) {
-        // 좌우 대칭 로직
         const dir = turn < 0 ? -1 : 1;
-        const absTurn = Math.abs(turn); // 0 ~ 1.5 정도 범위
+        const absTurn = Math.abs(turn);
 
         ctx.save();
-        ctx.scale(dir, 1); // 방향에 따라 캔버스 반전 (항상 한쪽만 그리면 됨)
+        ctx.scale(dir, 1);
 
-        // 차체 기울기 (Roll)
+        // 차체 기울기
         ctx.rotate(absTurn * 0.1);
 
-        // --- 치수 계산 (애니메이션 핵심) ---
-        // 직진일 때: 뒷면 넓음, 옆면 안 보임
-        // 회전일 때: 뒷면 좁아짐, 옆면 넓어짐
-        
-        // 뒷면 너비: 회전할수록 줄어듦 (90 -> 60)
         const rearWidth = 90 - (absTurn * 30);
-        
-        // 옆면 너비: 회전할수록 늘어남 (0 -> 100)
-        // absTurn이 커질수록 옆구리가 튀어나옴
         const sideWidth = absTurn * 120;
         
-        // 뒷면 원근감 (Perspective Skew): 옆면이 길어질수록 뒷면 끝이 안쪽으로 모임
-        const skew = absTurn * 20;
-
-        // --- 그리기 시작 ---
-
         // 그림자
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
         ctx.beginPath(); 
         ctx.ellipse(sideWidth/2, 90, 130 + sideWidth/2, 15, 0, 0, Math.PI*2); 
         ctx.fill();
 
-        // 1. 옆면 (Side Panel) - 먼저 그림 (뒤에 있으니까)
-        // 흰색 바디
+        // 1. 옆면 (Side Panel)
         ctx.fillStyle = '#eee';
         ctx.beginPath();
-        // 뒷바퀴쪽(연결부) ~ 앞바퀴쪽
-        ctx.moveTo(rearWidth, 50); // 뒤 상단
-        ctx.lineTo(rearWidth + sideWidth, 60); // 앞 상단 (원근)
-        ctx.lineTo(rearWidth + sideWidth, 90); // 앞 하단
-        ctx.lineTo(rearWidth - 5, 90); // 뒤 하단
+        ctx.moveTo(rearWidth, 50); 
+        ctx.lineTo(rearWidth + sideWidth, 60); 
+        ctx.lineTo(rearWidth + sideWidth, 90); 
+        ctx.lineTo(rearWidth - 5, 90); 
         ctx.fill();
 
-        // 옆면 몰딩 (검정 띠)
         ctx.fillStyle = '#111';
         ctx.beginPath();
         ctx.moveTo(rearWidth, 65);
@@ -326,16 +306,14 @@
         ctx.lineTo(rearWidth, 75);
         ctx.fill();
 
-        // 옆면 캐빈 (유리창 포함 상단)
         ctx.fillStyle = '#eee';
         ctx.beginPath();
-        ctx.moveTo(rearWidth * 0.8, 0); // 지붕 뒤
-        ctx.lineTo(rearWidth * 0.8 + sideWidth * 0.8, 10); // 지붕 앞
-        ctx.lineTo(rearWidth + sideWidth, 60); // 본넷 연결
-        ctx.lineTo(rearWidth, 50); // 허리 연결
+        ctx.moveTo(rearWidth * 0.8, 0); 
+        ctx.lineTo(rearWidth * 0.8 + sideWidth * 0.8, 10); 
+        ctx.lineTo(rearWidth + sideWidth, 60); 
+        ctx.lineTo(rearWidth, 50); 
         ctx.fill();
 
-        // 옆유리
         ctx.fillStyle = '#223';
         ctx.beginPath();
         ctx.moveTo(rearWidth * 0.8 + 5, 5); 
@@ -344,71 +322,56 @@
         ctx.lineTo(rearWidth + 5, 45); 
         ctx.fill();
 
-        // 앞바퀴 (회전 시에만 보임)
         if (absTurn > 0.1) {
             ctx.fillStyle = '#111';
             const wheelX = rearWidth + sideWidth * 0.8;
             ctx.beginPath(); ctx.ellipse(wheelX, 90, 20, 20, 0, 0, Math.PI*2); ctx.fill();
-            // 휠
             ctx.fillStyle = '#555';
             ctx.beginPath(); ctx.ellipse(wheelX, 90, 10, 10, 0, 0, Math.PI*2); ctx.fill();
         }
 
-        // 2. 뒷면 (Rear Panel) - 덮어씌움
-        // 바디 (흰색)
-        ctx.fillStyle = '#ddd'; // 옆면보다 약간 어둡게
+        // 2. 뒷면 (Rear Panel)
+        ctx.fillStyle = '#ddd'; 
         ctx.beginPath();
         ctx.moveTo(-rearWidth, 50); ctx.lineTo(rearWidth, 50);
         ctx.lineTo(rearWidth + 5, 90); ctx.lineTo(-rearWidth - 5, 90);
         ctx.fill();
 
-        // 범퍼
         ctx.fillStyle = '#222';
         ctx.fillRect(-rearWidth - 5, 80, rearWidth * 2 + 10, 15);
 
-        // 캐빈 (뒷면)
         ctx.fillStyle = '#ddd';
         ctx.beginPath();
-        ctx.moveTo(-rearWidth * 0.6, 0); ctx.lineTo(rearWidth * 0.6, 0); // 지붕
+        ctx.moveTo(-rearWidth * 0.6, 0); ctx.lineTo(rearWidth * 0.6, 0); 
         ctx.lineTo(rearWidth * 0.8, 50); ctx.lineTo(-rearWidth * 0.8, 50);
         ctx.fill();
 
-        // 뒷유리
         ctx.fillStyle = '#112';
         ctx.beginPath();
         ctx.moveTo(-rearWidth * 0.55, 5); ctx.lineTo(rearWidth * 0.55, 5);
         ctx.lineTo(rearWidth * 0.75, 45); ctx.lineTo(-rearWidth * 0.75, 45);
         ctx.fill();
 
-        // 테일램프
         ctx.fillStyle = '#111';
         ctx.fillRect(-rearWidth * 0.9, 50, rearWidth * 1.8, 20);
 
-        // 브레이크등
         const lightColor = keys.ArrowDown ? '#ff2222' : '#cc0000';
         ctx.fillStyle = lightColor;
         if(keys.ArrowDown) { ctx.shadowColor='red'; ctx.shadowBlur=20; }
         
-        // 등 위치도 너비에 비례
         const lampW = rearWidth * 0.5;
-        ctx.fillRect(-rearWidth * 0.85, 52, lampW, 16); // 좌 (반전되어 우측이 됨)
-        ctx.fillRect(rearWidth * 0.85 - lampW, 52, lampW, 16);  // 우 (반전되어 좌측이 됨)
+        ctx.fillRect(-rearWidth * 0.85, 52, lampW, 16); 
+        ctx.fillRect(rearWidth * 0.85 - lampW, 52, lampW, 16);  
         ctx.shadowBlur = 0;
 
-        // 번호판
         ctx.fillStyle = '#f1c40f';
         ctx.fillRect(-15, 55, 30, 12);
 
-        // 머플러 (한쪽에만 있음 - 우측)
-        // scale(-1, 1)일 때는 좌측에 그려짐 -> 원본 AE86은 우측 배기
-        // dir이 1이면 정상, -1이면 반전.
-        // 머플러는 항상 차의 오른쪽에 있어야 하므로, 반전 여부에 따라 위치 조정 필요하나 단순화.
         ctx.fillStyle = '#333';
         ctx.beginPath(); ctx.arc(rearWidth * 0.7, 90, 6, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = '#000';
         ctx.beginPath(); ctx.arc(rearWidth * 0.7, 90, 4, 0, Math.PI*2); ctx.fill();
 
-        // 뒷바퀴 (양쪽)
         ctx.fillStyle = '#111';
         ctx.fillRect(-rearWidth - 5, 85, 20, 15);
         ctx.fillRect(rearWidth - 15, 85, 20, 15);
@@ -429,7 +392,6 @@
 
         speed = Math.max(0, Math.min(speed, maxSpeed));
 
-        // 드리프트 로직
         const isTurning = keys.ArrowLeft || keys.ArrowRight;
         driftMode = keys.ArrowDown && isTurning && speed > 5000;
 
@@ -443,20 +405,22 @@
             driftMsg.style.display = 'none';
         }
 
-        // 턴 계산
         let targetTurn = 0;
         let turnLimit = driftMode ? 1.5 : 0.6;
 
         if (keys.ArrowLeft) targetTurn = -turnLimit;
         else if (keys.ArrowRight) targetTurn = turnLimit;
         
-        const smoothing = driftMode ? 2.0 : 6.0;
+        // [수정] 핸들링 반응 속도 조절 (더 부드럽게)
+        // 기존: driftMode ? 2.0 : 6.0
+        const smoothing = driftMode ? 1.5 : 3.0;
         playerTurn = playerTurn + (targetTurn - playerTurn) * dt * smoothing;
 
-        // [수정] 좌우 이동 속도 감소: 기존 0.06 -> 0.035
         if (speed > 0) {
+            // [수정] 좌우 이동 속도 감소 (더 묵직하게)
+            // 기존: 0.035
             let moveEff = driftMode ? 0.6 : 1.0;
-            let moveAmount = (speed / maxSpeed) * moveEff * 0.035; 
+            let moveAmount = (speed / maxSpeed) * moveEff * 0.025; 
             
             if (keys.ArrowLeft) playerX -= moveAmount;
             if (keys.ArrowRight) playerX += moveAmount;
