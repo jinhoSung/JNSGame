@@ -57,6 +57,7 @@
         .btn-green { background: #1a5c1a; border-color: #4f4; color: #4f4; }
         .btn-red { background: #661a1a; border-color: #f44; color: #f44; }
         .btn-gold { background: #665200; border-color: #fd0; color: #fd0; }
+        .btn-danger { background: #800; border-color: #f00; color: #fcc; font-size: 10px; margin-top: 20px; }
 
         #fullscreen-btn {
             position: absolute; top: 10px; right: 10px;
@@ -260,6 +261,9 @@
                     <button class="lang-btn" onclick="setLanguage('ja')" id="lang-ja">日本語</button>
                 </div>
             </div>
+            
+            <button class="btn btn-danger" id="btn-reset" onclick="resetData()">⚠ RESET DATA</button>
+            <br><br>
             <button class="btn btn-red" id="btn-close-settings" onclick="closeSettings()">CLOSE</button>
         </div>
     </div>
@@ -312,7 +316,7 @@
                 upg_land_name: "LANDING GEAR", upg_land_desc: "Safe Impact Speed +10%",
                 item_fuel_name: "RESERVE TANK", item_fuel_desc: "Start with +50 Fuel",
                 item_shield_name: "FORCE FIELD", item_shield_desc: "Ignore 1 Crash",
-                ignition: "IGNITION",
+                ignition: "IGNITION", reset_data: "⚠ RESET DATA", reset_confirm: "Are you sure? All progress will be lost.",
                 planet_moon: "THE MOON", planet_mars: "MARS", planet_earth: "EARTH", planet_ice: "ICE PLANET", planet_volcanic: "VOLCANIC",
                 ship_std_name: "MK-1 STANDARD", ship_std_desc: "Balanced performance.",
                 ship_scout_name: "MK-2 SCOUT", ship_scout_desc: "High agility, low fuel.",
@@ -343,7 +347,7 @@
                 upg_land_name: "랜딩 기어", upg_land_desc: "충격 흡수 +10%",
                 item_fuel_name: "비상 연료통", item_fuel_desc: "시작 시 연료 +50",
                 item_shield_name: "포스 필드", item_shield_desc: "1회 충돌 방지",
-                ignition: "발사!",
+                ignition: "발사!", reset_data: "⚠ 데이터 초기화", reset_confirm: "정말 초기화하시겠습니까? 모든 진행 상황이 삭제됩니다.",
                 planet_moon: "달", planet_mars: "화성", planet_earth: "지구", planet_ice: "얼음 행성", planet_volcanic: "용암 행성",
                 ship_std_name: "MK-1 표준형", ship_std_desc: "균형 잡힌 성능",
                 ship_scout_name: "MK-2 정찰기", ship_scout_desc: "고기동, 저연료",
@@ -374,7 +378,7 @@
                 upg_land_name: "ランディングギア", upg_land_desc: "衝撃吸収 +10%",
                 item_fuel_name: "予備タンク", item_fuel_desc: "開始時燃料 +50",
                 item_shield_name: "フォースフィールド", item_shield_desc: "1回衝突無効",
-                ignition: "発射!",
+                ignition: "発射!", reset_data: "⚠ データリセット", reset_confirm: "本当にリセットしますか？全ての進行状況が失われます。",
                 planet_moon: "月", planet_mars: "火星", planet_earth: "地球", planet_ice: "氷の惑星", planet_volcanic: "火山惑星",
                 ship_std_name: "MK-1 標準型", ship_std_desc: "バランス型",
                 ship_scout_name: "MK-2 偵察機", ship_scout_desc: "高機動、低燃費",
@@ -414,6 +418,7 @@
             document.getElementById('btn-resume').innerText = t('resume');
             document.getElementById('btn-retry').innerText = t('retry');
             document.getElementById('btn-exit').innerText = t('exit');
+            document.getElementById('btn-reset').innerText = t('reset_data');
             
             document.getElementById('ui-fuel-label').innerText = t('fuel');
             document.getElementById('ui-score-label').innerText = t('score');
@@ -426,6 +431,13 @@
             ['ko', 'en', 'ja'].forEach(l => {
                 document.getElementById('lang-' + l).className = 'lang-btn' + (currentLang === l ? ' active' : '');
             });
+        }
+
+        function resetData() {
+            if(confirm(t('reset_confirm'))) {
+                localStorage.clear();
+                location.reload();
+            }
         }
 
         // --- SHIP DATA ---
@@ -456,6 +468,8 @@
                 this.masterGain = null;
                 this.thrustSource = null;
                 this.thrustGain = null;
+                this.ambientSource = null;
+                this.ambientGain = null;
                 this.lastFuelWarning = 0;
             }
             init() {
@@ -465,12 +479,14 @@
                 this.masterGain = this.ctx.createGain();
                 this.masterGain.gain.value = this.enabled ? 0.3 : 0;
                 this.masterGain.connect(this.ctx.destination);
+                
+                this.startAmbient();
             }
             toggle() {
                 this.enabled = !this.enabled;
                 localStorage.setItem('lunar_sound', this.enabled);
                 if(this.ctx) {
-                    this.masterGain.gain.value = this.enabled ? 0.3 : 0;
+                    this.masterGain.gain.setTargetAtTime(this.enabled ? 0.3 : 0, this.ctx.currentTime, 0.1);
                     if(this.ctx.state === 'suspended') this.ctx.resume();
                 }
                 return this.enabled;
@@ -508,6 +524,29 @@
                     this.thrustSource = null;
                 }
             }
+            startAmbient() {
+                if (!this.ctx) return;
+                this.ambientSource = this.ctx.createOscillator();
+                this.ambientSource.type = 'triangle';
+                this.ambientSource.frequency.value = 50; // Low drone
+                this.ambientGain = this.ctx.createGain();
+                this.ambientGain.gain.value = 0.05;
+                
+                // LFO for modulation
+                const lfo = this.ctx.createOscillator();
+                lfo.type = 'sine';
+                lfo.frequency.value = 0.2;
+                const lfoGain = this.ctx.createGain();
+                lfoGain.gain.value = 0.02;
+                lfo.connect(lfoGain);
+                lfoGain.connect(this.ambientGain.gain);
+                lfo.start();
+
+                this.ambientSource.connect(this.ambientGain);
+                this.ambientGain.connect(this.masterGain);
+                this.ambientSource.start();
+            }
+
             playExplosion() { this.stopThrust(); this.playTone(80, 'sawtooth', 0.8, 0.8); }
             playWin() { this.stopThrust(); this.playTone(523, 'sine', 0.1); setTimeout(()=>this.playTone(659, 'sine', 0.1),150); setTimeout(()=>this.playTone(784, 'sine', 0.4),300); }
             playClick() { this.playTone(1200, 'sine', 0.05, 0.1); }
@@ -561,7 +600,7 @@
 
         // Entities
         let terrainPoints = [], landingPad = {x:0, w:0, y:0};
-        let particles = [], obstacles = [], debris = [], thrustParticles = [], collectibles = [];
+        let particles = [], obstacles = [], debris = [], thrustParticles = [], collectibles = [], confetti = [];
         let levelConfig = { groundColor: '#aaa', bgColor: '#000' };
         // shield: active shield state
         const lander = { x:0, y:0, vx:0, vy:0, angle:0, fuel:0, visible:true, thrusting:false, shield: false };
@@ -638,6 +677,7 @@
                 updateParticles();
             } else if(gameState === 'result' || gameState === 'countdown') {
                 if(debris.length) updateDebris();
+                if(confetti.length) updateConfetti();
                 updateParticles();
                 if(gameState !== 'playing') audio.stopThrust();
             } else {
@@ -916,6 +956,12 @@
                 ctx.stroke();
             }
 
+            // Confetti
+            confetti.forEach(p => {
+                ctx.fillStyle = p.c;
+                ctx.fillRect(p.x, p.y, 4, 4);
+            });
+
             if(lander.visible && lander.y < landingPad.y - 50) {
                 ctx.strokeStyle = 'rgba(0,255,0,0.2)'; ctx.setLineDash([5, 5]);
                 ctx.beginPath(); ctx.moveTo(lander.x, lander.y); ctx.lineTo(lander.x, landingPad.y); ctx.stroke();
@@ -974,20 +1020,15 @@
                 bgColor: ['#000', '#100', '#001', '#012', '#210'][Math.floor((lvl-1)/10)%5]
             };
             
-            // Apply Ship Stats & Upgrades
             const stats = SHIPS[currentShipId];
-            
-            // Fuel Tank Upgrade
             const fuelLevel = playerUpgrades.fuel || 0;
-            const fuelBonus = 1.0 + (fuelLevel * 0.1); // +10% per level
-            
+            const fuelBonus = 1.0 + (fuelLevel * 0.1); 
             maxFuel = Math.max(80, 130 - (progress * 50)) * stats.fuelMult * fuelBonus;
             lander.fuel = maxFuel;
             
-            // Apply Items
             if(playerItems.extraFuel > 0) {
                 lander.fuel += 50;
-                maxFuel += 50; // visual fix
+                maxFuel += 50; 
                 playerItems.extraFuel--;
             }
             if(playerItems.shield > 0) {
@@ -999,7 +1040,7 @@
             updateStorage();
 
             lander.x = LOGICAL_W/2; lander.y = 50; lander.vx=0; lander.vy=0; lander.angle=0; lander.visible=true; lander.thrusting=false;
-            debris = []; thrustParticles = [];
+            debris = []; thrustParticles = []; confetti = [];
             
             terrainPoints = [];
             const seg = 30, wid = LOGICAL_W/seg;
@@ -1043,9 +1084,9 @@
             showScreen(null);
             
             if(TUTORIALS[lvl]) {
-                const tut = TUTORIALS[lvl];
-                document.getElementById('tut-title').innerText = t(tut.titleKey);
-                document.getElementById('tut-text').innerText = t(tut.textKey);
+                const tutData = TUTORIALS[lvl];
+                document.getElementById('tut-title').innerText = t(tutData.titleKey);
+                document.getElementById('tut-text').innerText = t(tutData.textKey);
                 showScreen('tutorial');
             } else {
                 startCountdown();
@@ -1271,6 +1312,20 @@
             document.getElementById('res-text').innerText = msg;
             b.innerHTML = '';
             
+            // Celebration Confetti
+            if (success) {
+                for (let i = 0; i < 50; i++) {
+                    confetti.push({
+                        x: Math.random() * LOGICAL_W,
+                        y: -Math.random() * 100,
+                        vx: (Math.random() - 0.5) * 5,
+                        vy: Math.random() * 5 + 2,
+                        c: `hsl(${Math.random() * 360}, 100%, 50%)`,
+                        life: 200
+                    });
+                }
+            }
+
             const btn = (txt, cls, fn) => {
                 const e = document.createElement('button'); e.className='btn '+cls; e.innerText=txt; e.onclick=fn; b.appendChild(e);
             };
@@ -1280,6 +1335,16 @@
             btn(t("menu"), 'btn-red', goToLevelSelect);
             
             showScreen('result');
+        }
+
+        function updateConfetti() {
+            for (let i = confetti.length - 1; i >= 0; i--) {
+                const p = confetti[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                if (p.life <= 0 || p.y > LOGICAL_H) confetti.splice(i, 1);
+            }
         }
 
         function handleKey(e) {
