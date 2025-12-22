@@ -3,458 +3,481 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Retro Racer - Code Art Edition</title>
+    <title>Outrun Evolution: Perfect Edition</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Black+Ops+One&display=swap');
-
-        body {
-            margin: 0;
-            background: #000;
-            overflow: hidden;
-            color: white;
-            font-family: 'Black Ops One', cursive;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-        canvas {
-            box-shadow: 0 0 50px rgba(0,0,0,0.8);
-            width: 100%;
-            height: 100%;
-        }
-        #ui {
+        body { margin: 0; overflow: hidden; background-color: #5D94FB; user-select: none; }
+        #ui-layer {
             position: absolute;
-            top: 20px;
-            left: 20px;
-            font-size: 20px;
-            color: #fff;
+            top: 20px; left: 50%; transform: translateX(-50%);
+            text-align: center; pointer-events: none; width: 100%; z-index: 10;
+        }
+        #message {
+            font-family: 'Impact', sans-serif; font-size: 80px;
+            color: #FF0055; -webkit-text-stroke: 3px #FFFFFF;
+            text-shadow: 5px 5px 0px #000; font-style: italic;
+            margin-bottom: 20px; display: none;
+            animation: pop 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        }
+        #hud { display: flex; gap: 20px; justify-content: center; }
+        .hud-box {
+            font-family: 'Verdana', sans-serif; color: #FFFF00;
+            background: rgba(0, 0, 0, 0.7); padding: 10px 25px;
+            border-radius: 12px; border: 3px solid #FFFFFF;
+            font-size: 24px; font-weight: 900; font-style: italic;
             text-shadow: 2px 2px 0 #000;
-            pointer-events: none;
-            z-index: 10;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
-        #instructions {
-            position: absolute;
-            bottom: 20px;
-            width: 100%;
-            text-align: center;
-            font-size: 14px;
-            color: #aaa;
-            text-shadow: 1px 1px 0 #000;
-            pointer-events: none;
-            z-index: 10;
-        }
-        #drift-msg {
-            position: absolute;
-            top: 30%;
-            left: 50%;
-            transform: translate(-50%, -50%) rotate(-15deg);
-            font-size: 80px;
-            font-weight: bold;
-            color: #ffcc00; 
-            text-shadow: 
-                5px 5px 0 #000,
-                0 0 20px #ff0000;
-            display: none;
-            pointer-events: none;
-            z-index: 20;
-            font-style: italic;
-            border: 4px solid #000;
-            padding: 10px 40px;
-            background: rgba(255, 0, 0, 0.5);
-        }
+        .label { font-size: 12px; color: #00FFFF; display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 2px; }
+        .danger { color: #FF3333 !important; border-color: #FF3333 !important; animation: shake 0.5s infinite; }
+        
+        @keyframes pop { 0% { transform: scale(0) rotate(-10deg); } 100% { transform: scale(1) rotate(0deg); } }
+        @keyframes shake { 0% { transform: translate(1px, 1px) rotate(0deg); } 10% { transform: translate(-1px, -2px) rotate(-1deg); } 20% { transform: translate(-3px, 0px) rotate(1deg); } 30% { transform: translate(3px, 2px) rotate(0deg); } 40% { transform: translate(1px, -1px) rotate(1deg); } 50% { transform: translate(-1px, 2px) rotate(-1deg); } 60% { transform: translate(-3px, 1px) rotate(0deg); } 70% { transform: translate(3px, 1px) rotate(-1deg); } 80% { transform: translate(-1px, -1px) rotate(1deg); } 90% { transform: translate(1px, 2px) rotate(0deg); } 100% { transform: translate(1px, -2px) rotate(-1deg); } }
     </style>
 </head>
 <body>
-
-    <div id="ui">
-        SPEED: <span id="speedDisplay">0</span> km/h<br>
-        SCORE: <span id="scoreDisplay">0</span>
+    <div id="ui-layer">
+        <div id="message">CRASH!</div>
+        <div id="hud">
+            <div class="hud-box">
+                <span class="label">Speed</span>
+                <span id="speed">0</span> km/h
+            </div>
+            <div class="hud-box">
+                <span class="label">Stage</span>
+                <span id="stage">1</span>
+            </div>
+            <div class="hud-box">
+                <span class="label">Time</span>
+                <span id="time">0.0</span>
+            </div>
+        </div>
     </div>
-    <div id="drift-msg">KANSEI DRIFT!!</div>
-    <div id="instructions">
-        [▲] ACCEL | [▼] BRAKE + TURN (DRIFT) | [◀ ▶] STEER
-    </div>
 
-    <canvas id="gameCanvas"></canvas>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
-<script>
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    const speedDisplay = document.getElementById('speedDisplay');
-    const scoreDisplay = document.getElementById('scoreDisplay');
-    const driftMsg = document.getElementById('drift-msg');
+    <script>
+        // --- 1. 기본 설정 ---
+        const scene = new THREE.Scene();
+        const skyColorBeach = new THREE.Color(0x5D94FB);
+        const skyColorMountain = new THREE.Color(0xFF8C00);
+        scene.background = skyColorBeach;
+        scene.fog = new THREE.Fog(skyColorBeach, 20, 450);
 
-    // 캔버스 크기 설정
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    // --- 게임 설정 상수 ---
-    const SEGMENT_LENGTH = 200;
-    const DRAW_DISTANCE = 300;
-    const ROAD_WIDTH = 2000;
-    const CAMERA_HEIGHT = 1000;
-    const FIELD_OF_VIEW = 100;
-    const CAMERA_DEPTH = 1 / Math.tan((FIELD_OF_VIEW / 2) * Math.PI / 180);
-
-    // --- 게임 상태 변수 ---
-    let position = 0;       
-    let playerX = 0;        
-    let playerTurn = 0;     // 핸들링 상태 (-1 ~ 1)
-    let speed = 0;
-    let maxSpeed = 13000;
-    let accel = 30;
-    let breaking = 80;
-    let decel = 15;
-    let offRoadDecel = 300;
-    let score = 0;
-    let driftMode = false;
-
-    let skids = [];
-    let segments = [];
-
-    const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
-
-    // --- 유틸리티 ---
-    function project(p, cameraX, cameraY, cameraZ, cameraDepth, width, height, roadWidth) {
-        p.camera.x = (p.world.x || 0) - cameraX;
-        p.camera.y = (p.world.y || 0) - cameraY;
-        p.camera.z = (p.world.z || 0) - cameraZ;
-        if (p.camera.z <= 0) p.screen.scale = 0;
-        else p.screen.scale = cameraDepth / p.camera.z;
-        p.screen.x = (width / 2) + (p.screen.scale * p.camera.x * width / 2);
-        p.screen.y = (height / 2) - (p.screen.scale * p.camera.y * height / 2);
-        p.screen.w = (p.screen.scale * roadWidth * width / 2);
-    }
-
-    // 폴리곤 그리기
-    function polygon(ctx, x1, y1, x2, y2, x3, y3, x4, y4, color) {
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3); ctx.lineTo(x4, y4);
-        ctx.closePath(); ctx.fill();
-    }
-
-    // --- 도로 생성 ---
-    function createRoad() {
-        segments = [];
-        const totalSegments = 2000; 
-        for (let i = 0; i < totalSegments; i++) {
-            let curve = 0;
-            let y = 0;
-            // 맵 디자인 (코너 배치)
-            if (i > 300 && i < 700) curve = 2;
-            if (i > 800 && i < 1200) curve = -3; 
-            if (i > 1300 && i < 1700) curve = 3; 
-
-            // 언덕 (Slight Hills)
-            y = Math.sin(i / 30) * 1000;
-
-            const floorColor = (Math.floor(i / 3) % 2) ? '#222' : '#252525';
-            const rumbleColor = (Math.floor(i / 3) % 2) ? '#fff' : '#c00';
-            
-            segments.push({
-                index: i,
-                p1: { world: { x: 0, y: y, z: i * SEGMENT_LENGTH }, camera: {}, screen: {} },
-                p2: { world: { x: 0, y: y, z: (i + 1) * SEGMENT_LENGTH }, camera: {}, screen: {} },
-                curve: curve,
-                color: { road: floorColor, rumble: rumbleColor }
-            });
-        }
-    }
-
-    // --- 렌더링 ---
-    function render() {
-        const width = canvas.width;
-        const height = canvas.height;
-        ctx.clearRect(0, 0, width, height);
-
-        // 1. 배경
-        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-        bgGrad.addColorStop(0, '#000022');
-        bgGrad.addColorStop(1, '#000');
-        ctx.fillStyle = bgGrad;
-        ctx.fillRect(0, 0, width, height);
-
-        ctx.fillStyle = '#fffc';
-        ctx.beginPath(); ctx.arc(width*0.8, 100, 40, 0, Math.PI*2); ctx.fill();
-
-        // 2. 도로 그리기
-        let baseSegment = segments[Math.floor(position / SEGMENT_LENGTH) % segments.length];
-        let maxy = height; 
-        let dx = -(baseSegment.curve * (position % SEGMENT_LENGTH) / SEGMENT_LENGTH);
-        let x = 0; 
-
-        for (let n = 0; n < DRAW_DISTANCE; n++) {
-            const currentIdx = (baseSegment.index + n) % segments.length;
-            let segment = segments[currentIdx];
-            let loopOffset = (segment.index < baseSegment.index) ? segments.length * SEGMENT_LENGTH : 0;
-            
-            let camY = CAMERA_HEIGHT + segments[Math.floor((position+100)/SEGMENT_LENGTH)%segments.length].p1.world.y;
-
-            project(segment.p1, (playerX * ROAD_WIDTH) - x, camY, position - loopOffset, CAMERA_DEPTH, width, height, ROAD_WIDTH);
-            project(segment.p2, (playerX * ROAD_WIDTH) - x - dx, camY, position - loopOffset, CAMERA_DEPTH, width, height, ROAD_WIDTH);
-
-            x += dx; dx += segment.curve;
-
-            if (segment.p1.camera.z <= CAMERA_DEPTH || segment.p2.screen.y > maxy - 0.5 || segment.p2.screen.y >= segment.p1.screen.y) continue;
-
-            let r1 = segment.p1.screen.w; let r2 = segment.p2.screen.w;
-            let l1 = segment.p1.screen.x; let l2 = segment.p2.screen.x;
-            let y1 = segment.p1.screen.y; let y2 = segment.p2.screen.y;
-
-            // [수정] 도로 깨짐 방지: 윗변(y2)을 1픽셀 올려서(빼서) 겹치게 만듦
-            let renderY2 = y2 - 1;
-
-            ctx.fillStyle = '#001100';
-            ctx.fillRect(0, renderY2, width, y1 - renderY2); // 땅도 겹치게
-
-            polygon(ctx, l1 - r1 * 1.2, y1, l1 - r1, y1, l2 - r2, renderY2, l2 - r2 * 1.2, renderY2, segment.color.rumble);
-            polygon(ctx, l1 + r1 * 1.2, y1, l1 + r1, y1, l2 + r2, renderY2, l2 + r2 * 1.2, renderY2, segment.color.rumble);
-            polygon(ctx, l1 - r1, y1, l1 + r1, y1, l2 + r2, renderY2, l2 - r2, renderY2, segment.color.road);
-
-            maxy = y2; // 클리핑은 원래 좌표 기준
-        }
-
-        drawSkidMarks();
-        drawCarSprite(); 
-    }
-
-    function drawSkidMarks() {
-        const width = canvas.width;
-        const height = canvas.height;
-        const centerX = width / 2;
-        const centerY = height - 20;
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
         
-        ctx.save();
-        for(let i=0; i<skids.length; i++) {
-            const s = skids[i];
-            s.life -= 0.05;
-            s.y += (speed / maxSpeed) * 15; 
-            s.x -= (playerTurn * 5); 
-            
-            if(s.life <= 0 || s.y > height) { skids.splice(i, 1); i--; continue; }
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
 
-            ctx.globalAlpha = s.life * 0.4;
-            ctx.fillStyle = '#fff'; 
-            ctx.beginPath();
-            ctx.arc(centerX + s.x, centerY + s.offsetY, s.size * (1 + (s.y/100)), 0, Math.PI*2);
-            ctx.fill();
-        }
-        ctx.restore();
-    }
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        dirLight.position.set(150, 300, 100);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 4096; dirLight.shadow.mapSize.height = 4096;
+        const d = 400;
+        dirLight.shadow.camera.left = -d; dirLight.shadow.camera.right = d;
+        dirLight.shadow.camera.top = d; dirLight.shadow.camera.bottom = -d;
+        dirLight.shadow.camera.far = 1000;
+        scene.add(dirLight);
 
-    // ==========================================
-    //  🏁 자동차 그리기 (부드러운 애니메이션) 🏁
-    // ==========================================
-    
-    function drawCarSprite() {
-        const width = canvas.width;
-        const height = canvas.height;
-        const scale = width / 1200; 
-        
-        const bounce = Math.sin(Date.now() / 50) * (speed / maxSpeed) * 3;
-        
-        const cx = width / 2;
-        const cy = height - 120 * scale + bounce;
-
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.scale(scale, scale);
-        
-        // 회전량 계산
-        const turnAngle = playerTurn * (driftMode ? 1.5 : 0.8);
-
-        drawAE86_Dynamic(ctx, turnAngle);
-
-        ctx.restore();
-    }
-
-    function drawAE86_Dynamic(ctx, turn) {
-        const dir = turn < 0 ? -1 : 1;
-        const absTurn = Math.abs(turn);
-
-        ctx.save();
-        ctx.scale(dir, 1);
-
-        // 차체 기울기
-        ctx.rotate(absTurn * 0.1);
-
-        const rearWidth = 90 - (absTurn * 30);
-        const sideWidth = absTurn * 120;
-        
-        // 그림자
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.beginPath(); 
-        ctx.ellipse(sideWidth/2, 90, 130 + sideWidth/2, 15, 0, 0, Math.PI*2); 
-        ctx.fill();
-
-        // 1. 옆면 (Side Panel)
-        ctx.fillStyle = '#eee';
-        ctx.beginPath();
-        ctx.moveTo(rearWidth, 50); 
-        ctx.lineTo(rearWidth + sideWidth, 60); 
-        ctx.lineTo(rearWidth + sideWidth, 90); 
-        ctx.lineTo(rearWidth - 5, 90); 
-        ctx.fill();
-
-        ctx.fillStyle = '#111';
-        ctx.beginPath();
-        ctx.moveTo(rearWidth, 65);
-        ctx.lineTo(rearWidth + sideWidth, 75);
-        ctx.lineTo(rearWidth + sideWidth, 85);
-        ctx.lineTo(rearWidth, 75);
-        ctx.fill();
-
-        ctx.fillStyle = '#eee';
-        ctx.beginPath();
-        ctx.moveTo(rearWidth * 0.8, 0); 
-        ctx.lineTo(rearWidth * 0.8 + sideWidth * 0.8, 10); 
-        ctx.lineTo(rearWidth + sideWidth, 60); 
-        ctx.lineTo(rearWidth, 50); 
-        ctx.fill();
-
-        ctx.fillStyle = '#223';
-        ctx.beginPath();
-        ctx.moveTo(rearWidth * 0.8 + 5, 5); 
-        ctx.lineTo(rearWidth * 0.8 + sideWidth * 0.7, 12); 
-        ctx.lineTo(rearWidth + sideWidth * 0.8, 55); 
-        ctx.lineTo(rearWidth + 5, 45); 
-        ctx.fill();
-
-        if (absTurn > 0.1) {
-            ctx.fillStyle = '#111';
-            const wheelX = rearWidth + sideWidth * 0.8;
-            ctx.beginPath(); ctx.ellipse(wheelX, 90, 20, 20, 0, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#555';
-            ctx.beginPath(); ctx.ellipse(wheelX, 90, 10, 10, 0, 0, Math.PI*2); ctx.fill();
-        }
-
-        // 2. 뒷면 (Rear Panel)
-        ctx.fillStyle = '#ddd'; 
-        ctx.beginPath();
-        ctx.moveTo(-rearWidth, 50); ctx.lineTo(rearWidth, 50);
-        ctx.lineTo(rearWidth + 5, 90); ctx.lineTo(-rearWidth - 5, 90);
-        ctx.fill();
-
-        ctx.fillStyle = '#222';
-        ctx.fillRect(-rearWidth - 5, 80, rearWidth * 2 + 10, 15);
-
-        ctx.fillStyle = '#ddd';
-        ctx.beginPath();
-        ctx.moveTo(-rearWidth * 0.6, 0); ctx.lineTo(rearWidth * 0.6, 0); 
-        ctx.lineTo(rearWidth * 0.8, 50); ctx.lineTo(-rearWidth * 0.8, 50);
-        ctx.fill();
-
-        ctx.fillStyle = '#112';
-        ctx.beginPath();
-        ctx.moveTo(-rearWidth * 0.55, 5); ctx.lineTo(rearWidth * 0.55, 5);
-        ctx.lineTo(rearWidth * 0.75, 45); ctx.lineTo(-rearWidth * 0.75, 45);
-        ctx.fill();
-
-        ctx.fillStyle = '#111';
-        ctx.fillRect(-rearWidth * 0.9, 50, rearWidth * 1.8, 20);
-
-        const lightColor = keys.ArrowDown ? '#ff2222' : '#cc0000';
-        ctx.fillStyle = lightColor;
-        if(keys.ArrowDown) { ctx.shadowColor='red'; ctx.shadowBlur=20; }
-        
-        const lampW = rearWidth * 0.5;
-        ctx.fillRect(-rearWidth * 0.85, 52, lampW, 16); 
-        ctx.fillRect(rearWidth * 0.85 - lampW, 52, lampW, 16);  
-        ctx.shadowBlur = 0;
-
-        ctx.fillStyle = '#f1c40f';
-        ctx.fillRect(-15, 55, 30, 12);
-
-        ctx.fillStyle = '#333';
-        ctx.beginPath(); ctx.arc(rearWidth * 0.7, 90, 6, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#000';
-        ctx.beginPath(); ctx.arc(rearWidth * 0.7, 90, 4, 0, Math.PI*2); ctx.fill();
-
-        ctx.fillStyle = '#111';
-        ctx.fillRect(-rearWidth - 5, 85, 20, 15);
-        ctx.fillRect(rearWidth - 15, 85, 20, 15);
-
-        ctx.restore();
-    }
-
-
-    // --- 업데이트 ---
-    function update(dt) {
-        position = (position + speed * dt) % (segments.length * SEGMENT_LENGTH);
-        const currentIdx = Math.floor((position + 100) / SEGMENT_LENGTH) % segments.length;
-        const playerSegment = segments[currentIdx];
-
-        if (keys.ArrowUp) speed += accel;
-        else if (keys.ArrowDown) speed -= breaking;
-        else speed -= decel;
-
-        speed = Math.max(0, Math.min(speed, maxSpeed));
-
-        const isTurning = keys.ArrowLeft || keys.ArrowRight;
-        driftMode = keys.ArrowDown && isTurning && speed > 5000;
-
-        if (driftMode) {
-            driftMsg.style.display = 'block';
-            speed -= 30; 
-            if (Math.random() > 0.3) {
-                skids.push({ x: (Math.random()-0.5)*40 - playerTurn*120, y: 0, offsetY: 0, life: 1.0, size: Math.random()*5+5 });
+        // --- 2. 텍스처 ---
+        function createOutrunTexture() {
+            const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            const stripes = 2; const h = canvas.height / stripes;
+            for(let i=0; i<stripes; i++) {
+                const isDark = i % 2 === 0;
+                ctx.fillStyle = isDark ? '#999999' : '#888888'; ctx.fillRect(0, i * h, 512, h);
+                ctx.fillStyle = isDark ? '#FF0000' : '#FFFFFF'; ctx.fillRect(0, i * h, 35, h); ctx.fillRect(477, i * h, 35, h);
+                if (!isDark) { ctx.fillStyle = '#FFD700'; ctx.fillRect(248, i * h + 20, 16, h - 40); }
             }
-        } else {
-            driftMsg.style.display = 'none';
+            const t = new THREE.CanvasTexture(canvas);
+            t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipMapLinearFilter;
+            t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping;
+            t.repeat.set(1, 8); t.anisotropy = 16;
+            return t;
+        }
+        function createGrassTexture() {
+            const c = document.createElement('canvas'); c.width = 512; c.height = 512;
+            const x = c.getContext('2d');
+            x.fillStyle = '#3da834'; x.fillRect(0,0,512,256);
+            x.fillStyle = '#328a2a'; x.fillRect(0,256,512,256);
+            const t = new THREE.CanvasTexture(c);
+            t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping;
+            t.repeat.set(40, 40);
+            return t;
         }
 
-        let targetTurn = 0;
-        let turnLimit = driftMode ? 1.5 : 0.6;
-
-        if (keys.ArrowLeft) targetTurn = -turnLimit;
-        else if (keys.ArrowRight) targetTurn = turnLimit;
-        
-        // [수정] 핸들링 반응 속도 조절 (더 부드럽게)
-        // 기존: driftMode ? 2.0 : 6.0
-        const smoothing = driftMode ? 1.5 : 3.0;
-        playerTurn = playerTurn + (targetTurn - playerTurn) * dt * smoothing;
-
-        if (speed > 0) {
-            // [수정] 좌우 이동 속도 감소 (더 묵직하게)
-            // 기존: 0.035
-            let moveEff = driftMode ? 0.6 : 1.0;
-            let moveAmount = (speed / maxSpeed) * moveEff * 0.025; 
+        // --- 3. 트랙 생성 ---
+        const stageInfo = [];
+        function generateTrack() {
+            const points = [];
+            let cx = 0, cy = 0, cz = 0;
+            points.push(new THREE.Vector3(0,0,0)); // Start
             
-            if (keys.ArrowLeft) playerX -= moveAmount;
-            if (keys.ArrowRight) playerX += moveAmount;
+            // Stage 1 (Beach)
+            for(let i=0; i<25; i++) {
+                cz -= 100; cx += Math.sin(i * 0.4) * 40; 
+                points.push(new THREE.Vector3(cx, cy, cz));
+            }
+            stageInfo.push({ z: cz, color: 0x5D94FB });
 
-            playerX -= (playerSegment.curve * 0.00015) * (speed / maxSpeed);
+            // Stage 2 (Field - Uphill)
+            for(let i=0; i<25; i++) {
+                cz -= 100; cx += Math.cos(i * 0.7) * 60; cy += 3;
+                points.push(new THREE.Vector3(cx, cy, cz));
+            }
+            stageInfo.push({ z: cz, color: 0xFF8C00 });
+
+            // Stage 3 (Mountain - Downhill & Curves)
+            for(let i=0; i<30; i++) {
+                cz -= 100; cx += Math.sin(i * 1.5) * 90;
+                cy = i < 15 ? cy - 5 : cy * 0.95;
+                points.push(new THREE.Vector3(cx, cy, cz));
+            }
+            return new THREE.CatmullRomCurve3(points);
+        }
+        const curve = generateTrack();
+        const points = curve.getSpacedPoints(3500); 
+
+        function createRoadMesh(pts) {
+            const geo = new THREE.BufferGeometry();
+            const verts = [], uvs = [];
+            const width = 28;
+
+            for (let i = 0; i < pts.length; i++) {
+                const p = pts[i];
+                let tan;
+                if (i === pts.length - 1) tan = pts[i].clone().sub(pts[i - 1]).normalize();
+                else tan = pts[i + 1].clone().sub(pts[i]).normalize();
+                const side = new THREE.Vector3().crossVectors(tan, new THREE.Vector3(0,1,0)).normalize().multiplyScalar(width);
+                const l = p.clone().add(side); const r = p.clone().sub(side);
+                verts.push(l.x, l.y, l.z, r.x, r.y, r.z);
+                const v = i / 15; uvs.push(0, v, 1, v);
+            }
+            const idx = [];
+            for (let i = 0; i < pts.length - 1; i++) {
+                const b = i * 2; idx.push(b, b+2, b+1, b+1, b+2, b+3);
+            }
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+            geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+            geo.setIndex(idx); geo.computeVertexNormals();
+            return geo;
+        }
+        const roadMesh = new THREE.Mesh(createRoadMesh(points), new THREE.MeshStandardMaterial({ map: createOutrunTexture(), roughness: 0.8 }));
+        roadMesh.receiveShadow = true;
+        scene.add(roadMesh);
+        
+        // 지형 바닥 (Player를 따라다니도록 설정 예정)
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(10000, 10000), new THREE.MeshBasicMaterial({ map: createGrassTexture() }));
+        ground.rotation.x = -Math.PI / 2; ground.position.y = -2;
+        scene.add(ground);
+        
+        const sea = new THREE.Mesh(new THREE.PlaneGeometry(3000, 8000), new THREE.MeshBasicMaterial({ color: 0x1E90FF }));
+        sea.rotation.x = -Math.PI/2; sea.position.set(1800, -8, -3000);
+        scene.add(sea);
+
+        // --- 4. 오브젝트 배치 ---
+        const obstacles = [];
+        const treeGeo = new THREE.CylinderGeometry(0.5, 0.9, 7, 7);
+        const treeMat = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+        const leafGeo = new THREE.ConeGeometry(3.5, 6, 6);
+        const leafMat = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+        const rockGeo = new THREE.DodecahedronGeometry(3.5);
+        const rockMat = new THREE.MeshStandardMaterial({ color: 0x666666 });
+
+        function spawnProp(type, p, sideVec, dist) {
+            const g = new THREE.Group();
+            let radius = 2;
+            if(type === 'palm') {
+                const t = new THREE.Mesh(treeGeo, treeMat); t.position.y = 3.5;
+                const l = new THREE.Mesh(leafGeo, leafMat); l.position.y = 8;
+                g.add(t, l); g.scale.set(1.5,1.5,1.5);
+            } else if (type === 'rock') {
+                const r = new THREE.Mesh(rockGeo, rockMat); r.position.y = 1.5;
+                g.add(r); g.scale.set(1.2,1.2,1.2); radius = 3;
+            }
+            const pos = p.clone().add(sideVec.multiplyScalar(dist));
+            g.position.copy(pos); g.castShadow = true;
+            scene.add(g);
+            obstacles.push({ pos: pos, radius: radius, type: 'static' });
         }
 
-        if ((playerX < -1 || playerX > 1) && speed > offRoadDecel) speed -= offRoadDecel;
-        playerX = Math.max(-2, Math.min(2, playerX));
+        for(let i=20; i<points.length; i+=8) {
+            const p = points[i];
+            const pNext = points[Math.min(i+1, points.length-1)];
+            const tan = pNext.clone().sub(p).normalize();
+            const side = new THREE.Vector3().crossVectors(tan, new THREE.Vector3(0,1,0)).normalize();
+            const isLeft = Math.random() > 0.5;
+            const dist = 32 + Math.random() * 25; 
+            let type = 'palm';
+            if(p.z < stageInfo[1].z) type = Math.random()>0.4 ? 'rock' : 'palm'; 
 
-        speedDisplay.innerText = Math.floor(speed / 100);
-        score += Math.floor(speed / 1000);
-        scoreDisplay.innerText = score;
-    }
+            if(Math.random() > 0.92) {
+                 const closeDist = 20; 
+                 spawnProp('rock', p, side, isLeft ? closeDist : -closeDist);
+            } else {
+                 spawnProp(type, p, side, isLeft ? dist : -dist);
+            }
+        }
 
-    let lastTime = 0;
-    function gameLoop(time) {
-        const dt = Math.min(1, (time - lastTime) / 1000);
-        lastTime = time;
-        update(dt);
-        render();
-        requestAnimationFrame(gameLoop);
-    }
+        // --- 5. 플레이어 (자동차) 재구성 ---
+        // 핵심 수정: +Z 축이 '앞(Front)'이 되도록 모델링 재조립
+        const carGroup = new THREE.Group();
+        const startIdx = 5; 
+        const startPos = points[startIdx];
+        const startTan = points[startIdx+1].clone().sub(startPos).normalize();
+        
+        carGroup.position.copy(startPos);
+        // LookAt은 +Z축을 타겟으로 향하게 함 (Object3D 기준)
+        const lookTarget = startPos.clone().add(startTan.multiplyScalar(10));
+        carGroup.lookAt(lookTarget); 
+        
+        scene.add(carGroup);
 
-    window.addEventListener('resize', () => {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    });
-    window.addEventListener('keydown', e => { if (keys.hasOwnProperty(e.code)) keys[e.code] = true; });
-    window.addEventListener('keyup', e => { if (keys.hasOwnProperty(e.code)) keys[e.code] = false; });
+        const carModel = new THREE.Group();
+        
+        // [모델링 좌표계: +Z가 앞, -Z가 뒤]
+        const bodyMat = new THREE.MeshPhongMaterial({ color: 0xD90000, shininess: 80 });
+        
+        // 차체
+        const chassis = new THREE.Mesh(new THREE.BoxGeometry(4, 1.2, 8), bodyMat); 
+        chassis.position.y = 1.2;
+        
+        // 캐빈 (뒤쪽 -Z)
+        const cabin = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1, 4), new THREE.MeshPhongMaterial({color:0x111111})); 
+        cabin.position.set(0, 2, -1.5); 
+        
+        // 스포일러 (맨 뒤 -Z)
+        const spoiler = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.2, 1), bodyMat); 
+        spoiler.position.set(0, 2.3, -3.8); 
 
-    createRoad();
-    requestAnimationFrame(gameLoop);
+        // 헤드라이트 (맨 앞 +Z)
+        const lightGeo = new THREE.BoxGeometry(0.8, 0.2, 0.1);
+        const lightMat = new THREE.MeshBasicMaterial({ color: 0xFFFFCC });
+        const leftLight = new THREE.Mesh(lightGeo, lightMat); leftLight.position.set(-1.2, 1.4, 4.01);
+        const rightLight = new THREE.Mesh(lightGeo, lightMat); rightLight.position.set(1.2, 1.4, 4.01);
 
-</script>
+        carModel.add(chassis, cabin, spoiler, leftLight, rightLight);
+        carGroup.add(carModel);
+
+        const wheelGroups = []; 
+
+        function addWheel(x, z, isFront) {
+            const wGroup = new THREE.Group();
+            wGroup.position.set(x, 0.8, z);
+            
+            const wGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.8, 24);
+            const wMat = new THREE.MeshStandardMaterial({color:0x222222});
+            const wMesh = new THREE.Mesh(wGeo, wMat);
+            wMesh.rotation.z = Math.PI / 2; // 눕히기
+            wMesh.castShadow = true;
+
+            const cap = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.0, 0.2), new THREE.MeshStandardMaterial({color:0xFFD700}));
+            wMesh.add(cap);
+
+            wGroup.add(wMesh);
+            carModel.add(wGroup);
+            
+            wheelGroups.push({ group: wGroup, mesh: wMesh, isFront: isFront });
+        }
+
+        // 바퀴 위치: +Z가 앞
+        addWheel(-2.2, 2.5, true);  // FL
+        addWheel(2.2, 2.5, true);   // FR
+        addWheel(-2.2, -2.5, false); // RL
+        addWheel(2.2, -2.5, false);  // RR
+
+        // --- 6. 파티클 ---
+        const particlesGeo = new THREE.BufferGeometry();
+        const pCount = 60;
+        const pPos = new Float32Array(pCount * 3);
+        const pLife = new Float32Array(pCount); 
+        for(let i=0; i<pCount; i++) { pLife[i] = -1; }
+        particlesGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+        const pMat = new THREE.PointsMaterial({ color: 0x888888, size: 0.6, transparent: true, opacity: 0.5 });
+        const particleSys = new THREE.Points(particlesGeo, pMat);
+        scene.add(particleSys);
+
+        function updateParticles(emitting) {
+            const positions = particleSys.geometry.attributes.position.array;
+            for(let i=0; i<pCount; i++) {
+                if(pLife[i] > 0) {
+                    pLife[i] -= 0.04; 
+                    positions[i*3 + 1] += 0.08; 
+                } else {
+                    positions[i*3] = 99999; 
+                }
+
+                if(emitting && pLife[i] <= 0 && Math.random() > 0.7) {
+                    const offset = new THREE.Vector3((Math.random()-0.5)*3, 0.5, -3.5); // 차 뒤쪽(-Z)
+                    offset.applyMatrix4(carGroup.matrixWorld);
+                    positions[i*3] = offset.x;
+                    positions[i*3+1] = offset.y;
+                    positions[i*3+2] = offset.z;
+                    pLife[i] = 1.0;
+                }
+            }
+            particleSys.geometry.attributes.position.needsUpdate = true;
+        }
+
+        // --- 7. 게임 로직 ---
+        const carState = {
+            speed: 0, maxSpeed: 4.8, accel: 0.03, friction: 0.98,
+            turn: 0, drift: 0, invincible: 0,
+            lastValidY: 0
+        };
+        const keys = { w:false, s:false, a:false, d:false };
+        window.addEventListener('keydown', e => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = true; if(e.key.startsWith("Arrow")) keys[e.key] = true; });
+        window.addEventListener('keyup', e => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = false; if(e.key.startsWith("Arrow")) keys[e.key] = false; });
+
+        const elSpeed = document.getElementById('speed');
+        const elStage = document.getElementById('stage');
+        const elTime = document.getElementById('time');
+        const elMsg = document.getElementById('message');
+
+        let currentStage = 1;
+        let startTime = Date.now();
+        let isFinished = false;
+        let shakeIntensity = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if(!isFinished) {
+                // Physics
+                if(keys['w']||keys['ArrowUp']) carState.speed += carState.accel;
+                else if(keys['s']||keys['ArrowDown']) carState.speed -= carState.accel * 2;
+                else carState.speed *= carState.friction;
+
+                // --- 높이 처리 ---
+                const raycaster = new THREE.Raycaster();
+                raycaster.set(carGroup.position.clone().add(new THREE.Vector3(0,50,0)), new THREE.Vector3(0,-1,0));
+                const hits = raycaster.intersectObject(roadMesh);
+                
+                let isOnRoad = false;
+                if(hits.length > 0) {
+                    isOnRoad = true;
+                    const hitY = hits[0].point.y;
+                    carGroup.position.y = THREE.MathUtils.lerp(carGroup.position.y, hitY + 0.8, 0.4);
+                    carState.lastValidY = hitY;
+                } else {
+                    const targetY = carState.lastValidY - 0.5;
+                    carGroup.position.y = THREE.MathUtils.lerp(carGroup.position.y, targetY, 0.1);
+                    carState.speed *= 0.96;
+                }
+
+                // 조향 및 이동
+                if(Math.abs(carState.speed) > 0.1) {
+                    const dir = carState.speed > 0 ? 1 : -1;
+                    const turnInput = (keys['a']||keys['ArrowLeft'] ? 1 : 0) + (keys['d']||keys['ArrowRight'] ? -1 : 0);
+                    
+                    carState.drift += (turnInput * 0.08 - carState.drift) * 0.1;
+                    carGroup.rotateY(carState.drift * dir);
+                    
+                    carModel.rotation.z = -carState.drift * 4; 
+                    carModel.rotation.x = -carState.speed * 0.04; 
+                }
+
+                if(carState.speed > carState.maxSpeed) carState.speed = carState.maxSpeed;
+                if(carState.speed < -1) carState.speed = -1;
+                
+                // 전진 (이제 +Z 방향이 앞이므로 +Z로 이동)
+                carGroup.translateZ(carState.speed);
+
+                // 바퀴 애니메이션
+                wheelGroups.forEach(w => {
+                    // 굴러감: 로컬 X축 회전. 전진(+Z)시 -X회전
+                    w.mesh.rotation.x -= carState.speed * 0.5;
+                    // 조향
+                    if(w.isFront) {
+                        const steer = (keys['a']||keys['ArrowLeft'] ? 0.5 : 0) + (keys['d']||keys['ArrowRight'] ? -0.5 : 0);
+                        w.group.rotation.y = steer;
+                    }
+                });
+                
+                if(carState.invincible > 0) carState.invincible--;
+                else {
+                    const cPos = carGroup.position;
+                    for(let obs of obstacles) {
+                        const dist = Math.sqrt(Math.pow(cPos.x-obs.pos.x,2) + Math.pow(cPos.z-obs.pos.z,2));
+                        if(dist < (2.5 + obs.radius)) {
+                            elMsg.innerText = "CRASH!"; elMsg.style.display='block';
+                            setTimeout(()=>elMsg.style.display='none', 1000);
+                            carState.speed *= -0.4; 
+                            shakeIntensity = 2.0; carState.invincible = 60;
+                            document.querySelector('.hud-box').classList.add('danger');
+                            setTimeout(()=>document.querySelector('.hud-box').classList.remove('danger'),1000);
+                        }
+                    }
+                }
+                updateParticles(Math.abs(carState.speed)>2 || !isOnRoad);
+            }
+
+            // --- Camera ---
+            const camTarget = carGroup.position.clone();
+            const offset = new THREE.Vector3(0, 7, -18); // 차 뒤쪽 (-Z) 위
+            offset.applyMatrix4(carGroup.matrixWorld);
+            
+            if(shakeIntensity > 0) {
+                offset.x += (Math.random()-0.5)*shakeIntensity;
+                offset.y += (Math.random()-0.5)*shakeIntensity;
+                shakeIntensity *= 0.9;
+            }
+            camera.position.lerp(offset, 0.2);
+            // 앞을 보게 함 (+Z 방향 앞쪽을 봄)
+            const lookAtPos = carGroup.position.clone().add(new THREE.Vector3(0, 2, 20).applyQuaternion(carGroup.quaternion));
+            camera.lookAt(lookAtPos);
+
+            // --- Env (Terrain Follow) ---
+            ground.position.x = carGroup.position.x;
+            ground.position.z = carGroup.position.z;
+            // 지형 높이를 차보다 살짝 낮게 유지하여 절벽처럼 보이지 않게 함
+            ground.position.y = carGroup.position.y - 3; 
+
+            const z = carGroup.position.z;
+            // +Z 이동이 아니므로 거리 계산 필요. 트랙은 여전히 -Z로 뻗어있나?
+            // generateTrack: cz -= 100. 트랙은 World -Z 방향.
+            // 플레이어는 World -Z 방향으로 가야 함.
+            // StartTangent: (0,0,-1). 
+            // Car lookAt Target: (0,0,-10). -> +Z축이 (0,0,-1)을 향함? 
+            // Three.js LookAt: +Z axis faces target? NO.
+            // **중요 수정**: Three.js의 lookAt은 +Z축이 타겟을 향하도록 돌리는게 맞음 (Mesh기준).
+            // 그래서 차의 +Z가 World -Z(트랙진행방향)을 향하게 됨.
+            // 따라서 translateZ(speed) 하면 World -Z 방향으로 이동.
+            // 트랙 포인트들도 World -Z 방향.
+            // 모든 로직 일치함.
+
+            if(z < stageInfo[1].z && currentStage !== 3) {
+                currentStage = 3; scene.background=skyColorMountain; scene.fog.color=skyColorMountain;
+                elMsg.innerText="STAGE 3"; elMsg.style.display='block'; setTimeout(()=>elMsg.style.display='none',2000);
+            } else if(z < stageInfo[0].z && currentStage === 1) {
+                currentStage = 2; 
+                elMsg.innerText="STAGE 2"; elMsg.style.display='block'; setTimeout(()=>elMsg.style.display='none',2000);
+            }
+
+            elSpeed.innerText = Math.floor(Math.abs(carState.speed*60));
+            elStage.innerText = currentStage;
+            if(!isFinished) elTime.innerText = ((Date.now()-startTime)/1000).toFixed(1);
+
+            if(!isFinished && z < points[points.length-1].z + 50) {
+                isFinished = true; 
+                elMsg.innerText="FINISH!!"; elMsg.style.display='block';
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
 </body>
 </html>
