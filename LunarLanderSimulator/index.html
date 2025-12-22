@@ -89,16 +89,27 @@
         #fuel-bar { height: 100%; background: #0f0; width: 100%; transition: width 0.1s; }
         
         /* 상점 스타일 개선 */
-        .ship-card {
+        .shop-tabs { display: flex; gap: 5px; margin-bottom: 15px; }
+        .shop-tab { 
+            flex: 1; padding: 10px; background: #222; border: 1px solid #555; color: #888; 
+            font-family: 'Press Start 2P'; font-size: 10px; cursor: pointer; transition: 0.2s;
+        }
+        .shop-tab:hover { background: #333; }
+        .shop-tab.active { background: #444; color: #fff; border-color: #fff; border-bottom: none; }
+
+        .ship-card, .upgrade-card, .item-card {
             border: 1px solid #444; background: #222; padding: 15px; margin: 10px 0;
             display: flex; flex-direction: column; gap: 8px;
             cursor: pointer; transition: background 0.2s; position: relative;
         }
-        .ship-card:hover { background: #333; }
+        .ship-card:hover, .upgrade-card:hover, .item-card:hover { background: #333; }
         .ship-card.selected { border: 2px solid #0f0; background: #1a331a; }
-        .ship-header { display: flex; justify-content: space-between; align-items: center; width: 100%; }
-        .ship-name { font-weight: bold; color: #fff; font-size: 14px; font-family: 'Press Start 2P'; }
-        .ship-cost { font-family: 'Press Start 2P'; font-size: 10px; color: #fd0; }
+        
+        .card-header { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .card-name { font-weight: bold; color: #fff; font-size: 12px; font-family: 'Press Start 2P'; }
+        .card-cost { font-family: 'Press Start 2P'; font-size: 10px; color: #fd0; }
+        .card-desc { font-size: 10px; color: #888; text-align: left; }
+        .card-level { font-size: 10px; color: #0af; text-align: left; margin-top: 5px; }
         
         .stat-row { display: flex; align-items: center; gap: 10px; font-size: 10px; color: #aaa; }
         .stat-label { width: 60px; text-align: right; }
@@ -216,8 +227,15 @@
     <div id="screen-hangar" class="modal">
         <div class="modal-box">
             <div class="modal-title" id="txt-hangar">HANGAR</div>
-            <div style="color:#fd0; font-family:'Press Start 2P'; font-size:12px; margin-bottom:20px;">CREDITS: <span id="hangar-credits">0</span></div>
-            <div id="ship-list" style="max-height:300px; overflow-y:auto;">
+            <div style="color:#fd0; font-family:'Press Start 2P'; font-size:12px; margin-bottom:15px;">CREDITS: <span id="hangar-credits">0</span></div>
+            
+            <div class="shop-tabs">
+                <div class="shop-tab active" onclick="switchShopTab('ships')" id="tab-ships">SHIPS</div>
+                <div class="shop-tab" onclick="switchShopTab('upgrades')" id="tab-upgrades">UPGRADES</div>
+                <div class="shop-tab" onclick="switchShopTab('items')" id="tab-items">ITEMS</div>
+            </div>
+
+            <div id="shop-content" style="max-height:300px; overflow-y:auto;">
                 <!-- JS로 생성됨 -->
             </div>
             <button class="btn btn-red" id="btn-back-hangar" onclick="closeHangar()" style="margin-top:20px;">BACK</button>
@@ -280,7 +298,14 @@
                 too_fast: "TOO FAST", bad_angle: "BAD ANGLE", h_speed: "HORIZONTAL SPEED",
                 all_completed: "ALL MISSIONS COMPLETED!",
                 ship_equip: "EQUIP", ship_equipped: "EQUIPPED", ship_buy: "BUY", ship_select: "SELECT",
-                stat_thrust: "THRUST", stat_fuel: "FUEL", stat_turn: "TURN"
+                stat_thrust: "THRUST", stat_fuel: "FUEL", stat_turn: "TURN",
+                tab_ships: "SHIPS", tab_upgrades: "UPGRADES", tab_items: "ITEMS",
+                upgrade_max: "MAX LEVEL", item_owned: "OWNED", buy: "BUY",
+                upg_fuel_name: "FUEL TANK", upg_fuel_desc: "Max Fuel +10%",
+                upg_eff_name: "EFFICIENT ENGINE", upg_eff_desc: "Fuel Consumption -10%",
+                upg_land_name: "LANDING GEAR", upg_land_desc: "Safe Impact Speed +10%",
+                item_fuel_name: "RESERVE TANK", item_fuel_desc: "Start with +50 Fuel",
+                item_shield_name: "FORCE FIELD", item_shield_desc: "Ignore 1 Crash"
             },
             ko: {
                 mission_control: "임무 통제실", hangar: "격납고 (상점)", settings: "설정",
@@ -294,7 +319,14 @@
                 too_fast: "속도 과다", bad_angle: "각도 불량", h_speed: "수평 속도 과다",
                 all_completed: "모든 임무 완수!",
                 ship_equip: "장착", ship_equipped: "장착됨", ship_buy: "구매", ship_select: "선택",
-                stat_thrust: "추력", stat_fuel: "연료", stat_turn: "회전"
+                stat_thrust: "추력", stat_fuel: "연료", stat_turn: "회전",
+                tab_ships: "기체", tab_upgrades: "업그레이드", tab_items: "아이템",
+                upgrade_max: "최고 레벨", item_owned: "보유중", buy: "구매",
+                upg_fuel_name: "연료 탱크", upg_fuel_desc: "최대 연료 +10%",
+                upg_eff_name: "고효율 엔진", upg_eff_desc: "연료 소모 -10%",
+                upg_land_name: "랜딩 기어", upg_land_desc: "충격 흡수 +10%",
+                item_fuel_name: "비상 연료통", item_fuel_desc: "시작 시 연료 +50",
+                item_shield_name: "포스 필드", item_shield_desc: "1회 충돌 방지"
             },
             ja: {
                 mission_control: "ミッション管理", hangar: "格納庫 (ショップ)", settings: "設定",
@@ -308,7 +340,14 @@
                 too_fast: "速度超過", bad_angle: "角度不良", h_speed: "水平速度超過",
                 all_completed: "全ミッション完了!",
                 ship_equip: "装備", ship_equipped: "装備中", ship_buy: "購入", ship_select: "選択",
-                stat_thrust: "推力", stat_fuel: "燃料", stat_turn: "回転"
+                stat_thrust: "推力", stat_fuel: "燃料", stat_turn: "回転",
+                tab_ships: "機体", tab_upgrades: "強化", tab_items: "アイテム",
+                upgrade_max: "最大レベル", item_owned: "所持済み", buy: "購入",
+                upg_fuel_name: "燃料タンク", upg_fuel_desc: "最大燃料 +10%",
+                upg_eff_name: "高効率エンジン", upg_eff_desc: "燃料消費 -10%",
+                upg_land_name: "ランディングギア", upg_land_desc: "衝撃吸収 +10%",
+                item_fuel_name: "予備タンク", item_fuel_desc: "開始時燃料 +50",
+                item_shield_name: "フォースフィールド", item_shield_desc: "1回衝突無効"
             }
         };
 
@@ -322,7 +361,7 @@
             currentLang = lang;
             localStorage.setItem('lunar_lang', lang);
             updateTexts();
-            updateMenuUI(); // Refresh menu texts
+            updateMenuUI();
         }
 
         function updateTexts() {
@@ -343,8 +382,11 @@
             document.getElementById('ui-fuel-label').innerText = t('fuel');
             document.getElementById('ui-score-label').innerText = t('score');
             document.getElementById('ui-lv-label').innerText = t('lv');
+            
+            document.getElementById('tab-ships').innerText = t('tab_ships');
+            document.getElementById('tab-upgrades').innerText = t('tab_upgrades');
+            document.getElementById('tab-items').innerText = t('tab_items');
 
-            // Update language buttons active state
             ['ko', 'en', 'ja'].forEach(l => {
                 document.getElementById('lang-' + l).className = 'lang-btn' + (currentLang === l ? ' active' : '');
             });
@@ -359,11 +401,22 @@
             { id: 3, name: "ALIEN POD", cost: 10000, fuelMult: 1.2, thrust: 0.18, rot: 0.05, desc: "Superior technology.", stats: {t:9, f:7, r:7} }
         ];
 
+        const UPGRADE_DATA = {
+            fuel: { key: 'upg_fuel', cost: [1000, 2500, 5000], max: 3 },
+            efficiency: { key: 'upg_eff', cost: [1500, 3000, 6000], max: 3 },
+            landing: { key: 'upg_land', cost: [2000, 4000, 8000], max: 3 }
+        };
+
+        const ITEM_DATA = {
+            extraFuel: { key: 'item_fuel', cost: 500 },
+            shield: { key: 'item_shield', cost: 800 }
+        };
+
         // --- AUDIO ENGINE ---
         class AudioController {
             constructor() {
                 this.ctx = null;
-                this.enabled = localStorage.getItem('lunar_sound') !== 'false'; // Default true
+                this.enabled = localStorage.getItem('lunar_sound') !== 'false';
                 this.masterGain = null;
                 this.thrustSource = null;
                 this.thrustGain = null;
@@ -455,7 +508,11 @@
         let ownedShips = JSON.parse(localStorage.getItem('lunar_owned_ships')) || [0];
         let currentShipId = parseInt(localStorage.getItem('lunar_current_ship')) || 0;
         
+        let playerUpgrades = JSON.parse(localStorage.getItem('lunar_upgrades')) || { fuel: 0, efficiency: 0, landing: 0 };
+        let playerItems = JSON.parse(localStorage.getItem('lunar_items')) || { extraFuel: 0, shield: 0 };
+        
         let menuPage = 0;
+        let activeShopTab = 'ships';
         let gameState = 'menu';
         let keys = {};
         let isMobile = false;
@@ -469,11 +526,9 @@
         // Entities
         let terrainPoints = [], landingPad = {x:0, w:0, y:0};
         let particles = [], obstacles = [], debris = [], thrustParticles = [], collectibles = [];
-        let levelConfig = {
-            groundColor: '#aaa', 
-            bgColor: '#000'
-        };
-        const lander = { x:0, y:0, vx:0, vy:0, angle:0, fuel:0, visible:true, thrusting:false };
+        let levelConfig = { groundColor: '#aaa', bgColor: '#000' };
+        // shield: active shield state
+        const lander = { x:0, y:0, vx:0, vy:0, angle:0, fuel:0, visible:true, thrusting:false, shield: false };
 
         const uiScreens = {
             menu: document.getElementById('screen-level-select'),
@@ -500,11 +555,9 @@
             
             menuPage = Math.floor((maxUnlocked-1)/LEVELS_PER_PAGE);
             updateMenuUI();
-            updateTexts(); // Initial localization
+            updateTexts(); 
             
             ['click','touchstart','keydown'].forEach(e => window.addEventListener(e, ()=>audio.init(), {once:true}));
-            
-            // Sync sound icon with initial state
             updateSoundIcon(audio.enabled);
 
             setupMobileControls();
@@ -566,9 +619,12 @@
                 if(!lander.thrusting) { lander.thrusting = true; audio.startThrust(); }
                 lander.vx += Math.sin(lander.angle) * shipStats.thrust;
                 lander.vy -= Math.cos(lander.angle) * shipStats.thrust;
-                lander.fuel -= 0.3;
                 
-                // Thrust Particles
+                // Fuel Efficiency Upgrade
+                const effLevel = playerUpgrades.efficiency || 0;
+                const burnRate = 0.3 * (1 - effLevel * 0.1); // -10% per level
+                lander.fuel -= burnRate;
+                
                 for(let i=0; i<2; i++) {
                     const a = lander.angle + Math.PI + (Math.random()-0.5)*0.5;
                     const s = Math.random()*3+2;
@@ -597,7 +653,18 @@
                 o.x += o.speed;
                 o.y += Math.sin(Date.now()/500 + o.phase) * 0.5;
                 if(o.x < 0 || o.x > LOGICAL_W) o.speed *= -1;
-                if(Math.hypot(lander.x - o.x, lander.y - o.y) < o.r + 10) crash(t("hit_obstacle"));
+                
+                if(Math.hypot(lander.x - o.x, lander.y - o.y) < o.r + 10) {
+                    if(lander.shield) {
+                        lander.shield = false; // Consume shield
+                        // Bounce effect
+                        lander.vx *= -1.5; lander.vy *= -1.5;
+                        audio.playClick(); // Shield sound placeholder
+                        shakeIntensity = 10;
+                    } else {
+                        crash(t("hit_obstacle"));
+                    }
+                }
             });
 
             for(let i=collectibles.length-1; i>=0; i--) {
@@ -623,7 +690,15 @@
                 if(bottomY >= collisionY) {
                     lander.y = collisionY - 10;
                     if(onPad) checkLanding();
-                    else crash(t("crashed_terrain"));
+                    else {
+                        if(lander.shield) {
+                            lander.shield = false; 
+                            lander.vy = -Math.abs(lander.vy) * 0.5; // Bounce up
+                            audio.playClick();
+                        } else {
+                            crash(t("crashed_terrain"));
+                        }
+                    }
                 }
             }
 
@@ -638,7 +713,14 @@
             const hSpeed = Math.abs(lander.vx);
             const angle = Math.abs(lander.angle);
             
-            if(vSpeed < 3.5 && hSpeed < 2.5 && angle < 0.35) {
+            // Landing Gear Upgrade
+            const landLevel = playerUpgrades.landing || 0;
+            const bonusTol = landLevel * 0.5; // +0.5 speed tolerance per level
+            
+            const limitV = 3.5 + bonusTol;
+            const limitH = 2.5 + bonusTol;
+
+            if(vSpeed < limitV && hSpeed < limitH && angle < 0.35) {
                 let grade = t("good");
                 let bonus = 100;
                 if(vSpeed < 1.5 && hSpeed < 1.0 && angle < 0.1) { grade=t("perfect"); bonus=500; }
@@ -664,7 +746,7 @@
             } else {
                 let reason = t("too_fast");
                 if(angle >= 0.35) reason = t("bad_angle");
-                else if(hSpeed >= 2.5) reason = t("h_speed");
+                else if(hSpeed >= limitH) reason = t("h_speed");
                 crash(reason);
             }
         }
@@ -789,6 +871,15 @@
                 ctx.fillRect(p.x, p.y, 3, 3); ctx.globalAlpha = 1;
             });
 
+            // Shield Visual
+            if(lander.visible && lander.shield) {
+                ctx.strokeStyle = 'cyan';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(lander.x, lander.y, 25, 0, Math.PI*2);
+                ctx.stroke();
+            }
+
             if(lander.visible && lander.y < landingPad.y - 50) {
                 ctx.strokeStyle = 'rgba(0,255,0,0.2)'; ctx.setLineDash([5, 5]);
                 ctx.beginPath(); ctx.moveTo(lander.x, lander.y); ctx.lineTo(lander.x, landingPad.y); ctx.stroke();
@@ -847,10 +938,30 @@
                 bgColor: ['#000', '#100', '#001', '#012', '#210'][Math.floor((lvl-1)/10)%5]
             };
             
+            // Apply Ship Stats & Upgrades
             const stats = SHIPS[currentShipId];
-            maxFuel = Math.max(80, 130 - (progress * 50)) * stats.fuelMult;
+            
+            // Fuel Tank Upgrade
+            const fuelLevel = playerUpgrades.fuel || 0;
+            const fuelBonus = 1.0 + (fuelLevel * 0.1); // +10% per level
+            
+            maxFuel = Math.max(80, 130 - (progress * 50)) * stats.fuelMult * fuelBonus;
             lander.fuel = maxFuel;
             
+            // Apply Items
+            if(playerItems.extraFuel > 0) {
+                lander.fuel += 50;
+                maxFuel += 50; // visual fix
+                playerItems.extraFuel--;
+            }
+            if(playerItems.shield > 0) {
+                lander.shield = true;
+                playerItems.shield--;
+            } else {
+                lander.shield = false;
+            }
+            updateStorage();
+
             lander.x = LOGICAL_W/2; lander.y = 50; lander.vx=0; lander.vy=0; lander.angle=0; lander.visible=true; lander.thrusting=false;
             debris = []; thrustParticles = [];
             
@@ -895,9 +1006,6 @@
             updateMenuUI();
             showScreen(null);
             
-            // Check for tutorial text in current language if available
-            // Note: Currently tutorials are hardcoded in English in TUTORIALS object
-            // Ideally these should also be in TEXTS or selected based on lang
             if(TUTORIALS[lvl]) {
                 const t = TUTORIALS[lvl];
                 document.getElementById('tut-title').innerText = t.title;
@@ -941,51 +1049,141 @@
             next.style.opacity = next.innerText==="▶"?1:0.3;
         }
 
+        function switchShopTab(tabName) {
+            audio.playClick();
+            activeShopTab = tabName;
+            
+            document.querySelectorAll('.shop-tab').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + tabName).classList.add('active');
+            
+            renderShopContent();
+        }
+
+        function renderShopContent() {
+            const list = document.getElementById('shop-content');
+            list.innerHTML = '';
+
+            if (activeShopTab === 'ships') {
+                SHIPS.forEach(s => {
+                    const owned = ownedShips.includes(s.id);
+                    const isSelected = currentShipId === s.id;
+                    const el = document.createElement('div');
+                    el.className = 'ship-card ' + (isSelected ? 'selected' : '');
+                    
+                    const makeBar = (val, color) => `<div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${val*10}%; background:${color};"></div></div>`;
+                    
+                    el.innerHTML = `
+                        <div class="card-header">
+                            <div class="card-name">${s.name}</div>
+                            <div class="card-cost">${owned ? (isSelected ? t("ship_equipped") : t("ship_select")) : s.cost+" CR"}</div>
+                        </div>
+                        <div class="ship-info" style="width:100%;">
+                            <div class="stat-row"><div class="stat-label">${t("stat_thrust")}</div>${makeBar(s.stats.t, '#f80')}</div>
+                            <div class="stat-row"><div class="stat-label">${t("stat_fuel")}</div>${makeBar(s.stats.f, '#0f0')}</div>
+                            <div class="stat-row"><div class="stat-label">${t("stat_turn")}</div>${makeBar(s.stats.r, '#0af')}</div>
+                            <div class="card-desc" style="margin-top:5px;">${s.desc}</div>
+                        </div>
+                    `;
+                    el.onclick = () => {
+                        if(owned) {
+                            currentShipId = s.id;
+                            localStorage.setItem('lunar_current_ship', currentShipId);
+                            renderShopContent();
+                            audio.playClick();
+                        } else if(credits >= s.cost) {
+                            credits -= s.cost;
+                            ownedShips.push(s.id);
+                            updateStorage();
+                            audio.playWin(); 
+                            renderShopContent();
+                        } else {
+                            audio.playFail(); 
+                        }
+                    };
+                    list.appendChild(el);
+                });
+            } else if (activeShopTab === 'upgrades') {
+                for (const [key, data] of Object.entries(UPGRADE_DATA)) {
+                    const level = playerUpgrades[key] || 0;
+                    const isMax = level >= data.max;
+                    const cost = data.cost[level];
+                    const name = t(data.key + '_name');
+                    const desc = t(data.key + '_desc');
+
+                    const el = document.createElement('div');
+                    el.className = 'upgrade-card';
+                    el.innerHTML = `
+                        <div class="upgrade-info" style="width:100%;">
+                            <div class="card-header">
+                                <div class="card-name">${name}</div>
+                                <div class="card-cost">${isMax ? t("upgrade_max") : cost + " CR"}</div>
+                            </div>
+                            <div class="card-desc">${desc}</div>
+                            <div class="card-level">LV ${level} / ${data.max}</div>
+                        </div>
+                    `;
+                    el.onclick = () => {
+                        if (isMax) return;
+                        if (credits >= cost) {
+                            credits -= cost;
+                            playerUpgrades[key] = level + 1;
+                            updateStorage();
+                            audio.playWin();
+                            renderShopContent();
+                        } else {
+                            audio.playFail();
+                        }
+                    };
+                    list.appendChild(el);
+                }
+            } else if (activeShopTab === 'items') {
+                for (const [key, data] of Object.entries(ITEM_DATA)) {
+                    const count = playerItems[key] || 0;
+                    const name = t(data.key + '_name');
+                    const desc = t(data.key + '_desc');
+                    const cost = data.cost;
+                    
+                    const el = document.createElement('div');
+                    el.className = 'item-card';
+                    el.innerHTML = `
+                        <div class="upgrade-info" style="width:100%;">
+                            <div class="card-header">
+                                <div class="card-name">${name}</div>
+                                <div class="card-cost">${cost} CR</div>
+                            </div>
+                            <div class="card-desc">${desc}</div>
+                            <div class="card-level">${t("item_owned")}: ${count}</div>
+                        </div>
+                    `;
+                    el.onclick = () => {
+                        if (count >= 1) return; // Limit 1 for simplicity
+                        if (credits >= cost) {
+                            credits -= cost;
+                            playerItems[key] = count + 1;
+                            updateStorage();
+                            audio.playWin();
+                            renderShopContent();
+                        } else {
+                            audio.playFail();
+                        }
+                    };
+                    list.appendChild(el);
+                }
+            }
+            updateMenuUI(); // Refresh credits
+        }
+
         function openHangar() {
             audio.playClick();
-            const list = document.getElementById('ship-list');
-            list.innerHTML = '';
-            SHIPS.forEach(s => {
-                const owned = ownedShips.includes(s.id);
-                const isSelected = currentShipId === s.id;
-                const el = document.createElement('div');
-                el.className = 'ship-card ' + (isSelected ? 'selected' : '');
-                
-                // Enhanced Shop UI with Stats Bars
-                const makeBar = (val, color) => `<div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${val*10}%; background:${color};"></div></div>`;
-                
-                el.innerHTML = `
-                    <div class="ship-header">
-                        <div class="ship-name">${s.name}</div>
-                        <div class="ship-cost">${owned ? (isSelected ? t("ship_equipped") : t("ship_select")) : s.cost+" CR"}</div>
-                    </div>
-                    <div class="ship-info" style="width:100%;">
-                        <div class="stat-row"><div class="stat-label">${t("stat_thrust")}</div>${makeBar(s.stats.t, '#f80')}</div>
-                        <div class="stat-row"><div class="stat-label">${t("stat_fuel")}</div>${makeBar(s.stats.f, '#0f0')}</div>
-                        <div class="stat-row"><div class="stat-label">${t("stat_turn")}</div>${makeBar(s.stats.r, '#0af')}</div>
-                        <div style="font-size:10px; color:#888; margin-top:5px;">${s.desc}</div>
-                    </div>
-                `;
-                el.onclick = () => {
-                    if(owned) {
-                        currentShipId = s.id;
-                        localStorage.setItem('lunar_current_ship', currentShipId);
-                        openHangar();
-                        audio.playClick();
-                    } else if(credits >= s.cost) {
-                        credits -= s.cost;
-                        ownedShips.push(s.id);
-                        localStorage.setItem('lunar_credits', credits);
-                        localStorage.setItem('lunar_owned_ships', JSON.stringify(ownedShips));
-                        audio.playWin(); 
-                        openHangar();
-                    } else {
-                        audio.playFail(); 
-                    }
-                };
-                list.appendChild(el);
-            });
+            switchShopTab('ships'); // Default tab
             showScreen('hangar');
+        }
+
+        function updateStorage() {
+            localStorage.setItem('lunar_credits', credits);
+            localStorage.setItem('lunar_owned_ships', JSON.stringify(ownedShips));
+            localStorage.setItem('lunar_upgrades', JSON.stringify(playerUpgrades));
+            localStorage.setItem('lunar_items', JSON.stringify(playerItems));
         }
 
         function openSettings() {
@@ -1011,7 +1209,6 @@
         function updateSoundIcon(enabled) {
             const btn = document.getElementById('sound-btn');
             btn.style.opacity = enabled ? 1 : 0.5;
-            // Visual indicator update (optional, already handled by opacity)
         }
 
         function closeTutorial() { audio.playClick(); showScreen(null); startCountdown(); }
@@ -1032,9 +1229,9 @@
 
         function endGame(success, msg) {
             gameState='result';
-            const t = document.getElementById('res-title'), b = document.getElementById('res-buttons');
-            t.innerText = success ? t("mission_success") : t("mission_failed");
-            t.style.color = success ? "#0f0" : "#f00";
+            const titleEl = document.getElementById('res-title'), b = document.getElementById('res-buttons');
+            titleEl.innerText = success ? t("mission_success") : t("mission_failed");
+            titleEl.style.color = success ? "#0f0" : "#f00";
             document.getElementById('res-text').innerText = msg;
             b.innerHTML = '';
             
