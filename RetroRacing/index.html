@@ -211,18 +211,18 @@
         let rz = x * sin + z * cos;
         let ry = y;
 
-        // 2. Pitch 회전 (카메라가 위에서 내려다보는 각도)
-        const pitch = 0.2; // 약 11도 정도 내려다봄
+        // 2. Pitch 회전 (카메라)
+        const pitch = 0.2; 
         let cosP = Math.cos(pitch);
         let sinP = Math.sin(pitch);
         let y2 = ry * cosP - rz * sinP;
         let z2 = ry * sinP + rz * cosP;
 
-        // 3. 카메라 거리 설정 (Perspective)
+        // 3. 카메라 거리 설정
         const camZ = 500; 
         const pz = z2 + camZ; 
 
-        // 4. 투영 (Perspective Projection)
+        // 4. 투영
         if (pz <= 0) return { x: 0, y: 0, scale: 0, visible: false, depth: pz };
         
         const fov = 600; 
@@ -230,7 +230,7 @@
         
         return {
             x: cx + rx * proj * scale,
-            y: cy + y2 * proj * scale, // 화면 Y좌표 (cy가 바닥 기준)
+            y: cy + y2 * proj * scale, 
             scale: proj * scale,
             visible: true,
             depth: pz
@@ -424,7 +424,7 @@
         ctx.restore();
     }
 
-    // --- 3D 자동차 모델링 및 렌더링 (수정됨: 이제 보임!) ---
+    // --- 3D 자동차 모델링 및 렌더링 ---
     function draw3DCarModel() {
         const width = canvas.width;
         const height = canvas.height;
@@ -432,13 +432,12 @@
         
         const bounce = Math.sin(Date.now() / 50) * (speed / maxSpeed) * 3;
         const cx = width / 2;
-        // 도로 위에 차를 배치 (화면 하단)
         const cy = height - 80 * (width/1200) + bounce;
 
-        // 회전 각도 (Yaw)
         const maxAngle = Math.PI / 3; 
         const driftFactor = driftMode ? 1.5 : 1.0;
-        const yaw = playerTurn * maxAngle * driftFactor;
+        // [방향 수정] 핸들 방향 반대 문제 해결: -playerTurn
+        const yaw = -playerTurn * maxAngle * driftFactor;
 
         // 자동차 정점 데이터 (Local Space)
         const w = 35; 
@@ -449,25 +448,23 @@
         const cl_f = 20; 
         const cl_b = 40; 
 
-        // 정점 (Vertices) 정의
+        // Z좌표: +l (먼쪽, 앞), -l (가까운쪽, 뒤)
         const verts = [
             // [0-3] 바닥면 (Bottom)
-            {x:-w, y:0, z:-l}, {x:w, y:0, z:-l}, {x:w, y:0, z:l}, {x:-w, y:0, z:l},
+            {x:-w, y:0, z:l}, {x:w, y:0, z:l}, {x:w, y:0, z:-l}, {x:-w, y:0, z:-l},
             // [4-7] 벨트라인 (Mid Body)
-            {x:-w, y:-h, z:-l}, {x:w, y:-h, z:-l}, {x:w, y:-h, z:l}, {x:-w, y:-h, z:l},
+            {x:-w, y:-h, z:l}, {x:w, y:-h, z:l}, {x:w, y:-h, z:-l}, {x:-w, y:-h, z:-l},
             // [8-11] 캐빈 윗면 (Roof)
-            {x:-cw, y:-h-ch, z:-cl_f}, {x:cw, y:-h-ch, z:-cl_f}, {x:cw, y:-h-ch, z:cl_b}, {x:-cw, y:-h-ch, z:cl_b}
+            {x:-cw, y:-h-ch, z:cl_f}, {x:cw, y:-h-ch, z:cl_f}, {x:cw, y:-h-ch, z:-cl_b}, {x:-cw, y:-h-ch, z:-cl_b}
         ];
 
-        // 팝업 라이트 (추가 정점)
+        // 팝업 라이트 (추가 정점) - Far (+Z)
         const pl_h = 6; 
-        // 12~15: 좌측 라이트 상단
         verts.push(
-            {x:-w+5, y:-h-pl_h, z:-l+10}, {x:-w+15, y:-h-pl_h, z:-l+10}, {x:-w+15, y:-h, z:-l+10}, {x:-w+5, y:-h, z:-l+10}
+            {x:-w+5, y:-h-pl_h, z:l-10}, {x:-w+15, y:-h-pl_h, z:l-10}, {x:-w+15, y:-h, z:l-10}, {x:-w+5, y:-h, z:l-10}
         );
-        // 16~19: 우측 라이트 상단
         verts.push(
-            {x:w-15, y:-h-pl_h, z:-l+10}, {x:w-5, y:-h-pl_h, z:-l+10}, {x:w-5, y:-h, z:-l+10}, {x:w-15, y:-h, z:-l+10}
+            {x:w-15, y:-h-pl_h, z:l-10}, {x:w-5, y:-h-pl_h, z:l-10}, {x:w-5, y:-h, z:l-10}, {x:w-15, y:-h, z:l-10}
         );
 
         // 정점 투영 (Project Vertices)
@@ -477,19 +474,14 @@
         const faces = [];
 
         // 1. 차체 (Body)
-        // 앞면 (Front)
-        faces.push({ idx: [4, 5, 1, 0], col: '#eee', stroke: '#ccc' });
-        // 뒷면 (Back)
-        faces.push({ idx: [7, 6, 2, 3], col: '#ccc', stroke: '#bbb' }); 
-        faces.push({ idx: [7, 6, 2, 3], col: '#111', stroke: null, type: 'bumper' }); 
-        // 왼쪽 (Left)
-        faces.push({ idx: [7, 4, 0, 3], col: '#f4f4f4', stroke: '#ddd' }); 
-        faces.push({ idx: [7, 4, 0, 3], col: '#111', stroke: null, type: 'side_molding' }); 
-        // 오른쪽 (Right)
-        faces.push({ idx: [5, 6, 2, 1], col: '#f4f4f4', stroke: '#ddd' }); 
-        faces.push({ idx: [5, 6, 2, 1], col: '#111', stroke: null, type: 'side_molding' }); 
-        // 윗면 (Hood/Trunk)
-        faces.push({ idx: [4, 5, 6, 7], col: '#fff', stroke: '#eee' }); 
+        faces.push({ idx: [4, 5, 1, 0], col: '#eee', stroke: '#ccc' }); // Front
+        faces.push({ idx: [7, 6, 2, 3], col: '#ccc', stroke: '#bbb' }); // Back Base
+        faces.push({ idx: [7, 6, 2, 3], col: null, stroke: null, type: 'back_detail' }); // Back Detail
+        faces.push({ idx: [7, 4, 0, 3], col: '#f4f4f4', stroke: '#ddd' }); // Left
+        faces.push({ idx: [7, 4, 0, 3], col: '#111', stroke: null, type: 'side_molding' }); // Left Molding
+        faces.push({ idx: [5, 6, 2, 1], col: '#f4f4f4', stroke: '#ddd' }); // Right
+        faces.push({ idx: [5, 6, 2, 1], col: '#111', stroke: null, type: 'side_molding' }); // Right Molding
+        faces.push({ idx: [4, 5, 6, 7], col: '#fff', stroke: '#eee' }); // Hood/Trunk
 
         // 2. 캐빈 (Cabin)
         faces.push({ idx: [8, 9, 5, 4], col: '#222', stroke: '#111' }); // 앞유리
@@ -498,71 +490,222 @@
         faces.push({ idx: [9, 10, 6, 5], col: '#222', stroke: '#111' }); // 오른쪽 유리
         faces.push({ idx: [8, 9, 10, 11], col: '#ddd', stroke: '#ccc' }); // 지붕
 
-        // 3. 팝업 라이트 (Popups)
-        // 좌측 (12, 13, 14, 15는 사각형의 네 꼭지점)
-        // 윗면, 앞면, 옆면을 그려야 입체감이 살지만, 여기선 윗면/앞면만 간단히 표현
-        // 윗면
+        // 3. 팝업 라이트
         faces.push({ idx: [12, 13, 14, 15], col: '#fff', stroke: '#ccc' }); 
-        // 앞면 (12, 13, 그리고 바닥점인 15, 14의 y내린점.. 인데 버텍스 절약상 그냥 12,13만 그림자처리)
-        // 간단히 팝업 측면 추가
-        
-        // 우측 (16, 17, 18, 19)
         faces.push({ idx: [16, 17, 18, 19], col: '#fff', stroke: '#ccc' });
 
-        // --- 면 정렬 및 그리기 (Painter's Algorithm) ---
-        faces.forEach(f => {
-            let zSum = 0;
-            let count = 0;
-            f.idx.forEach(i => {
-                if(pVerts[i]) { zSum += pVerts[i].depth; count++; }
+        // --- 4. 3D 타이어 생성 (8각 기둥) ---
+        // 휠 생성 헬퍼
+        function create3DWheel(x, y, z, width, radius, isFront) {
+            const wheelFaces = [];
+            const segments = 8;
+            const wheelVerts = [];
+            
+            // 조향 각도 (Front Wheels only)
+            let steerAngle = 0;
+            if (isFront) {
+                // 핸들을 꺾으면 바퀴가 돌아가야 함.
+                // playerTurn > 0 (Right) -> Wheel turns Right (Negative Rotation usually)
+                // 하지만 좌표계가 반전되었으므로 확인 필요.
+                // 시각적으로 차체가 도는 것과 별개로 바퀴도 돌아야 함.
+                const steerLimit = 0.5;
+                if(keys.ArrowLeft) steerAngle = steerLimit;
+                else if(keys.ArrowRight) steerAngle = -steerLimit;
+                else if(Math.abs(analogSteer) > 0.1) steerAngle = -analogSteer * steerLimit;
+            }
+
+            // 원통 정점 생성
+            // Outer Circle (Face)
+            for(let i=0; i<segments; i++) {
+                const theta = (i / segments) * Math.PI * 2;
+                // Wheel Local Coords: Face is in YZ plane, Thickness along X
+                // x offset will be handled when pushing to global array
+                const wy = Math.cos(theta) * radius;
+                const wz = Math.sin(theta) * radius;
+                wheelVerts.push({x: width/2, y: wy, z: wz}); // Outer
+            }
+            // Inner Circle (Back)
+            for(let i=0; i<segments; i++) {
+                const theta = (i / segments) * Math.PI * 2;
+                const wy = Math.cos(theta) * radius;
+                const wz = Math.sin(theta) * radius;
+                wheelVerts.push({x: -width/2, y: wy, z: wz}); // Inner
+            }
+
+            // 회전 및 이동
+            const transformedVerts = wheelVerts.map(v => {
+                // 1. Steering Rotation (Local Y axis)
+                let vx = v.x, vy = v.y, vz = v.z;
+                if(isFront) {
+                   const cosS = Math.cos(steerAngle);
+                   const sinS = Math.sin(steerAngle);
+                   const tx = vx * cosS - vz * sinS;
+                   const tz = vx * sinS + vz * cosS;
+                   vx = tx; vz = tz;
+                }
+                
+                // 2. Translate to Wheel Position (Car Local)
+                vx += x; vy += y; vz += z;
+
+                // 3. Project using global Car Yaw (handled in project3D logic usually, but here we do it manually or pass world coords)
+                // project3D takes "Car Local Coords" directly if we pass yaw.
+                // So we just need to pass (vx, vy, vz) as "Car Local" point to project3D.
+                return project3D(vx, vy, vz, cx, cy, scale, yaw);
             });
-            f.z = zSum / count;
+
+            // 면 생성
+            // Face (Outer)
+            const outerIndices = [];
+            for(let i=0; i<segments; i++) outerIndices.push(i);
+            wheelFaces.push({ verts: outerIndices.map(i=>transformedVerts[i]), col: '#333', stroke: '#111', type: 'wheel_face' });
+
+            // Treads (Side)
+            for(let i=0; i<segments; i++) {
+                const next = (i+1)%segments;
+                // Outer i, Outer next, Inner next, Inner i
+                const poly = [transformedVerts[i], transformedVerts[next], transformedVerts[next+segments], transformedVerts[i+segments]];
+                wheelFaces.push({ verts: poly, col: '#111', stroke: '#000', type: 'wheel_tread' });
+            }
+
+            return wheelFaces;
+        }
+
+        // 휠 배치 (Front/Back, Left/Right)
+        const wheelW = 10;
+        const wheelR = 12;
+        const wheelZ_F = l - 15;
+        const wheelZ_B = -l + 15;
+        const wheelX_L = -w;
+        const wheelX_R = w;
+
+        // 바퀴 4개 생성 및 합치기
+        const allWheelFaces = [
+            ...create3DWheel(wheelX_L, 0, wheelZ_F, wheelW, wheelR, true), // FL
+            ...create3DWheel(wheelX_R, 0, wheelZ_F, wheelW, wheelR, true), // FR
+            ...create3DWheel(wheelX_L, 0, wheelZ_B, wheelW, wheelR, false), // BL
+            ...create3DWheel(wheelX_R, 0, wheelZ_B, wheelW, wheelR, false)  // BR
+        ];
+
+        // --- 면 정렬 및 그리기 (Car Body + Wheels) ---
+        // 차체 면들도 vertices 대신 projected points를 바로 쓰도록 구조가 다름.
+        // 통일을 위해 차체 면을 변환
+        const carFacesFinal = faces.map(f => {
+            return {
+                verts: f.idx.map(i => pVerts[i]),
+                col: f.col,
+                stroke: f.stroke,
+                type: f.type,
+                z: f.z // 이미 계산됨
+            };
         });
 
-        faces.sort((a, b) => b.z - a.z);
+        // 휠 면들의 깊이 계산
+        allWheelFaces.forEach(f => {
+            let zSum = 0, count = 0;
+            f.verts.forEach(v => {
+                if(v) { zSum += v.depth; count++; }
+            });
+            f.z = count > 0 ? zSum / count : 0;
+        });
 
-        faces.forEach(f => {
-            const p = f.idx.map(i => pVerts[i]);
-            
-            if (f.type === 'side_molding') return; // 몰딩은 일단 생략 (렌더링 복잡도)
+        // 전체 합치기
+        const allFaces = [...carFacesFinal, ...allWheelFaces];
 
-            drawQuad(ctx, p[0], p[1], p[2], p[3], f.col, f.stroke);
+        // 정렬
+        allFaces.sort((a, b) => b.z - a.z);
+
+        // 그리기
+        allFaces.forEach(f => {
+            // visible 체크: 모든 점이 visible이어야 안전 (또는 일부라도)
+            // 간단히 첫 점 체크
+            if(!f.verts[0] || !f.verts[0].visible) return;
+
+            if (f.type === 'side_molding') return; 
+
+            // 특수: 휠 페이스 디테일
+            if (f.type === 'wheel_face') {
+                const pts = f.verts;
+                ctx.fillStyle = '#333';
+                ctx.strokeStyle = '#111';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(pts[0].x, pts[0].y);
+                for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // 휠 내부 (와타나베 스타일 흉내) - 실버 림
+                // 중심점
+                let cx=0, cy=0;
+                pts.forEach(p=>{cx+=p.x; cy+=p.y;});
+                cx/=pts.length; cy/=pts.length;
+                
+                // 간단히 작은 8각 그리기
+                ctx.fillStyle = '#888';
+                ctx.beginPath();
+                for(let i=0; i<pts.length; i++) {
+                    const px = cx + (pts[i].x - cx)*0.6;
+                    const py = cy + (pts[i].y - cy)*0.6;
+                    if(i===0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                ctx.fill();
+                return;
+            }
+
+            // 특수: 뒷면 디테일
+            if (f.type === 'back_detail') {
+                const p = f.verts; // TL, TR, BR, BL
+                // ... (기존 뒷면 그리기 코드 유지)
+                const lerp = (a, b, t) => ({ x: a.x + (b.x-a.x)*t, y: a.y + (b.y-a.y)*t });
+                const ml = lerp(p[3], p[0], 0.4); const mr = lerp(p[2], p[1], 0.4); 
+                
+                ctx.fillStyle = '#111';
+                ctx.beginPath();
+                ctx.moveTo(ml.x, ml.y); ctx.lineTo(mr.x, mr.y); ctx.lineTo(p[2].x, p[2].y); ctx.lineTo(p[3].x, p[3].y);
+                ctx.fill();
+
+                const tl = lerp(p[3], p[0], 0.5); const tr = lerp(p[2], p[1], 0.5);
+                const tlh = lerp(p[3], p[0], 0.7); const trh = lerp(p[2], p[1], 0.7);
+                
+                ctx.fillStyle = '#aa0000';
+                if(keys.ArrowDown) { ctx.fillStyle = '#ff0000'; ctx.shadowBlur=10; ctx.shadowColor='red'; }
+                
+                ctx.beginPath();
+                const l1 = lerp(tl, tr, 0.05); const l2 = lerp(tl, tr, 0.4);
+                const l1h = lerp(tlh, trh, 0.05); const l2h = lerp(tlh, trh, 0.4);
+                ctx.moveTo(l1h.x, l1h.y); ctx.lineTo(l2h.x, l2h.y); ctx.lineTo(l2.x, l2.y); ctx.lineTo(l1.x, l1.y);
+                ctx.fill();
+
+                ctx.beginPath();
+                const r1 = lerp(tl, tr, 0.6); const r2 = lerp(tl, tr, 0.95);
+                const r1h = lerp(tlh, trh, 0.6); const r2h = lerp(tlh, trh, 0.95);
+                ctx.moveTo(r1h.x, r1h.y); ctx.lineTo(r2h.x, r2h.y); ctx.lineTo(r2.x, r2.y); ctx.lineTo(r1.x, r1.y);
+                ctx.fill();
+                ctx.shadowBlur=0;
+
+                ctx.fillStyle = '#f1c40f';
+                const plateY = (ml.y + p[0].y) * 0.5;
+                const plateW = (mr.x - ml.x) * 0.2;
+                const plateX = (ml.x + mr.x) * 0.5 - plateW/2;
+                ctx.fillRect(plateX, plateY - 5, plateW, 10);
+                return;
+            }
+
+            // 일반 Quad 그리기
+            if(f.verts.length === 4) {
+                drawQuad(ctx, f.verts[0], f.verts[1], f.verts[2], f.verts[3], f.col, f.stroke);
+            }
             
-            if (f.col === '#222') { // 유리창 광택
+            if (f.col === '#222') { 
                 ctx.fillStyle = 'rgba(255,255,255,0.2)';
                 ctx.beginPath();
-                ctx.moveTo(p[0].x, p[0].y); ctx.lineTo(p[1].x, p[1].y); ctx.lineTo(p[2].x, p[2].y);
+                ctx.moveTo(f.verts[0].x, f.verts[0].y); 
+                ctx.lineTo(f.verts[1].x, f.verts[1].y); 
+                ctx.lineTo(f.verts[2].x, f.verts[2].y);
                 ctx.fill();
             }
-        });
-        
-        // 휠 그리기 
-        const wheelLocs = [
-            {x:-w, y:0, z:-l+15, side:'L'}, 
-            {x:w, y:0, z:-l+15, side:'R'},  
-            {x:-w, y:0, z:l-15, side:'L'},  
-            {x:w, y:0, z:l-15, side:'R'}    
-        ];
-        
-        const wheels = wheelLocs.map(loc => {
-            const p = project3D(loc.x, loc.y, loc.z, cx, cy, scale, yaw);
-            return { p: p, z: p.depth, side: loc.side };
-        });
-        wheels.sort((a, b) => b.z - a.z);
-
-        wheels.forEach(w => {
-            if (!w.p.visible) return;
-            const size = 12 * w.p.scale;
-            // 타이어
-            ctx.fillStyle = '#111';
-            ctx.beginPath(); 
-            ctx.ellipse(w.p.x, w.p.y, size, size, 0, 0, Math.PI*2);
-            ctx.fill();
-            // 휠
-            ctx.fillStyle = '#555';
-            ctx.beginPath();
-            ctx.ellipse(w.p.x, w.p.y, size*0.6, size*0.6, 0, 0, Math.PI*2);
-            ctx.fill();
         });
     }
 
@@ -576,9 +719,6 @@
                 cp.passed = true;
                 showMessage(cp.name, cp.color);
                 score += 5000;
-                if(cp.name === "GOAL") {
-                    // 완주
-                }
             }
         });
 
