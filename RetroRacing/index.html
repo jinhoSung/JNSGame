@@ -41,9 +41,17 @@
             display: none;
             z-index: 20;
             white-space: nowrap;
-            animation: pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            text-align: center;
+            line-height: 1.5;
         }
-        @keyframes pop { from { transform: translate(-50%, -50%) scale(0); } to { transform: translate(-50%, -50%) scale(1); } }
+        #center-sub {
+            font-size: 30px;
+            color: #ffff00;
+            display: block;
+            margin-top: 10px;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
 
         #drift-msg {
             position: absolute;
@@ -130,11 +138,17 @@
 <body>
 
     <div id="ui">
+        LEVEL: <span id="levelDisplay">1</span><br>
         SPEED: <span id="speedDisplay">0</span> km/h<br>
         SCORE: <span id="scoreDisplay">0</span><br>
         DIST: <span id="distDisplay">0</span>
     </div>
-    <div id="center-msg">START!</div>
+    
+    <div id="center-msg">
+        Retro Racer 3D<br>
+        <span id="center-sub">TAP TO START</span>
+    </div>
+    
     <div id="drift-msg">KANSEI DRIFT!!</div>
 
     <div class="touch-controls">
@@ -153,8 +167,10 @@
     const speedDisplay = document.getElementById('speedDisplay');
     const scoreDisplay = document.getElementById('scoreDisplay');
     const distDisplay = document.getElementById('distDisplay');
+    const levelDisplay = document.getElementById('levelDisplay');
     const driftMsg = document.getElementById('drift-msg');
     const centerMsg = document.getElementById('center-msg');
+    const centerSub = document.getElementById('center-sub');
 
     const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     if(isMobile) {
@@ -177,6 +193,9 @@
     const CAMERA_DEPTH = 1 / Math.tan((FIELD_OF_VIEW / 2) * Math.PI / 180);
 
     // --- 상태 변수 ---
+    let currentLevel = 1;
+    const MAX_LEVEL = 3;
+    let gameState = 'start'; // start, play, clear, gameover
     let position = 0;       
     let playerX = 0;        
     let playerTurn = 0;     
@@ -189,43 +208,127 @@
     let score = 0;
     let driftMode = false;
     let analogSteer = 0;
+    let trackLength = 0;
 
     let segments = [];
     let skids = [];
+    let checkpointLocs = [];
 
-    const checkpointLocs = [
-        { pos: 10, name: "START", passed: false, color: "#00ff00" },
-        { pos: 1000, name: "CHECKPOINT", passed: false, color: "#00ffff" },
-        { pos: 1980, name: "GOAL", passed: false, color: "#ff0055" }
-    ];
-
-    // 키보드 상태 관리
     const keys = { 
         ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false,
         Space: false, ShiftLeft: false 
     };
 
+    // --- 레벨 및 도로 생성 ---
+    function initLevel(level) {
+        currentLevel = level;
+        levelDisplay.innerText = currentLevel;
+        position = 0;
+        playerX = 0;
+        playerTurn = 0;
+        speed = 0;
+        skids = [];
+        driftMode = false;
+        
+        createRoad(level);
+        gameState = 'play';
+        
+        showMessage(`LEVEL ${level} START!`, '#fff', 2000);
+    }
+
+    function createRoad(level) {
+        segments = [];
+        checkpointLocs = [];
+        
+        // 레벨별 난이도 설정
+        let numSegments = 0;
+        let hills = 0;
+        let curves = 0;
+        
+        if (level === 1) {
+            numSegments = 2000; // 입문
+            hills = 0;
+            curves = 2;
+        } else if (level === 2) {
+            numSegments = 3000; // 중급
+            hills = 500;
+            curves = 4;
+        } else {
+            numSegments = 4000; // 고수 (Touge)
+            hills = 1500;
+            curves = 6;
+        }
+
+        trackLength = numSegments * SEGMENT_LENGTH;
+
+        // 시작 지점
+        checkpointLocs.push({ pos: 10, name: "START", passed: false, color: "#00ff00" });
+
+        for (let i = 0; i < numSegments; i++) {
+            let curve = 0;
+            let y = 0;
+
+            // 절차적 코스 생성 (Procedural Generation)
+            if (level === 1) {
+                // 완만한 곡선
+                if (i > 300 && i < 800) curve = 2;
+                if (i > 1200 && i < 1700) curve = -2;
+            } else if (level === 2) {
+                // S자 코스
+                curve = Math.sin(i / 200) * curves; 
+                y = Math.sin(i / 300) * hills;
+            } else {
+                // 험난한 고개
+                curve = Math.sin(i / 150) * curves + Math.cos(i / 50) * 2;
+                y = Math.sin(i / 100) * hills;
+                if (i % 500 < 50) y += 500; // 점프대?
+            }
+
+            // 피니시 라인 근처는 평지/직선
+            if (i > numSegments - 100) {
+                curve = 0; 
+                y = 0;
+            }
+
+            const floorColor = (Math.floor(i / 3) % 2) ? '#222' : '#252525';
+            const rumbleColor = (Math.floor(i / 3) % 2) ? '#fff' : '#c00';
+            
+            let feature = null;
+            // 체크포인트 (시작, 골, 중간)
+            if (i === 10) feature = { type: 'arch', name: 'START', color: '#00ff00' };
+            if (i === numSegments - 20) feature = { type: 'arch', name: 'GOAL', color: '#ff0055' };
+
+            segments.push({
+                index: i,
+                p1: { world: { x: 0, y: y, z: i * SEGMENT_LENGTH }, camera: {}, screen: {} },
+                p2: { world: { x: 0, y: y, z: (i + 1) * SEGMENT_LENGTH }, camera: {}, screen: {} },
+                curve: curve,
+                color: { road: floorColor, rumble: rumbleColor },
+                feature: feature
+            });
+        }
+        
+        // 골 지점 등록
+        checkpointLocs.push({ pos: Math.floor(numSegments - 20), name: "GOAL", passed: false, color: "#ff0055" });
+    }
+
     // --- 3D 엔진 유틸리티 ---
     function project3D(x, y, z, cx, cy, scale, yaw) {
-        // 1. Yaw 회전
         let cos = Math.cos(yaw);
         let sin = Math.sin(yaw);
         let rx = x * cos - z * sin;
         let rz = x * sin + z * cos;
         let ry = y;
 
-        // 2. Pitch 회전
         const pitch = 0.2; 
         let cosP = Math.cos(pitch);
         let sinP = Math.sin(pitch);
         let y2 = ry * cosP - rz * sinP;
         let z2 = ry * sinP + rz * cosP;
 
-        // 3. 카메라 거리
         const camZ = 500; 
         const pz = z2 + camZ; 
 
-        // 4. 투영
         if (pz <= 0) return { x: 0, y: 0, scale: 0, visible: false, depth: pz };
         
         const fov = 600; 
@@ -242,23 +345,15 @@
 
     function drawQuad(ctx, p1, p2, p3, p4, color, strokeColor) {
         if (!p1.visible || !p2.visible || !p3.visible || !p4.visible) return;
-        
         ctx.fillStyle = color;
         ctx.strokeStyle = strokeColor || color;
         ctx.lineWidth = 1;
         ctx.lineJoin = 'round';
-        
         ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.lineTo(p3.x, p3.y);
-        ctx.lineTo(p4.x, p4.y);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
     }
 
-    // --- 도로 투영 ---
     function project(p, cameraX, cameraY, cameraZ, cameraDepth, width, height, roadWidth) {
         p.camera.x = (p.world.x || 0) - cameraX;
         p.camera.y = (p.world.y || 0) - cameraY;
@@ -277,44 +372,31 @@
         ctx.closePath(); ctx.fill();
     }
 
-    function createRoad() {
-        segments = [];
-        const totalSegments = 2000; 
-        for (let i = 0; i < totalSegments; i++) {
-            let curve = 0;
-            let y = 0;
-            if (i > 300 && i < 700) curve = 2;
-            if (i > 800 && i < 1200) curve = -3; 
-            if (i > 1300 && i < 1700) curve = 3; 
-            y = Math.sin(i / 30) * 1000;
+    function showMessage(text, color='#fff', duration=2000) {
+        // 게임 상태 메시지와 겹치지 않게 처리 (간단한 인게임 알림용)
+        if (gameState !== 'play') return; 
 
-            const floorColor = (Math.floor(i / 3) % 2) ? '#222' : '#252525';
-            const rumbleColor = (Math.floor(i / 3) % 2) ? '#fff' : '#c00';
-            
-            let feature = null;
-            checkpointLocs.forEach(cp => {
-                if(i >= cp.pos && i < cp.pos + 3) feature = { type: 'arch', name: cp.name, color: cp.color };
-            });
-
-            segments.push({
-                index: i,
-                p1: { world: { x: 0, y: y, z: i * SEGMENT_LENGTH }, camera: {}, screen: {} },
-                p2: { world: { x: 0, y: y, z: (i + 1) * SEGMENT_LENGTH }, camera: {}, screen: {} },
-                curve: curve,
-                color: { road: floorColor, rumble: rumbleColor },
-                feature: feature
-            });
-        }
+        const msg = document.createElement('div');
+        msg.innerText = text;
+        msg.style.position = 'absolute';
+        msg.style.top = '40%';
+        msg.style.left = '50%';
+        msg.style.transform = 'translate(-50%, -50%)';
+        msg.style.fontSize = '40px';
+        msg.style.color = color;
+        msg.style.textShadow = '0 0 10px #000';
+        msg.style.pointerEvents = 'none';
+        msg.style.zIndex = '30';
+        msg.style.animation = 'pop 0.5s ease-out';
+        document.body.appendChild(msg);
+        setTimeout(() => msg.remove(), duration);
     }
 
-    function showMessage(text, color='#fff') {
-        centerMsg.innerText = text;
-        centerMsg.style.color = color;
-        centerMsg.style.display = 'block';
-        centerMsg.style.animation = 'none';
-        centerMsg.offsetHeight; 
-        centerMsg.style.animation = 'pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-        setTimeout(() => { centerMsg.style.display = 'none'; }, 2000);
+    function setCenterMessage(title, sub, show=true) {
+        centerMsg.style.display = show ? 'block' : 'none';
+        if (show) {
+            centerMsg.innerHTML = `${title}<br><span id="center-sub">${sub}</span>`;
+        }
     }
 
     function render() {
@@ -331,22 +413,28 @@
         ctx.fillStyle = '#fffc';
         ctx.beginPath(); ctx.arc(width*0.8, 100, 40, 0, Math.PI*2); ctx.fill();
 
+        // **수정된 부분: 도로 데이터(segments)가 없으면 렌더링 중단**
+        if (segments.length === 0) return;
+
         let baseSegment = segments[Math.floor(position / SEGMENT_LENGTH) % segments.length];
         let maxy = height; 
         let dx = -(baseSegment.curve * (position % SEGMENT_LENGTH) / SEGMENT_LENGTH);
         let x = 0; 
         
         for (let n = 0; n < DRAW_DISTANCE; n++) {
-            const currentIdx = (baseSegment.index + n) % segments.length;
+            const currentIdx = (baseSegment.index + n);
+            if (currentIdx >= segments.length) break; // 끝이 있는 맵이므로 루프 안함
+
             let segment = segments[currentIdx];
-            let loopOffset = (segment.index < baseSegment.index) ? segments.length * SEGMENT_LENGTH : 0;
             
-            let playerSegIdx = Math.floor((position+100)/SEGMENT_LENGTH)%segments.length;
-            let playerY = segments[playerSegIdx].p1.world.y;
+            let playerSegIdx = Math.floor((position+100)/SEGMENT_LENGTH);
+            let playerY = 0;
+            if (playerSegIdx < segments.length) playerY = segments[playerSegIdx].p1.world.y;
+
             let camY = CAMERA_HEIGHT + playerY;
 
-            project(segment.p1, (playerX * ROAD_WIDTH) - x, camY, position - loopOffset, CAMERA_DEPTH, width, height, ROAD_WIDTH);
-            project(segment.p2, (playerX * ROAD_WIDTH) - x - dx, camY, position - loopOffset, CAMERA_DEPTH, width, height, ROAD_WIDTH);
+            project(segment.p1, (playerX * ROAD_WIDTH) - x, camY, position, CAMERA_DEPTH, width, height, ROAD_WIDTH);
+            project(segment.p2, (playerX * ROAD_WIDTH) - x - dx, camY, position, CAMERA_DEPTH, width, height, ROAD_WIDTH);
 
             x += dx; dx += segment.curve;
 
@@ -385,27 +473,22 @@
 
         ctx.save();
         ctx.translate(cx, cy);
-
         ctx.fillStyle = '#444';
         ctx.fillRect(-archWidth/2, -archHeight, pillarW, archHeight); 
         ctx.fillRect(archWidth/2 - pillarW, -archHeight, pillarW, archHeight); 
-
         ctx.fillStyle = feature.color || '#fff';
         ctx.fillRect(-archWidth/2 - pillarW, -archHeight - pillarW, archWidth + pillarW*2, pillarW*2);
-
         ctx.fillStyle = '#000';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.font = `bold ${Math.max(10, w * 0.8)}px sans-serif`;
         ctx.fillText(feature.name, 0, -archHeight);
-
         ctx.restore();
     }
 
     function drawSkidMarks() {
         const width = canvas.width;
         const height = canvas.height;
-        // 스키드마크도 차의 화면 위치를 따라가도록 수정 (offset 추가)
         const carOffset = playerTurn * (width * 0.12);
         const centerX = (width / 2) + carOffset;
         const centerY = height - 20;
@@ -416,9 +499,7 @@
             s.life -= 0.05;
             s.y += (speed / maxSpeed) * 15; 
             s.x -= (playerTurn * 5); 
-            
             if(s.life <= 0 || s.y > height) { skids.splice(i, 1); i--; continue; }
-
             ctx.globalAlpha = s.life * 0.4;
             ctx.fillStyle = '#fff'; 
             ctx.beginPath();
@@ -428,119 +509,68 @@
         ctx.restore();
     }
 
-    // --- 3D 자동차 모델링 및 렌더링 ---
     function draw3DCarModel() {
         const width = canvas.width;
         const height = canvas.height;
         const scale = width / 400; 
         
         const bounce = Math.sin(Date.now() / 50) * (speed / maxSpeed) * 3;
-        
-        // **화면상 차 위치 이동 로직 추가**
-        // 핸들을 꺾으면(playerTurn) 차가 화면의 좌우로 이동하여
-        // 카메라가 차를 완전히 따라가지 않고 약간의 지연이 있는 듯한 느낌을 줌
         const carScreenOffset = playerTurn * (width * 0.12); 
         const cx = (width / 2) + carScreenOffset;
-        
         const cy = height - 80 * (width/1200) + bounce;
 
         const maxAngle = Math.PI / 3; 
         const driftFactor = driftMode ? 1.5 : 1.0;
         const yaw = -playerTurn * maxAngle * driftFactor;
 
-        // 자동차 정점 데이터 (Local Space)
-        const w = 35; 
-        const h = 24; 
-        const l = 75; 
-        const ch = 18; 
-        const cw = 28; 
-        const cl_f = 20; 
-        const cl_b = 40; 
-
-        // Z좌표: +l (먼쪽, 앞), -l (가까운쪽, 뒤)
+        // 자동차 정점 데이터
+        const w = 35; const h = 24; const l = 75; 
+        const ch = 18; const cw = 28; const cl_f = 20; const cl_b = 40; 
         const verts = [
-            // [0-3] 바닥면 (Bottom)
-            {x:-w, y:0, z:l}, {x:w, y:0, z:l}, {x:w, y:0, z:-l}, {x:-w, y:0, z:-l},
-            // [4-7] 벨트라인 (Mid Body)
-            {x:-w, y:-h, z:l}, {x:w, y:-h, z:l}, {x:w, y:-h, z:-l}, {x:-w, y:-h, z:-l},
-            // [8-11] 캐빈 윗면 (Roof)
-            {x:-cw, y:-h-ch, z:cl_f}, {x:cw, y:-h-ch, z:cl_f}, {x:cw, y:-h-ch, z:-cl_b}, {x:-cw, y:-h-ch, z:-cl_b}
+            {x:-w, y:0, z:l}, {x:w, y:0, z:l}, {x:w, y:0, z:-l}, {x:-w, y:0, z:-l}, // Bottom
+            {x:-w, y:-h, z:l}, {x:w, y:-h, z:l}, {x:w, y:-h, z:-l}, {x:-w, y:-h, z:-l}, // Body
+            {x:-cw, y:-h-ch, z:cl_f}, {x:cw, y:-h-ch, z:cl_f}, {x:cw, y:-h-ch, z:-cl_b}, {x:-cw, y:-h-ch, z:-cl_b} // Roof
         ];
-
-        // 팝업 라이트 (추가 정점) - Far (+Z)
         const pl_h = 6; 
-        verts.push(
-            {x:-w+5, y:-h-pl_h, z:l-10}, {x:-w+15, y:-h-pl_h, z:l-10}, {x:-w+15, y:-h, z:l-10}, {x:-w+5, y:-h, z:l-10}
-        );
-        verts.push(
-            {x:w-15, y:-h-pl_h, z:l-10}, {x:w-5, y:-h-pl_h, z:l-10}, {x:w-5, y:-h, z:l-10}, {x:w-15, y:-h, z:l-10}
-        );
+        verts.push({x:-w+5, y:-h-pl_h, z:l-10}, {x:-w+15, y:-h-pl_h, z:l-10}, {x:-w+15, y:-h, z:l-10}, {x:-w+5, y:-h, z:l-10}); // L Light
+        verts.push({x:w-15, y:-h-pl_h, z:l-10}, {x:w-5, y:-h-pl_h, z:l-10}, {x:w-5, y:-h, z:l-10}, {x:w-15, y:-h, z:l-10}); // R Light
 
-        // 정점 투영 (Project Vertices)
         const pVerts = verts.map(v => project3D(v.x, v.y, v.z, cx, cy, scale, yaw));
-
-        // 백페이스 컬링 유틸리티: 시계방향(CW)이 Visible
-        const isFrontFacing = (p1, p2, p3) => {
-            return (p2.x - p1.x) * (p3.y - p1.y) - (p2.y - p1.y) * (p3.x - p1.x) > 0;
-        };
-
-        // 면(Face) 정의
+        const isFrontFacing = (p1, p2, p3) => (p2.x - p1.x) * (p3.y - p1.y) - (p2.y - p1.y) * (p3.x - p1.x) > 0;
         const faces = [];
-
-        // 면 추가 헬퍼 (컬링 적용)
         const addFace = (indices, col, stroke, type) => {
             const p = indices.map(i => pVerts[i]);
-            // 화면 밖 클리핑
             if (p.some(v => !v.visible)) return;
-            
-            // Back-face Culling Check (앞면만 그리기)
             if (!isFrontFacing(p[0], p[1], p[2])) return;
-
             faces.push({ verts: p, col: col, stroke: stroke, type: type });
         };
 
-        // 1. 차체 (Body)
         addFace([4, 5, 1, 0], '#eee', '#ccc'); // Front
-        
-        // Back Face (특별 처리: 디테일도 같이 추가)
+        // Back
         const backIdx = [7, 6, 2, 3];
         const backP = backIdx.map(i => pVerts[i]);
         if (backP.every(v => v.visible) && isFrontFacing(backP[0], backP[1], backP[2])) {
-            faces.push({ verts: backP, col: '#ccc', stroke: '#bbb' }); // Back Base
-            faces.push({ verts: backP, col: null, stroke: null, type: 'back_detail' }); // Back Detail
+            faces.push({ verts: backP, col: '#ccc', stroke: '#bbb' });
+            faces.push({ verts: backP, col: null, stroke: null, type: 'back_detail' });
         }
-
-        // Left Face (Winding Fix: 7,4,0,3 -> 3,0,4,7)
-        addFace([3, 0, 4, 7], '#f4f4f4', '#ddd'); 
+        addFace([3, 0, 4, 7], '#f4f4f4', '#ddd'); // Left
         addFace([3, 0, 4, 7], '#111', null, 'side_molding'); 
-
-        // Right Face (Winding Fix: 5,6,2,1 -> 1,2,6,5)
-        addFace([1, 2, 6, 5], '#f4f4f4', '#ddd'); 
+        addFace([1, 2, 6, 5], '#f4f4f4', '#ddd'); // Right
         addFace([1, 2, 6, 5], '#111', null, 'side_molding'); 
+        addFace([4, 5, 6, 7], '#fff', '#eee'); // Top Body
+        addFace([8, 9, 5, 4], '#222', '#111'); // Front Glass
+        addFace([11, 10, 6, 7], '#222', '#111'); // Rear Glass
+        addFace([8, 11, 7, 4], '#222', '#111'); // Left Glass
+        addFace([5, 6, 10, 9], '#222', '#111'); // Right Glass
+        addFace([8, 9, 10, 11], '#ddd', '#ccc'); // Roof
+        addFace([12, 13, 14, 15], '#fff', '#ccc'); // L Light
+        addFace([16, 17, 18, 19], '#fff', '#ccc'); // R Light
 
-        addFace([4, 5, 6, 7], '#fff', '#eee'); // Hood/Trunk
-
-        // 2. 캐빈 (Cabin)
-        addFace([8, 9, 5, 4], '#222', '#111'); // 앞유리
-        addFace([11, 10, 6, 7], '#222', '#111'); // 뒷유리
-        addFace([8, 11, 7, 4], '#222', '#111'); // 왼쪽 유리
-        
-        // 오른쪽 유리 (Winding Fix: 9,10,6,5 -> 5,6,10,9)
-        addFace([5, 6, 10, 9], '#222', '#111'); 
-        
-        addFace([8, 9, 10, 11], '#ddd', '#ccc'); // 지붕
-
-        // 3. 팝업 라이트
-        addFace([12, 13, 14, 15], '#fff', '#ccc'); 
-        addFace([16, 17, 18, 19], '#fff', '#ccc');
-
-        // --- 4. 3D 타이어 생성 (8각 기둥) ---
+        // Wheels
         function create3DWheel(x, y, z, width, radius, isFront) {
             const wheelFaces = [];
             const segments = 8;
             const wheelVerts = [];
-            
-            // 조향 각도
             let steerAngle = 0;
             if (isFront) {
                 const steerLimit = 0.5;
@@ -548,22 +578,14 @@
                 else if(keys.ArrowRight) steerAngle = -steerLimit;
                 else if(Math.abs(analogSteer) > 0.1) steerAngle = -analogSteer * steerLimit;
             }
-
-            // 원통 정점 생성
             for(let i=0; i<segments; i++) {
                 const theta = (i / segments) * Math.PI * 2;
-                const wy = Math.cos(theta) * radius;
-                const wz = Math.sin(theta) * radius;
-                wheelVerts.push({x: width/2, y: wy, z: wz}); // Outer
+                wheelVerts.push({x: width/2, y: Math.cos(theta) * radius, z: Math.sin(theta) * radius}); // Outer
             }
             for(let i=0; i<segments; i++) {
                 const theta = (i / segments) * Math.PI * 2;
-                const wy = Math.cos(theta) * radius;
-                const wz = Math.sin(theta) * radius;
-                wheelVerts.push({x: -width/2, y: wy, z: wz}); // Inner
+                wheelVerts.push({x: -width/2, y: Math.cos(theta) * radius, z: Math.sin(theta) * radius}); // Inner
             }
-
-            // 회전 및 이동
             const transformedVerts = wheelVerts.map(v => {
                 let vx = v.x, vy = v.y, vz = v.z;
                 if(isFront) {
@@ -576,184 +598,116 @@
                 vx += x; vy += y; vz += z;
                 return project3D(vx, vy, vz, cx, cy, scale, yaw);
             });
-
-            // 면 생성 (컬링 적용)
             const outerPoly = [];
-            
-            // 오른쪽 바퀴(x>0)인 경우 Winding Order를 반대로
-            if (x > 0) {
-                for(let i=segments-1; i>=0; i--) outerPoly.push(transformedVerts[i]);
-            } else {
-                for(let i=0; i<segments; i++) outerPoly.push(transformedVerts[i]);
-            }
+            if (x > 0) { for(let i=segments-1; i>=0; i--) outerPoly.push(transformedVerts[i]); } 
+            else { for(let i=0; i<segments; i++) outerPoly.push(transformedVerts[i]); }
             
             if (outerPoly[0].visible && isFrontFacing(outerPoly[0], outerPoly[1], outerPoly[2])) {
                 wheelFaces.push({ verts: outerPoly, col: '#333', stroke: '#111', type: 'wheel_face' });
             }
-
             for(let i=0; i<segments; i++) {
                 const next = (i+1)%segments;
                 let poly;
-                
-                if (x > 0) {
-                     poly = [transformedVerts[next], transformedVerts[i], transformedVerts[i+segments], transformedVerts[next+segments]];
-                } else {
-                     poly = [transformedVerts[i], transformedVerts[next], transformedVerts[next+segments], transformedVerts[i+segments]];
-                }
-
+                if (x > 0) poly = [transformedVerts[next], transformedVerts[i], transformedVerts[i+segments], transformedVerts[next+segments]];
+                else poly = [transformedVerts[i], transformedVerts[next], transformedVerts[next+segments], transformedVerts[i+segments]];
                 if (poly[0].visible && isFrontFacing(poly[0], poly[1], poly[2])) {
                     wheelFaces.push({ verts: poly, col: '#111', stroke: '#000', type: 'wheel_tread' });
                 }
             }
-
             return wheelFaces;
         }
 
-        // 휠 배치 (Front/Back, Left/Right)
-        const wheelW = 10;
-        const wheelR = 12;
-        const wheelZ_F = l - 15;
-        const wheelZ_B = -l + 15;
-        const wheelX_L = -w;
-        const wheelX_R = w;
-
-        // 바퀴 4개 생성 및 합치기
+        const wheelW = 10; const wheelR = 12; const wheelZ_F = l - 15; const wheelZ_B = -l + 15;
         const allWheelFaces = [
-            ...create3DWheel(wheelX_L, 0, wheelZ_F, wheelW, wheelR, true), // FL
-            ...create3DWheel(wheelX_R, 0, wheelZ_F, wheelW, wheelR, true), // FR
-            ...create3DWheel(wheelX_L, 0, wheelZ_B, wheelW, wheelR, false), // BL
-            ...create3DWheel(wheelX_R, 0, wheelZ_B, wheelW, wheelR, false)  // BR
+            ...create3DWheel(-w, 0, wheelZ_F, wheelW, wheelR, true), ...create3DWheel(w, 0, wheelZ_F, wheelW, wheelR, true),
+            ...create3DWheel(-w, 0, wheelZ_B, wheelW, wheelR, false), ...create3DWheel(w, 0, wheelZ_B, wheelW, wheelR, false)
         ];
 
-        // 휠 면들의 깊이 계산
-        allWheelFaces.forEach(f => {
+        [...faces, ...allWheelFaces].forEach(f => {
             let zSum = 0, count = 0;
-            f.verts.forEach(v => {
-                if(v) { zSum += v.depth; count++; }
-            });
+            f.verts.forEach(v => { if(v) { zSum += v.depth; count++; } });
             f.z = count > 0 ? zSum / count : 0;
         });
+        const allFaces = [...faces, ...allWheelFaces].sort((a, b) => b.z - a.z);
 
-        // 차체 면 깊이 계산
-        faces.forEach(f => {
-            let zSum = 0, count = 0;
-            f.verts.forEach(v => {
-                if(v) { zSum += v.depth; count++; }
-            });
-            f.z = count > 0 ? zSum / count : 0;
-        });
-
-        // 전체 합치기 및 정렬
-        const allFaces = [...faces, ...allWheelFaces];
-        allFaces.sort((a, b) => b.z - a.z);
-
-        // 그리기
         allFaces.forEach(f => {
             if(!f.verts[0] || !f.verts[0].visible) return;
             if (f.type === 'side_molding') return; 
 
-            // 특수: 휠 페이스 디테일
             if (f.type === 'wheel_face') {
                 const pts = f.verts;
-                ctx.fillStyle = '#333';
-                ctx.strokeStyle = '#111';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(pts[0].x, pts[0].y);
+                ctx.fillStyle = '#333'; ctx.strokeStyle = '#111'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
                 for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-
-                let cx=0, cy=0;
-                pts.forEach(p=>{cx+=p.x; cy+=p.y;});
-                cx/=pts.length; cy/=pts.length;
+                ctx.closePath(); ctx.fill(); ctx.stroke();
                 
-                ctx.fillStyle = '#888';
-                ctx.beginPath();
+                let cx=0, cy=0; pts.forEach(p=>{cx+=p.x; cy+=p.y;}); cx/=pts.length; cy/=pts.length;
+                ctx.fillStyle = '#888'; ctx.beginPath();
                 for(let i=0; i<pts.length; i++) {
-                    const px = cx + (pts[i].x - cx)*0.6;
-                    const py = cy + (pts[i].y - cy)*0.6;
+                    const px = cx + (pts[i].x - cx)*0.6; const py = cy + (pts[i].y - cy)*0.6;
                     if(i===0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
                 }
-                ctx.closePath();
-                ctx.fill();
+                ctx.closePath(); ctx.fill();
                 return;
             }
-
-            // 특수: 뒷면 디테일 (브레이크등)
             if (f.type === 'back_detail') {
                 const p = f.verts; 
                 const lerp = (a, b, t) => ({ x: a.x + (b.x-a.x)*t, y: a.y + (b.y-a.y)*t });
                 const ml = lerp(p[3], p[0], 0.4); const mr = lerp(p[2], p[1], 0.4); 
                 
-                ctx.fillStyle = '#111';
-                ctx.beginPath();
-                ctx.moveTo(ml.x, ml.y); ctx.lineTo(mr.x, mr.y); ctx.lineTo(p[2].x, p[2].y); ctx.lineTo(p[3].x, p[3].y);
-                ctx.fill();
+                ctx.fillStyle = '#111'; ctx.beginPath(); ctx.moveTo(ml.x, ml.y); ctx.lineTo(mr.x, mr.y); ctx.lineTo(p[2].x, p[2].y); ctx.lineTo(p[3].x, p[3].y); ctx.fill();
 
                 const tl = lerp(p[3], p[0], 0.5); const tr = lerp(p[2], p[1], 0.5);
                 const tlh = lerp(p[3], p[0], 0.7); const trh = lerp(p[2], p[1], 0.7);
                 
-                // 브레이크등 로직 (키보드 Space, ShiftLeft 포함)
                 ctx.fillStyle = '#aa0000';
-                if(keys.ArrowDown || keys.Space || keys.ShiftLeft) { 
-                    ctx.fillStyle = '#ff0000'; 
-                    ctx.shadowBlur=10; 
-                    ctx.shadowColor='red'; 
-                }
+                if(keys.ArrowDown || keys.Space || keys.ShiftLeft) { ctx.fillStyle = '#ff0000'; ctx.shadowBlur=10; ctx.shadowColor='red'; }
                 
                 ctx.beginPath();
                 const l1 = lerp(tl, tr, 0.05); const l2 = lerp(tl, tr, 0.4);
                 const l1h = lerp(tlh, trh, 0.05); const l2h = lerp(tlh, trh, 0.4);
-                ctx.moveTo(l1h.x, l1h.y); ctx.lineTo(l2h.x, l2h.y); ctx.lineTo(l2.x, l2.y); ctx.lineTo(l1.x, l1.y);
-                ctx.fill();
+                ctx.moveTo(l1h.x, l1h.y); ctx.lineTo(l2h.x, l2h.y); ctx.lineTo(l2.x, l2.y); ctx.lineTo(l1.x, l1.y); ctx.fill();
 
                 ctx.beginPath();
                 const r1 = lerp(tl, tr, 0.6); const r2 = lerp(tl, tr, 0.95);
                 const r1h = lerp(tlh, trh, 0.6); const r2h = lerp(tlh, trh, 0.95);
-                ctx.moveTo(r1h.x, r1h.y); ctx.lineTo(r2h.x, r2h.y); ctx.lineTo(r2.x, r2.y); ctx.lineTo(r1.x, r1.y);
-                ctx.fill();
-                ctx.shadowBlur=0;
+                ctx.moveTo(r1h.x, r1h.y); ctx.lineTo(r2h.x, r2h.y); ctx.lineTo(r2.x, r2.y); ctx.lineTo(r1.x, r1.y); ctx.fill(); ctx.shadowBlur=0;
 
                 ctx.fillStyle = '#f1c40f';
-                const plateY = (ml.y + p[0].y) * 0.5;
-                const plateW = (mr.x - ml.x) * 0.2;
-                const plateX = (ml.x + mr.x) * 0.5 - plateW/2;
+                const plateY = (ml.y + p[0].y) * 0.5; const plateW = (mr.x - ml.x) * 0.2; const plateX = (ml.x + mr.x) * 0.5 - plateW/2;
                 ctx.fillRect(plateX, plateY - 5, plateW, 10);
                 return;
             }
-
-            if(f.verts.length === 4) {
-                drawQuad(ctx, f.verts[0], f.verts[1], f.verts[2], f.verts[3], f.col, f.stroke);
-            }
-            
+            if(f.verts.length === 4) drawQuad(ctx, f.verts[0], f.verts[1], f.verts[2], f.verts[3], f.col, f.stroke);
             if (f.col === '#222') { 
-                ctx.fillStyle = 'rgba(255,255,255,0.2)';
-                ctx.beginPath();
-                ctx.moveTo(f.verts[0].x, f.verts[0].y); 
-                ctx.lineTo(f.verts[1].x, f.verts[1].y); 
-                ctx.lineTo(f.verts[2].x, f.verts[2].y);
-                ctx.fill();
+                ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.beginPath();
+                ctx.moveTo(f.verts[0].x, f.verts[0].y); ctx.lineTo(f.verts[1].x, f.verts[1].y); ctx.lineTo(f.verts[2].x, f.verts[2].y); ctx.fill();
             }
         });
     }
 
     // --- 업데이트 ---
     function update(dt) {
+        if (gameState !== 'play') return;
+
         position = (position + speed * dt);
         
+        // 체크포인트 및 골 처리
         const currentSegIndex = Math.floor((position + 100) / SEGMENT_LENGTH);
         checkpointLocs.forEach(cp => {
             if (!cp.passed && currentSegIndex >= cp.pos) {
                 cp.passed = true;
                 showMessage(cp.name, cp.color);
-                score += 5000;
+                
+                if (cp.name === "GOAL") {
+                    levelComplete();
+                } else {
+                    score += 5000;
+                }
             }
         });
 
         const accelInput = keys.ArrowUp;
-        // 브레이크 입력: Space, ShiftLeft 추가
         const brakeInput = keys.ArrowDown || keys.Space || keys.ShiftLeft;
         
         let turnInput = 0;
@@ -791,8 +745,12 @@
         if (speed > 0) {
             let moveAmount = (speed / maxSpeed) * 0.04 * playerTurn;
             playerX += moveAmount;
-            const playerSegment = segments[Math.floor((position + 100) / SEGMENT_LENGTH) % segments.length];
-            playerX -= (playerSegment.curve * 0.00015) * (speed / maxSpeed);
+            
+            // 맵 끝에 다다르면 더 이상 나아가지 않음 (무한루프 방지)
+            if (position < trackLength) {
+                const playerSegment = segments[Math.floor((position + 100) / SEGMENT_LENGTH) % segments.length];
+                playerX -= (playerSegment.curve * 0.00015) * (speed / maxSpeed);
+            }
         }
 
         if ((playerX < -1 || playerX > 1) && speed > offRoadDecel) speed -= offRoadDecel;
@@ -804,18 +762,66 @@
         distDisplay.innerText = Math.floor(position / 1000) + "m";
     }
 
-    // --- 멀티터치 조이스틱 로직 개선 ---
+    function levelComplete() {
+        gameState = 'clear';
+        showMessage("LEVEL COMPLETED!", "#0ff", 3000);
+        
+        // 자동 브레이크 효과
+        const stopInterval = setInterval(() => {
+            speed -= 100;
+            if (speed <= 0) {
+                speed = 0;
+                clearInterval(stopInterval);
+                
+                if (currentLevel < MAX_LEVEL) {
+                    setCenterMessage(`LEVEL ${currentLevel} CLEARED`, "TAP TO NEXT LEVEL");
+                } else {
+                    setCenterMessage("ALL LEVELS CLEARED!", "YOU ARE THE DRIFT KING!");
+                }
+            }
+        }, 50);
+    }
+
+    // --- 입력 처리 (UI 및 컨트롤) ---
+    function handleInputStart() {
+        if (gameState === 'start') {
+            initLevel(1);
+        } else if (gameState === 'clear') {
+            if (currentLevel < MAX_LEVEL) {
+                initLevel(currentLevel + 1);
+            } else {
+                // 게임 클리어 후 처음으로
+                score = 0;
+                initLevel(1);
+            }
+            setCenterMessage("", "", false);
+        }
+    }
+
+    window.addEventListener('keydown', e => { 
+        if (keys.hasOwnProperty(e.code)) keys[e.code] = true; 
+        if (gameState !== 'play') handleInputStart();
+    });
+    
+    window.addEventListener('keyup', e => { if (keys.hasOwnProperty(e.code)) keys[e.code] = false; });
+    
+    // 모바일 터치 (화면 중앙 탭으로 시작/다음 레벨)
+    canvas.addEventListener('touchstart', e => {
+        if (gameState !== 'play') {
+            e.preventDefault();
+            handleInputStart();
+        }
+    });
+
     const joystickArea = document.getElementById('joystick-area');
     const joystickKnob = document.getElementById('joystick-knob');
     let joyStartX = 0, joyStartY = 0;
-    let joystickTouchId = null; // 조이스틱을 제어하는 터치 ID 추적
+    let joystickTouchId = null; 
 
     joystickArea.addEventListener('touchstart', e => {
         e.preventDefault();
-        // 이미 조이스틱을 사용 중이면 무시
+        e.stopPropagation(); // 캔버스 터치 이벤트 방지
         if (joystickTouchId !== null) return;
-
-        // 영역 내 터치 시작 감지
         const touch = e.changedTouches[0];
         joystickTouchId = touch.identifier;
         joyStartX = touch.clientX;
@@ -825,9 +831,8 @@
 
     joystickArea.addEventListener('touchmove', e => {
         e.preventDefault();
+        e.stopPropagation();
         if (joystickTouchId === null) return;
-
-        // 현재 추적 중인 터치 ID 찾기
         for (let i = 0; i < e.changedTouches.length; i++) {
             if (e.changedTouches[i].identifier === joystickTouchId) {
                 const touch = e.changedTouches[i];
@@ -849,38 +854,28 @@
     };
 
     joystickArea.addEventListener('touchend', e => {
-        e.preventDefault();
+        e.preventDefault(); e.stopPropagation();
         for (let i = 0; i < e.changedTouches.length; i++) {
-            if (e.changedTouches[i].identifier === joystickTouchId) {
-                resetJoystick();
-                break;
-            }
+            if (e.changedTouches[i].identifier === joystickTouchId) { resetJoystick(); break; }
         }
     });
-    
     joystickArea.addEventListener('touchcancel', e => {
-        e.preventDefault();
+        e.preventDefault(); e.stopPropagation();
         for (let i = 0; i < e.changedTouches.length; i++) {
-            if (e.changedTouches[i].identifier === joystickTouchId) {
-                resetJoystick();
-                break;
-            }
+            if (e.changedTouches[i].identifier === joystickTouchId) { resetJoystick(); break; }
         }
     });
 
     const btnGas = document.getElementById('btn-gas');
     const btnBrake = document.getElementById('btn-brake');
-
     const handleBtn = (elem, key, isPressed) => {
         if(isPressed) { elem.style.background = 'rgba(255,255,255,0.5)'; keys[key] = true; }
         else { elem.style.background = ''; keys[key] = false; }
     };
-
-    btnGas.addEventListener('touchstart', e => { e.preventDefault(); handleBtn(btnGas, 'ArrowUp', true); });
-    btnGas.addEventListener('touchend', e => { e.preventDefault(); handleBtn(btnGas, 'ArrowUp', false); });
-
-    btnBrake.addEventListener('touchstart', e => { e.preventDefault(); handleBtn(btnBrake, 'ArrowDown', true); });
-    btnBrake.addEventListener('touchend', e => { e.preventDefault(); handleBtn(btnBrake, 'ArrowDown', false); });
+    btnGas.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); handleBtn(btnGas, 'ArrowUp', true); });
+    btnGas.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); handleBtn(btnGas, 'ArrowUp', false); });
+    btnBrake.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); handleBtn(btnBrake, 'ArrowDown', true); });
+    btnBrake.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); handleBtn(btnBrake, 'ArrowDown', false); });
 
     let lastTime = 0;
     function gameLoop(time) {
@@ -891,10 +886,8 @@
         requestAnimationFrame(gameLoop);
     }
 
-    window.addEventListener('keydown', e => { if (keys.hasOwnProperty(e.code)) keys[e.code] = true; });
-    window.addEventListener('keyup', e => { if (keys.hasOwnProperty(e.code)) keys[e.code] = false; });
-
-    createRoad();
+    // 초기 상태 설정
+    setCenterMessage("Retro Racer 3D", "TAP TO START");
     requestAnimationFrame(gameLoop);
 
 </script>
