@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Retro Racer - Code Art Edition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Retro Racer - Drift & Mobile Edition</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Black+Ops+One&display=swap');
 
@@ -13,15 +13,12 @@
             overflow: hidden;
             color: white;
             font-family: 'Black Ops One', cursive;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+            touch-action: none; /* 모바일 터치 확대 방지 */
         }
         canvas {
-            box-shadow: 0 0 50px rgba(0,0,0,0.8);
             width: 100%;
-            height: 100%;
+            height: 100vh;
+            display: block;
         }
         #ui {
             position: absolute;
@@ -33,35 +30,103 @@
             pointer-events: none;
             z-index: 10;
         }
-        #instructions {
+        #center-msg {
             position: absolute;
-            bottom: 20px;
-            width: 100%;
-            text-align: center;
-            font-size: 14px;
-            color: #aaa;
-            text-shadow: 1px 1px 0 #000;
-            pointer-events: none;
-            z-index: 10;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 60px;
+            color: #fff;
+            text-shadow: 0 0 10px #ff00de, 3px 3px 0 #000;
+            display: none;
+            z-index: 20;
+            white-space: nowrap;
+            animation: pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
+        @keyframes pop { from { transform: translate(-50%, -50%) scale(0); } to { transform: translate(-50%, -50%) scale(1); } }
+
         #drift-msg {
             position: absolute;
             top: 30%;
             left: 50%;
             transform: translate(-50%, -50%) rotate(-15deg);
-            font-size: 80px;
+            font-size: 60px;
             font-weight: bold;
             color: #ffcc00; 
-            text-shadow: 
-                5px 5px 0 #000,
-                0 0 20px #ff0000;
+            text-shadow: 5px 5px 0 #000, 0 0 20px #ff0000;
             display: none;
             pointer-events: none;
-            z-index: 20;
+            z-index: 15;
             font-style: italic;
             border: 4px solid #000;
             padding: 10px 40px;
-            background: rgba(255, 0, 0, 0.5);
+            background: rgba(255, 0, 0, 0.6);
+        }
+
+        /* 모바일 컨트롤러 */
+        .touch-controls {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            height: 150px;
+            z-index: 50;
+            display: none; /* JS로 모바일 감지 시 표시 */
+            pointer-events: none; /* 버튼만 터치 가능하게 */
+        }
+        .touch-btn {
+            pointer-events: auto;
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(4px);
+            touch-action: none;
+        }
+        .touch-btn:active { background: rgba(255, 255, 255, 0.5); }
+        
+        /* 조이스틱 영역 */
+        #joystick-area {
+            position: absolute;
+            bottom: 20px; left: 20px;
+            width: 160px; height: 160px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 50%;
+            border: 2px dashed rgba(255,255,255,0.3);
+            pointer-events: auto;
+        }
+        #joystick-knob {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 60px; height: 60px;
+            margin-top: -30px; margin-left: -30px;
+            background: rgba(0, 255, 255, 0.5);
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(0,255,255,0.5);
+            transform: translate(0px, 0px);
+        }
+
+        /* 페달 */
+        #btn-gas {
+            bottom: 40px; right: 30px;
+            width: 90px; height: 140px;
+            background: rgba(0, 255, 0, 0.3);
+            border-radius: 20px;
+            border: 3px solid #0f0;
+        }
+        #btn-gas::after { content: 'GAS'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); color: #fff; }
+        
+        #btn-brake {
+            bottom: 40px; right: 140px;
+            width: 70px; height: 90px;
+            background: rgba(255, 0, 0, 0.3);
+            border-radius: 10px;
+            border: 3px solid #f00;
+        }
+        #btn-brake::after { content: 'BRAKE'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); color: #fff; font-size: 12px; }
+
+        @media (hover: none) and (pointer: coarse) {
+            .touch-controls { display: block; }
+            #instructions { display: none; }
         }
     </style>
 </head>
@@ -69,11 +134,19 @@
 
     <div id="ui">
         SPEED: <span id="speedDisplay">0</span> km/h<br>
-        SCORE: <span id="scoreDisplay">0</span>
+        SCORE: <span id="scoreDisplay">0</span><br>
+        DIST: <span id="distDisplay">0</span>
     </div>
-    <div id="drift-msg">KANSEI DRIFT!!</div>
-    <div id="instructions">
-        [▲] ACCEL | [▼] BRAKE + TURN (DRIFT) | [◀ ▶] STEER
+    <div id="center-msg">START!</div>
+    <div id="drift-msg">DRIFT!!</div>
+
+    <!-- 모바일 컨트롤 -->
+    <div class="touch-controls">
+        <div id="joystick-area">
+            <div id="joystick-knob"></div>
+        </div>
+        <div id="btn-brake" class="touch-btn"></div>
+        <div id="btn-gas" class="touch-btn"></div>
     </div>
 
     <canvas id="gameCanvas"></canvas>
@@ -83,13 +156,25 @@
     const ctx = canvas.getContext('2d');
     const speedDisplay = document.getElementById('speedDisplay');
     const scoreDisplay = document.getElementById('scoreDisplay');
+    const distDisplay = document.getElementById('distDisplay');
     const driftMsg = document.getElementById('drift-msg');
+    const centerMsg = document.getElementById('center-msg');
 
-    // 캔버스 크기 설정
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    // 모바일 감지
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if(isMobile) {
+        document.querySelector('.touch-controls').style.display = 'block';
+    }
 
-    // --- 게임 설정 상수 ---
+    // 캔버스 크기
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // --- 게임 상수 ---
     const SEGMENT_LENGTH = 200;
     const DRAW_DISTANCE = 300;
     const ROAD_WIDTH = 2000;
@@ -97,10 +182,10 @@
     const FIELD_OF_VIEW = 100;
     const CAMERA_DEPTH = 1 / Math.tan((FIELD_OF_VIEW / 2) * Math.PI / 180);
 
-    // --- 게임 상태 변수 ---
+    // --- 상태 변수 ---
     let position = 0;       
     let playerX = 0;        
-    let playerTurn = 0;     // 핸들링 상태 (-1 ~ 1)
+    let playerTurn = 0;     // 현재 핸들링 값
     let speed = 0;
     let maxSpeed = 13000;
     let accel = 30;
@@ -109,13 +194,21 @@
     let offRoadDecel = 300;
     let score = 0;
     let driftMode = false;
+    let analogSteer = 0; // 조이스틱 입력값 (-1 ~ 1)
 
-    let skids = [];
     let segments = [];
+    let skids = [];
+
+    // 체크포인트 로직
+    const checkpointLocs = [
+        { pos: 10, name: "START", passed: false, color: "#00ff00" },
+        { pos: 1000, name: "CHECKPOINT", passed: false, color: "#00ffff" },
+        { pos: 1980, name: "GOAL", passed: false, color: "#ff0055" }
+    ];
 
     const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
 
-    // --- 유틸리티 ---
+    // --- 유틸 ---
     function project(p, cameraX, cameraY, cameraZ, cameraDepth, width, height, roadWidth) {
         p.camera.x = (p.world.x || 0) - cameraX;
         p.camera.y = (p.world.y || 0) - cameraY;
@@ -127,7 +220,6 @@
         p.screen.w = (p.screen.scale * roadWidth * width / 2);
     }
 
-    // 폴리곤 그리기
     function polygon(ctx, x1, y1, x2, y2, x3, y3, x4, y4, color) {
         ctx.fillStyle = color;
         ctx.beginPath();
@@ -142,25 +234,43 @@
         for (let i = 0; i < totalSegments; i++) {
             let curve = 0;
             let y = 0;
-            // 맵 디자인 (코너 배치)
+            // 코너
             if (i > 300 && i < 700) curve = 2;
             if (i > 800 && i < 1200) curve = -3; 
             if (i > 1300 && i < 1700) curve = 3; 
 
-            // 언덕 (Slight Hills)
+            // 언덕
             y = Math.sin(i / 30) * 1000;
 
             const floorColor = (Math.floor(i / 3) % 2) ? '#222' : '#252525';
             const rumbleColor = (Math.floor(i / 3) % 2) ? '#fff' : '#c00';
             
+            // 구조물(아치) 설정
+            let feature = null;
+            // 좌표 기반 체크포인트 할당
+            checkpointLocs.forEach(cp => {
+                if(i >= cp.pos && i < cp.pos + 3) feature = { type: 'arch', name: cp.name, color: cp.color };
+            });
+
             segments.push({
                 index: i,
                 p1: { world: { x: 0, y: y, z: i * SEGMENT_LENGTH }, camera: {}, screen: {} },
                 p2: { world: { x: 0, y: y, z: (i + 1) * SEGMENT_LENGTH }, camera: {}, screen: {} },
                 curve: curve,
-                color: { road: floorColor, rumble: rumbleColor }
+                color: { road: floorColor, rumble: rumbleColor },
+                feature: feature
             });
         }
+    }
+
+    function showMessage(text, color='#fff') {
+        centerMsg.innerText = text;
+        centerMsg.style.color = color;
+        centerMsg.style.display = 'block';
+        centerMsg.style.animation = 'none';
+        centerMsg.offsetHeight; 
+        centerMsg.style.animation = 'pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+        setTimeout(() => { centerMsg.style.display = 'none'; }, 2000);
     }
 
     // --- 렌더링 ---
@@ -169,9 +279,9 @@
         const height = canvas.height;
         ctx.clearRect(0, 0, width, height);
 
-        // 1. 배경
+        // 1. 배경 (그라데이션 & 달)
         const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-        bgGrad.addColorStop(0, '#000022');
+        bgGrad.addColorStop(0, '#0a0a2a');
         bgGrad.addColorStop(1, '#000');
         ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, width, height);
@@ -179,45 +289,93 @@
         ctx.fillStyle = '#fffc';
         ctx.beginPath(); ctx.arc(width*0.8, 100, 40, 0, Math.PI*2); ctx.fill();
 
-        // 2. 도로 그리기
+        // 2. 도로 투영
         let baseSegment = segments[Math.floor(position / SEGMENT_LENGTH) % segments.length];
         let maxy = height; 
         let dx = -(baseSegment.curve * (position % SEGMENT_LENGTH) / SEGMENT_LENGTH);
         let x = 0; 
 
+        // 뒤에서부터 앞으로 그리기 (화가 알고리즘)
+        // 하지만 Pseudo-3D는 앞에서부터 그려서 maxy(클리핑)을 갱신하는게 일반적 효율적임
+        // 여기선 기존 로직 유지
+        
         for (let n = 0; n < DRAW_DISTANCE; n++) {
             const currentIdx = (baseSegment.index + n) % segments.length;
             let segment = segments[currentIdx];
             let loopOffset = (segment.index < baseSegment.index) ? segments.length * SEGMENT_LENGTH : 0;
             
-            let camY = CAMERA_HEIGHT + segments[Math.floor((position+100)/SEGMENT_LENGTH)%segments.length].p1.world.y;
+            // 카메라 Y값 (플레이어가 언덕을 탈 때)
+            let playerSegIdx = Math.floor((position+100)/SEGMENT_LENGTH)%segments.length;
+            let playerY = segments[playerSegIdx].p1.world.y;
+            let camY = CAMERA_HEIGHT + playerY;
 
             project(segment.p1, (playerX * ROAD_WIDTH) - x, camY, position - loopOffset, CAMERA_DEPTH, width, height, ROAD_WIDTH);
             project(segment.p2, (playerX * ROAD_WIDTH) - x - dx, camY, position - loopOffset, CAMERA_DEPTH, width, height, ROAD_WIDTH);
 
             x += dx; dx += segment.curve;
 
-            if (segment.p1.camera.z <= CAMERA_DEPTH || segment.p2.screen.y > maxy - 0.5 || segment.p2.screen.y >= segment.p1.screen.y) continue;
+            if (segment.p1.camera.z <= CAMERA_DEPTH || segment.p2.screen.y > maxy - 1 || segment.p2.screen.y >= segment.p1.screen.y) {
+                // 도로가 가려지거나 안 보이면 건너뜀
+                // 하지만 오브젝트(아치)는 그려야 할 수도 있으므로 좌표 계산은 해야함
+                // 여기선 간단히 도로 안 그릴 때 오브젝트도 스킵 (멀리 있는건 안보여도 됨)
+                
+                // 다만 아치는 '위'에 있으므로 maxy에 걸려도 보일 수 있음. 
+                // 이 예제에선 도로와 함께 렌더링하므로 일단 continue
+                continue; 
+            }
 
             let r1 = segment.p1.screen.w; let r2 = segment.p2.screen.w;
             let l1 = segment.p1.screen.x; let l2 = segment.p2.screen.x;
             let y1 = segment.p1.screen.y; let y2 = segment.p2.screen.y;
 
-            // [수정] 도로 깨짐 방지: 윗변(y2)을 1픽셀 올려서(빼서) 겹치게 만듦
-            let renderY2 = y2 - 1;
+            let renderY2 = y2 - 1; // 틈새 방지
 
-            ctx.fillStyle = '#001100';
-            ctx.fillRect(0, renderY2, width, y1 - renderY2); // 땅도 겹치게
+            ctx.fillStyle = '#001100'; // 잔디색
+            ctx.fillRect(0, renderY2, width, y1 - renderY2); 
 
+            // 도로 그리기
             polygon(ctx, l1 - r1 * 1.2, y1, l1 - r1, y1, l2 - r2, renderY2, l2 - r2 * 1.2, renderY2, segment.color.rumble);
             polygon(ctx, l1 + r1 * 1.2, y1, l1 + r1, y1, l2 + r2, renderY2, l2 + r2 * 1.2, renderY2, segment.color.rumble);
             polygon(ctx, l1 - r1, y1, l1 + r1, y1, l2 + r2, renderY2, l2 - r2, renderY2, segment.color.road);
 
-            maxy = y2; // 클리핑은 원래 좌표 기준
+            // 구조물(아치) 그리기
+            if (segment.feature && segment.feature.type === 'arch') {
+                drawArch(ctx, l2, renderY2, r2, segment.feature);
+            }
+
+            maxy = y2; 
         }
 
         drawSkidMarks();
         drawCarSprite(); 
+    }
+
+    function drawArch(ctx, cx, cy, w, feature) {
+        // cx: 화면 중앙 X, cy: 화면 바닥 Y, w: 도로 폭의 절반
+        const archWidth = w * 2.5; 
+        const archHeight = w * 2.0; 
+        const pillarW = w * 0.2;
+
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        // 기둥
+        ctx.fillStyle = '#444';
+        ctx.fillRect(-archWidth/2, -archHeight, pillarW, archHeight); // 왼쪽
+        ctx.fillRect(archWidth/2 - pillarW, -archHeight, pillarW, archHeight); // 오른쪽
+
+        // 상판
+        ctx.fillStyle = feature.color || '#fff';
+        ctx.fillRect(-archWidth/2 - pillarW, -archHeight - pillarW, archWidth + pillarW*2, pillarW*2);
+
+        // 텍스트
+        ctx.fillStyle = '#000';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = `bold ${Math.max(10, w * 0.8)}px sans-serif`;
+        ctx.fillText(feature.name, 0, -archHeight);
+
+        ctx.restore();
     }
 
     function drawSkidMarks() {
@@ -243,18 +401,14 @@
         }
         ctx.restore();
     }
-
-    // ==========================================
-    //  🏁 자동차 그리기 (부드러운 애니메이션) 🏁
-    // ==========================================
     
+    // 자동차 드로잉 (이전과 동일하지만 회전 로직 미세 조정)
     function drawCarSprite() {
         const width = canvas.width;
         const height = canvas.height;
         const scale = width / 1200; 
         
         const bounce = Math.sin(Date.now() / 50) * (speed / maxSpeed) * 3;
-        
         const cx = width / 2;
         const cy = height - 120 * scale + bounce;
 
@@ -262,11 +416,9 @@
         ctx.translate(cx, cy);
         ctx.scale(scale, scale);
         
-        // 회전량 계산
-        const turnAngle = playerTurn * (driftMode ? 1.5 : 0.8);
-
+        // 드리프트 모드일 때 시각적 회전 과장
+        const turnAngle = playerTurn * (driftMode ? 1.8 : 0.8);
         drawAE86_Dynamic(ctx, turnAngle);
-
         ctx.restore();
     }
 
@@ -276,166 +428,181 @@
 
         ctx.save();
         ctx.scale(dir, 1);
-
-        // 차체 기울기
-        ctx.rotate(absTurn * 0.1);
+        ctx.rotate(absTurn * 0.15); // 기울기
 
         const rearWidth = 90 - (absTurn * 30);
         const sideWidth = absTurn * 120;
         
         // 그림자
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.beginPath(); 
-        ctx.ellipse(sideWidth/2, 90, 130 + sideWidth/2, 15, 0, 0, Math.PI*2); 
-        ctx.fill();
+        ctx.beginPath(); ctx.ellipse(sideWidth/2, 90, 130 + sideWidth/2, 15, 0, 0, Math.PI*2); ctx.fill();
 
-        // 1. 옆면 (Side Panel)
+        // 옆면
         ctx.fillStyle = '#eee';
-        ctx.beginPath();
-        ctx.moveTo(rearWidth, 50); 
-        ctx.lineTo(rearWidth + sideWidth, 60); 
-        ctx.lineTo(rearWidth + sideWidth, 90); 
-        ctx.lineTo(rearWidth - 5, 90); 
-        ctx.fill();
-
+        ctx.beginPath(); ctx.moveTo(rearWidth, 50); ctx.lineTo(rearWidth + sideWidth, 60); ctx.lineTo(rearWidth + sideWidth, 90); ctx.lineTo(rearWidth - 5, 90); ctx.fill();
         ctx.fillStyle = '#111';
-        ctx.beginPath();
-        ctx.moveTo(rearWidth, 65);
-        ctx.lineTo(rearWidth + sideWidth, 75);
-        ctx.lineTo(rearWidth + sideWidth, 85);
-        ctx.lineTo(rearWidth, 75);
-        ctx.fill();
-
+        ctx.beginPath(); ctx.moveTo(rearWidth, 65); ctx.lineTo(rearWidth + sideWidth, 75); ctx.lineTo(rearWidth + sideWidth, 85); ctx.lineTo(rearWidth, 75); ctx.fill();
         ctx.fillStyle = '#eee';
-        ctx.beginPath();
-        ctx.moveTo(rearWidth * 0.8, 0); 
-        ctx.lineTo(rearWidth * 0.8 + sideWidth * 0.8, 10); 
-        ctx.lineTo(rearWidth + sideWidth, 60); 
-        ctx.lineTo(rearWidth, 50); 
-        ctx.fill();
-
-        ctx.fillStyle = '#223';
-        ctx.beginPath();
-        ctx.moveTo(rearWidth * 0.8 + 5, 5); 
-        ctx.lineTo(rearWidth * 0.8 + sideWidth * 0.7, 12); 
-        ctx.lineTo(rearWidth + sideWidth * 0.8, 55); 
-        ctx.lineTo(rearWidth + 5, 45); 
-        ctx.fill();
-
+        ctx.beginPath(); ctx.moveTo(rearWidth * 0.8, 0); ctx.lineTo(rearWidth * 0.8 + sideWidth * 0.8, 10); ctx.lineTo(rearWidth + sideWidth, 60); ctx.lineTo(rearWidth, 50); ctx.fill();
+        
+        // 뒷바퀴 (드리프트 느낌)
         if (absTurn > 0.1) {
-            ctx.fillStyle = '#111';
-            const wheelX = rearWidth + sideWidth * 0.8;
-            ctx.beginPath(); ctx.ellipse(wheelX, 90, 20, 20, 0, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#555';
-            ctx.beginPath(); ctx.ellipse(wheelX, 90, 10, 10, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#111'; ctx.beginPath(); ctx.ellipse(rearWidth + sideWidth * 0.8, 90, 22, 22, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#ccc'; ctx.beginPath(); ctx.ellipse(rearWidth + sideWidth * 0.8, 90, 12, 12, 0, 0, Math.PI*2); ctx.fill();
         }
 
-        // 2. 뒷면 (Rear Panel)
-        ctx.fillStyle = '#ddd'; 
-        ctx.beginPath();
-        ctx.moveTo(-rearWidth, 50); ctx.lineTo(rearWidth, 50);
-        ctx.lineTo(rearWidth + 5, 90); ctx.lineTo(-rearWidth - 5, 90);
-        ctx.fill();
+        // 뒷면
+        ctx.fillStyle = '#ddd'; ctx.beginPath(); ctx.moveTo(-rearWidth, 50); ctx.lineTo(rearWidth, 50); ctx.lineTo(rearWidth + 5, 90); ctx.lineTo(-rearWidth - 5, 90); ctx.fill();
+        ctx.fillStyle = '#ddd'; ctx.beginPath(); ctx.moveTo(-rearWidth * 0.6, 0); ctx.lineTo(rearWidth * 0.6, 0); ctx.lineTo(rearWidth * 0.8, 50); ctx.lineTo(-rearWidth * 0.8, 50); ctx.fill();
+        ctx.fillStyle = '#112'; ctx.beginPath(); ctx.moveTo(-rearWidth * 0.55, 5); ctx.lineTo(rearWidth * 0.55, 5); ctx.lineTo(rearWidth * 0.75, 45); ctx.lineTo(-rearWidth * 0.75, 45); ctx.fill();
+        ctx.fillStyle = '#111'; ctx.fillRect(-rearWidth * 0.9, 50, rearWidth * 1.8, 20);
 
-        ctx.fillStyle = '#222';
-        ctx.fillRect(-rearWidth - 5, 80, rearWidth * 2 + 10, 15);
-
-        ctx.fillStyle = '#ddd';
-        ctx.beginPath();
-        ctx.moveTo(-rearWidth * 0.6, 0); ctx.lineTo(rearWidth * 0.6, 0); 
-        ctx.lineTo(rearWidth * 0.8, 50); ctx.lineTo(-rearWidth * 0.8, 50);
-        ctx.fill();
-
-        ctx.fillStyle = '#112';
-        ctx.beginPath();
-        ctx.moveTo(-rearWidth * 0.55, 5); ctx.lineTo(rearWidth * 0.55, 5);
-        ctx.lineTo(rearWidth * 0.75, 45); ctx.lineTo(-rearWidth * 0.75, 45);
-        ctx.fill();
-
-        ctx.fillStyle = '#111';
-        ctx.fillRect(-rearWidth * 0.9, 50, rearWidth * 1.8, 20);
-
-        const lightColor = keys.ArrowDown ? '#ff2222' : '#cc0000';
+        // 브레이크 등 (키보드 또는 모바일 브레이크)
+        const isBraking = keys.ArrowDown;
+        const lightColor = isBraking ? '#ff0000' : '#880000';
         ctx.fillStyle = lightColor;
-        if(keys.ArrowDown) { ctx.shadowColor='red'; ctx.shadowBlur=20; }
-        
+        if(isBraking) { ctx.shadowColor='red'; ctx.shadowBlur=20; }
         const lampW = rearWidth * 0.5;
         ctx.fillRect(-rearWidth * 0.85, 52, lampW, 16); 
         ctx.fillRect(rearWidth * 0.85 - lampW, 52, lampW, 16);  
         ctx.shadowBlur = 0;
 
-        ctx.fillStyle = '#f1c40f';
-        ctx.fillRect(-15, 55, 30, 12);
-
-        ctx.fillStyle = '#333';
-        ctx.beginPath(); ctx.arc(rearWidth * 0.7, 90, 6, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#000';
-        ctx.beginPath(); ctx.arc(rearWidth * 0.7, 90, 4, 0, Math.PI*2); ctx.fill();
-
-        ctx.fillStyle = '#111';
-        ctx.fillRect(-rearWidth - 5, 85, 20, 15);
-        ctx.fillRect(rearWidth - 15, 85, 20, 15);
+        ctx.fillStyle = '#f1c40f'; ctx.fillRect(-15, 55, 30, 12); // 번호판
+        
+        // 머플러
+        ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(rearWidth * 0.7, 90, 6, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(rearWidth * 0.7, 90, 4, 0, Math.PI*2); ctx.fill();
 
         ctx.restore();
     }
 
-
     // --- 업데이트 ---
     function update(dt) {
-        position = (position + speed * dt) % (segments.length * SEGMENT_LENGTH);
-        const currentIdx = Math.floor((position + 100) / SEGMENT_LENGTH) % segments.length;
-        const playerSegment = segments[currentIdx];
+        position = (position + speed * dt);
+        
+        // 체크포인트 감지
+        const currentSegIndex = Math.floor((position + 100) / SEGMENT_LENGTH);
+        checkpointLocs.forEach(cp => {
+            if (!cp.passed && currentSegIndex >= cp.pos) {
+                cp.passed = true;
+                showMessage(cp.name, cp.color);
+                score += 5000;
+                if(cp.name === "GOAL") {
+                    // 완주 로직 (속도 줄이기 등)
+                }
+            }
+        });
 
-        if (keys.ArrowUp) speed += accel;
-        else if (keys.ArrowDown) speed -= breaking;
+        // 입력 처리 (키보드 + 모바일)
+        const accelInput = keys.ArrowUp;
+        const brakeInput = keys.ArrowDown;
+        
+        // 조향 입력 (키보드 + 아날로그 조이스틱)
+        let turnInput = 0;
+        if(keys.ArrowLeft) turnInput = -1;
+        else if(keys.ArrowRight) turnInput = 1;
+        else turnInput = analogSteer; // 조이스틱 값 사용
+
+        if (accelInput) speed += accel;
+        else if (brakeInput) speed -= breaking;
         else speed -= decel;
 
         speed = Math.max(0, Math.min(speed, maxSpeed));
 
-        const isTurning = keys.ArrowLeft || keys.ArrowRight;
-        driftMode = keys.ArrowDown && isTurning && speed > 5000;
+        // 드리프트 로직 수정: 속도가 일정 이상이고, 회전 중이며, 브레이크를 밟았을 때
+        const isTurning = Math.abs(turnInput) > 0.1;
+        driftMode = brakeInput && isTurning && speed > 4000;
 
         if (driftMode) {
             driftMsg.style.display = 'block';
-            speed -= 30; 
+            speed -= 20; // 드리프트 시 감속 감소
             if (Math.random() > 0.3) {
+                // 스키드마크 생성
                 skids.push({ x: (Math.random()-0.5)*40 - playerTurn*120, y: 0, offsetY: 0, life: 1.0, size: Math.random()*5+5 });
             }
         } else {
             driftMsg.style.display = 'none';
         }
 
+        // 핸들링 물리
         let targetTurn = 0;
-        let turnLimit = driftMode ? 1.5 : 0.6;
+        let turnLimit = driftMode ? 1.5 : 0.7; // 드리프트 시 더 많이 꺾임
 
-        if (keys.ArrowLeft) targetTurn = -turnLimit;
-        else if (keys.ArrowRight) targetTurn = turnLimit;
+        // 조이스틱 입력 반영
+        if(Math.abs(turnInput) > 0) targetTurn = turnInput * turnLimit;
         
-        // [수정] 핸들링 반응 속도 조절 (더 부드럽게)
-        // 기존: driftMode ? 2.0 : 6.0
-        const smoothing = driftMode ? 1.5 : 3.0;
+        // 부드러운 핸들링
+        const smoothing = driftMode ? 2.0 : 4.0;
         playerTurn = playerTurn + (targetTurn - playerTurn) * dt * smoothing;
 
         if (speed > 0) {
-            // [수정] 좌우 이동 속도 감소 (더 묵직하게)
-            // 기존: 0.035
-            let moveEff = driftMode ? 0.6 : 1.0;
-            let moveAmount = (speed / maxSpeed) * moveEff * 0.025; 
-            
-            if (keys.ArrowLeft) playerX -= moveAmount;
-            if (keys.ArrowRight) playerX += moveAmount;
+            let moveAmount = (speed / maxSpeed) * 0.04 * playerTurn;
+            playerX += moveAmount;
 
+            // 도로 곡률에 따른 밀림 (원심력)
+            const playerSegment = segments[Math.floor((position + 100) / SEGMENT_LENGTH) % segments.length];
             playerX -= (playerSegment.curve * 0.00015) * (speed / maxSpeed);
         }
 
+        // 오프로드 감속
         if ((playerX < -1 || playerX > 1) && speed > offRoadDecel) speed -= offRoadDecel;
         playerX = Math.max(-2, Math.min(2, playerX));
 
         speedDisplay.innerText = Math.floor(speed / 100);
         score += Math.floor(speed / 1000);
         scoreDisplay.innerText = score;
+        distDisplay.innerText = Math.floor(position / 1000) + "m";
     }
 
+    // --- 모바일 컨트롤러 이벤트 ---
+    const joystickArea = document.getElementById('joystick-area');
+    const joystickKnob = document.getElementById('joystick-knob');
+    let joyStartX = 0, joyStartY = 0;
+
+    joystickArea.addEventListener('touchstart', e => {
+        const touch = e.touches[0];
+        joyStartX = touch.clientX;
+        joyStartY = touch.clientY;
+        joystickKnob.style.transition = 'none';
+    }, {passive: false});
+
+    joystickArea.addEventListener('touchmove', e => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const deltaX = touch.clientX - joyStartX;
+        const maxDist = 50;
+        
+        // 클램핑
+        const clampedX = Math.max(-maxDist, Math.min(maxDist, deltaX));
+        
+        joystickKnob.style.transform = `translate(${clampedX}px, 0px)`;
+        
+        // 조향값 정규화 (-1 ~ 1)
+        analogSteer = clampedX / maxDist;
+    }, {passive: false});
+
+    joystickArea.addEventListener('touchend', e => {
+        joystickKnob.style.transition = '0.2s';
+        joystickKnob.style.transform = `translate(0px, 0px)`;
+        analogSteer = 0;
+    });
+
+    const btnGas = document.getElementById('btn-gas');
+    const btnBrake = document.getElementById('btn-brake');
+
+    const handleBtn = (elem, key, isPressed) => {
+        if(isPressed) { elem.style.background = 'rgba(255,255,255,0.5)'; keys[key] = true; }
+        else { elem.style.background = ''; keys[key] = false; }
+    };
+
+    btnGas.addEventListener('touchstart', e => { e.preventDefault(); handleBtn(btnGas, 'ArrowUp', true); });
+    btnGas.addEventListener('touchend', e => { e.preventDefault(); handleBtn(btnGas, 'ArrowUp', false); });
+
+    btnBrake.addEventListener('touchstart', e => { e.preventDefault(); handleBtn(btnBrake, 'ArrowDown', true); });
+    btnBrake.addEventListener('touchend', e => { e.preventDefault(); handleBtn(btnBrake, 'ArrowDown', false); });
+
+
+    // --- 메인 루프 ---
     let lastTime = 0;
     function gameLoop(time) {
         const dt = Math.min(1, (time - lastTime) / 1000);
@@ -445,10 +612,7 @@
         requestAnimationFrame(gameLoop);
     }
 
-    window.addEventListener('resize', () => {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    });
+    // 키보드 리스너
     window.addEventListener('keydown', e => { if (keys.hasOwnProperty(e.code)) keys[e.code] = true; });
     window.addEventListener('keyup', e => { if (keys.hasOwnProperty(e.code)) keys[e.code] = false; });
 
