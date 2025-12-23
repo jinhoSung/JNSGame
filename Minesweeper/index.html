@@ -269,14 +269,22 @@
             const getCellContent = (cell) => {
                 const isPlayerHere = playerPos.x === cell.x && playerPos.y === cell.y;
                 
-                if (isPlayerHere) {
-                    return <div className="text-2xl animate-bounce">🤠</div>;
-                }
+                // --- 수정: 플레이어가 있어도 바로 리턴하지 않고 바닥 컨텐츠를 계산합니다 ---
 
+                // 히든 상태일 때 (플레이어가 없으면 가림)
                 if (cell.state === 'hidden') {
-                    return <div className="w-full h-full bg-slate-700 hover:bg-slate-600 rounded-sm cursor-pointer border border-slate-600" />;
+                    // 예외적으로 플레이어가 히든 셀에 있다면(이동 직후 등) 플레이어는 보여줌
+                     if (isPlayerHere) {
+                         return (
+                            <div className="w-full h-full flex items-center justify-center bg-slate-700 border border-slate-600 rounded-sm relative">
+                                <div className="text-2xl animate-bounce z-10">🤠</div>
+                            </div>
+                         );
+                     }
+                     return <div className="w-full h-full bg-slate-700 hover:bg-slate-600 rounded-sm cursor-pointer border border-slate-600" />;
                 }
 
+                // 공개된 상태: 컨텐츠 결정
                 let content = null;
                 if (cell.type === 'trap') content = <Skull className="text-red-500 w-6 h-6" />;
                 else if (cell.type === 'potion') content = <Heart className="text-pink-500 fill-pink-500 w-5 h-5" />;
@@ -290,9 +298,21 @@
                 }
 
                 return (
-                    <div className={`w-full h-full flex items-center justify-center border border-slate-800 rounded-sm 
+                    <div className={`w-full h-full flex items-center justify-center border border-slate-800 rounded-sm relative 
                         ${cell.type === 'trap' ? 'bg-red-900/30' : 'bg-slate-900'}`}>
+                        {/* 바닥 컨텐츠 렌더링 */}
                         {content}
+                        
+                        {/* 플레이어 오버레이: 플레이어가 있으면 위에 겹쳐서 그림 */}
+                        {isPlayerHere && (
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                {/* 바닥에 숫자가 있으면(content가 null이 아니면) 플레이어를 반투명하게 처리 */}
+                                <div className={`text-2xl animate-bounce transition-opacity duration-300 ${content ? 'opacity-60' : 'opacity-100'}`} 
+                                     style={{ textShadow: '0 0 10px rgba(0,0,0,0.5)' }}>
+                                    🤠
+                                </div>
+                            </div>
+                        )}
                     </div>
                 );
             };
