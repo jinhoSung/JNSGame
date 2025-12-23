@@ -138,7 +138,7 @@
         DIST: <span id="distDisplay">0</span>
     </div>
     <div id="center-msg">START!</div>
-    <div id="drift-msg">DRIFT!!</div>
+    <div id="drift-msg">KANSEI DRIFT!!</div>
 
     <!-- 모바일 컨트롤 -->
     <div class="touch-controls">
@@ -294,10 +294,6 @@
         let maxy = height; 
         let dx = -(baseSegment.curve * (position % SEGMENT_LENGTH) / SEGMENT_LENGTH);
         let x = 0; 
-
-        // 뒤에서부터 앞으로 그리기 (화가 알고리즘)
-        // 하지만 Pseudo-3D는 앞에서부터 그려서 maxy(클리핑)을 갱신하는게 일반적 효율적임
-        // 여기선 기존 로직 유지
         
         for (let n = 0; n < DRAW_DISTANCE; n++) {
             const currentIdx = (baseSegment.index + n) % segments.length;
@@ -315,12 +311,6 @@
             x += dx; dx += segment.curve;
 
             if (segment.p1.camera.z <= CAMERA_DEPTH || segment.p2.screen.y > maxy - 1 || segment.p2.screen.y >= segment.p1.screen.y) {
-                // 도로가 가려지거나 안 보이면 건너뜀
-                // 하지만 오브젝트(아치)는 그려야 할 수도 있으므로 좌표 계산은 해야함
-                // 여기선 간단히 도로 안 그릴 때 오브젝트도 스킵 (멀리 있는건 안보여도 됨)
-                
-                // 다만 아치는 '위'에 있으므로 maxy에 걸려도 보일 수 있음. 
-                // 이 예제에선 도로와 함께 렌더링하므로 일단 continue
                 continue; 
             }
 
@@ -402,7 +392,7 @@
         ctx.restore();
     }
     
-    // 자동차 드로잉 (이전과 동일하지만 회전 로직 미세 조정)
+    // 자동차 드로잉 업데이트: 86 스타일 상세 구현
     function drawCarSprite() {
         const width = canvas.width;
         const height = canvas.height;
@@ -416,62 +406,172 @@
         ctx.translate(cx, cy);
         ctx.scale(scale, scale);
         
-        // 드리프트 모드일 때 시각적 회전 과장
-        const turnAngle = playerTurn * (driftMode ? 1.8 : 0.8);
-        drawAE86_Dynamic(ctx, turnAngle);
+        // 드리프트 모드일 때 회전 강조
+        const turnAngle = playerTurn * (driftMode ? 1.5 : 0.8);
+        drawAE86_Enhanced(ctx, turnAngle);
         ctx.restore();
     }
 
-    function drawAE86_Dynamic(ctx, turn) {
+    function drawAE86_Enhanced(ctx, turn) {
         const dir = turn < 0 ? -1 : 1;
         const absTurn = Math.abs(turn);
 
+        // 회전 변환
         ctx.save();
-        ctx.scale(dir, 1);
-        ctx.rotate(absTurn * 0.15); // 기울기
-
-        const rearWidth = 90 - (absTurn * 30);
-        const sideWidth = absTurn * 120;
+        ctx.scale(dir, 1); // 좌우 반전
         
-        // 그림자
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.beginPath(); ctx.ellipse(sideWidth/2, 90, 130 + sideWidth/2, 15, 0, 0, Math.PI*2); ctx.fill();
+        // 드리프트 틸트 효과 (차가 기우뚱)
+        ctx.rotate(absTurn * 0.1);
 
-        // 옆면
-        ctx.fillStyle = '#eee';
-        ctx.beginPath(); ctx.moveTo(rearWidth, 50); ctx.lineTo(rearWidth + sideWidth, 60); ctx.lineTo(rearWidth + sideWidth, 90); ctx.lineTo(rearWidth - 5, 90); ctx.fill();
-        ctx.fillStyle = '#111';
-        ctx.beginPath(); ctx.moveTo(rearWidth, 65); ctx.lineTo(rearWidth + sideWidth, 75); ctx.lineTo(rearWidth + sideWidth, 85); ctx.lineTo(rearWidth, 75); ctx.fill();
-        ctx.fillStyle = '#eee';
-        ctx.beginPath(); ctx.moveTo(rearWidth * 0.8, 0); ctx.lineTo(rearWidth * 0.8 + sideWidth * 0.8, 10); ctx.lineTo(rearWidth + sideWidth, 60); ctx.lineTo(rearWidth, 50); ctx.fill();
+        // --- 치수 계산 ---
+        // 회전에 따라 뒷면 너비는 줄어들고, 옆면 너비는 늘어남
+        const rearW = 90 - (absTurn * 20); 
+        const sideW = absTurn * 180; // 옆면이 길게 늘어나도록
+        const height = 50;
+        const roofH = 35;
         
-        // 뒷바퀴 (드리프트 느낌)
-        if (absTurn > 0.1) {
-            ctx.fillStyle = '#111'; ctx.beginPath(); ctx.ellipse(rearWidth + sideWidth * 0.8, 90, 22, 22, 0, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#ccc'; ctx.beginPath(); ctx.ellipse(rearWidth + sideWidth * 0.8, 90, 12, 12, 0, 0, Math.PI*2); ctx.fill();
+        // --- 그림자 ---
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.beginPath();
+        // 그림자는 전체 차폭에 비례
+        ctx.ellipse(sideW/2, height + 15, rearW + sideW/2 + 20, 15, 0, 0, Math.PI*2);
+        ctx.fill();
+
+        // === 1. 옆면 (Side Panel) - 86 특유의 투톤 & 해치백 라인 ===
+        if (absTurn > 0.05) {
+            const sideLeft = rearW; // 뒷면의 오른쪽 끝에서 시작
+            
+            // 차체 (Body) - 팬더(흑백) 도색
+            // 흰색 상단
+            ctx.fillStyle = '#f4f4f4'; 
+            ctx.beginPath();
+            ctx.moveTo(sideLeft, 0); 
+            ctx.lineTo(sideLeft + sideW, 10); // 앞쪽이 살짝 내려감 (쐐기형)
+            ctx.lineTo(sideLeft + sideW, height);
+            ctx.lineTo(sideLeft, height);
+            ctx.closePath();
+            ctx.fill();
+
+            // 검은색 하단 스트립 (몰딩/범퍼 라인)
+            ctx.fillStyle = '#111'; 
+            ctx.beginPath();
+            ctx.moveTo(sideLeft, height - 15);
+            ctx.lineTo(sideLeft + sideW, height - 15);
+            ctx.lineTo(sideLeft + sideW, height);
+            ctx.lineTo(sideLeft, height);
+            ctx.fill();
+
+            // 옆 창문 (Cabin) - 패스트백 스타일
+            ctx.fillStyle = '#222';
+            ctx.beginPath();
+            ctx.moveTo(sideLeft, 0); 
+            ctx.lineTo(sideLeft + sideW * 0.6, 5); // A필러 쪽으로 기울기
+            ctx.lineTo(sideLeft + sideW * 0.5, -roofH); // 지붕 앞쪽
+            ctx.lineTo(sideLeft, -roofH); // 지붕 뒤쪽
+            ctx.closePath();
+            ctx.fill();
+
+            // B필러 디테일 (창문 나눔)
+            ctx.strokeStyle = '#111';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(sideLeft + sideW * 0.25, 0);
+            ctx.lineTo(sideLeft + sideW * 0.25, -roofH * 0.9);
+            ctx.stroke();
+
+            // 앞바퀴 (사이드 뷰에서 보임)
+            ctx.fillStyle = '#111';
+            ctx.beginPath();
+            ctx.arc(sideLeft + sideW * 0.75, height, 18, 0, Math.PI*2);
+            ctx.fill();
+            // 휠
+            ctx.fillStyle = '#ccc';
+            ctx.beginPath();
+            ctx.arc(sideLeft + sideW * 0.75, height, 9, 0, Math.PI*2);
+            ctx.fill();
         }
 
-        // 뒷면
-        ctx.fillStyle = '#ddd'; ctx.beginPath(); ctx.moveTo(-rearWidth, 50); ctx.lineTo(rearWidth, 50); ctx.lineTo(rearWidth + 5, 90); ctx.lineTo(-rearWidth - 5, 90); ctx.fill();
-        ctx.fillStyle = '#ddd'; ctx.beginPath(); ctx.moveTo(-rearWidth * 0.6, 0); ctx.lineTo(rearWidth * 0.6, 0); ctx.lineTo(rearWidth * 0.8, 50); ctx.lineTo(-rearWidth * 0.8, 50); ctx.fill();
-        ctx.fillStyle = '#112'; ctx.beginPath(); ctx.moveTo(-rearWidth * 0.55, 5); ctx.lineTo(rearWidth * 0.55, 5); ctx.lineTo(rearWidth * 0.75, 45); ctx.lineTo(-rearWidth * 0.75, 45); ctx.fill();
-        ctx.fillStyle = '#111'; ctx.fillRect(-rearWidth * 0.9, 50, rearWidth * 1.8, 20);
+        // === 2. 뒷면 (Rear Panel) ===
+        // 차체 뒷면
+        ctx.fillStyle = '#eee'; // 흰색
+        ctx.beginPath();
+        ctx.moveTo(-rearW, 0);
+        ctx.lineTo(rearW, 0);
+        ctx.lineTo(rearW, height);
+        ctx.lineTo(-rearW, height);
+        ctx.fill();
 
-        // 브레이크 등 (키보드 또는 모바일 브레이크)
-        const isBraking = keys.ArrowDown;
-        const lightColor = isBraking ? '#ff0000' : '#880000';
-        ctx.fillStyle = lightColor;
-        if(isBraking) { ctx.shadowColor='red'; ctx.shadowBlur=20; }
-        const lampW = rearWidth * 0.5;
-        ctx.fillRect(-rearWidth * 0.85, 52, lampW, 16); 
-        ctx.fillRect(rearWidth * 0.85 - lampW, 52, lampW, 16);  
-        ctx.shadowBlur = 0;
+        // 뒷 범퍼 (검은색)
+        ctx.fillStyle = '#111';
+        ctx.fillRect(-rearW, height - 20, rearW * 2, 20);
 
-        ctx.fillStyle = '#f1c40f'; ctx.fillRect(-15, 55, 30, 12); // 번호판
+        // 뒷유리 (Cabin Rear)
+        ctx.fillStyle = '#333'; // 틴팅된 유리
+        ctx.beginPath();
+        ctx.moveTo(-rearW * 0.9, 0); // 차체 위
+        ctx.lineTo(rearW * 0.9, 0);
+        ctx.lineTo(rearW * 0.7, -roofH); // 지붕 (좁아짐)
+        ctx.lineTo(-rearW * 0.7, -roofH);
+        ctx.fill();
         
-        // 머플러
-        ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(rearWidth * 0.7, 90, 6, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(rearWidth * 0.7, 90, 4, 0, Math.PI*2); ctx.fill();
+        // 지붕 (Roof Top) - 뒷면과 옆면을 연결
+        if (absTurn > 0.05) {
+            ctx.fillStyle = '#e0e0e0';
+            ctx.beginPath();
+            ctx.moveTo(-rearW * 0.7, -roofH); // 뒷유리 왼쪽 위
+            ctx.lineTo(rearW * 0.7, -roofH);  // 뒷유리 오른쪽 위
+            // 옆면의 지붕 라인과 연결
+            ctx.lineTo(rearW + sideW * 0.5, -roofH); 
+            ctx.lineTo(rearW, -roofH); // 대각선으로 닫힘 (투시 왜곡)
+            ctx.fill();
+        }
+
+        // 테일램프 (Rear Lights) - AE86 특유의 가로바
+        // 왼쪽
+        ctx.fillStyle = '#aa0000'; // 붉은색
+        ctx.fillRect(-rearW * 0.9, 5, rearW * 0.8, 15);
+        // 오른쪽
+        ctx.fillRect(rearW * 0.1, 5, rearW * 0.8, 15);
+        
+        // 테일램프 디테일 (주황색 방향지시등 / 흰색 후진등)
+        ctx.fillStyle = '#ffaa00'; // 주황
+        ctx.fillRect(-rearW * 0.9, 15, rearW * 0.25, 5);
+        ctx.fillRect(rearW * 0.65, 15, rearW * 0.25, 5);
+
+        // 브레이크 점등 (빛남 효과)
+        if (keys.ArrowDown) {
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.6)';
+            ctx.shadowColor = '#ff0000';
+            ctx.shadowBlur = 20;
+            ctx.fillRect(-rearW * 0.9, 5, rearW * 1.8, 15);
+            ctx.shadowBlur = 0; // 리셋
+        }
+
+        // 번호판
+        ctx.fillStyle = '#f1c40f'; // 노란색 번호판
+        ctx.fillRect(-15, 25, 30, 12);
+        ctx.fillStyle = '#000';
+        ctx.font = '8px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('86-TRUENO', 0, 34);
+
+        // 머플러 (Muffler)
+        ctx.fillStyle = '#555';
+        ctx.beginPath();
+        ctx.arc(rearW * 0.6, height - 5, 5, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(rearW * 0.6, height - 5, 3, 0, Math.PI*2);
+        ctx.fill();
+        
+        // 뒷바퀴 (Rear Wheels) - 약간 광폭 타이어 느낌
+        const wheelY = height;
+        // 왼쪽 타이어
+        ctx.fillStyle = '#111';
+        ctx.fillRect(-rearW - 8, wheelY - 10, 10, 20);
+        // 오른쪽 타이어
+        ctx.fillRect(rearW - 2, wheelY - 10, 10, 20);
 
         ctx.restore();
     }
