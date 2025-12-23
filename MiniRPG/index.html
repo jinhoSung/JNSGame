@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Skeleton Knight's Revenge</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'DungGeunMo', monospace; /* 픽셀 폰트 느낌 */
+            overflow: hidden;
+        }
+        #game-ui {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            border: 4px solid #555;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+        }
+        canvas {
+            background-color: #000;
+            image-rendering: pixelated;
+            display: block;
+        }
+        /* UI 오버레이 (대화창, 스탯창 등) */
+        .overlay {
+            position: absolute;
+            pointer-events: none; /* 클릭 통과 */
+            text-shadow: 2px 2px 0 #000;
+        }
+        #stat-bar {
+            top: 10px;
+            left: 10px;
+            font-size: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px;
+            border-radius: 5px;
+            border: 2px solid #888;
+        }
+        #dialog-box {
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 3px solid #fff;
+            padding: 20px;
+            font-size: 18px;
+            display: none; /* 평소엔 숨김 */
+            white-space: pre-line;
+        }
+        /* 미니게임 UI (HTML로 띄움) */
+        #casino-panel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            background: #2c3e50;
+            border: 4px solid gold;
+            padding: 20px;
+            display: none;
+            text-align: center;
+            pointer-events: auto;
+        }
+        button {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover { background: #c0392b; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="game-ui">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        
+        <!-- 스탯 창 -->
+        <div id="stat-bar" class="overlay">
+            💀 해골 기사 (Lv.1) | 💰 골드: <span id="gold-display">0</span>G | 📍 위치: <span id="loc-display">마을</span>
+        </div>
+
+        <!-- 대화 창 -->
+        <div id="dialog-box" class="overlay"></div>
+
+        <!-- 카지노 미니게임 패널 -->
+        <div id="casino-panel">
+            <h2 style="color:gold;">🎰 고블린 카지노 (블랙잭)</h2>
+            <p>딜러보다 높은 수를 뽑으세요! (21 초과 시 패배)</p>
+            <div id="blackjack-game">
+                <p>내 점수: <span id="p-score">0</span> | 딜러 점수: <span id="d-score">?</span></p>
+                <div id="game-result" style="height:30px; font-weight:bold; color:yellow;"></div>
+                <button onclick="hit()">히트 (한장 더)</button>
+                <button onclick="stand()">스탠드 (멈춤)</button>
+                <button onclick="exitCasino()" style="background:#555;">나가기</button>
+            </div>
+            <div id="betting-controls">
+                <p>판돈: 100G</p>
+                <button onclick="startGame()">게임 시작 (-100G)</button>
+                <button onclick="exitCasino()" style="background:#555;">나가기</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const dialogBox = document.getElementById('dialog-box');
+    const goldDisplay = document.getElementById('gold-display');
+    const locDisplay = document.getElementById('loc-display');
+    const casinoPanel = document.getElementById('casino-panel');
+    const bettingControls = document.getElementById('betting-controls');
+    const blackjackGame = document.getElementById('blackjack-game');
+
+    // ==========================================
+    // 1. 게임 설정 및 상태 관리
+    // ==========================================
+    const TILE_SIZE = 40;
+    const MAP_SIZE = 512; // 512x512 맵
+    
+    // 타일 타입
+    const TILE = {
+        GRASS: 0,
+        WATER: 1,
+        MOUNTAIN: 2,
+        VILLAGE_FLOOR: 3,
+        WALL: 4,
+        CASINO: 9, // 도박장
+        DUNGEON: 8
+    };
+
+    // 게임 상태
+    const STATE = {
+        EXPLORE: 'explore',
+        DIALOG: 'dialog',
+        MINIGAME: 'minigame'
+    };
+    let currentState = STATE.EXPLORE;
+
+    // 플레이어 정보
+    const player = {
+        x: 256, // 맵 중앙에서 시작
+        y: 256,
+        gold: 500,
+        inventory: [],
+        sprite: '💀' // 해골 캐릭터
+    };
+
+    // 카메라 (화면에 보여줄 맵의 좌상단 좌표)
+    let camera = { x: 0, y: 0 };
+
+    // ==========================================
+    // 2. 맵 생성 (Procedural Generation)
+    // ==========================================
+    const mapData = [];
+
+    function generateMap() {
+        console.log("거대한 세계를 생성 중...");
+        
+        // 1. 전체를 풀밭으로 초기화
+        for(let y=0; y<MAP_SIZE; y++) {
+            const row = [];
+            for(let x=0; x<MAP_SIZE; x++) {
+                row.push(TILE.GRASS);
+            }
+            mapData.push(row);
+        }
+
+        // 2. 랜덤 산과 호수 생성 (간단한 알고리즘)
+        for(let i=0; i<800; i++) {
+            createBlob(TILE.MOUNTAIN, 10, 30); // 산맥
+        }
+        for(let i=0; i<400; i++) {
+            createBlob(TILE.WATER, 5, 15); // 호수
+        }
+
+        // 3. 중앙 마을 생성 (안전지대)
+        const center = MAP_SIZE / 2;
+        for(let y=center-10; y<center+10; y++) {
+            for(let x=center-10; x<center+10; x++) {
+                mapData[y][x] = TILE.VILLAGE_FLOOR;
+            }
+        }
+        
+        // 4. 카지노 배치 (마을 중앙)
+        mapData[center-5][center] = TILE.CASINO;
+        mapData[center-5][center+1] = TILE.CASINO;
+
+        console.log("맵 생성 완료!");
+    }
+
+    // 덩어리(Blob)를 만드는 함수
+    function createBlob(type, minSize, maxSize) {
+        let cx = Math.floor(Math.random() * MAP_SIZE);
+        let cy = Math.floor(Math.random() * MAP_SIZE);
+        let size = Math.floor(Math.random() * (maxSize - minSize) + minSize);
+
+        for(let y=cy-size; y<cy+size; y++) {
+            for(let x=cx-size; x<cx+size; x++) {
+                if(x>=0 && x<MAP_SIZE && y>=0 && y<MAP_SIZE) {
+                    // 원형에 가깝게 깎기
+                    if(Math.random() > 0.3) mapData[y][x] = type; 
+                }
+            }
+        }
+    }
+
+    generateMap();
+
+    // ==========================================
+    // 3. 게임 루프 및 렌더링 (카메라 시스템)
+    // ==========================================
+    function updateCamera() {
+        // 플레이어를 화면 중앙에 오게 하기 위한 카메라 좌표 계산
+        // 카메라X = 플레이어X * 타일크기 - 화면너비/2
+        camera.x = player.x * TILE_SIZE - canvas.width / 2 + (TILE_SIZE / 2);
+        camera.y = player.y * TILE_SIZE - canvas.height / 2 + (TILE_SIZE / 2);
+
+        // 맵 밖을 보여주지 않도록 제한 (Clamping)
+        const maxScrollX = MAP_SIZE * TILE_SIZE - canvas.width;
+        const maxScrollY = MAP_SIZE * TILE_SIZE - canvas.height;
+
+        if (camera.x < 0) camera.x = 0;
+        if (camera.y < 0) camera.y = 0;
+        if (camera.x > maxScrollX) camera.x = maxScrollX;
+        if (camera.y > maxScrollY) camera.y = maxScrollY;
+    }
+
+    function draw() {
+        // 화면 지우기
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 카메라 기준 화면에 보일 타일의 범위 계산 (최적화)
+        const startCol = Math.floor(camera.x / TILE_SIZE);
+        const endCol = startCol + (canvas.width / TILE_SIZE) + 1;
+        const startRow = Math.floor(camera.y / TILE_SIZE);
+        const endRow = startRow + (canvas.height / TILE_SIZE) + 1;
+
+        // 오프셋 (부드러운 스크롤을 위해 미세 조정값)
+        const offsetX = -camera.x + startCol * TILE_SIZE;
+        const offsetY = -camera.y + startRow * TILE_SIZE;
+
+        for (let y = startRow; y <= endRow; y++) {
+            for (let x = startCol; x <= endCol; x++) {
+                if (y >= 0 && y < MAP_SIZE && x >= 0 && x < MAP_SIZE) {
+                    const tile = mapData[y][x];
+                    
+                    // 타일 그리기
+                    let color = '#000';
+                    if (tile === TILE.GRASS) color = '#2e8b57'; // 숲
+                    else if (tile === TILE.WATER) color = '#3498db'; // 강
+                    else if (tile === TILE.MOUNTAIN) color = '#555'; // 산
+                    else if (tile === TILE.VILLAGE_FLOOR) color = '#d3a95d'; // 마을 바닥
+                    else if (tile === TILE.CASINO) color = '#8e44ad'; // 도박장 (보라색)
+                    
+                    ctx.fillStyle = color;
+                    ctx.fillRect(
+                        (x - startCol) * TILE_SIZE + offsetX,
+                        (y - startRow) * TILE_SIZE + offsetY,
+                        TILE_SIZE, TILE_SIZE
+                    );
+
+                    // 건물/오브젝트 표시
+                    if (tile === TILE.CASINO) {
+                        ctx.font = '20px Arial';
+                        ctx.fillText("🎰", (x - startCol) * TILE_SIZE + offsetX + 8, (y - startRow) * TILE_SIZE + offsetY + 28);
+                    }
+                    if (tile === TILE.MOUNTAIN) {
+                        ctx.fillStyle = 'rgba(0,0,0,0.3)'; // 산 그림자
+                        ctx.fillRect((x - startCol) * TILE_SIZE + offsetX, (y - startRow) * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
+                    }
+                }
+            }
+        }
+
+        // 플레이어 그리기 (항상 화면 중앙 근처에 위치하게 됨)
+        // 실제 화면 좌표 = (플레이어 월드좌표 - 카메라 월드좌표)
+        const playerScreenX = player.x * TILE_SIZE - camera.x;
+        const playerScreenY = player.y * TILE_SIZE - camera.y;
+
+        ctx.font = '35px Arial';
+        ctx.fillText(player.sprite, playerScreenX + 2, playerScreenY + 32);
+
+        // UI 업데이트
+        goldDisplay.innerText = player.gold;
+    }
+
+    // ==========================================
+    // 4. 입력 및 이동 처리
+    // ==========================================
+    window.addEventListener('keydown', (e) => {
+        if (currentState !== STATE.EXPLORE) {
+            if (currentState === STATE.DIALOG && e.key === ' ') closeDialog();
+            return;
+        }
+
+        let nextX = player.x;
+        let nextY = player.y;
+
+        if (e.key === 'ArrowUp') nextY--;
+        if (e.key === 'ArrowDown') nextY++;
+        if (e.key === 'ArrowLeft') nextX--;
+        if (e.key === 'ArrowRight') nextX++;
+
+        if (e.key === ' ' || e.key === 'Spacebar') {
+            checkInteraction();
+            return;
+        }
+
+        // 이동 가능 확인
+        if (canMove(nextX, nextY)) {
+            player.x = nextX;
+            player.y = nextY;
+            updateCamera();
+            draw();
+        }
+    });
+
+    function canMove(x, y) {
+        if (x < 0 || x >= MAP_SIZE || y < 0 || y >= MAP_SIZE) return false;
+        const tile = mapData[y][x];
+        if (tile === TILE.WATER || tile === TILE.MOUNTAIN) return false; // 물, 산 이동 불가
+        return true;
+    }
+
+    function checkInteraction() {
+        const tile = mapData[player.y][player.x];
+        
+        // 현재 밟고 있는 타일이 카지노라면
+        if (tile === TILE.CASINO) {
+            enterCasino();
+        } else {
+            // 아무것도 없는 곳이면 독백
+            showDialog("바람이 차갑다... 내 뼈마디가 시려온다.\n(저주를 풀기 위해선 돈과 힘이 필요해)");
+        }
+    }
+
+    // ==========================================
+    // 5. 스토리 및 UI 시스템
+    // ==========================================
+    function showDialog(text) {
+        currentState = STATE.DIALOG;
+        dialogBox.innerText = text;
+        dialogBox.style.display = 'block';
+    }
+
+    function closeDialog() {
+        dialogBox.style.display = 'none';
+        currentState = STATE.EXPLORE;
+    }
+
+    // 초기 스토리 출력
+    setTimeout(() => {
+        showDialog(" [프롤로그]\n\n나는 왕국의 기사단장이었다.\n하지만 '미카엘'.. 그 위선적인 놈이 나에게 누명을 씌웠다.\n그는 천사 같은 얼굴로 사람들을 속이고, 나를 끔찍한 해골 괴물로 만들었다.\n\n\"괴물이다! 죽여라!\" 마을 사람들의 돌팔매질...\n\n두고 봐라. 힘을 기르고 돈을 모아 최고의 장비를 맞춰서,\n그 가식적인 얼굴을 박살 내고 내 명예를 되찾겠다.");
+    }, 500);
+
+    // ==========================================
+    // 6. 미니게임: 블랙잭 (도박장)
+    // ==========================================
+    let playerScore = 0;
+    let dealerScore = 0;
+
+    function enterCasino() {
+        currentState = STATE.MINIGAME;
+        casinoPanel.style.display = 'block';
+        blackjackGame.classList.add('hidden');
+        bettingControls.classList.remove('hidden');
+    }
+
+    function exitCasino() {
+        casinoPanel.style.display = 'none';
+        currentState = STATE.EXPLORE;
+        draw();
+    }
+
+    window.startGame = function() { // HTML 버튼에서 호출하기 위해 window에 할당
+        if (player.gold < 100) {
+            alert("돈이 부족합니다! (필요: 100G)");
+            return;
+        }
+        player.gold -= 100;
+        goldDisplay.innerText = player.gold;
+        
+        bettingControls.classList.add('hidden');
+        blackjackGame.classList.remove('hidden');
+        
+        playerScore = Math.floor(Math.random() * 10) + 2 + Math.floor(Math.random() * 10) + 2; // 4~22
+        dealerScore = Math.floor(Math.random() * 10) + 2; // 딜러 카드 1장 오픈
+        
+        updateBlackjackUI();
+        document.getElementById('game-result').innerText = "";
+    };
+
+    window.hit = function() {
+        const card = Math.floor(Math.random() * 10) + 2;
+        playerScore += card;
+        updateBlackjackUI();
+
+        if (playerScore > 21) {
+            endGame(false, "버스트! (21점 초과)");
+        }
+    };
+
+    window.stand = function() {
+        // 딜러 플레이 (16 이하면 무조건 드로우)
+        while (dealerScore < 17) {
+            dealerScore += Math.floor(Math.random() * 10) + 2;
+        }
+        
+        updateBlackjackUI();
+
+        if (dealerScore > 21) {
+            endGame(true, "딜러 버스트! 당신의 승리!");
+        } else if (playerScore > dealerScore) {
+            endGame(true, "승리! 딜러보다 점수가 높습니다.");
+        } else if (playerScore === dealerScore) {
+             // 비김 (돈 돌려줌)
+             player.gold += 100;
+             endGame(false, "무승부! 본전을 찾았습니다.");
+        } else {
+            endGame(false, "패배.. 딜러가 더 높습니다.");
+        }
+    };
+
+    function updateBlackjackUI() {
+        document.getElementById('p-score').innerText = playerScore;
+        document.getElementById('d-score').innerText = dealerScore;
+    }
+
+    function endGame(isWin, msg) {
+        document.getElementById('game-result').innerText = msg;
+        if (isWin) {
+            player.gold += 200; // 2배 획득
+            goldDisplay.innerText = player.gold;
+        }
+        setTimeout(() => {
+            alert(msg);
+            enterCasino(); // 다시 메뉴로
+        }, 500);
+    }
+
+    // 초기 렌더링
+    updateCamera();
+    draw();
+
+</script>
+</body>
+</html>
