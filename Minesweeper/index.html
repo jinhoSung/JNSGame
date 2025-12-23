@@ -1,0 +1,358 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { Heart, Shield, Key, DoorOpen, Skull, RefreshCw, Trophy, Coins } from 'lucide-react';
+
+// 게임 설정 상수
+const GRID_SIZE = 10;
+const INITIAL_HP = 3;
+const TRAP_COUNT = 15;
+const GOLD_COUNT = 5;
+const POTION_COUNT = 3;
+
+// 셀 타입 정의
+type CellType = 'empty' | 'trap' | 'potion' | 'gold' | 'key' | 'door' | 'start';
+type CellState = 'hidden' | 'revealed' | 'flagged';
+
+interface Cell {
+  x: number;
+  y: number;
+  type: CellType;
+  state: CellState;
+  adjacentDanger: number; // 주변 함정 수
+  id: string;
+}
+
+const DungeonSweeper = () => {
+  const [grid, setGrid] = useState<Cell[][]>([]);
+  const [playerPos, setPlayerPos] = useState({ x: 0, y: 0 });
+  const [hp, setHp] = useState(INITIAL_HP);
+  const [gold, setGold] = useState(0);
+  const [hasKey, setHasKey] = useState(false);
+  const [gameStatus, setGameStatus] = useState<'playing' | 'won' | 'lost'>('playing');
+  const [message, setMessage] = useState<string>("던전에 오신 것을 환영합니다! 열쇠를 찾아 탈출하세요.");
+  const [floor, setFloor] = useState(1);
+
+  // 방향 벡터 (8방향)
+  const directions = [
+    [-1, -1], [-1, 0], [-1, 1],
+    [0, -1],           [0, 1],
+    [1, -1],  [1, 0],  [1, 1]
+  ];
+
+  // 게임 초기화
+  const initGame = useCallback((level = 1) => {
+    const newGrid: Cell[][] = [];
+    const traps: {x: number, y: number}[] = [];
+    
+    // 1. 그리드 생성
+    for (let y = 0; y < GRID_SIZE; y++) {
+      const row: Cell[] = [];
+      for (let x = 0; x < GRID_SIZE; x++) {
+        row.push({
+          x, y,
+          type: 'empty',
+          state: 'hidden',
+          adjacentDanger: 0,
+          id: `${x}-${y}`
+        });
+      }
+      newGrid.push(row);
+    }
+
+    // 2. 시작점 설정 (0,0) 및 주변 안전지대 확보
+    newGrid[0][0].type = 'start';
+    newGrid[0][0].state = 'revealed';
+    const safeZone = [`0,0`, `0,1`, `1,0`, `1,1`];
+
+    // 3. 아이템 및 함정 배치 함수
+    const placeItem = (type: CellType, count: number) => {
+      let placed = 0;
+      while (placed < count) {
+        const rx = Math.floor(Math.random() * GRID_SIZE);
+        const ry = Math.floor(Math.random() * GRID_SIZE);
+        const key = `${rx},${ry}`;
+        
+        // 안전지대가 아니고, 아직 빈 칸인 경우에만 배치
+        if (!safeZone.includes(key) && newGrid[ry][rx].type === 'empty') {
+          newGrid[ry][rx].type = type;
+          if (type === 'trap') traps.push({x: rx, y: ry});
+          placed++;
+        }
+      }
+    };
+
+    // 난이도 조절 (층이 올라갈수록 함정 증가)
+    const currentTrapCount = TRAP_COUNT + (level - 1) * 2;
+
+    placeItem('door', 1); // 출구 (가장 먼 곳에 배치하는 로직은 생략하고 랜덤)
+    placeItem('key', 1);  // 열쇠
+    placeItem('trap', currentTrapCount);
+    placeItem('potion', POTION_COUNT);
+    placeItem('gold', GOLD_COUNT);
+
+    // 4. 주변 위험도 계산 (지뢰찾기 숫자)
+    for (let y = 0; y < GRID_SIZE; y++) {
+      for (let x = 0; x < GRID_SIZE; x++) {
+        if (newGrid[y][x].type === 'trap') continue;
+
+        let danger = 0;
+        directions.forEach(([dx, dy]) => {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
+            if (newGrid[ny][nx].type === 'trap') danger++;
+          }
+        });
+        newGrid[y][x].adjacentDanger = danger;
+      }
+    }
+
+    setGrid(newGrid);
+    setPlayerPos({ x: 0, y: 0 });
+    setHasKey(false);
+    setGameStatus('playing');
+    if (level === 1) {
+      setHp(INITIAL_HP);
+      setGold(0);
+      setFloor(1);
+      setMessage("새로운 모험이 시작되었습니다. 열쇠를 찾으세요!");
+    } else {
+      setFloor(level);
+      setMessage(`${level}층에 도달했습니다. 더 위험해집니다!`);
+    }
+  }, []);
+
+  useEffect(() => {
+    initGame(1);
+  }, [initGame]);
+
+  // 홍수 알고리즘 (빈 공간 자동 오픈)
+  const revealEmptyArea = (startGrid: Cell[][], x: number, y: number) => {
+    const queue = [{x, y}];
+    const visited = new Set();
+    const newGrid = [...startGrid];
+
+    while (queue.length > 0) {
+      const {x: cx, y: cy} = queue.shift()!;
+      const key = `${cx},${cy}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+
+      // 범위 체크 및 이미 공개된 경우 스킵
+      if (cx < 0 || cx >= GRID_SIZE || cy < 0 || cy >= GRID_SIZE) continue;
+      
+      const cell = newGrid[cy][cx];
+      if (cell.state === 'revealed' && !(cx === x && cy === y)) continue; // 시작점 제외하고 이미 열린건 패스
+
+      // 공개 처리
+      cell.state = 'revealed';
+
+      // 함정이 아니고, 아이템도 아니고, 주변에 위험요소가 없으면(0이면) 주변도 큐에 추가
+      if (cell.type === 'empty' && cell.adjacentDanger === 0) {
+        directions.forEach(([dx, dy]) => {
+          queue.push({x: cx + dx, y: cy + dy});
+        });
+      }
+    }
+    return newGrid;
+  };
+
+  // 플레이어 이동 및 상호작용
+  const handleMove = (x: number, y: number) => {
+    if (gameStatus !== 'playing') return;
+
+    // 이동 가능 범위 체크 (현재 위치에서 인접한 곳만)
+    const isAdjacent = Math.abs(playerPos.x - x) <= 1 && Math.abs(playerPos.y - y) <= 1;
+    if (!isAdjacent) {
+      setMessage("그곳은 너무 멉니다! 인접한 칸으로만 이동할 수 있습니다.");
+      return;
+    }
+
+    const targetCell = grid[y][x];
+    let newGrid = [...grid];
+    let currentHp = hp;
+    let currentMsg = "";
+
+    // 1. 이미 공개된 곳으로 이동
+    if (targetCell.state === 'revealed') {
+        if (targetCell.type === 'door') {
+            if (hasKey) {
+                initGame(floor + 1);
+                return;
+            } else {
+                currentMsg = "문이 잠겨있습니다. 열쇠가 필요합니다!";
+            }
+        } else {
+            // 그냥 이동
+            setPlayerPos({ x, y });
+            return;
+        }
+    } 
+    // 2. 숨겨진 곳을 탐험 (클릭)
+    else {
+        // 함정인 경우
+        if (targetCell.type === 'trap') {
+            currentHp -= 1;
+            setHp(currentHp);
+            targetCell.state = 'revealed'; // 함정 드러남
+            currentMsg = "으악! 함정을 밟았습니다! 체력 -1";
+            
+            if (currentHp <= 0) {
+                setGameStatus('lost');
+                setMessage("체력이 다했습니다... 탐험 실패.");
+                return;
+            }
+        }
+        // 아이템 또는 빈 공간
+        else {
+            if (targetCell.type === 'potion') {
+                const newHp = Math.min(currentHp + 1, INITIAL_HP + 2); // 최대 체력 제한
+                setHp(newHp);
+                currentHp = newHp;
+                currentMsg = "포션 발견! 체력이 회복되었습니다.";
+                targetCell.type = 'empty'; // 아이템 획득 후 빈칸됨
+            } else if (targetCell.type === 'gold') {
+                setGold(g => g + 10);
+                currentMsg = "금화 발견! (+10 Gold)";
+                targetCell.type = 'empty';
+            } else if (targetCell.type === 'key') {
+                setHasKey(true);
+                currentMsg = "열쇠를 찾았습니다! 이제 문을 열 수 있습니다.";
+                targetCell.type = 'empty';
+            } else if (targetCell.type === 'door') {
+                 // 문은 열리지 않지만 위치는 드러남
+                 currentMsg = "출구를 발견했습니다. 열쇠가 필요합니다.";
+            }
+
+            // 공간 열기 (0이면 주변도 엶)
+            if (targetCell.adjacentDanger === 0 && targetCell.type === 'empty') {
+                newGrid = revealEmptyArea(newGrid, x, y);
+            } else {
+                targetCell.state = 'revealed';
+            }
+        }
+    }
+
+    setGrid(newGrid);
+    setPlayerPos({ x, y });
+    if (currentMsg) setMessage(currentMsg);
+  };
+
+  // 셀 렌더링 헬퍼
+  const getCellContent = (cell: Cell) => {
+    const isPlayerHere = playerPos.x === cell.x && playerPos.y === cell.y;
+    
+    // 플레이어 렌더링
+    if (isPlayerHere) {
+        return <div className="text-2xl animate-bounce">🤠</div>;
+    }
+
+    if (cell.state === 'hidden') {
+      return <div className="w-full h-full bg-slate-700 hover:bg-slate-600 rounded-sm cursor-pointer border border-slate-600" />;
+    }
+
+    // 공개된 셀
+    let content = null;
+    if (cell.type === 'trap') content = <Skull className="text-red-500 w-6 h-6" />;
+    else if (cell.type === 'potion') content = <Heart className="text-pink-500 fill-pink-500 w-5 h-5" />;
+    else if (cell.type === 'gold') content = <Coins className="text-yellow-400 w-5 h-5" />;
+    else if (cell.type === 'key') content = <Key className="text-yellow-500 w-6 h-6 rotate-45" />;
+    else if (cell.type === 'door') content = <DoorOpen className={`w-6 h-6 ${hasKey ? 'text-green-400' : 'text-slate-400'}`} />;
+    else if (cell.type === 'start') content = <span className="text-xs text-slate-400">START</span>;
+    else if (cell.adjacentDanger > 0) {
+        // 숫자 색상
+        const colors = ['text-blue-400', 'text-green-400', 'text-red-400', 'text-purple-400', 'text-orange-400'];
+        content = <span className={`font-bold text-xl ${colors[cell.adjacentDanger-1] || 'text-red-600'}`}>{cell.adjacentDanger}</span>;
+    }
+
+    return (
+      <div className={`w-full h-full flex items-center justify-center border border-slate-800 rounded-sm 
+        ${cell.type === 'trap' ? 'bg-red-900/30' : 'bg-slate-900'}`}>
+        {content}
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 font-sans flex flex-col items-center">
+      <div className="max-w-md w-full bg-slate-900 p-6 rounded-xl shadow-2xl border border-slate-800">
+        
+        {/* 헤더: 상태 표시창 */}
+        <div className="flex justify-between items-center mb-6 bg-slate-800 p-3 rounded-lg">
+            <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1 text-pink-400">
+                    <Heart className="fill-pink-400 w-5 h-5" />
+                    <span className="font-bold text-lg">x {hp}</span>
+                </div>
+                <div className="flex items-center gap-1 text-yellow-400">
+                    <Trophy className="w-5 h-5" />
+                    <span className="font-bold text-lg">{floor}F</span>
+                </div>
+                <div className="flex items-center gap-1 text-yellow-200 text-sm">
+                    <Coins className="w-4 h-4" />
+                    <span>{gold}</span>
+                </div>
+            </div>
+            <div className="flex items-center gap-2">
+                 {hasKey ? (
+                     <div className="flex items-center gap-1 text-yellow-400 bg-yellow-900/30 px-2 py-1 rounded">
+                         <Key className="w-4 h-4" /> <span className="text-xs font-bold">KEY GET!</span>
+                     </div>
+                 ) : (
+                     <div className="text-slate-500 text-xs">열쇠 찾는 중...</div>
+                 )}
+            </div>
+        </div>
+
+        {/* 메시지 창 */}
+        <div className="mb-4 text-center h-8 text-sm text-cyan-300 font-medium animate-pulse">
+            {message}
+        </div>
+
+        {/* 게임 그리드 */}
+        <div 
+            className="grid gap-1 mb-6 mx-auto bg-slate-800 p-2 rounded-lg relative"
+            style={{ 
+                gridTemplateColumns: `repeat(${GRID_SIZE}, minmax(0, 1fr))`,
+                width: 'fit-content'
+            }}
+        >
+            {grid.map((row, y) => (
+                row.map((cell, x) => (
+                    <div 
+                        key={cell.id}
+                        onClick={() => handleMove(x, y)}
+                        className="w-8 h-8 sm:w-9 sm:h-9 relative"
+                    >
+                        {getCellContent(cell)}
+                    </div>
+                ))
+            ))}
+            
+            {/* 게임 오버 오버레이 */}
+            {gameStatus === 'lost' && (
+                <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center rounded-lg z-10 backdrop-blur-sm">
+                    <Skull className="w-16 h-16 text-red-500 mb-2 animate-bounce" />
+                    <h2 className="text-2xl font-bold text-white mb-4">GAME OVER</h2>
+                    <button 
+                        onClick={() => initGame(1)}
+                        className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-full font-bold transition-transform hover:scale-105"
+                    >
+                        <RefreshCw className="w-4 h-4" /> 다시 도전
+                    </button>
+                </div>
+            )}
+        </div>
+
+        {/* 조작 설명 */}
+        <div className="text-xs text-slate-500 text-center space-y-1 bg-slate-800/50 p-3 rounded">
+            <p>🤠 <span className="text-slate-300">플레이어</span>를 클릭하여 인접한 칸을 탐험하세요.</p>
+            <p>💀 <span className="text-red-400">함정</span>을 밟으면 체력이 깎입니다. 숫자는 주변 함정 수입니다.</p>
+            <p>🔑 <span className="text-yellow-400">열쇠</span>를 찾아 🚪 <span className="text-green-400">문</span>으로 탈출하면 다음 층으로!</p>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+export default DungeonSweeper;
