@@ -23,10 +23,6 @@
         .animate-pulse {
             animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: .5; }
-        }
         .item-pop {
             animation: pop 0.3s ease-out;
         }
@@ -35,66 +31,72 @@
             80% { transform: scale(1.2); }
             100% { transform: scale(1); }
         }
+        /* 플로팅 텍스트 애니메이션 */
+        .float-text {
+            animation: floatUp 1s ease-out forwards;
+            position: absolute;
+            pointer-events: none;
+            z-index: 50;
+            font-weight: bold;
+            text-shadow: 1px 1px 0 #000;
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-30px) scale(1.2); opacity: 0; }
+        }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center font-sans select-none">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useCallback } = React;
+        const { useState, useEffect, useCallback, useRef } = React;
 
         // --- 아이콘 컴포넌트 ---
-        const Heart = ({ className }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
-        );
-        const Skull = ({ className }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><path d="M8 20v2h8v-2"/><path d="m12.5 17-.5-1-.5 1h1z"/><path d="M16 20a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20"/></svg>
-        );
-        const Key = ({ className }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>
-        );
-        const DoorOpen = ({ className }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3"/><path d="M13 20h9"/><path d="M10 12v.01"/><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561Z"/></svg>
-        );
-        const RefreshCw = ({ className }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
-        );
-        const Trophy = ({ className }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-        );
-        const Coins = ({ className }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m7.1 13.8 3.1-9.1"/><path d="M10.8 17.7l-3.1-9.1"/></svg>
-        );
-        const Telescope = ({ className }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>
-        );
-        const ShoppingCart = ({ className }) => (
-             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
-        );
+        const Heart = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>;
+        const Skull = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><path d="M8 20v2h8v-2"/><path d="m12.5 17-.5-1-.5 1h1z"/><path d="M16 20a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20"/></svg>;
+        const Key = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>;
+        const DoorOpen = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3"/><path d="M13 20h9"/><path d="M10 12v.01"/><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561Z"/></svg>;
+        const RefreshCw = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>;
+        const Trophy = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>;
+        const Coins = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m7.1 13.8 3.1-9.1"/><path d="M10.8 17.7l-3.1-9.1"/></svg>;
+        const Telescope = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>;
+        const Shield = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
+        const User = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
 
         // --- 게임 상수 ---
         const GRID_SIZE = 10;
-        const INITIAL_HP = 3;
         const TRAP_COUNT = 15;
-        const GOLD_COUNT = 5;
-        const POTION_COUNT = 2; // 상점에서 살 수 있으므로 기본 드랍 약간 감소
+        const GOLD_COUNT = 6;
+        const POTION_COUNT = 2;
+        const SHIELD_COUNT = 1;
         
         // 상점 가격
         const PRICE_POTION = 40;
-        const PRICE_TELESCOPE = 20;
+        const PRICE_SHIELD = 50;
+        const PRICE_TELESCOPE_BASE = 20;
+
+        // 직업 정의
+        const CLASSES = {
+            knight: { name: "기사", hp: 5, gold: 0, desc: "높은 체력으로 시작" },
+            rogue: { name: "도적", hp: 3, gold: 30, desc: "많은 골드로 시작" },
+            wizard: { name: "마법사", hp: 3, gold: 0, desc: "정찰 비용 대폭 할인" },
+        };
 
         const DungeonSweeper = () => {
+            const [gamePhase, setGamePhase] = useState('start'); // start, playing, gameover
+            const [selectedClass, setSelectedClass] = useState('knight');
+            
             const [grid, setGrid] = useState([]);
             const [playerPos, setPlayerPos] = useState({ x: 0, y: 0 });
-            const [hp, setHp] = useState(INITIAL_HP);
+            const [hp, setHp] = useState(3);
+            const [shield, setShield] = useState(0);
             const [gold, setGold] = useState(0);
             const [hasKey, setHasKey] = useState(false);
-            const [gameStatus, setGameStatus] = useState('playing'); 
-            const [message, setMessage] = useState("던전에 오신 것을 환영합니다!");
+            const [message, setMessage] = useState("");
             const [floor, setFloor] = useState(1);
-            
-            // 스킬 모드: 'move'(기본), 'telescope'(원격 확인)
             const [actionMode, setActionMode] = useState('move'); 
+            const [floatTexts, setFloatTexts] = useState([]); // {id, x, y, text, color}
 
             const directions = [
                 [-1, -1], [-1, 0], [-1, 1],
@@ -102,7 +104,28 @@
                 [1, -1],  [1, 0],  [1, 1]
             ];
 
-            const initGame = useCallback((level = 1, carryOverHp, carryOverGold) => {
+            // 플로팅 텍스트 추가 함수
+            const addFloatText = (text, color) => {
+                const id = Date.now();
+                // 화면 중앙 상단쯤에 띄우기 위해 (플레이어 위치 기반이 좋지만 간단히 중앙에)
+                // 실제로는 CSS 애니메이션이 처리하므로 상태만 추가
+                setFloatTexts(prev => [...prev, { id, text, color }]);
+                setTimeout(() => {
+                    setFloatTexts(prev => prev.filter(ft => ft.id !== id));
+                }, 1000);
+            };
+
+            const startGame = (cls) => {
+                setSelectedClass(cls);
+                const classData = CLASSES[cls];
+                setHp(classData.hp);
+                setGold(classData.gold);
+                setShield(0);
+                setFloor(1);
+                initLevel(1, classData.hp, classData.gold, 0);
+            };
+
+            const initLevel = useCallback((level, currentHp, currentGold, currentShield) => {
                 const newGrid = [];
                 const traps = [];
                 
@@ -142,12 +165,13 @@
                     }
                 };
 
-                const currentTrapCount = TRAP_COUNT + Math.min((level - 1) * 2, 10); // 최대치 제한
+                const currentTrapCount = TRAP_COUNT + Math.min((level - 1) * 2, 10);
 
                 placeItem('door', 1);
                 placeItem('key', 1);
                 placeItem('trap', currentTrapCount);
                 placeItem('potion', POTION_COUNT);
+                placeItem('shield', SHIELD_COUNT);
                 placeItem('gold', GOLD_COUNT);
 
                 // 4. 위험도 계산
@@ -170,25 +194,20 @@
                 setGrid(newGrid);
                 setPlayerPos({ x: 0, y: 0 });
                 setHasKey(false);
-                setGameStatus('playing');
+                setGamePhase('playing');
                 setActionMode('move');
+                setHp(currentHp);
+                setGold(currentGold);
+                setShield(currentShield);
+                setFloor(level);
 
                 if (level === 1) {
-                    setHp(INITIAL_HP);
-                    setGold(0);
-                    setFloor(1);
-                    setMessage("새로운 모험이 시작되었습니다.");
+                    setMessage("던전에 입장했습니다.");
                 } else {
-                    setHp(carryOverHp);
-                    setGold(carryOverGold);
-                    setFloor(level);
-                    setMessage(`${level}층에 도달했습니다. 함정이 더 많아집니다!`);
+                    setMessage(`${level}층: 더 깊은 곳으로 왔습니다.`);
                 }
             }, []);
 
-            useEffect(() => {
-                initGame(1);
-            }, [initGame]);
 
             // 홍수 알고리즘
             const revealEmptyArea = (startGrid, x, y) => {
@@ -218,85 +237,83 @@
                 return newGrid;
             };
 
-            const checkItemPickup = (cell, currentHp, currentGold, currentKey) => {
+            const checkItemPickup = (cell, currentHp, currentGold, currentKey, currentShield) => {
                 let msg = "";
                 let newHp = currentHp;
                 let newGold = currentGold;
                 let newKey = currentKey;
+                let newShield = currentShield;
                 let itemType = cell.type;
 
                 if (itemType === 'key') {
                     newKey = true;
                     msg = "🔑 열쇠 획득! 탈출구를 찾으세요.";
+                    addFloatText("KEY!", "text-yellow-300");
                     cell.type = 'empty';
                 } else if (itemType === 'potion') {
-                    newHp = Math.min(currentHp + 1, INITIAL_HP + 3);
+                    newHp = Math.min(currentHp + 1, 10);
                     msg = "❤️ 포션 사용! 체력 회복.";
+                    addFloatText("+1 HP", "text-pink-400");
+                    cell.type = 'empty';
+                } else if (itemType === 'shield') {
+                    newShield += 1;
+                    msg = "🛡️ 방패 획득! 함정을 1회 막아줍니다.";
+                    addFloatText("+1 SHIELD", "text-blue-400");
                     cell.type = 'empty';
                 } else if (itemType === 'gold') {
-                    const gain = 10 + Math.floor(Math.random() * 6); // 10~15골드
+                    const gain = 10 + Math.floor(Math.random() * 6);
                     newGold += gain;
                     msg = `💰 ${gain} 골드 획득!`;
+                    addFloatText(`+${gain} G`, "text-yellow-400");
                     cell.type = 'empty';
                 }
 
-                return { newHp, newGold, newKey, msg };
+                return { newHp, newGold, newKey, newShield, msg };
             };
 
             const handleInteraction = (x, y) => {
-                if (gameStatus !== 'playing') return;
+                if (gamePhase !== 'playing') return;
 
                 const targetCell = grid[y][x];
+                const telescopePrice = selectedClass === 'wizard' ? 5 : PRICE_TELESCOPE_BASE;
 
-                // --- 🔭 망원경 모드 (원격 정찰) ---
+                // --- 🔭 망원경 모드 ---
                 if (actionMode === 'telescope') {
                     if (targetCell.state === 'revealed') {
                         setMessage("이미 밝혀진 곳입니다.");
                         setActionMode('move');
                         return;
                     }
-                    
-                    // 골드 소모 확인
-                    if (gold < PRICE_TELESCOPE) {
-                        setMessage("골드가 부족합니다! (필요: 20G)");
+                    if (gold < telescopePrice) {
+                        setMessage(`골드가 부족합니다! (필요: ${telescopePrice}G)`);
                         setActionMode('move');
                         return;
                     }
 
-                    // 정찰 실행
-                    setGold(g => g - PRICE_TELESCOPE);
+                    setGold(g => g - telescopePrice);
+                    addFloatText(`-${telescopePrice} G`, "text-red-400");
                     
                     let newGrid = [...grid];
-                    // 정찰은 함정을 밟지 않고 내용만 공개함
                     targetCell.state = 'revealed';
                     
-                    let msg = "";
+                    let msg = "정찰 완료.";
                     if (targetCell.type === 'trap') {
-                        msg = "⚠️ 함정을 발견했습니다! 밟지 않아서 다행입니다.";
-                    } else {
-                         // 안전지대면 주변도 열릴 수 있음 (선택사항이나 여기선 그냥 단일 오픈)
-                         if (targetCell.adjacentDanger === 0 && targetCell.type === 'empty') {
-                             newGrid = revealEmptyArea(newGrid, x, y);
-                         }
-                         msg = "안전한 지역을 확인했습니다.";
+                        msg = "⚠️ 함정을 발견했습니다!";
+                    } else if (targetCell.adjacentDanger === 0 && targetCell.type === 'empty') {
+                        newGrid = revealEmptyArea(newGrid, x, y);
+                        msg = "안전한 지역을 확인했습니다.";
                     }
                     
-                    // 아이템이 있다면 획득은 하지 않고 보여주기만 함 (직접 가야 획득)
-                    if (['potion','gold','key'].includes(targetCell.type)) {
-                         msg = "아이템을 발견했습니다! 직접 가서 획득하세요.";
-                    }
-
                     setGrid(newGrid);
                     setMessage(msg);
-                    setActionMode('move'); // 다시 이동 모드로 복귀
+                    setActionMode('move');
                     return;
                 }
 
-                // --- 🦶 이동 모드 (기본) ---
+                // --- 🦶 이동 모드 ---
                 const isAdjacent = Math.abs(playerPos.x - x) <= 1 && Math.abs(playerPos.y - y) <= 1;
                 const isRevealed = targetCell.state === 'revealed';
 
-                // 미탐험 지역은 인접한 곳만, 밝혀진 곳은 어디든 이동
                 if (!isAdjacent && !isRevealed) {
                     setMessage("미탐험 지역은 인접한 칸으로만 갈 수 있습니다.");
                     return;
@@ -306,19 +323,21 @@
                 let currentHp = hp;
                 let currentGold = gold;
                 let currentKey = hasKey;
+                let currentShield = shield;
                 let currentMsg = "";
 
-                // 1. 이미 공개된 곳으로 이동 (빠른 이동)
+                // 1. 이미 공개된 곳으로 이동
                 if (targetCell.state === 'revealed') {
-                    const pickup = checkItemPickup(targetCell, currentHp, currentGold, currentKey);
+                    const pickup = checkItemPickup(targetCell, currentHp, currentGold, currentKey, currentShield);
                     currentHp = pickup.newHp;
                     currentGold = pickup.newGold;
                     currentKey = pickup.newKey;
+                    currentShield = pickup.newShield;
                     if(pickup.msg) currentMsg = pickup.msg;
 
                     if (targetCell.type === 'door') {
                         if (currentKey) {
-                            initGame(floor + 1, currentHp, currentGold); // 다음 층으로 상태 계승
+                            initLevel(floor + 1, currentHp, currentGold, currentShield);
                             return;
                         } else {
                             currentMsg = "문이 잠겨있습니다. 열쇠가 필요합니다!";
@@ -328,35 +347,42 @@
                     setHp(currentHp);
                     setGold(currentGold);
                     setHasKey(currentKey);
+                    setShield(currentShield);
                     setPlayerPos({ x, y });
                     if(currentMsg) setMessage(currentMsg);
                 } 
-                // 2. 미탐험 지역으로 이동 (위험)
+                // 2. 미탐험 지역으로 이동
                 else {
                     if (targetCell.type === 'trap') {
-                        currentHp -= 1;
-                        setHp(currentHp);
                         targetCell.state = 'revealed';
-                        currentMsg = "🔥 으악! 함정을 밟았습니다! (HP -1)";
                         
-                        if (currentHp <= 0) {
-                            setGameStatus('lost');
-                            setMessage("쓰러졌습니다... 여정이 끝났습니다.");
-                            return;
+                        // 방패 체크
+                        if (currentShield > 0) {
+                            currentShield -= 1;
+                            currentMsg = "🛡️ 방패가 함정 피해를 막았습니다!";
+                            addFloatText("BLOCKED!", "text-blue-300");
+                        } else {
+                            currentHp -= 1;
+                            currentMsg = "🔥 함정을 밟았습니다! (HP -1)";
+                            addFloatText("-1 HP", "text-red-500");
+                            
+                            if (currentHp <= 0) {
+                                setHp(0);
+                                setGamePhase('gameover');
+                                return;
+                            }
                         }
                     } else {
-                        // 안전하게 도착 -> 아이템 획득 체크
-                        const pickup = checkItemPickup(targetCell, currentHp, currentGold, currentKey);
+                        // 안전 도착
+                        const pickup = checkItemPickup(targetCell, currentHp, currentGold, currentKey, currentShield);
                         currentHp = pickup.newHp;
                         currentGold = pickup.newGold;
                         currentKey = pickup.newKey;
+                        currentShield = pickup.newShield;
                         if(pickup.msg) currentMsg = pickup.msg;
 
-                        if (targetCell.type === 'door') {
-                            currentMsg = "출구 발견! 열쇠가 필요합니다.";
-                        }
+                        if (targetCell.type === 'door') currentMsg = "출구 발견! 열쇠가 필요합니다.";
 
-                        // 빈 땅이면 주변 열기
                         if (targetCell.adjacentDanger === 0 && targetCell.type === 'empty') {
                             newGrid = revealEmptyArea(newGrid, x, y);
                         } else {
@@ -368,22 +394,27 @@
                     setHp(currentHp);
                     setGold(currentGold);
                     setHasKey(currentKey);
+                    setShield(currentShield);
                     setPlayerPos({ x, y });
                     if (currentMsg) setMessage(currentMsg);
                 }
             };
 
-            const buyPotion = () => {
-                if (gold >= PRICE_POTION) {
-                    if (hp >= INITIAL_HP + 3) {
-                        setMessage("체력이 이미 가득 찼습니다.");
-                        return;
-                    }
-                    setGold(g => g - PRICE_POTION);
-                    setHp(h => h + 1);
-                    setMessage("❤️ 상점에서 포션을 구매했습니다.");
-                } else {
-                    setMessage(`골드가 부족합니다. (${PRICE_POTION}G 필요)`);
+            const buyItem = (item) => {
+                if (item === 'potion') {
+                    if (gold >= PRICE_POTION) {
+                        setGold(g => g - PRICE_POTION);
+                        setHp(h => h + 1);
+                        setMessage("❤️ 포션 구매 완료");
+                        addFloatText("+1 HP", "text-pink-400");
+                    } else setMessage("골드가 부족합니다.");
+                } else if (item === 'shield') {
+                    if (gold >= PRICE_SHIELD) {
+                        setGold(g => g - PRICE_SHIELD);
+                        setShield(s => s + 1);
+                        setMessage("🛡️ 방패 구매 완료");
+                        addFloatText("+1 SHIELD", "text-blue-400");
+                    } else setMessage("골드가 부족합니다.");
                 }
             };
 
@@ -392,11 +423,12 @@
                     setActionMode('move');
                     setMessage("이동 모드로 전환합니다.");
                 } else {
-                    if (gold >= PRICE_TELESCOPE) {
+                    const price = selectedClass === 'wizard' ? 5 : PRICE_TELESCOPE_BASE;
+                    if (gold >= price) {
                         setActionMode('telescope');
-                        setMessage("🔭 정찰할 위치를 클릭하세요. (비용: 20G)");
+                        setMessage(`🔭 정찰 모드 (비용: ${price}G)`);
                     } else {
-                        setMessage(`골드가 부족합니다. (${PRICE_TELESCOPE}G 필요)`);
+                        setMessage(`골드가 부족합니다. (${price}G 필요)`);
                     }
                 }
             };
@@ -404,24 +436,16 @@
             const getCellContent = (cell) => {
                 const isPlayerHere = playerPos.x === cell.x && playerPos.y === cell.y;
                 
-                // 히든 상태
                 if (cell.state === 'hidden') {
-                     if (isPlayerHere) {
-                         return (
-                            <div className="w-full h-full flex items-center justify-center bg-slate-700 border border-slate-600 rounded-sm relative">
-                                <div className="text-2xl animate-bounce z-10">🤠</div>
-                            </div>
-                         );
-                     }
-                     // 망원경 모드일 때 커서 변경 효과
-                     const cursorClass = actionMode === 'telescope' ? 'cursor-crosshair hover:bg-slate-500' : 'cursor-pointer hover:bg-slate-600';
+                     if (isPlayerHere) return <div className="w-full h-full flex items-center justify-center bg-slate-700 border border-slate-600 rounded-sm"><div className="text-2xl animate-bounce z-10">🤠</div></div>;
+                     const cursorClass = actionMode === 'telescope' ? 'cursor-crosshair hover:bg-green-900/30' : 'cursor-pointer hover:bg-slate-600';
                      return <div className={`w-full h-full bg-slate-700 rounded-sm border border-slate-600 transition-colors ${cursorClass}`} />;
                 }
 
-                // 공개된 상태
                 let content = null;
                 if (cell.type === 'trap') content = <Skull className="text-red-500 w-6 h-6 item-pop" />;
                 else if (cell.type === 'potion') content = <Heart className="text-pink-500 fill-pink-500 w-5 h-5 item-pop" />;
+                else if (cell.type === 'shield') content = <Shield className="text-blue-400 fill-blue-400/20 w-5 h-5 item-pop" />;
                 else if (cell.type === 'gold') content = <Coins className="text-yellow-400 w-5 h-5 item-pop" />;
                 else if (cell.type === 'key') content = <Key className="text-yellow-500 w-6 h-6 rotate-45 item-pop" />;
                 else if (cell.type === 'door') content = <DoorOpen className={`w-6 h-6 ${hasKey ? 'text-green-400' : 'text-slate-400'} item-pop`} />;
@@ -432,124 +456,146 @@
                 }
 
                 return (
-                    <div className={`w-full h-full flex items-center justify-center border border-slate-800 rounded-sm relative 
-                        ${cell.type === 'trap' ? 'bg-red-900/30' : 'bg-slate-900'}`}>
+                    <div className={`w-full h-full flex items-center justify-center border border-slate-800 rounded-sm relative ${cell.type === 'trap' ? 'bg-red-900/30' : 'bg-slate-900'}`}>
                         {content}
-                        
                         {isPlayerHere && (
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <div className={`text-2xl animate-bounce transition-opacity duration-300 ${content ? 'opacity-60' : 'opacity-100'}`} 
-                                     style={{ textShadow: '0 0 10px rgba(0,0,0,0.5)' }}>
-                                    🤠
-                                </div>
+                                <div className={`text-2xl animate-bounce transition-opacity duration-300 ${content ? 'opacity-60' : 'opacity-100'}`} style={{ textShadow: '0 0 10px rgba(0,0,0,0.5)' }}>🤠</div>
                             </div>
                         )}
                     </div>
                 );
             };
 
+            // --- 🖥️ 화면: 시작 화면 ---
+            if (gamePhase === 'start') {
+                return (
+                    <div className="max-w-md w-full bg-slate-900 p-8 rounded-xl shadow-2xl border border-slate-800 text-center">
+                        <h1 className="text-3xl font-bold text-yellow-400 mb-2">DUNGEON SWEEPER</h1>
+                        <p className="text-slate-400 mb-8">직업을 선택하여 던전을 탐험하세요</p>
+
+                        <div className="space-y-4 mb-8">
+                            <button onClick={() => startGame('knight')} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 p-4 rounded-lg flex items-center gap-4 transition-all hover:border-yellow-500 group">
+                                <div className="bg-slate-900 p-3 rounded-full text-blue-400 group-hover:scale-110 transition-transform"><Shield className="w-6 h-6" /></div>
+                                <div className="text-left">
+                                    <div className="font-bold text-lg text-slate-200">기사 (Knight)</div>
+                                    <div className="text-sm text-slate-500">체력 5칸으로 시작</div>
+                                </div>
+                            </button>
+                            <button onClick={() => startGame('rogue')} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 p-4 rounded-lg flex items-center gap-4 transition-all hover:border-yellow-500 group">
+                                <div className="bg-slate-900 p-3 rounded-full text-yellow-400 group-hover:scale-110 transition-transform"><Coins className="w-6 h-6" /></div>
+                                <div className="text-left">
+                                    <div className="font-bold text-lg text-slate-200">도적 (Rogue)</div>
+                                    <div className="text-sm text-slate-500">골드 30G 소지하고 시작</div>
+                                </div>
+                            </button>
+                            <button onClick={() => startGame('wizard')} className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 p-4 rounded-lg flex items-center gap-4 transition-all hover:border-yellow-500 group">
+                                <div className="bg-slate-900 p-3 rounded-full text-purple-400 group-hover:scale-110 transition-transform"><Telescope className="w-6 h-6" /></div>
+                                <div className="text-left">
+                                    <div className="font-bold text-lg text-slate-200">마법사 (Wizard)</div>
+                                    <div className="text-sm text-slate-500">정찰 스킬 비용 할인 (5G)</div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            // --- 🖥️ 화면: 게임 오버 ---
+            if (gamePhase === 'gameover') {
+                return (
+                    <div className="max-w-md w-full bg-slate-900 p-8 rounded-xl shadow-2xl border border-slate-800 text-center relative overflow-hidden">
+                        <div className="absolute inset-0 bg-red-900/10 z-0"></div>
+                        <div className="relative z-10">
+                            <Skull className="w-20 h-20 text-red-500 mx-auto mb-4 animate-bounce" />
+                            <h2 className="text-3xl font-bold text-white mb-2">GAME OVER</h2>
+                            <p className="text-slate-400 mb-2">당신의 여정은 {floor}층에서 끝났습니다.</p>
+                            <div className="text-yellow-500 font-bold text-xl mb-8">획득 골드: {gold} G</div>
+                            <button onClick={() => setGamePhase('start')} className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-full font-bold transition-transform hover:scale-105 flex items-center gap-2 mx-auto">
+                                <RefreshCw className="w-5 h-5" /> 다시 도전
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            // --- 🖥️ 화면: 게임 플레이 ---
             return (
-                <div className="max-w-md w-full bg-slate-900 p-6 rounded-xl shadow-2xl border border-slate-800">
-                    
-                    {/* 상단 정보창 */}
-                    <div className="flex justify-between items-center mb-4 bg-slate-800 p-3 rounded-lg">
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-1 text-pink-400" title="체력">
-                                <Heart className="fill-pink-400 w-5 h-5" />
-                                <span className="font-bold text-lg">{hp}</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-yellow-400" title="골드">
-                                <Coins className="w-5 h-5 fill-yellow-400/20" />
-                                <span className="font-bold text-lg">{gold}</span>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1 text-purple-300 bg-purple-900/30 px-2 py-1 rounded">
-                                <Trophy className="w-4 h-4" />
-                                <span className="font-bold text-sm">{floor}F</span>
-                            </div>
-                            {hasKey && (
-                                <div className="text-yellow-400 animate-pulse">
-                                    <Key className="w-5 h-5" />
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* 메시지 박스 */}
-                    <div className={`mb-4 text-center h-6 text-sm font-medium transition-colors ${actionMode === 'telescope' ? 'text-green-400' : 'text-cyan-300'}`}>
-                        {message}
-                    </div>
-
-                    {/* 게임 그리드 */}
-                    <div 
-                        className={`grid gap-1 mb-6 mx-auto bg-slate-800 p-2 rounded-lg relative transition-all duration-300 
-                        ${actionMode === 'telescope' ? 'ring-2 ring-green-500/50 shadow-[0_0_20px_rgba(34,197,94,0.2)]' : ''}`}
-                        style={{ 
-                            gridTemplateColumns: `repeat(${GRID_SIZE}, minmax(0, 1fr))`,
-                            width: 'fit-content'
-                        }}
-                    >
-                        {grid.map((row, y) => (
-                            row.map((cell, x) => (
-                                <div 
-                                    key={cell.id}
-                                    onClick={() => handleInteraction(x, y)}
-                                    className="w-8 h-8 sm:w-9 sm:h-9 relative"
-                                >
-                                    {getCellContent(cell)}
-                                </div>
-                            ))
+                <div className="max-w-md w-full bg-slate-900 p-5 rounded-xl shadow-2xl border border-slate-800 relative">
+                    {/* 플로팅 텍스트 컨테이너 */}
+                    <div className="absolute top-1/3 left-1/2 -translate-x-1/2 pointer-events-none z-50">
+                        {floatTexts.map(ft => (
+                            <div key={ft.id} className={`float-text ${ft.color} text-2xl`}>{ft.text}</div>
                         ))}
-                        
-                        {gameStatus === 'lost' && (
-                            <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center rounded-lg z-20 backdrop-blur-sm">
-                                <Skull className="w-16 h-16 text-red-500 mb-2 animate-bounce" />
-                                <h2 className="text-2xl font-bold text-white mb-2">GAME OVER</h2>
-                                <p className="text-slate-400 mb-6 text-sm">{floor}층에서 여정을 마쳤습니다.</p>
-                                <button 
-                                    onClick={() => initGame(1)}
-                                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-full font-bold transition-transform hover:scale-105"
-                                >
-                                    <RefreshCw className="w-4 h-4" /> 다시 시작
-                                </button>
+                    </div>
+
+                    {/* 상단 정보창 */}
+                    <div className="flex justify-between items-center mb-3 bg-slate-800 p-3 rounded-lg">
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1 text-pink-400 bg-pink-900/20 px-2 py-1 rounded" title="체력">
+                                <Heart className="fill-pink-400 w-4 h-4" />
+                                <span className="font-bold">{hp}</span>
                             </div>
-                        )}
+                            <div className="flex items-center gap-1 text-blue-400 bg-blue-900/20 px-2 py-1 rounded" title="방패">
+                                <Shield className="fill-blue-400/20 w-4 h-4" />
+                                <span className="font-bold">{shield}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-yellow-400 bg-yellow-900/20 px-2 py-1 rounded" title="골드">
+                                <Coins className="w-4 h-4 fill-yellow-400/20" />
+                                <span className="font-bold">{gold}</span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1 text-slate-300 px-2">
+                                <Trophy className="w-4 h-4" /> <span className="font-bold text-sm">{floor}F</span>
+                            </div>
+                            {hasKey && <div className="text-yellow-400 animate-pulse"><Key className="w-5 h-5" /></div>}
+                        </div>
+                    </div>
+
+                    {/* 메시지 & 직업 아이콘 */}
+                    <div className="flex items-center justify-between mb-2 px-1">
+                        <div className={`text-sm font-medium transition-colors ${actionMode === 'telescope' ? 'text-green-400' : 'text-cyan-300'}`}>
+                            {message}
+                        </div>
+                        <div className="text-xs text-slate-500 border border-slate-700 px-2 py-0.5 rounded-full">
+                            {CLASSES[selectedClass].name}
+                        </div>
+                    </div>
+
+                    {/* 그리드 */}
+                    <div 
+                        className={`grid gap-1 mb-4 mx-auto bg-slate-800 p-2 rounded-lg relative transition-all duration-300 
+                        ${actionMode === 'telescope' ? 'ring-2 ring-green-500/50 shadow-[0_0_20px_rgba(34,197,94,0.2)]' : ''}`}
+                        style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, minmax(0, 1fr))`, width: 'fit-content' }}
+                    >
+                        {grid.map((row, y) => row.map((cell, x) => (
+                            <div key={cell.id} onClick={() => handleInteraction(x, y)} className="w-8 h-8 sm:w-9 sm:h-9 relative">
+                                {getCellContent(cell)}
+                            </div>
+                        )))}
                     </div>
 
                     {/* 하단: 상점 및 액션 바 */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <button 
-                            onClick={buyPotion}
-                            className="flex flex-col items-center justify-center bg-slate-800 hover:bg-slate-700 active:bg-slate-600 p-3 rounded-lg border border-slate-700 transition-colors group"
-                        >
-                            <div className="flex items-center gap-2 text-pink-400 mb-1">
-                                <Heart className="w-5 h-5 fill-pink-400" />
-                                <span className="font-bold">회복</span>
-                            </div>
-                            <span className="text-xs text-yellow-500 group-hover:text-yellow-400">{PRICE_POTION} G</span>
+                    <div className="grid grid-cols-3 gap-2">
+                        <button onClick={() => buyItem('potion')} className="flex flex-col items-center justify-center bg-slate-800 hover:bg-slate-700 active:bg-slate-600 p-2 rounded-lg border border-slate-700 transition-colors group">
+                            <div className="text-pink-400 mb-1"><Heart className="w-5 h-5 fill-pink-400" /></div>
+                            <div className="text-[10px] text-slate-400 font-bold">회복</div>
+                            <span className="text-[10px] text-yellow-500 group-hover:text-yellow-400">{PRICE_POTION}G</span>
                         </button>
 
-                        <button 
-                            onClick={toggleTelescope}
-                            className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-colors group
-                                ${actionMode === 'telescope' 
-                                    ? 'bg-green-900/40 border-green-500 text-green-300' 
-                                    : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-300'}`}
-                        >
-                            <div className="flex items-center gap-2 mb-1">
-                                <Telescope className="w-5 h-5" />
-                                <span className="font-bold">정찰</span>
-                            </div>
-                            <span className="text-xs text-yellow-500 group-hover:text-yellow-400">{PRICE_TELESCOPE} G</span>
+                        <button onClick={() => buyItem('shield')} className="flex flex-col items-center justify-center bg-slate-800 hover:bg-slate-700 active:bg-slate-600 p-2 rounded-lg border border-slate-700 transition-colors group">
+                            <div className="text-blue-400 mb-1"><Shield className="w-5 h-5 fill-blue-400/20" /></div>
+                            <div className="text-[10px] text-slate-400 font-bold">방패</div>
+                            <span className="text-[10px] text-yellow-500 group-hover:text-yellow-400">{PRICE_SHIELD}G</span>
+                        </button>
+
+                        <button onClick={toggleTelescope} className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-colors group ${actionMode === 'telescope' ? 'bg-green-900/40 border-green-500 text-green-300' : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-300'}`}>
+                            <div className="mb-1"><Telescope className="w-5 h-5" /></div>
+                            <div className="text-[10px] font-bold">정찰</div>
+                            <span className="text-[10px] text-yellow-500 group-hover:text-yellow-400">{selectedClass === 'wizard' ? 5 : PRICE_TELESCOPE_BASE}G</span>
                         </button>
                     </div>
-                    
-                    <div className="mt-3 text-[10px] text-slate-500 text-center flex justify-center gap-4">
-                        <span>❤️ 포션: 체력 +1</span>
-                        <span>🔭 정찰: 원거리 확인</span>
-                    </div>
-
                 </div>
             );
         };
