@@ -84,7 +84,7 @@
         .legend-item { display: inline-block; margin: 0 5px; }
         .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
 
-        /* === 패널 공통 (카지노, 상점) === */
+        /* === 패널 공통 (카지노, 상점, 여관) === */
         .game-panel {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 90%; max-width: 500px;
@@ -113,6 +113,14 @@
         
         .result-msg { height: 30px; font-weight: bold; color: yellow; margin: 10px 0; }
         .bet-info { background: rgba(0,0,0,0.3); padding: 10px; margin: 10px 0; border-radius: 5px; }
+        
+        /* 베팅 입력 컨트롤 */
+        .bet-control {
+            background: #333; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 18px;
+        }
+        .bet-control input {
+            background: #000; border: 1px solid #fff; color: gold; font-family: inherit; font-size: 18px; width: 100px; text-align: right; padding: 5px;
+        }
 
         /* 미니게임 캔버스 */
         .minigame-canvas {
@@ -124,14 +132,16 @@
         #slot-canvas { background: #333; }
         #race-canvas { background: #2e7d32; }
 
-        /* 모바일 컨트롤 (기본 숨김, 미디어쿼리로 모바일에서만 표시) */
+        /* 모바일 컨트롤 (기본 숨김, 모바일에서만 표시) */
         #mobile-controls {
             position: absolute; bottom: 20px; left: 0; width: 100%; height: 160px;
             pointer-events: none; display: none; justify-content: space-between;
             padding: 0 40px; box-sizing: border-box; z-index: 900;
         }
-        /* 768px 이하이면서 터치 가능한 디바이스인 경우에만 표시하도록 유도 */
-        @media (max-width: 768px) { #mobile-controls { display: flex; } }
+        /* PC에서는 안 보이고 모바일에서만 보이게 처리 */
+        @media (hover: none) and (pointer: coarse), (max-width: 768px) {
+            #mobile-controls { display: flex; }
+        }
 
         .dpad-container { position: relative; width: 140px; height: 140px; pointer-events: auto; }
         .dpad-btn {
@@ -171,7 +181,7 @@
         <!-- 시작 화면 -->
         <div id="start-screen">
             <h1>💀 해골 기사의 복수</h1>
-            <p>1. 카지노에서 자금을 마련하세요.<br>2. 대장간에서 장비를 사면 <span style="color:gold;">성문이 열립니다.</span><br>3. 밖으로 나가 몬스터를 사냥하고 보스를 처치하세요!</p>
+            <p>1. 노가다(허수아비)로 종잣돈을 만드세요.<br>2. 여관에서 피로도를 회복하세요.<br>3. 카지노에서 대박을 터뜨리고 장비를 맞추세요!</p>
             <div class="keys">
                 [이동] 방향키 / [공격/조사] 스페이스바<br>
                 (모바일은 화면 터치 조작)
@@ -192,7 +202,8 @@
             <h2 style="color:gold;">🗺️ 월드 맵</h2>
             <canvas id="map-canvas" width="300" height="300"></canvas>
             <div class="map-legend">
-                <span class="legend-item"><span class="dot" style="background:blue;"></span>마을(안전)</span>
+                <span class="legend-item"><span class="dot" style="background:blue;"></span>마을</span>
+                <span class="legend-item"><span class="dot" style="background:#8b4513;"></span>도로</span>
                 <span class="legend-item"><span class="dot" style="background:green;"></span>초급</span>
                 <span class="legend-item"><span class="dot" style="background:orange;"></span>중급</span>
                 <span class="legend-item"><span class="dot" style="background:red;"></span>고급</span>
@@ -205,8 +216,9 @@
         <!-- 스탯 창 -->
         <div id="stat-bar" class="overlay">
             <div style="display:flex;">
-                <div class="stat-item">❤️ HP: <span id="hp-display">100</span></div>
-                <div class="stat-item">⚔️ ATK: <span id="atk-display">10</span></div>
+                <div class="stat-item">❤️ <span id="hp-display">100</span></div>
+                <div class="stat-item">⚡ <span id="energy-display">100</span></div>
+                <div class="stat-item">⚔️ <span id="atk-display">10</span></div>
                 <div class="stat-item">💰 <span id="gold-display" style="color:gold;">0</span>G</div>
             </div>
             <div class="btn-group">
@@ -216,7 +228,7 @@
             </div>
         </div>
 
-        <!-- 모바일 컨트롤 (모바일에서만 보임) -->
+        <!-- 모바일 컨트롤 -->
         <div id="mobile-controls">
             <div class="dpad-container">
                 <div class="dpad-btn" id="btn-up">▲</div>
@@ -235,6 +247,9 @@
         <!-- === 카지노 패널 === -->
         <div id="casino-panel" class="game-panel">
             <h2 class="panel-header">🎰 고블린 카지노</h2>
+            <div class="bet-control">
+                판돈: <input type="number" id="bet-input" value="100" min="10" step="10"> G
+            </div>
             <div id="casino-menu">
                 <button class="panel-btn" onclick="showGame('blackjack')">🃏 블랙잭</button>
                 <button class="panel-btn" onclick="showGame('roulette')">🎡 룰렛</button>
@@ -243,9 +258,9 @@
                 <button class="panel-btn" onclick="showGame('sicbo')">🎲 다이사이</button>
                 <button class="panel-btn secondary" onclick="closePanel()" style="grid-column: span 2;">🚪 나가기</button>
             </div>
-            <!-- 미니게임 컨테이너들 (내용은 스크립트에서 렌더링) -->
+            <!-- 미니게임 컨테이너들 -->
             <div id="game-blackjack" class="game-view">
-                <h3>블랙잭</h3><div class="bet-info">판돈: 100G (승리 200G)</div>
+                <h3>블랙잭</h3><div class="bet-info">(승리 시 2배)</div>
                 <canvas id="bj-canvas" class="minigame-canvas" width="300" height="200"></canvas>
                 <div id="bj-result" class="result-msg"></div>
                 <div id="bj-actions" class="hidden">
@@ -255,27 +270,27 @@
                 <div id="bj-controls"><button class="panel-btn" onclick="startBlackjack()">게임 시작</button><button class="panel-btn secondary" onclick="backToMenu()">뒤로가기</button></div>
             </div>
             <div id="game-roulette" class="game-view">
-                <h3>리얼 룰렛</h3><div class="bet-info">판돈: 100G</div>
+                <h3>리얼 룰렛</h3><div class="bet-info">(홀짝: 2배, Lucky7: 10배)</div>
                 <canvas id="roulette-canvas" class="minigame-canvas" width="300" height="300"></canvas>
                 <div id="roulette-result" class="result-msg"></div>
                 <div id="roulette-btns"><button class="panel-btn" style="width:30%; display:inline-block;" onclick="startRoulette('odd')">홀수</button><button class="panel-btn" style="width:30%; display:inline-block;" onclick="startRoulette('even')">짝수</button><button class="panel-btn" style="width:30%; display:inline-block;" onclick="startRoulette('lucky7')">7</button></div>
                 <button class="panel-btn secondary" onclick="backToMenu()" style="margin-top:10px;">뒤로가기</button>
             </div>
             <div id="game-slots" class="game-view">
-                <h3>슬롯머신</h3><div class="bet-info">판돈: 50G</div>
+                <h3>슬롯머신</h3><div class="bet-info">(잭팟 50배)</div>
                 <canvas id="slot-canvas" class="minigame-canvas" width="300" height="150"></canvas>
                 <div id="slot-result" class="result-msg"></div>
                 <button class="panel-btn" id="slot-spin-btn" onclick="spinSlots()">돌리기</button><button class="panel-btn secondary" onclick="backToMenu()">뒤로가기</button>
             </div>
             <div id="game-racing" class="game-view">
-                <h3>해골 경마</h3><div class="bet-info">판돈: 100G (우승 400G)</div>
+                <h3>해골 경마</h3><div class="bet-info">(우승 4배)</div>
                 <canvas id="race-canvas" class="minigame-canvas" width="350" height="200"></canvas>
                 <div id="race-result" class="result-msg"></div>
                 <div id="race-btns"><button class="panel-btn" style="width:20%; display:inline-block;" onclick="startRace(1)">1</button><button class="panel-btn" style="width:20%; display:inline-block;" onclick="startRace(2)">2</button><button class="panel-btn" style="width:20%; display:inline-block;" onclick="startRace(3)">3</button><button class="panel-btn" style="width:20%; display:inline-block;" onclick="startRace(4)">4</button></div>
                 <button class="panel-btn secondary" onclick="backToMenu()">뒤로가기</button>
             </div>
             <div id="game-sicbo" class="game-view">
-                <h3>다이사이</h3><div class="bet-info">판돈: 200G</div>
+                <h3>다이사이</h3><div class="bet-info">(2배)</div>
                 <canvas id="sicbo-canvas" class="minigame-canvas" width="300" height="200"></canvas>
                 <div id="sicbo-result" class="result-msg"></div>
                 <div id="sicbo-btns"><button class="panel-btn" style="width:40%; display:inline-block;" onclick="playSicBo('small')">소 (Small)</button><button class="panel-btn" style="width:40%; display:inline-block;" onclick="playSicBo('big')">대 (Big)</button></div>
@@ -286,8 +301,17 @@
         <!-- === 상점 패널 === -->
         <div id="shop-panel" class="game-panel">
             <h2 class="panel-header">⚒️ 대장간</h2>
-            <p style="color:#aaa; font-size:14px; margin-bottom:10px;">(무기를 사면 성문이 열립니다)</p>
+            <p style="color:#aaa; font-size:14px; margin-bottom:10px;">(무기를 사면 성문 밖으로 나갈 수 있습니다)</p>
             <div id="shop-items"></div>
+            <button class="panel-btn secondary" onclick="closePanel()">나가기</button>
+        </div>
+
+        <!-- === 여관 패널 === -->
+        <div id="inn-panel" class="game-panel">
+            <h2 class="panel-header">🏨 달빛 여관</h2>
+            <p>지친 몸을 쉬게 하세요.</p>
+            <p style="color:gold;">숙박비: 50G</p>
+            <button class="panel-btn" onclick="sleepAtInn()">잠자기 (HP/피로도 회복)</button>
             <button class="panel-btn secondary" onclick="closePanel()">나가기</button>
         </div>
 
@@ -300,11 +324,13 @@
     const dialogBox = document.getElementById('dialog-box');
     const goldDisplay = document.getElementById('gold-display');
     const hpDisplay = document.getElementById('hp-display');
+    const energyDisplay = document.getElementById('energy-display');
     const atkDisplay = document.getElementById('atk-display');
 
     const TILE_SIZE = 40;
     const MAP_SIZE = 512;
-    const TILE = { GRASS: 0, WATER: 1, MOUNTAIN: 2, VILLAGE: 3, WALL: 4, GATE: 5, BOSS_WALL: 6, BOSS_FLOOR: 7, SHOP: 8, CASINO: 9 };
+    // TILE: ROAD(10), INN(11), SCARECROW(12) 추가
+    const TILE = { GRASS: 0, WATER: 1, MOUNTAIN: 2, VILLAGE: 3, WALL: 4, GATE: 5, BOSS_WALL: 6, BOSS_FLOOR: 7, SHOP: 8, CASINO: 9, ROAD: 10, INN: 11, SCARECROW: 12 };
     const STATE = { MENU: 'menu', EXPLORE: 'explore', DIALOG: 'dialog', MINIGAME: 'minigame', MAP: 'map' };
     
     let currentState = STATE.MENU;
@@ -315,8 +341,9 @@
     let boss = null;
     let gatesOpen = false;
 
+    // 캐릭터 스프라이트 '💀', 피로도(energy) 추가
     const player = { 
-        x: 256, y: 256, gold: 500, hp: 100, maxHp: 100, atk: 10,
+        x: 256, y: 256, gold: 500, hp: 100, maxHp: 100, energy: 100, maxEnergy: 100, atk: 10,
         sprite: '💀', hasSword: false, hasArmor: false
     };
 
@@ -335,6 +362,7 @@
         
         const center = MAP_SIZE / 2;
         const vRad = 15;
+        // 마을 & 성벽
         for(let y=center-vRad; y<=center+vRad; y++) {
             for(let x=center-vRad; x<=center+vRad; x++) {
                 if(Math.sqrt((x-center)**2 + (y-center)**2) < vRad) {
@@ -342,7 +370,9 @@
                 }
                 let dist = Math.sqrt((x-center)**2 + (y-center)**2);
                 if (dist >= vRad - 1 && dist <= vRad + 1) {
-                    if ((Math.abs(x-center) < 3 && y > center) || (Math.abs(x-center) < 3 && y < center) || (Math.abs(y-center) < 3 && x > center) || (Math.abs(y-center) < 3 && x < center)) {
+                    // 게이트
+                    if ((Math.abs(x-center) < 3 && y > center) || (Math.abs(x-center) < 3 && y < center) || 
+                        (Math.abs(y-center) < 3 && x > center) || (Math.abs(y-center) < 3 && x < center)) {
                         mapData[y][x] = TILE.GATE;
                     } else {
                         mapData[y][x] = TILE.WALL;
@@ -351,12 +381,46 @@
             }
         }
 
+        // 건물 배치
         mapData[center-5][center] = TILE.CASINO;
         mapData[center-5][center+1] = TILE.CASINO;
         mapData[center+5][center] = TILE.SHOP;
+        mapData[center][center-5] = TILE.INN; // 여관
+        mapData[center+2][center+5] = TILE.SCARECROW; // 허수아비
         
+        // 도로 건설 (성문 밖으로)
+        createRoads(center, vRad);
+
+        // 보스 성
         createBossCastle(50, 50);
         spawnEnemies(center);
+    }
+
+    // 도로 생성 함수
+    function createRoads(center, vRad) {
+        const roadLen = 150;
+        for(let i=vRad+1; i < roadLen; i++) {
+            if(isValidRoad(center, center-i)) mapData[center-i][center] = TILE.ROAD;
+            if(isValidRoad(center, center+i)) mapData[center+i][center] = TILE.ROAD;
+            if(isValidRoad(center+i, center)) mapData[center][center+i] = TILE.ROAD;
+            if(isValidRoad(center-i, center)) mapData[center][center-i] = TILE.ROAD;
+        }
+        let cx = center, cy = center, bx = 50, by = 50;
+        let dist = Math.sqrt((bx-cx)**2 + (by-cy)**2);
+        for(let i=0; i<dist; i++) {
+            let t = i/dist;
+            let x = Math.floor(cx + (bx-cx)*t);
+            let y = Math.floor(cy + (by-cy)*t);
+            if(Math.sqrt((x-cx)**2 + (y-cy)**2) > vRad) {
+                if(isValidRoad(x, y)) mapData[y][x] = TILE.ROAD;
+            }
+        }
+    }
+
+    function isValidRoad(x, y) {
+        if(x<0 || x>=MAP_SIZE || y<0 || y>=MAP_SIZE) return false;
+        if(mapData[y][x] === TILE.WALL || mapData[y][x] === TILE.GATE) return false;
+        return true;
     }
 
     function createBlob(type, min, max) {
@@ -385,7 +449,7 @@
     function spawnEnemies(center) {
         for(let i=0; i<150; i++) spawnMob(center, 30, 100, {hp:30, atk:5, sprite:'🦠', name:'슬라임', exp:10});
         for(let i=0; i<100; i++) spawnMob(center, 100, 200, {hp:100, atk:20, sprite:'👺', name:'고블린', exp:30});
-        for(let i=0; i<80; i++) spawnMob(center, 200, 350, {hp:250, atk:40, sprite:'💀', name:'암흑기사', exp:100});
+        for(let i=0; i<80; i++) spawnMob(center, 200, 350, {hp:250, atk:40, sprite:'👺', name:'암흑기사', exp:100});
     }
 
     function spawnMob(center, minR, maxR, stats) {
@@ -447,14 +511,17 @@
             for (let x = startCol; x <= endCol; x++) {
                 if (y >= 0 && y < MAP_SIZE && x >= 0 && x < MAP_SIZE) {
                     const tile = mapData[y][x];
-                    let color = '#2e8b57'; // 풀
+                    let color = '#2e8b57'; // GRASS
                     if (tile === TILE.WATER) color = '#3498db'; 
                     else if (tile === TILE.MOUNTAIN) color = '#555';
                     else if (tile === TILE.VILLAGE) color = '#d3a95d'; 
-                    else if (tile === TILE.WALL) color = '#5d4037'; // 성벽
-                    else if (tile === TILE.GATE) color = gatesOpen ? '#d3a95d' : '#8b4513'; // 문 (닫힘:갈색, 열림:바닥색)
+                    else if (tile === TILE.ROAD) color = '#8b4513';
+                    else if (tile === TILE.WALL) color = '#5d4037';
+                    else if (tile === TILE.GATE) color = gatesOpen ? '#8b4513' : '#3e2723';
                     else if (tile === TILE.CASINO) color = '#8e44ad';
                     else if (tile === TILE.SHOP) color = '#e67e22'; 
+                    else if (tile === TILE.INN) color = '#16a085'; // 여관(청록)
+                    else if (tile === TILE.SCARECROW) color = '#d35400'; // 허수아비(주황)
                     else if (tile === TILE.BOSS_FLOOR) color = '#440000';
                     else if (tile === TILE.BOSS_WALL) color = '#220000';
                     
@@ -463,6 +530,8 @@
                     
                     if (tile === TILE.CASINO) { ctx.font = '20px Arial'; ctx.fillStyle = '#fff'; ctx.fillText("🎰", (x-startCol)*TILE_SIZE+offsetX+8, (y-startRow)*TILE_SIZE+offsetY+28); }
                     if (tile === TILE.SHOP) { ctx.font = '20px Arial'; ctx.fillStyle = '#fff'; ctx.fillText("⚒️", (x-startCol)*TILE_SIZE+offsetX+8, (y-startRow)*TILE_SIZE+offsetY+28); }
+                    if (tile === TILE.INN) { ctx.font = '20px Arial'; ctx.fillStyle = '#fff'; ctx.fillText("🏨", (x-startCol)*TILE_SIZE+offsetX+8, (y-startRow)*TILE_SIZE+offsetY+28); }
+                    if (tile === TILE.SCARECROW) { ctx.font = '20px Arial'; ctx.fillStyle = '#fff'; ctx.fillText("🎯", (x-startCol)*TILE_SIZE+offsetX+8, (y-startRow)*TILE_SIZE+offsetY+28); }
                     if (tile === TILE.GATE && !gatesOpen) { ctx.font = '20px Arial'; ctx.fillStyle = '#fff'; ctx.fillText("🔒", (x-startCol)*TILE_SIZE+offsetX+8, (y-startRow)*TILE_SIZE+offsetY+28); }
                 }
             }
@@ -491,29 +560,40 @@
     function startGameFlow() {
         document.getElementById('start-screen').style.display = 'none';
         currentState = STATE.EXPLORE; updateUI();
-        showDialog("차가운 바람이 분다...\n돈을 벌고 장비를 사면 성문이 열릴 것이다.");
+        showDialog("피로도에 주의하세요!\n허수아비를 쳐서 돈을 벌거나 여관에서 쉬세요.");
     }
+    
     function updateUI() { 
         goldDisplay.innerText = player.gold; hpDisplay.innerText = player.hp; atkDisplay.innerText = player.atk;
-        if(player.hasArmor && player.hasSword) player.sprite = '👑🩻'; else if(player.hasArmor) player.sprite = '🛡️🩻';
-        else if(player.hasSword) player.sprite = '⚔️🩻'; else player.sprite = '🩻';
+        energyDisplay.innerText = player.energy;
+        // 외형
+        if(player.hasArmor && player.hasSword) player.sprite = '👑💀'; 
+        else if(player.hasArmor) player.sprite = '🛡️💀';
+        else if(player.hasSword) player.sprite = '⚔️💀'; 
+        else player.sprite = '💀';
     }
     
     // 이동 & 충돌
     function handleInput(dx, dy) {
         if (currentState !== STATE.EXPLORE) return;
+        
+        // 피로도 체크 (이동은 피로도 소모 X, 하지만 0이면 행동 제약 가능? 여기선 이동은 허용, 공격/행동만 제한)
         const nx = player.x + dx, ny = player.y + dy;
         
-        // 보스전
         if(boss && boss.hp > 0 && nx === boss.x && ny === boss.y) { attackTarget(boss); return; }
-        // 몬스터전
+        
         let hitIdx = enemies.findIndex(e => e.x === nx && e.y === ny);
         if(hitIdx !== -1) { attackTarget(enemies[hitIdx], hitIdx); return; }
         
+        // 허수아비 때리기 (충돌 시)
+        if(mapData[ny][nx] === TILE.SCARECROW) {
+            hitScarecrow();
+            return; 
+        }
+
         if (canMove(nx, ny)) { player.x = nx; player.y = ny; updateCamera(); }
         else {
-            // 문이 닫혀있을 때 메시지
-            if (mapData[ny][nx] === TILE.GATE && !gatesOpen) showDialog("🔒 굳게 잠겨있다.\n(상점에서 무기를 구입하면 열립니다)");
+            if (mapData[ny][nx] === TILE.GATE && !gatesOpen) showDialog("🔒 잠김. (무기 필요)");
         }
     }
 
@@ -522,25 +602,50 @@
         const t = mapData[y][x]; 
         if (t === TILE.BOSS_WALL) return false;
         if (t === TILE.WALL) return false;
-        if (t === TILE.GATE && !gatesOpen) return false; // 무기 없으면 못 나감
+        if (t === TILE.GATE && !gatesOpen) return false;
         return t !== TILE.WATER && t !== TILE.MOUNTAIN;
     }
 
+    // 피로도 소모 체크
+    function consumeEnergy(amount) {
+        if (player.energy < amount) {
+            showDialog("💦 너무 지쳤습니다!\n여관에서 휴식이 필요합니다.");
+            return false;
+        }
+        player.energy -= amount;
+        updateUI();
+        return true;
+    }
+
+    function hitScarecrow() {
+        if(!consumeEnergy(1)) return; // 피로도 1 소모
+        player.gold += 1;
+        spawnParticles(player.x * TILE_SIZE + 20 + 40, player.y * TILE_SIZE + 20, 'gold', 5); // 오른쪽(허수아비)에 파티클
+        updateUI();
+        // showDialog("허수아비 타격! +1G"); // 너무 시끄러우니 생략
+    }
+
     function attackTarget(target, idx) {
+        if(!consumeEnergy(2)) return; // 전투는 피로도 2 소모
+
         spawnParticles(target.x, target.y, '#ff0000', 5);
         target.hp -= player.atk; showDialog(`[전투] ${target.name}에게 ${player.atk} 피해!`);
         if(target.hp <= 0) {
             if(target === boss) {
-                showDialog(`미카엘을 처단했다!`);
+                showDialog(`미카엘 처단!`);
                 setTimeout(() => { document.getElementById('final-gold').innerText = player.gold; document.getElementById('ending-screen').style.display = 'flex'; }, 2000);
             } else {
-                showDialog(`${target.name} 처치! (+50G)`); enemies.splice(idx, 1); player.gold += 50; spawnParticles(player.x, player.y, 'gold', 10);
+                showDialog(`${target.name} 처치! (+${target.exp || 50}G)`); 
+                enemies.splice(idx, 1); 
+                player.gold += (target.exp || 50); 
+                spawnParticles(player.x, player.y, 'gold', 10);
             }
         } else {
             player.hp -= target.atk; spawnParticles(player.x, player.y, '#ffffff', 3);
             if(player.hp <= 0) {
-                player.hp = 0; alert("사망했습니다... 마을로 귀환합니다.");
-                player.hp = player.maxHp; player.x = MAP_SIZE/2; player.y = MAP_SIZE/2; player.gold = Math.floor(player.gold / 2);
+                player.hp = 0; alert("사망... 마을로 귀환합니다.");
+                player.hp = player.maxHp; player.energy = player.maxEnergy; // 부활 시 회복
+                player.x = MAP_SIZE/2; player.y = MAP_SIZE/2; player.gold = Math.floor(player.gold / 2);
             }
         }
         updateUI();
@@ -548,34 +653,49 @@
 
     function checkInteraction() {
         const t = mapData[player.y][player.x];
-        if (t === TILE.CASINO) openPanel('casino'); else if (t === TILE.SHOP) openPanel('shop'); else showDialog("아무것도 없다.");
+        if (t === TILE.CASINO) openPanel('casino'); 
+        else if (t === TILE.SHOP) openPanel('shop'); 
+        else if (t === TILE.INN) openPanel('inn');
+        else showDialog("아무것도 없다.");
     }
 
     // --- 패널 ---
     function openPanel(type) {
-        document.getElementById('mobile-controls').style.display = 'none'; // PC/모바일 상관없이 패널 열리면 숨김
+        if (document.getElementById('mobile-controls')) document.getElementById('mobile-controls').style.display = 'none';
         if(type === 'casino') {
             document.getElementById('casino-panel').style.display = 'block'; currentState = STATE.MINIGAME; backToMenu();
         } else if(type === 'shop') {
             document.getElementById('shop-panel').style.display = 'block'; currentState = STATE.DIALOG; renderShop();
+        } else if(type === 'inn') {
+            document.getElementById('inn-panel').style.display = 'block'; currentState = STATE.DIALOG;
         }
     }
     function closePanel() {
         document.querySelectorAll('.game-panel').forEach(el => el.style.display = 'none');
         currentState = STATE.EXPLORE;
-        // 모바일이면 컨트롤 다시 보이기 (미디어쿼리 자동 적용됨)
         document.getElementById('mobile-controls').style.removeProperty('display');
+    }
+
+    // --- 여관 ---
+    window.sleepAtInn = function() {
+        if(player.gold < 50) { alert("돈이 부족합니다!"); return; }
+        player.gold -= 50;
+        player.hp = player.maxHp;
+        player.energy = player.maxEnergy;
+        updateUI();
+        alert("푹 잤습니다. 체력과 피로도가 모두 회복되었습니다!");
+        closePanel();
     }
 
     // --- 상점 & 게이트 오픈 ---
     const shopItems = [
-        { id: 'w1', name: '녹슨 검 (공격력+10)', cost: 1000, type: 'atk', val: 10 },
-        { id: 'w2', name: '뼈 분쇄기 (공격력+25)', cost: 3000, type: 'atk', val: 25 },
-        { id: 'w3', name: '기사의 검 (공격력+50)', cost: 8000, type: 'atk', val: 50 },
-        { id: 'a1', name: '가죽 갑옷 (체력+50)', cost: 1000, type: 'hp', val: 50 },
-        { id: 'a2', name: '흑요석 갑옷 (체력+150)', cost: 4000, type: 'hp', val: 150 },
-        { id: 'a3', name: '황금 갑옷 (체력+300)', cost: 10000, type: 'hp', val: 300 },
-        { id: 'p1', name: '체력 포션 (회복 100%)', cost: 200, type: 'heal', val: 9999 }
+        { id: 'w1', name: '녹슨 검 (공+10)', cost: 1000, type: 'atk', val: 10 },
+        { id: 'w2', name: '뼈 분쇄기 (공+25)', cost: 3000, type: 'atk', val: 25 },
+        { id: 'w3', name: '기사의 검 (공+50)', cost: 8000, type: 'atk', val: 50 },
+        { id: 'a1', name: '가죽 갑옷 (체+50)', cost: 1000, type: 'hp', val: 50 },
+        { id: 'a2', name: '흑요석 갑옷 (체+150)', cost: 4000, type: 'hp', val: 150 },
+        { id: 'a3', name: '황금 갑옷 (체+300)', cost: 10000, type: 'hp', val: 300 },
+        { id: 'p1', name: '체력 포션 (회복)', cost: 200, type: 'heal', val: 9999 }
     ];
     function renderShop() {
         const c = document.getElementById('shop-items'); c.innerHTML = '';
@@ -591,87 +711,43 @@
         player.gold -= i.cost;
         if(i.type === 'atk') {
             player.atk += i.val; player.hasSword = true; alert("공격력 증가!");
-            // 무기 구매 시 게이트 오픈
-            if(!gatesOpen) {
-                gatesOpen = true;
-                alert("⚔️ 무기를 장착했습니다.\n마을 밖으로 나가는 성문이 열렸습니다!\n몬스터를 사냥하세요.");
-            }
+            if(!gatesOpen) { gatesOpen = true; alert("⚔️ 무기 장착! 성문이 열리고 길이 드러납니다!"); }
         }
         else if(i.type === 'hp') { player.maxHp += i.val; player.hp += i.val; player.hasArmor = true; alert("최대 체력 증가!"); }
         else if(i.type === 'heal') { player.hp = Math.min(player.hp + i.val, player.maxHp); alert("체력 회복 완료."); }
         updateUI(); spawnParticles(canvas.width/2/TILE_SIZE + camera.x/TILE_SIZE, canvas.height/2/TILE_SIZE + camera.y/TILE_SIZE, 'white', 20);
     }
 
-    // --- 지도 시스템 ---
+    // --- 지도 ---
     window.toggleMap = function() {
         const mapScreen = document.getElementById('map-screen');
         if (mapScreen.style.display === 'flex') {
-            mapScreen.style.display = 'none';
-            currentState = STATE.EXPLORE;
+            mapScreen.style.display = 'none'; currentState = STATE.EXPLORE;
         } else {
-            if (currentState !== STATE.EXPLORE) return; // 탐험 중일 때만 가능
-            mapScreen.style.display = 'flex';
-            currentState = STATE.MAP;
-            drawMiniMap();
+            if (currentState !== STATE.EXPLORE) return;
+            mapScreen.style.display = 'flex'; currentState = STATE.MAP; drawMiniMap();
         }
     }
-
     function drawMiniMap() {
-        const mCanvas = document.getElementById('map-canvas');
-        const mCtx = mCanvas.getContext('2d');
-        const scale = 300 / MAP_SIZE; // 512맵을 300픽셀로 축소
-        
+        const mCanvas = document.getElementById('map-canvas'); const mCtx = mCanvas.getContext('2d');
+        const scale = 300 / MAP_SIZE;
         mCtx.fillStyle = '#000'; mCtx.fillRect(0,0,300,300);
-        
-        // 지역 그리기 (배경)
-        // 마을(안전)
-        mCtx.fillStyle = '#222288'; 
-        mCtx.beginPath(); mCtx.arc(150, 150, 20*scale, 0, 6.28); mCtx.fill();
-        
-        // 맵 데이터 점찍기 (너무 느릴 수 있으므로 간소화: 주요 지형만)
-        // 성능을 위해 이미지 데이터로 처리하거나, 간단히 구역 표시만 함
-        // 여기선 구역 표시로 대체
-        
-        // 초급 (녹색 원)
-        mCtx.strokeStyle = 'green'; mCtx.lineWidth = 2;
-        mCtx.beginPath(); mCtx.arc(150, 150, 80*scale, 0, 6.28); mCtx.stroke();
-        
-        // 중급 (주황 원)
-        mCtx.strokeStyle = 'orange';
-        mCtx.beginPath(); mCtx.arc(150, 150, 180*scale, 0, 6.28); mCtx.stroke();
-        
-        // 고급 (빨강 테두리)
-        mCtx.strokeStyle = 'red';
-        mCtx.strokeRect(0,0,300,300);
-
-        // 보스 위치
-        if(boss) {
-            mCtx.fillStyle = 'purple';
-            mCtx.fillRect(boss.x*scale, boss.y*scale, 8, 8);
-        }
-
-        // 플레이어 위치 (깜빡임)
-        mCtx.fillStyle = 'white';
-        mCtx.beginPath(); mCtx.arc(player.x*scale, player.y*scale, 3, 0, 6.28); mCtx.fill();
+        mCtx.strokeStyle = '#8b4513'; mCtx.lineWidth = 2;
+        mCtx.beginPath(); mCtx.moveTo(150, 0); mCtx.lineTo(150, 300); mCtx.stroke();
+        mCtx.beginPath(); mCtx.moveTo(0, 150); mCtx.lineTo(300, 150); mCtx.stroke();
+        mCtx.beginPath(); mCtx.moveTo(150, 150); mCtx.lineTo(50*scale, 50*scale); mCtx.stroke();
+        mCtx.fillStyle = 'blue'; mCtx.beginPath(); mCtx.arc(150, 150, 10, 0, 6.28); mCtx.fill();
+        if(boss) { mCtx.fillStyle = 'purple'; mCtx.fillRect(boss.x*scale, boss.y*scale, 8, 8); }
+        mCtx.fillStyle = 'white'; mCtx.beginPath(); mCtx.arc(player.x*scale, player.y*scale, 3, 0, 6.28); mCtx.fill();
     }
 
     // --- 유틸 ---
-    window.saveGame = function() {
-        localStorage.setItem('skeletonRPG_v8', JSON.stringify({ ...player, gatesOpen }));
-        alert("저장 완료!");
-    };
+    window.saveGame = function() { localStorage.setItem('skeletonRPG_v10', JSON.stringify({ ...player, gatesOpen })); alert("저장 완료!"); };
     window.loadGame = function() {
-        const s = localStorage.getItem('skeletonRPG_v8');
-        if(!s) return;
-        const d = JSON.parse(s);
-        Object.assign(player, d);
-        gatesOpen = d.gatesOpen;
-        updateUI(); updateCamera();
+        const s = localStorage.getItem('skeletonRPG_v10'); if(!s) return;
+        const d = JSON.parse(s); Object.assign(player, d); gatesOpen = d.gatesOpen; updateUI(); updateCamera();
     };
-    function showDialog(t) { 
-        const d = document.getElementById('dialog-box'); d.innerText = t; d.style.display = 'block'; 
-        setTimeout(() => d.style.display='none', 2000);
-    }
+    function showDialog(t) { const d = document.getElementById('dialog-box'); d.innerText = t; d.style.display = 'block'; setTimeout(() => d.style.display='none', 2000); }
 
     window.addEventListener('keydown', (e) => {
         if (currentState === STATE.MENU || currentState === STATE.MINIGAME || currentState === STATE.MAP) return;
@@ -694,310 +770,174 @@
     setupTouchButton('btn-left',-1,0); setupTouchButton('btn-right',1,0);
     document.getElementById('action-btn').addEventListener('touchstart', (e)=>{e.preventDefault(); checkInteraction();}, {passive:false});
 
-    // ==========================================
-    // 카지노 미니게임 통합 로직 (복원됨)
-    // ==========================================
-    
-    // UI 유틸
-    window.backToMenu = function() {
-        document.querySelectorAll('.game-view').forEach(el => el.classList.remove('active'));
-        document.getElementById('casino-menu').style.display = 'grid';
-    };
+    // === 카지노 로직 (판돈 적용) ===
+    window.backToMenu = function() { document.querySelectorAll('.game-view').forEach(el => el.classList.remove('active')); document.getElementById('casino-menu').style.display = 'grid'; };
     window.showGame = function(gameId) {
-        document.querySelectorAll('.game-view').forEach(el => el.classList.remove('active'));
-        document.getElementById('casino-menu').style.display = 'none';
-        document.getElementById('game-' + gameId).classList.add('active');
-        document.querySelectorAll('.result-msg').forEach(el => el.innerText = '');
+        document.querySelectorAll('.game-view').forEach(el => el.classList.remove('active')); document.getElementById('casino-menu').style.display = 'none';
+        document.getElementById('game-' + gameId).classList.add('active'); document.querySelectorAll('.result-msg').forEach(el => el.innerText = '');
+        if(gameId==='racing') initRaceCanvas(); if(gameId==='roulette') initRoulette(); if(gameId==='blackjack') initBlackjack(); if(gameId==='slots') initSlots(); if(gameId==='sicbo') initSicBo();
+    };
+    
+    // 판돈 가져오기 (기본값 100)
+    function getBetAmount() {
+        const input = document.getElementById('bet-input');
+        let val = parseInt(input.value);
+        if (isNaN(val) || val < 10) val = 10;
+        input.value = val;
+        return val;
+    }
+
+    function checkGold(amount) { 
+        if(player.gold < amount) { alert("골드가 부족합니다!"); return false; } 
+        // 도박도 피로도 소모 (정신력 -2)
+        if(!consumeEnergy(2)) return false;
         
-        // 초기화 함수 호출
-        if(gameId === 'racing') initRaceCanvas();
-        if(gameId === 'roulette') initRoulette();
-        if(gameId === 'blackjack') initBlackjack();
-        if(gameId === 'slots') initSlots();
-        if(gameId === 'sicbo') initSicBo();
+        player.gold -= amount; updateUI(); return true; 
+    }
+
+    // 1. 블랙잭
+    const bjCtx=document.getElementById('bj-canvas').getContext('2d'); let bjState={p:[],d:[]}; let currentBet = 0;
+    function initBlackjack(){bjState={p:[],d:[]};drawBj();document.getElementById('bj-controls').classList.remove('hidden');document.getElementById('bj-actions').classList.add('hidden');}
+    function drawBj(){
+        bjCtx.clearRect(0,0,300,200);bjCtx.fillStyle='#aaa';bjCtx.font='14px Arial';bjCtx.textAlign='center';
+        bjCtx.fillText("딜러",150,30);bjState.d.forEach((c,i)=>drawCard(150+(i-bjState.d.length/2)*30,50,c));
+        bjCtx.fillText("나",150,150);bjState.p.forEach((c,i)=>drawCard(150+(i-bjState.p.length/2)*30,110,c));
+        if(bjState.p.length>0){bjCtx.fillStyle='white';bjCtx.fillText(getSum(bjState.p),150,180);bjCtx.fillText(bjState.d.length==1?"?":getSum(bjState.d),150,20);}
+    }
+    function drawCard(x,y,v){bjCtx.fillStyle='white';bjCtx.fillRect(x-12,y-18,24,36);bjCtx.strokeStyle='#000';bjCtx.strokeRect(x-12,y-18,24,36);bjCtx.fillStyle='black';bjCtx.font='16px Arial';bjCtx.fillText(v,x,y+5);}
+    window.startBlackjack=function(){
+        currentBet = getBetAmount();
+        if(!checkGold(currentBet))return;
+        bjState.p=[rCard(),rCard()];bjState.d=[rCard()];drawBj();document.getElementById('bj-controls').classList.add('hidden');document.getElementById('bj-actions').classList.remove('hidden');
     };
-    function checkGold(amount) {
-        if(player.gold < amount) { alert("골드가 부족합니다!"); return false; }
-        player.gold -= amount; updateUI(); return true;
+    window.bjHit=function(){bjState.p.push(rCard());drawBj();if(getSum(bjState.p)>21)endBj(false,"버스트!");};
+    window.bjStand=function(){while(getSum(bjState.d)<17)bjState.d.push(rCard());drawBj();let p=getSum(bjState.p),d=getSum(bjState.d);if(d>21||p>d)endBj(true,"승리!");else if(p==d){player.gold+=currentBet;endBj(false,"무승부");}else endBj(false,"패배");};
+    function rCard(){return Math.floor(Math.random()*10)+2;} function getSum(h){return h.reduce((a,b)=>a+(b=='?'?0:b),0);}
+    function endBj(w,m){document.getElementById('bj-result').innerText=m;if(w){player.gold+=currentBet*2;updateUI();}setTimeout(()=>{document.getElementById('bj-controls').classList.remove('hidden');document.getElementById('bj-actions').classList.add('hidden');},1500);}
+
+    // 2. 룰렛
+    const rCtx=document.getElementById('roulette-canvas').getContext('2d'); let rSpin=false;
+    function initRoulette(){drawWheel(0);document.getElementById('roulette-btns').style.display='block';}
+    function drawWheel(r){
+        rCtx.clearRect(0, 0, 300, 300);rCtx.save();rCtx.translate(150,150);rCtx.rotate(r);
+        for(let i=0;i<12;i++){rCtx.beginPath();rCtx.arc(0,0,140,i*Math.PI/6,(i+1)*Math.PI/6);rCtx.lineTo(0,0);
+        rCtx.fillStyle=i%2==0?'#e74c3c':'#2c3e50';rCtx.fill();rCtx.stroke();
+        rCtx.save();rCtx.rotate(i*Math.PI/6+Math.PI/12);rCtx.translate(110,0);rCtx.rotate(Math.PI/2);
+        rCtx.fillStyle='white';rCtx.font='20px Arial';rCtx.textAlign='center';rCtx.fillText(i+1,0,5);rCtx.restore();}
+        rCtx.restore();rCtx.beginPath();rCtx.moveTo(150,10);rCtx.lineTo(140,-10);rCtx.lineTo(160,-10);rCtx.fillStyle='gold';rCtx.fill();
+    }
+    window.startRoulette=function(t){
+        currentBet = getBetAmount();
+        if(rSpin||!checkGold(currentBet))return;rSpin=true;document.getElementById('roulette-btns').style.display='none';
+        let s=0.5,dec=0.005,rot=Math.random()*6;
+        function ani(){if(s>0){rot+=s;s-=dec;if(s<0)s=0;drawWheel(rot);requestAnimationFrame(ani);}else{rSpin=false;calcR(rot,t);}}ani();
+    }
+    function calcR(r,t){
+        let angle=r%(Math.PI*2),ptr=(Math.PI*1.5-angle)%(Math.PI*2); if(ptr<0)ptr+=Math.PI*2;
+        let res=Math.floor(ptr/(Math.PI/6))+1;
+        let w=false,m=0;if(t=='odd'&&res%2!=0){w=true;m=2;}else if(t=='even'&&res%2==0){w=true;m=2;}else if(t=='lucky7'&&res==7){w=true;m=10;}
+        let msg=document.getElementById('roulette-result');if(w){player.gold+=currentBet*m;msg.innerText=`당첨! ${res}`;msg.style.color='lime';}else{msg.innerText=`꽝! ${res}`;msg.style.color='red';}
+        updateUI();document.getElementById('roulette-btns').style.display='block';
     }
 
-    // --- 1. 블랙잭 (Canvas) ---
-    const bjCanvas = document.getElementById('bj-canvas');
-    const bjCtx = bjCanvas.getContext('2d');
-    let bjState = { pHand: [], dHand: [] };
+    // 3. 슬롯
+    const sCtx=document.getElementById('slot-canvas').getContext('2d'); const syms=['🍒','🍋','🍇','💎','7️⃣'];
+    function initSlots(){drawS([0,0,0]);}
+    function drawS(o){
+        sCtx.clearRect(0,0,300,150);sCtx.fillStyle='#111';sCtx.fillRect(10,10,280,130);
+        for(let i=0;i<3;i++){sCtx.save();sCtx.beginPath();sCtx.rect(20+i*90,20,80,110);sCtx.clip();
+        for(let j=0;j<10;j++){sCtx.font='40px Arial';sCtx.fillStyle='white';sCtx.textAlign='center';sCtx.textBaseline='middle';
+        sCtx.fillText(syms[j%5],60+i*90,j*80+(o[i]%400)-200);}sCtx.restore();
+        sCtx.strokeStyle='gold';sCtx.lineWidth=3;sCtx.strokeRect(20+i*90,20,80,110);}
+        sCtx.strokeStyle='rgba(255,0,0,0.5)';sCtx.beginPath();sCtx.moveTo(10,75);sCtx.lineTo(290,75);sCtx.stroke();
+    }
+    window.spinSlots=function(){
+        currentBet = getBetAmount();
+        if(!checkGold(currentBet))return;document.getElementById('slot-spin-btn').disabled=true;
+        let res=[Math.floor(Math.random()*5),Math.floor(Math.random()*5),Math.floor(Math.random()*5)];
+        let target=[0,0,0], curr=[0,0,0], start=null;
+        for(let i=0;i<3;i++) target[i] = (5+i*3)*400 + (275 - res[i]*80)%400;
+        function ani(ts){
+            if(!start)start=ts; let p=ts-start, done=0;
+            for(let i=0;i<3;i++){let d=1000+i*1000; if(p<d){let e=1-Math.pow(1-p/d,3); curr[i]=target[i]*e;}else{curr[i]=target[i];done++;}}
+            drawS(curr);
+            if(done<3)requestAnimationFrame(ani); else { checkS(res); document.getElementById('slot-spin-btn').disabled=false; }
+        }
+        requestAnimationFrame(ani);
+    }
+    function checkS(r){
+        let w=0; if(r[0]==4&&r[1]==4&&r[2]==4)w=50; else if(r[0]==r[1]&&r[1]==r[2])w=10; else if(r[0]==r[1]||r[1]==r[2]||r[0]==r[2])w=2;
+        let m=document.getElementById('slot-result'); if(w>0){player.gold+=currentBet*w;m.innerText=`당첨! +${currentBet*w}G`;m.style.color='gold';}else{m.innerText="꽝";m.style.color='#ccc';}updateUI();
+    }
 
-    function initBlackjack() {
-        bjState = { pHand: [], dHand: [] };
-        drawBjTable();
-        document.getElementById('bj-controls').classList.remove('hidden');
-        document.getElementById('bj-actions').classList.add('hidden');
+    // 4. 경마
+    const rcCtx=document.getElementById('race-canvas').getContext('2d');
+    function initRaceCanvas(){
+        rcCtx.clearRect(0,0,350,200); rcCtx.fillStyle='#2e7d32'; rcCtx.fillRect(0,0,350,200);
+        rcCtx.strokeStyle='white'; rcCtx.setLineDash([5,5]);
+        for(let i=1;i<4;i++){rcCtx.beginPath();rcCtx.moveTo(0,i*50);rcCtx.lineTo(350,i*50);rcCtx.stroke();}
+        rcCtx.setLineDash([]);rcCtx.fillStyle='red';rcCtx.fillRect(320,0,5,200);
+        for(let i=0;i<4;i++) drawHorse(10,i*50+35,i+1);
+        document.getElementById('race-btns').style.display='block';
     }
-    function drawBjTable() {
-        bjCtx.clearRect(0,0,300,200);
-        bjCtx.fillStyle = '#aaa'; bjCtx.font = '14px Arial'; bjCtx.textAlign='center';
-        bjCtx.fillText("딜러", 150, 30); bjCtx.fillText("플레이어", 150, 150);
-        bjState.dHand.forEach((c, i) => drawCard(150 + (i-bjState.dHand.length/2)*30, 50, c));
-        bjState.pHand.forEach((c, i) => drawCard(150 + (i-bjState.pHand.length/2)*30, 110, c));
-        if(bjState.pHand.length > 0) {
-            bjCtx.fillStyle = '#fff';
-            bjCtx.fillText(getScore(bjState.pHand), 150, 185);
-            bjCtx.fillText(bjState.dHand.length === 1 ? "?" : getScore(bjState.dHand), 150, 20);
-        }
+    function drawHorse(x,y,n){
+        rcCtx.save();rcCtx.translate(x,y);rcCtx.scale(-1,1);rcCtx.font='30px Arial';rcCtx.fillText('🐎',-15,0);rcCtx.restore();
+        rcCtx.fillStyle='white';rcCtx.font='12px Arial';rcCtx.fillText(n,x-5,y+5);
     }
-    function drawCard(x, y, val) {
-        bjCtx.fillStyle = 'white'; bjCtx.fillRect(x-15, y-20, 30, 40);
-        bjCtx.strokeStyle = '#333'; bjCtx.strokeRect(x-15, y-20, 30, 40);
-        bjCtx.fillStyle = 'black'; bjCtx.font = 'bold 16px Arial'; bjCtx.fillText(val==='?'?'?':val, x, y+5);
-    }
-    function dealCardAnim(targetHand, val, cb) {
-        let ax = 280, ay = 10, tx = 150 + (targetHand.length * 30 - 30), ty = targetHand === bjState.pHand ? 110 : 50;
-        let t = 0;
-        function loop() {
-            t += 0.1; drawBjTable();
-            let cx = ax + (tx - ax) * t, cy = ay + (ty - ay) * t;
-            drawCard(cx, cy, val);
-            if(t < 1) requestAnimationFrame(loop);
-            else { targetHand.push(val); drawBjTable(); if(cb) cb(); }
-        }
-        loop();
-    }
-    window.startBlackjack = function() {
-        if(!checkGold(100)) return;
-        document.getElementById('bj-controls').classList.add('hidden');
-        bjState.pHand = []; bjState.dHand = [];
-        dealCardAnim(bjState.pHand, rCard(), () => {
-            dealCardAnim(bjState.dHand, rCard(), () => {
-                dealCardAnim(bjState.pHand, rCard(), () => {
-                    document.getElementById('bj-actions').classList.remove('hidden');
-                });
+    window.startRace=function(pick){
+        currentBet = getBetAmount();
+        if(!checkGold(currentBet))return;document.getElementById('race-btns').style.display='none';
+        let h=[10,10,10,10], t=setInterval(()=>{
+            rcCtx.fillStyle='#2e7d32';rcCtx.fillRect(0,0,350,200);
+            rcCtx.strokeStyle='white';rcCtx.setLineDash([5,5]);
+            for(let i=1;i<4;i++){rcCtx.beginPath();rcCtx.moveTo(0,i*50);rcCtx.lineTo(350,i*50);rcCtx.stroke();}
+            rcCtx.setLineDash([]);rcCtx.fillStyle='red';rcCtx.fillRect(320,0,5,200);
+            let w=null;
+            h.forEach((v,i)=>{
+                h[i]+=Math.random()*5; let hop=Math.sin(Date.now()/50+i)*3;
+                drawHorse(h[i], i*50+35+hop, i+1);
+                if(h[i]>320 && !w)w=i+1;
             });
-        });
-    };
-    window.bjHit = function() {
-        document.getElementById('bj-actions').classList.add('hidden');
-        dealCardAnim(bjState.pHand, rCard(), () => {
-            if(getScore(bjState.pHand) > 21) endBj(false, "버스트! (21 초과)");
-            else document.getElementById('bj-actions').classList.remove('hidden');
-        });
-    };
-    window.bjStand = function() {
-        document.getElementById('bj-actions').classList.add('hidden');
-        function dlLoop() {
-            if(getScore(bjState.dHand) < 17) {
-                dealCardAnim(bjState.dHand, rCard(), () => setTimeout(dlLoop, 500));
-            } else finishBj();
-        }
-        dlLoop();
-    };
-    function rCard() { return Math.floor(Math.random()*10)+2; }
-    function getScore(hand) { return hand.reduce((a,b)=>a+(b==='?'?0:b),0); }
-    function finishBj() {
-        let p = getScore(bjState.pHand), d = getScore(bjState.dHand);
-        if(d > 21) endBj(true, "딜러 버스트! 승리!"); else if(p > d) endBj(true, "승리!");
-        else if(p === d) { player.gold += 100; endBj(false, "무승부"); } else endBj(false, "패배");
-    }
-    function endBj(win, msg) {
-        document.getElementById('bj-result').innerText = msg;
-        if(win) { player.gold += 200; updateUI(); }
-        setTimeout(() => { document.getElementById('bj-controls').classList.remove('hidden'); document.getElementById('bj-actions').classList.add('hidden'); }, 2000);
+            if(w){clearInterval(t);if(w==pick){player.gold+=currentBet*4;alert("승리!");}else alert("패배");updateUI();document.getElementById('race-btns').style.display='block';}
+        },30);
     }
 
-    // --- 2. 룰렛 (Canvas) ---
-    const rCanvas = document.getElementById('roulette-canvas');
-    const rCtx = rCanvas.getContext('2d');
-    let rSpinning = false;
-    function initRoulette() { drawRouletteWheel(0); document.getElementById('roulette-btns').style.display = 'block'; }
-    function drawRouletteWheel(rotation) {
-        rCtx.clearRect(0, 0, 300, 300); rCtx.save(); rCtx.translate(150, 150); rCtx.rotate(rotation);
-        for (let i = 0; i < 12; i++) {
-            rCtx.beginPath(); rCtx.arc(0, 0, 140, i * Math.PI/6, (i + 1) * Math.PI/6); rCtx.lineTo(0, 0);
-            rCtx.fillStyle = i % 2 === 0 ? '#e74c3c' : '#2c3e50'; rCtx.fill(); rCtx.stroke();
-            rCtx.save(); rCtx.rotate(i * Math.PI/6 + Math.PI/12); rCtx.translate(110, 0); rCtx.rotate(Math.PI / 2);
-            rCtx.fillStyle = '#fff'; rCtx.font = 'bold 20px Arial'; rCtx.textAlign = 'center'; rCtx.fillText(i + 1, 0, 5); rCtx.restore();
-        }
-        rCtx.restore();
-        rCtx.beginPath(); rCtx.moveTo(150, 10); rCtx.lineTo(140, -10); rCtx.lineTo(160, -10); rCtx.fillStyle = 'gold'; rCtx.fill();
+    // 5. 다이사이
+    const scCtx=document.getElementById('sicbo-canvas').getContext('2d');
+    function initSicBo(){
+        scCtx.clearRect(0,0,300,200);scCtx.beginPath();scCtx.arc(150,100,80,0,6.28);scCtx.fillStyle='rgba(0,0,0,0.3)';scCtx.fill();scCtx.stroke();
+        drawDice(130,100,1);drawDice(170,100,2);drawDice(150,80,3);document.getElementById('sicbo-btns').style.display='block';
     }
-    window.startRoulette = function(type) {
-        if(rSpinning) return; if(!checkGold(100)) return;
-        rSpinning = true; document.getElementById('roulette-btns').style.display = 'none';
-        let speed = 0.5, decel = 0.005, rot = Math.random() * 6.28;
-        function anim() {
-            if (speed > 0) { rot += speed; speed -= decel; if(speed < 0) speed = 0; drawRouletteWheel(rot); requestAnimationFrame(anim); }
-            else { rSpinning = false; calcRoulette(rot, type); }
-        }
-        anim();
+    function drawDice(x,y,n,a=0){
+        scCtx.save();scCtx.translate(x,y);scCtx.rotate(a);
+        scCtx.fillStyle='white';scCtx.fillRect(-15,-15,30,30);scCtx.strokeRect(-15,-15,30,30);
+        scCtx.fillStyle='black';scCtx.font='20px Arial';scCtx.textAlign='center';
+        scCtx.fillText(['⚀','⚁','⚂','⚃','⚄','⚅'][n-1],0,8);scCtx.restore();
     }
-    function calcRoulette(rot, type) {
-        let angle = rot % (Math.PI * 2);
-        let pointerAngle = (Math.PI * 1.5 - angle) % (Math.PI * 2);
-        if(pointerAngle < 0) pointerAngle += Math.PI * 2;
-        const res = Math.floor(pointerAngle / (Math.PI / 6)) + 1;
-        let win = false, multi = 0;
-        if(type === 'odd' && res % 2 !== 0) { win = true; multi = 2; }
-        else if(type === 'even' && res % 2 === 0) { win = true; multi = 2; }
-        else if(type === 'lucky7' && res === 7) { win = true; multi = 10; }
-        const msg = document.getElementById('roulette-result');
-        if(win) { player.gold += 100 * multi; msg.innerText = `당첨! ${res} (+${100*multi}G)`; msg.style.color = 'lime'; }
-        else { msg.innerText = `꽝! ${res}`; msg.style.color = 'red'; }
-        updateUI(); document.getElementById('roulette-btns').style.display = 'block';
-    }
-
-    // --- 3. 슬롯머신 (Canvas) ---
-    const sCanvas = document.getElementById('slot-canvas');
-    const sCtx = sCanvas.getContext('2d');
-    const syms = ['🍒','🍋','🍇','💎','7️⃣'];
-    let sReels = [0, 0, 0];
-    function initSlots() { sReels = [Math.random()*400, Math.random()*400, Math.random()*400]; drawSlots(sReels); }
-    function drawSlots(offsets) {
-        sCtx.clearRect(0,0,300,150); sCtx.fillStyle = '#111'; sCtx.fillRect(10,10,280,130);
-        for(let i=0; i<3; i++) {
-            sCtx.save(); sCtx.beginPath(); sCtx.rect(20 + i*90, 20, 80, 110); sCtx.clip();
-            let sy = offsets[i] % 400;
-            for(let j=0; j<10; j++) {
-                let symbol = syms[j % 5]; let yPos = (j * 80) + sy - 200;
-                sCtx.font = '50px Arial'; sCtx.textAlign = 'center'; sCtx.textBaseline = 'middle'; sCtx.fillText(symbol, 60 + i*90, yPos);
-            }
-            sCtx.restore();
-            sCtx.strokeStyle = 'gold'; sCtx.lineWidth = 3; sCtx.strokeRect(20 + i*90, 20, 80, 110);
-        }
-        sCtx.strokeStyle = 'rgba(255,0,0,0.7)'; sCtx.lineWidth = 2;
-        sCtx.beginPath(); sCtx.moveTo(10, 75); sCtx.lineTo(290, 75); sCtx.stroke();
-    }
-    window.spinSlots = function() {
-        if(!checkGold(50)) return;
-        document.getElementById('slot-spin-btn').disabled = true;
-        let results = [Math.floor(Math.random()*5), Math.floor(Math.random()*5), Math.floor(Math.random()*5)];
-        let targetOffsets = [], currentReels = [...sReels];
-        for(let i=0; i<3; i++) {
-            let alignVal = (275 - results[i] * 80) % 400; if(alignVal < 0) alignVal += 400;
-            let minSpin = (5 + i * 3) * 400;
-            let nextTarget = currentReels[i] + minSpin;
-            let diff = alignVal - (nextTarget % 400); if(diff < 0) diff += 400;
-            targetOffsets[i] = nextTarget + diff;
-        }
-        let startTime = null;
-        function animate(timestamp) {
-            if (!startTime) startTime = timestamp;
-            let progress = timestamp - startTime, finishedCount = 0;
-            for(let i=0; i<3; i++) {
-                let duration = 1000 + (i * 1000);
-                if (progress < duration) {
-                    let p = progress / duration;
-                    let ease = 1 - Math.pow(1 - p, 3);
-                    sReels[i] = currentReels[i] + (targetOffsets[i] - currentReels[i]) * ease;
-                } else { sReels[i] = targetOffsets[i]; finishedCount++; }
-            }
-            drawSlots(sReels);
-            if(finishedCount < 3) requestAnimationFrame(animate);
-            else { checkSlotWin(results); document.getElementById('slot-spin-btn').disabled = false; }
-        }
-        requestAnimationFrame(animate);
-    };
-    function checkSlotWin(resIdx) {
-        let r = resIdx.map(idx => syms[idx]);
-        let prize = 0;
-        if(r[0]==='7️⃣' && r[1]==='7️⃣' && r[2]==='7️⃣') prize=2500;
-        else if(r[0]===r[1] && r[1]===r[2]) prize=500;
-        else if(r[0]===r[1] || r[1]===r[2] || r[0]===r[2]) prize=100;
-        const msg = document.getElementById('slot-result');
-        if(prize>0) { player.gold+=prize; msg.innerText = `축하! ${r.join('')} (+${prize}G)`; msg.style.color='gold'; }
-        else { msg.innerText = `꽝! ${r.join('')}`; msg.style.color='#ccc'; }
-        updateUI();
-    }
-
-    // --- 4. 경마 (Canvas) ---
-    const rcCanvas = document.getElementById('race-canvas');
-    const rcCtx = rcCanvas.getContext('2d');
-    function initRaceCanvas() {
-        rcCtx.clearRect(0,0,350,200); rcCtx.fillStyle = '#2e7d32'; rcCtx.fillRect(0,0,350,200);
-        rcCtx.strokeStyle = 'white'; rcCtx.setLineDash([5, 5]);
-        for(let i=1; i<4; i++) { rcCtx.beginPath(); rcCtx.moveTo(0, i*50); rcCtx.lineTo(350, i*50); rcCtx.stroke(); }
-        rcCtx.setLineDash([]); rcCtx.fillStyle = 'red'; rcCtx.fillRect(320, 0, 5, 200);
-        for(let i=0; i<4; i++) drawHorse(10, i*50 + 35, i+1);
-        document.getElementById('race-btns').style.display = 'block';
-    }
-    function drawHorse(x, y, num) {
-        rcCtx.save(); rcCtx.translate(x, y); rcCtx.scale(-1, 1);
-        rcCtx.font = '30px Arial'; rcCtx.fillText("🐎", -15, 0); rcCtx.restore();
-        rcCtx.fillStyle = 'white'; rcCtx.font = '12px Arial'; rcCtx.fillText(num, x-5, y+5);
-    }
-    window.startRace = function(pick) {
-        if(!checkGold(100)) return;
-        document.getElementById('race-btns').style.display = 'none';
-        let horses = [{x:10, spd:0}, {x:10, spd:0}, {x:10, spd:0}, {x:10, spd:0}];
-        let timer = setInterval(() => {
-            rcCtx.fillStyle = '#2e7d32'; rcCtx.fillRect(0,0,350,200);
-            rcCtx.strokeStyle = 'white'; rcCtx.setLineDash([5, 5]);
-            for(let i=1; i<4; i++) { rcCtx.beginPath(); rcCtx.moveTo(0, i*50); rcCtx.lineTo(350, i*50); rcCtx.stroke(); }
-            rcCtx.setLineDash([]); rcCtx.fillStyle = 'red'; rcCtx.fillRect(320, 0, 5, 200);
-            let winner = null;
-            horses.forEach((h, i) => {
-                h.spd += (Math.random()-0.4); if(h.spd < 1) h.spd = 1; h.x += h.spd;
-                let hop = Math.sin(Date.now()/50 + i) * 3;
-                drawHorse(h.x, i*50 + 35 + hop, i+1);
-                if(h.x >= 320 && !winner) winner = i+1;
+    window.playSicBo=function(pick){
+        currentBet = getBetAmount();
+        if(!checkGold(currentBet))return;document.getElementById('sicbo-btns').style.display='none';
+        let dice=[{x:150,y:100,vx:0,vy:0},{x:150,y:100,vx:0,vy:0},{x:150,y:100,vx:0,vy:0}];
+        dice.forEach(d=>{d.vx=(Math.random()-0.5)*20;d.vy=(Math.random()-0.5)*20;});
+        let f=0;
+        function loop(){
+            scCtx.clearRect(0,0,300,200);scCtx.beginPath();scCtx.arc(150,100,80,0,6.28);scCtx.fillStyle='rgba(0,0,0,0.3)';scCtx.fill();scCtx.stroke();
+            dice.forEach(d=>{
+                d.x+=d.vx;d.y+=d.vy;
+                if(Math.sqrt((d.x-150)**2+(d.y-100)**2)>70){d.vx*=-0.8;d.vy*=-0.8;d.x=150+(d.x-150)*0.9;d.y=100+(d.y-100)*0.9;}
+                d.vx*=0.95;d.vy*=0.95;
+                drawDice(d.x,d.y,Math.floor(Math.random()*6)+1,f/5);
             });
-            if(winner) {
-                clearInterval(timer);
-                const msg = document.getElementById('race-result');
-                if(winner === pick) { player.gold+=400; msg.innerText="우승! (+400G)"; msg.style.color='lime'; }
-                else { msg.innerText=`패배.. ${winner}번 우승`; msg.style.color='red'; }
-                updateUI(); setTimeout(()=>document.getElementById('race-btns').style.display='block', 2000);
-            }
-        }, 30);
-    };
-
-    // --- 5. 다이사이 (Canvas) ---
-    const scCanvas = document.getElementById('sicbo-canvas');
-    const scCtx = scCanvas.getContext('2d');
-    function initSicBo() {
-        scCtx.clearRect(0,0,300,200); scCtx.beginPath(); scCtx.arc(150, 100, 80, 0, 6.28);
-        scCtx.fillStyle = 'rgba(0,0,0,0.3)'; scCtx.fill(); scCtx.strokeStyle = '#888'; scCtx.lineWidth=5; scCtx.stroke();
-        drawDice(130, 100, 1); drawDice(170, 100, 2); drawDice(150, 80, 3);
-        document.getElementById('sicbo-btns').style.display = 'block';
-    }
-    function drawDice(x, y, num, angle=0) {
-        scCtx.save(); scCtx.translate(x, y); scCtx.rotate(angle);
-        scCtx.fillStyle = 'white'; scCtx.fillRect(-15,-15,30,30); scCtx.strokeRect(-15,-15,30,30);
-        scCtx.fillStyle = 'black'; scCtx.font = '20px Arial'; scCtx.textAlign = 'center';
-        scCtx.fillText(['⚀','⚁','⚂','⚃','⚄','⚅'][num-1], 0, 8); scCtx.restore();
-    }
-    window.playSicBo = function(pick) {
-        if(!checkGold(200)) return;
-        document.getElementById('sicbo-btns').style.display = 'none';
-        let dice = [{x:150,y:100,vx:0,vy:0}, {x:150,y:100,vx:0,vy:0}, {x:150,y:100,vx:0,vy:0}];
-        dice.forEach(d => { d.vx = (Math.random()-0.5)*20; d.vy = (Math.random()-0.5)*20; });
-        let frames = 0;
-        function loop() {
-            scCtx.clearRect(0,0,300,200); scCtx.beginPath(); scCtx.arc(150, 100, 80, 0, 6.28);
-            scCtx.fillStyle = 'rgba(0,0,0,0.3)'; scCtx.fill(); scCtx.stroke();
-            dice.forEach(d => {
-                d.x += d.vx; d.y += d.vy;
-                if(Math.sqrt((d.x-150)**2 + (d.y-100)**2) > 70) { d.vx *= -0.8; d.vy *= -0.8; d.x = 150 + (d.x-150)*0.9; d.y = 100 + (d.y-100)*0.9; }
-                d.vx *= 0.95; d.vy *= 0.95;
-                drawDice(d.x, d.y, Math.floor(Math.random()*6)+1, frames/5);
-            });
-            frames++;
-            if(frames < 60) requestAnimationFrame(loop);
+            f++; if(f<60)requestAnimationFrame(loop);
             else {
-                let finalVals = [0,0,0].map(() => Math.floor(Math.random()*6)+1);
-                scCtx.clearRect(0,0,300,200); scCtx.beginPath(); scCtx.arc(150, 100, 80, 0, 6.28);
-                scCtx.fillStyle = 'rgba(0,0,0,0.3)'; scCtx.fill(); scCtx.stroke();
-                drawDice(120, 100, finalVals[0]); drawDice(180, 100, finalVals[1]); drawDice(150, 70, finalVals[2]);
-                checkSicBo(pick, finalVals);
+                let v=[0,0,0].map(()=>Math.floor(Math.random()*6)+1);
+                scCtx.clearRect(0,0,300,200);scCtx.beginPath();scCtx.arc(150,100,80,0,6.28);scCtx.fillStyle='rgba(0,0,0,0.3)';scCtx.fill();scCtx.stroke();
+                drawDice(120,100,v[0]);drawDice(180,100,v[1]);drawDice(150,70,v[2]);
+                let s=v.reduce((a,b)=>a+b,0), r=(s>=4&&s<=10)?'small':'big'; if(v[0]==v[1]&&v[1]==v[2])r='triple';
+                if(pick==r){player.gold+=currentBet*2;alert("적중!");}else alert("실패"); updateUI(); document.getElementById('sicbo-btns').style.display='block';
             }
         }
         loop();
-    };
-    function checkSicBo(pick, vals) {
-        let sum = vals.reduce((a,b)=>a+b,0);
-        let res = (sum>=4 && sum<=10) ? 'small' : 'big';
-        if(vals[0]===vals[1] && vals[1]===vals[2]) res = 'triple';
-        const msg = document.getElementById('sicbo-result');
-        if(pick===res) { player.gold+=400; msg.innerText="적중! (+400G)"; msg.style.color='lime'; }
-        else { msg.innerText="실패.."; msg.style.color='red'; }
-        updateUI(); document.getElementById('sicbo-btns').style.display = 'block';
     }
 
 </script>
