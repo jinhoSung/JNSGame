@@ -807,6 +807,7 @@
     function drawCard(x,y,v){bjCtx.fillStyle='white';bjCtx.fillRect(x-12,y-18,24,36);bjCtx.strokeStyle='#000';bjCtx.strokeRect(x-12,y-18,24,36);bjCtx.fillStyle='black';bjCtx.font='16px Arial';bjCtx.fillText(v,x,y+5);}
     window.startBlackjack=function(){
         currentBet = getBetAmount();
+        document.getElementById('bj-result').innerText = ""; // 초기화
         if(!checkGold(currentBet))return;
         bjState.p=[rCard(),rCard()];bjState.d=[rCard()];drawBj();document.getElementById('bj-controls').classList.add('hidden');document.getElementById('bj-actions').classList.remove('hidden');
     };
@@ -829,6 +830,7 @@
     window.startRoulette=function(t){
         currentBet = getBetAmount();
         if(rSpin||!checkGold(currentBet))return;rSpin=true;document.getElementById('roulette-btns').style.display='none';
+        document.getElementById('roulette-result').innerText = "회전 중...";
         let s=0.5,dec=0.005,rot=Math.random()*6;
         function ani(){if(s>0){rot+=s;s-=dec;if(s<0)s=0;drawWheel(rot);requestAnimationFrame(ani);}else{rSpin=false;calcR(rot,t);}}ani();
     }
@@ -854,6 +856,7 @@
     window.spinSlots=function(){
         currentBet = getBetAmount();
         if(!checkGold(currentBet))return;document.getElementById('slot-spin-btn').disabled=true;
+        document.getElementById('slot-result').innerText = "돌아가는 중...";
         let res=[Math.floor(Math.random()*5),Math.floor(Math.random()*5),Math.floor(Math.random()*5)];
         let target=[0,0,0], curr=[0,0,0], start=null;
         for(let i=0;i<3;i++) target[i] = (5+i*3)*400 + (275 - res[i]*80)%400;
@@ -870,7 +873,7 @@
         let m=document.getElementById('slot-result'); if(w>0){player.gold+=currentBet*w;m.innerText=`당첨! +${currentBet*w}G`;m.style.color='gold';}else{m.innerText="꽝";m.style.color='#ccc';}updateUI();
     }
 
-    // 4. 경마
+    // 4. 경마 (리얼 트랙 & 말)
     const rcCtx=document.getElementById('race-canvas').getContext('2d');
     function initRaceCanvas(){
         rcCtx.clearRect(0,0,350,200); rcCtx.fillStyle='#2e7d32'; rcCtx.fillRect(0,0,350,200);
@@ -887,6 +890,7 @@
     window.startRace=function(pick){
         currentBet = getBetAmount();
         if(!checkGold(currentBet))return;document.getElementById('race-btns').style.display='none';
+        document.getElementById('race-result').innerText = "경기 진행 중...";
         let h=[10,10,10,10], t=setInterval(()=>{
             rcCtx.fillStyle='#2e7d32';rcCtx.fillRect(0,0,350,200);
             rcCtx.strokeStyle='white';rcCtx.setLineDash([5,5]);
@@ -898,11 +902,24 @@
                 drawHorse(h[i], i*50+35+hop, i+1);
                 if(h[i]>320 && !w)w=i+1;
             });
-            if(w){clearInterval(t);if(w==pick){player.gold+=currentBet*4;alert("승리!");}else alert("패배");updateUI();document.getElementById('race-btns').style.display='block';}
+            if(w){
+                clearInterval(t);
+                const msg = document.getElementById('race-result');
+                if(w==pick){
+                    player.gold+=currentBet*4;
+                    msg.innerText=`우승! ${w}번마 (+${currentBet*4}G)`;
+                    msg.style.color='lime';
+                }else{
+                    msg.innerText=`패배.. ${w}번마 우승`;
+                    msg.style.color='red';
+                }
+                updateUI();
+                document.getElementById('race-btns').style.display='block';
+            }
         },30);
     }
 
-    // 5. 다이사이
+    // 5. 다이사이 (물리 주사위)
     const scCtx=document.getElementById('sicbo-canvas').getContext('2d');
     function initSicBo(){
         scCtx.clearRect(0,0,300,200);scCtx.beginPath();scCtx.arc(150,100,80,0,6.28);scCtx.fillStyle='rgba(0,0,0,0.3)';scCtx.fill();scCtx.stroke();
@@ -917,6 +934,7 @@
     window.playSicBo=function(pick){
         currentBet = getBetAmount();
         if(!checkGold(currentBet))return;document.getElementById('sicbo-btns').style.display='none';
+        document.getElementById('sicbo-result').innerText = "굴리는 중...";
         let dice=[{x:150,y:100,vx:0,vy:0},{x:150,y:100,vx:0,vy:0},{x:150,y:100,vx:0,vy:0}];
         dice.forEach(d=>{d.vx=(Math.random()-0.5)*20;d.vy=(Math.random()-0.5)*20;});
         let f=0;
@@ -933,8 +951,19 @@
                 let v=[0,0,0].map(()=>Math.floor(Math.random()*6)+1);
                 scCtx.clearRect(0,0,300,200);scCtx.beginPath();scCtx.arc(150,100,80,0,6.28);scCtx.fillStyle='rgba(0,0,0,0.3)';scCtx.fill();scCtx.stroke();
                 drawDice(120,100,v[0]);drawDice(180,100,v[1]);drawDice(150,70,v[2]);
+                
                 let s=v.reduce((a,b)=>a+b,0), r=(s>=4&&s<=10)?'small':'big'; if(v[0]==v[1]&&v[1]==v[2])r='triple';
-                if(pick==r){player.gold+=currentBet*2;alert("적중!");}else alert("실패"); updateUI(); document.getElementById('sicbo-btns').style.display='block';
+                
+                const msg = document.getElementById('sicbo-result');
+                if(pick==r){
+                    player.gold+=currentBet*2;
+                    msg.innerText=`적중! (+${currentBet*2}G)`;
+                    msg.style.color='lime';
+                }else{
+                    msg.innerText="실패..";
+                    msg.style.color='red';
+                }
+                updateUI(); document.getElementById('sicbo-btns').style.display='block';
             }
         }
         loop();
