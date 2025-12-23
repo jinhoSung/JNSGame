@@ -637,89 +637,177 @@
     let sReels = [0, 0, 0]; // 각 릴의 Y 오프셋
 
     function initSlots() {
-        drawSlots([0,0,0]);
+        // 초기화 시 랜덤 위치
+        sReels = [Math.random()*400, Math.random()*400, Math.random()*400];
+        drawSlots(sReels);
     }
 
     function drawSlots(offsets) {
         sCtx.clearRect(0,0,300,150);
-        // 배경 및 프레임
+        // 배경
         sCtx.fillStyle = '#111'; sCtx.fillRect(10,10,280,130);
         
+        // 심볼 높이 80px, 5개 심볼 = 400px 주기
+        const SYMBOL_H = 80;
+        const CYCLE = 400;
+
         for(let i=0; i<3; i++) {
             sCtx.save();
-            sCtx.beginPath(); sCtx.rect(20 + i*90, 20, 80, 110); sCtx.clip(); // 마스크
+            sCtx.beginPath(); sCtx.rect(20 + i*90, 20, 80, 110); sCtx.clip(); // 릴 영역 클리핑
             
-            // 릴 그리기 (오프셋에 따라 심볼 반복)
-            let y = offsets[i] % 300; // 300px 주기
+            // 릴 그리기
+            // 오프셋을 400으로 나눈 나머지 사용
+            let scrollY = offsets[i] % CYCLE;
+            
+            // 화면을 덮을 만큼 충분히 그리기 (위아래 반복)
+            // 기준점(Y=90)에 오프셋 적용
             for(let j=0; j<10; j++) {
-                sCtx.font = '50px Arial'; sCtx.textAlign = 'center';
-                sCtx.fillText(syms[j%5], 60 + i*90, y + j*80 - 200);
+                // j번째 심볼의 인덱스
+                let symIdx = j % 5;
+                let symbol = syms[symIdx];
+                
+                // 위치 계산: 
+                // scrollY가 커질수록(회전할수록) 그림은 아래로 내려감
+                // 기본 배치 + scrollY - 보정값
+                let yPos = (j * SYMBOL_H) + scrollY - 200; // -200은 초기 위치 보정
+                
+                sCtx.font = '50px Arial'; sCtx.textAlign = 'center'; sCtx.textBaseline = 'middle';
+                sCtx.fillText(symbol, 60 + i*90, yPos);
             }
             sCtx.restore();
             
             // 프레임
             sCtx.strokeStyle = 'gold'; sCtx.lineWidth = 3;
             sCtx.strokeRect(20 + i*90, 20, 80, 110);
+            
+            // 광택 효과 (선택)
+            sCtx.fillStyle = 'rgba(255,255,255,0.1)';
+            sCtx.fillRect(20 + i*90, 20, 80, 55);
         }
-        // 당첨선
-        sCtx.strokeStyle = 'rgba(255,0,0,0.5)'; sCtx.lineWidth = 2;
+        
+        // 당첨선 (가운데)
+        sCtx.strokeStyle = 'rgba(255,0,0,0.7)'; sCtx.lineWidth = 2;
         sCtx.beginPath(); sCtx.moveTo(10, 75); sCtx.lineTo(290, 75); sCtx.stroke();
+        
+        // 화살표 표시
+        sCtx.fillStyle = 'red';
+        sCtx.beginPath(); sCtx.moveTo(5, 75); sCtx.lineTo(15, 70); sCtx.lineTo(15, 80); sCtx.fill();
+        sCtx.beginPath(); sCtx.moveTo(295, 75); sCtx.lineTo(285, 70); sCtx.lineTo(285, 80); sCtx.fill();
     }
 
     window.spinSlots = function() {
         if(!checkGold(50)) return;
         document.getElementById('slot-spin-btn').disabled = true;
+        document.getElementById('slot-result').innerText = "돌아가는 중...";
         
-        let speeds = [20, 20, 20];
-        let stops = [Date.now()+1000, Date.now()+2000, Date.now()+3000];
-        let finalSyms = [];
+        const SYMBOL_H = 80;
+        const CYCLE = 400;
         
-        function anim() {
-            let running = false;
-            let now = Date.now();
+        // 1. 결과 미리 결정 (0~4 인덱스)
+        let results = [
+            Math.floor(Math.random()*5),
+            Math.floor(Math.random()*5),
+            Math.floor(Math.random()*5)
+        ];
+        
+        // 2. 목표 오프셋 계산
+        // 화면 중앙(Y=75)에 심볼이 오려면?
+        // drawSlots 식: yPos = j*80 + scrollY - 200
+        // yPos = 75가 되어야 함.
+        // j*80 + scrollY - 200 = 75  => scrollY = 275 - j*80
+        // 우리는 scrollY가 계속 증가하는 방향(아래로 흐름)으로 애니메이션 함.
+        // 특정 심볼(index)이 중앙에 오도록 하는 scrollY 값(타겟)을 찾아야 함.
+        // 식을 단순화: scrollY가 (275 - index*80) 일 때 해당 심볼이 중앙.
+        // 이를 400 주기에 맞춰 양수로 변환
+        
+        let targetOffsets = [];
+        let currentReels = [...sReels]; // 복사
+        
+        for(let i=0; i<3; i++) {
+            // 목표 심볼 인덱스
+            let targetIdx = results[i];
+            
+            // 해당 심볼이 중앙에 오기 위한 주기 내 위치 (0~400)
+            // 계산된 값: (275 - targetIdx * 80) % 400
+            // 예: targetIdx=0(체리) -> 275. 
+            // 검증: 0*80 + 275 - 200 = 75 (성공)
+            let alignVal = (275 - targetIdx * 80) % CYCLE;
+            if(alignVal < 0) alignVal += CYCLE;
+            
+            // 현재 위치에서 최소 몇 바퀴(예: 5+i바퀴) 더 돌고 나서 alignVal에 도달하도록 설정
+            // 현재 오프셋보다 큰 가장 가까운 (N * CYCLE + alignVal) 찾기
+            let minSpin = (5 + i * 3) * CYCLE; // 릴마다 회전수 다르게 (1:5바퀴, 2:8바퀴, 3:11바퀴)
+            let nextTarget = currentReels[i] + minSpin;
+            
+            // 나머지 보정
+            let currentMod = nextTarget % CYCLE;
+            let diff = alignVal - currentMod;
+            if(diff < 0) diff += CYCLE;
+            
+            targetOffsets[i] = nextTarget + diff;
+        }
+        
+        // 3. 애니메이션
+        let startTime = null;
+        const DURATION = 3000; // 최대 3초 (가장 긴 릴 기준)
+        
+        function animate(timestamp) {
+            if (!startTime) startTime = timestamp;
+            let progress = timestamp - startTime;
+            
+            let finishedCount = 0;
             
             for(let i=0; i<3; i++) {
-                if(now < stops[i]) {
-                    sReels[i] += speeds[i];
-                    running = true;
+                // 릴별 완료 시간 다르게 (1초, 2초, 3초)
+                let reelDuration = 1000 + (i * 1000);
+                
+                if (progress < reelDuration) {
+                    // Ease-out 효과 (점점 느려지게)
+                    let p = progress / reelDuration;
+                    let ease = 1 - Math.pow(1 - p, 3); // cubic ease out
+                    
+                    let start = currentReels[i];
+                    let end = targetOffsets[i];
+                    sReels[i] = start + (end - start) * ease;
                 } else {
-                    // 스냅 (가장 가까운 심볼 중앙)
-                    // 중앙값: y=75 근처. 80간격.
-                    // 간단히 랜덤 결과로 고정
-                    if(!finalSyms[i]) {
-                        finalSyms[i] = syms[Math.floor(Math.random()*5)];
-                        // 위치 역산 (화면 중앙에 해당 심볼이 오도록)
-                        // 여기선 시각적 효과만 주고 결과는 로직으로 처리
-                    }
-                    // 미세조정 생략하고 멈춘것으로 간주
+                    // 시간 종료 시 정확한 타겟 위치 고정
+                    sReels[i] = targetOffsets[i];
+                    finishedCount++;
                 }
             }
+            
             drawSlots(sReels);
             
-            if(running) requestAnimationFrame(anim);
-            else {
-                // 정확한 위치로 정렬
-                sCtx.font = '50px Arial'; sCtx.textAlign = 'center';
-                for(let i=0; i<3; i++) {
-                     sCtx.fillStyle = '#000'; sCtx.fillRect(25+i*90, 30, 70, 90); // 덮기
-                     sCtx.fillText(finalSyms[i], 60+i*90, 90);
-                }
-                checkSlotWin(finalSyms);
+            if(finishedCount < 3) {
+                requestAnimationFrame(animate);
+            } else {
+                // 종료 처리
+                checkSlotWin(results);
                 document.getElementById('slot-spin-btn').disabled = false;
             }
         }
-        anim();
+        
+        requestAnimationFrame(animate);
     };
 
-    function checkSlotWin(r) {
+    function checkSlotWin(resultIndices) {
+        // 인덱스를 심볼로 변환
+        let r = resultIndices.map(idx => syms[idx]);
+        
         let prize = 0;
         if(r[0]==='7️⃣' && r[1]==='7️⃣' && r[2]==='7️⃣') prize=2500;
         else if(r[0]===r[1] && r[1]===r[2]) prize=500;
         else if(r[0]===r[1] || r[1]===r[2] || r[0]===r[2]) prize=100;
         
         const msg = document.getElementById('slot-result');
-        if(prize>0) { player.gold+=prize; msg.innerText=`${prize}G 획득!`; msg.style.color='gold'; }
-        else { msg.innerText="꽝"; msg.style.color='#ccc'; }
+        if(prize>0) { 
+            player.gold+=prize; 
+            msg.innerText = `축하합니다! ${r.join('')} (+${prize}G)`; 
+            msg.style.color='gold'; 
+        } else { 
+            msg.innerText = `꽝! ${r.join('')}`; 
+            msg.style.color='#ccc'; 
+        }
         updateUI();
     }
 
