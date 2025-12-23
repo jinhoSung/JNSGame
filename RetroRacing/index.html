@@ -514,7 +514,10 @@
         addFace([8, 9, 5, 4], '#222', '#111'); // 앞유리
         addFace([11, 10, 6, 7], '#222', '#111'); // 뒷유리
         addFace([8, 11, 7, 4], '#222', '#111'); // 왼쪽 유리
-        addFace([9, 10, 6, 5], '#222', '#111'); // 오른쪽 유리
+        
+        // 오른쪽 유리 (Winding Fix: 9,10,6,5 -> 5,6,10,9)
+        addFace([5, 6, 10, 9], '#222', '#111'); 
+        
         addFace([8, 9, 10, 11], '#ddd', '#ccc'); // 지붕
 
         // 3. 팝업 라이트
@@ -569,7 +572,13 @@
             
             // Face (Outer) - 휠 캡
             const outerPoly = [];
-            for(let i=0; i<segments; i++) outerPoly.push(transformedVerts[i]);
+            
+            // Fix: 오른쪽 바퀴(x>0)인 경우 Winding Order를 반대로 하여 바깥쪽이 보이게 함
+            if (x > 0) {
+                for(let i=segments-1; i>=0; i--) outerPoly.push(transformedVerts[i]);
+            } else {
+                for(let i=0; i<segments; i++) outerPoly.push(transformedVerts[i]);
+            }
             
             // 휠 캡이 카메라를 보고 있을 때만 그림
             if (outerPoly[0].visible && isFrontFacing(outerPoly[0], outerPoly[1], outerPoly[2])) {
@@ -577,10 +586,19 @@
             }
 
             // Treads (Side) - 트레드
+            // 오른쪽 바퀴의 경우 트레드도 반대로 뒤집어야 할 수 있음 (우선 그대로 유지)
             for(let i=0; i<segments; i++) {
                 const next = (i+1)%segments;
-                const poly = [transformedVerts[i], transformedVerts[next], transformedVerts[next+segments], transformedVerts[i+segments]];
+                let poly;
                 
+                if (x > 0) {
+                     // Right Wheel: Reverse Tread Winding
+                     poly = [transformedVerts[next], transformedVerts[i], transformedVerts[i+segments], transformedVerts[next+segments]];
+                } else {
+                     // Left Wheel: Normal Tread Winding
+                     poly = [transformedVerts[i], transformedVerts[next], transformedVerts[next+segments], transformedVerts[i+segments]];
+                }
+
                 // 트레드 면이 카메라를 보고 있을 때만 그림
                 if (poly[0].visible && isFrontFacing(poly[0], poly[1], poly[2])) {
                     wheelFaces.push({ verts: poly, col: '#111', stroke: '#000', type: 'wheel_tread' });
