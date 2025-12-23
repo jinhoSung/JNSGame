@@ -9,17 +9,6 @@
 
         body {
             margin: 0;
-            background: #000;<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Retro Racer - Real 3D Drift</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Black+Ops+One&display=swap');
-
-        body {
-            margin: 0;
             background: #000;
             overflow: hidden;
             color: white;
@@ -82,7 +71,6 @@
             background: rgba(255, 0, 0, 0.6);
         }
         
-        /* 동적 메시지 컨테이너 스타일 */
         .game-msg {
             position: absolute;
             top: 40%;
@@ -97,6 +85,8 @@
             white-space: nowrap;
         }
 
+        @keyframes pop { from { transform: translate(-50%, -50%) scale(0); } to { transform: translate(-50%, -50%) scale(1); } }
+
         .touch-controls {
             position: absolute;
             bottom: 20px;
@@ -213,7 +203,6 @@
     // --- 게임 상수 ---
     const SEGMENT_LENGTH = 200;
     const DRAW_DISTANCE = 300;
-    // 도로 폭 확대
     const ROAD_WIDTH = 3000;
     const CAMERA_HEIGHT = 1000;
     const FIELD_OF_VIEW = 100;
@@ -222,7 +211,7 @@
     // --- 상태 변수 ---
     let currentLevel = 1;
     const MAX_LEVEL = 3;
-    let gameState = 'start'; // start, play, clear, gameover
+    let gameState = 'start'; 
     let position = 0;       
     let playerX = 0;        
     let playerTurn = 0;     
@@ -236,9 +225,11 @@
     let driftMode = false;
     let analogSteer = 0;
     let trackLength = 0;
+    let skyOffset = 0; // 배경 이동용 변수
 
     let segments = [];
     let skids = [];
+    let particles = []; // 연기 파티클
     let checkpointLocs = [];
 
     const keys = { 
@@ -255,17 +246,15 @@
         playerTurn = 0;
         speed = 0;
         skids = [];
+        particles = [];
         driftMode = false;
         
-        // 기존 메시지 제거 (겹침 방지)
         document.querySelectorAll('.game-msg').forEach(el => el.remove());
         
         createRoad(level);
         gameState = 'play';
         
-        // UI 초기화: 타이틀 숨김
         setCenterMessage("", "", false);
-        
         showMessage(`LEVEL ${level} START!`, '#fff', 2000);
     }
 
@@ -273,61 +262,46 @@
         segments = [];
         checkpointLocs = [];
         
-        // 레벨별 난이도 설정
         let numSegments = 0;
         let hills = 0;
         let curves = 0;
         
         if (level === 1) {
-            numSegments = 2000; // 입문
-            hills = 0;
-            curves = 2;
+            numSegments = 2000; 
+            hills = 0; curves = 2;
         } else if (level === 2) {
-            numSegments = 3000; // 중급
-            hills = 500;
-            curves = 4;
+            numSegments = 3000; 
+            hills = 500; curves = 4;
         } else {
-            numSegments = 4000; // 고수 (Touge)
-            hills = 1500;
-            curves = 6;
+            numSegments = 4000; 
+            hills = 1500; curves = 6;
         }
 
         trackLength = numSegments * SEGMENT_LENGTH;
-
-        // 시작 지점
         checkpointLocs.push({ pos: 10, name: "START", passed: false, color: "#00ff00" });
 
         for (let i = 0; i < numSegments; i++) {
             let curve = 0;
             let y = 0;
 
-            // 절차적 코스 생성 (Procedural Generation)
             if (level === 1) {
-                // 완만한 곡선
                 if (i > 300 && i < 800) curve = 2;
                 if (i > 1200 && i < 1700) curve = -2;
             } else if (level === 2) {
-                // S자 코스
                 curve = Math.sin(i / 200) * curves; 
                 y = Math.sin(i / 300) * hills;
             } else {
-                // 험난한 고개
                 curve = Math.sin(i / 150) * curves + Math.cos(i / 50) * 2;
                 y = Math.sin(i / 100) * hills;
-                if (i % 500 < 50) y += 500; // 점프대?
+                if (i % 500 < 50) y += 500; 
             }
 
-            // 피니시 라인 근처는 평지/직선
-            if (i > numSegments - 100) {
-                curve = 0; 
-                y = 0;
-            }
+            if (i > numSegments - 100) { curve = 0; y = 0; }
 
             const floorColor = (Math.floor(i / 3) % 2) ? '#222' : '#252525';
             const rumbleColor = (Math.floor(i / 3) % 2) ? '#fff' : '#c00';
             
             let feature = null;
-            // 체크포인트 (시작, 골, 중간)
             if (i === 10) feature = { type: 'arch', name: 'START', color: '#00ff00' };
             if (i === numSegments - 20) feature = { type: 'arch', name: 'GOAL', color: '#ff0055' };
 
@@ -340,8 +314,6 @@
                 feature: feature
             });
         }
-        
-        // 골 지점 등록
         checkpointLocs.push({ pos: Math.floor(numSegments - 20), name: "GOAL", passed: false, color: "#ff0055" });
     }
 
@@ -363,7 +335,6 @@
         const pz = z2 + camZ; 
 
         if (pz <= 0) return { x: 0, y: 0, scale: 0, visible: false, depth: pz };
-        
         const fov = 600; 
         const proj = fov / pz;
         
@@ -406,14 +377,11 @@
     }
 
     function showMessage(text, color='#fff', duration=2000) {
-        // 게임 상태 메시지와 겹치지 않게 처리 (간단한 인게임 알림용)
         if (gameState !== 'play') return; 
-
         const msg = document.createElement('div');
-        msg.className = 'game-msg'; // 클래스 추가로 관리 용이하게 변경
+        msg.className = 'game-msg';
         msg.innerText = text;
         msg.style.color = color;
-        
         document.body.appendChild(msg);
         setTimeout(() => { if(msg.parentNode) msg.remove(); }, duration);
     }
@@ -425,21 +393,46 @@
         }
     }
 
+    // --- 배경 그리기 (Parallax) ---
+    function drawBackground(ctx, width, height) {
+        // Sky
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+        bgGrad.addColorStop(0, '#050510');
+        bgGrad.addColorStop(1, '#202040');
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, width, height);
+
+        // Stars (Simple random points, moving slowly)
+        ctx.fillStyle = '#fff';
+        for(let i=0; i<50; i++) {
+            let sx = (Math.sin(i * 132.1) * width + skyOffset * 0.2) % width;
+            if(sx < 0) sx += width;
+            let sy = (Math.cos(i * 53.7) * height/2);
+            if(sy > 0) ctx.fillRect(sx, sy, Math.random()*2, Math.random()*2);
+        }
+
+        // Mountains (Procedural jagged line)
+        ctx.fillStyle = '#111';
+        ctx.beginPath();
+        ctx.moveTo(0, height);
+        for(let i=0; i<=20; i++) {
+            const xVal = (i * width/20) - (skyOffset % (width/20));
+            const noise = Math.sin(i * 45.2 + 10) * 50 + Math.cos(i * 12.5) * 30;
+            const h = height/2 + 50 - noise;
+            ctx.lineTo(xVal, h);
+        }
+        ctx.lineTo(width, height);
+        ctx.fill();
+    }
+
     function render() {
         const width = canvas.width;
         const height = canvas.height;
         ctx.clearRect(0, 0, width, height);
 
-        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-        bgGrad.addColorStop(0, '#0a0a2a');
-        bgGrad.addColorStop(1, '#000');
-        ctx.fillStyle = bgGrad;
-        ctx.fillRect(0, 0, width, height);
+        // 개선: 배경 그리기
+        drawBackground(ctx, width, height);
 
-        ctx.fillStyle = '#fffc';
-        ctx.beginPath(); ctx.arc(width*0.8, 100, 40, 0, Math.PI*2); ctx.fill();
-
-        // **수정된 부분: 도로 데이터(segments)가 없으면 렌더링 중단**
         if (segments.length === 0) return;
 
         let baseSegment = segments[Math.floor(position / SEGMENT_LENGTH) % segments.length];
@@ -449,7 +442,7 @@
         
         for (let n = 0; n < DRAW_DISTANCE; n++) {
             const currentIdx = (baseSegment.index + n);
-            if (currentIdx >= segments.length) break; // 끝이 있는 맵이므로 루프 안함
+            if (currentIdx >= segments.length) break;
 
             let segment = segments[currentIdx];
             
@@ -490,6 +483,7 @@
 
         drawSkidMarks();
         draw3DCarModel(); 
+        drawParticles(); // 연기 그리기
     }
 
     function drawArch(ctx, cx, cy, w, feature) {
@@ -535,6 +529,26 @@
         ctx.restore();
     }
 
+    function drawParticles() {
+        ctx.save();
+        for(let i=0; i<particles.length; i++) {
+            const p = particles[i];
+            p.life -= 0.03;
+            p.x += p.vx;
+            p.y += p.vy;
+            p.size += 0.5;
+
+            if(p.life <= 0) { particles.splice(i, 1); i--; continue; }
+
+            ctx.globalAlpha = p.life * 0.3; // 반투명
+            ctx.fillStyle = '#eee'; // 흰색 연기
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
     function draw3DCarModel() {
         const width = canvas.width;
         const height = canvas.height;
@@ -545,7 +559,11 @@
         const cx = (width / 2) + carScreenOffset;
         const cy = height - 80 * (width/1200) + bounce;
 
-        // 차량 회전 각도 축소 (기존 PI/3 -> PI/6)
+        // 차체 위치 추적용 (연기 발생 위치)
+        window.carScreenX = cx;
+        window.carScreenY = cy;
+        window.carScale = scale;
+
         const maxAngle = Math.PI / 6; 
         const driftFactor = driftMode ? 1.5 : 1.0;
         const yaw = -playerTurn * maxAngle * driftFactor;
@@ -719,6 +737,9 @@
 
         position = (position + speed * dt);
         
+        // 배경 이동 (속도와 회전에 비례)
+        skyOffset -= playerTurn * dt * 300; 
+
         // 체크포인트 및 골 처리
         const currentSegIndex = Math.floor((position + 100) / SEGMENT_LENGTH);
         checkpointLocs.forEach(cp => {
@@ -756,6 +777,19 @@
             speed -= 20; 
             if (Math.random() > 0.3) {
                 skids.push({ x: (Math.random()-0.5)*40 - playerTurn*120, y: 0, offsetY: 0, life: 1.0, size: Math.random()*5+5 });
+            }
+            // 드리프트 연기 생성 (차체 뒷바퀴 위치 근처)
+            if (Math.random() > 0.2 && window.carScreenX) {
+                const side = Math.random() > 0.5 ? 1 : -1;
+                // 약간의 랜덤성 + 차체 너비 고려
+                particles.push({ 
+                    x: window.carScreenX + side * 40 * window.carScale, 
+                    y: window.carScreenY, 
+                    vx: (Math.random() - 0.5) * 2 - playerTurn * 5, 
+                    vy: -Math.random() * 2 - 1, 
+                    size: Math.random() * 5 + 5, 
+                    life: 1.0 
+                });
             }
         } else {
             driftMsg.style.display = 'none';
@@ -822,892 +856,6 @@
                 score = 0;
                 initLevel(1);
             }
-        }
-    }
-
-    window.addEventListener('keydown', e => { 
-        if (keys.hasOwnProperty(e.code)) keys[e.code] = true; 
-        if (gameState !== 'play') handleInputStart();
-    });
-    
-    window.addEventListener('keyup', e => { if (keys.hasOwnProperty(e.code)) keys[e.code] = false; });
-    
-    // 모바일 터치 (화면 중앙 탭으로 시작/다음 레벨)
-    canvas.addEventListener('touchstart', e => {
-        if (gameState !== 'play') {
-            e.preventDefault();
-            handleInputStart();
-        }
-    });
-
-    const joystickArea = document.getElementById('joystick-area');
-    const joystickKnob = document.getElementById('joystick-knob');
-    let joyStartX = 0, joyStartY = 0;
-    let joystickTouchId = null; 
-
-    joystickArea.addEventListener('touchstart', e => {
-        e.preventDefault();
-        e.stopPropagation(); // 캔버스 터치 이벤트 방지
-        if (joystickTouchId !== null) return;
-        const touch = e.changedTouches[0];
-        joystickTouchId = touch.identifier;
-        joyStartX = touch.clientX;
-        joyStartY = touch.clientY;
-        joystickKnob.style.transition = 'none';
-    }, {passive: false});
-
-    joystickArea.addEventListener('touchmove', e => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (joystickTouchId === null) return;
-        for (let i = 0; i < e.changedTouches.length; i++) {
-            if (e.changedTouches[i].identifier === joystickTouchId) {
-                const touch = e.changedTouches[i];
-                const deltaX = touch.clientX - joyStartX;
-                const maxDist = 50;
-                const clampedX = Math.max(-maxDist, Math.min(maxDist, deltaX));
-                joystickKnob.style.transform = `translate(${clampedX}px, 0px)`;
-                analogSteer = clampedX / maxDist;
-                break;
-            }
-        }
-    }, {passive: false});
-
-    const resetJoystick = () => {
-        joystickTouchId = null;
-        joystickKnob.style.transition = '0.2s';
-        joystickKnob.style.transform = `translate(0px, 0px)`;
-        analogSteer = 0;
-    };
-
-    joystickArea.addEventListener('touchend', e => {
-        e.preventDefault(); e.stopPropagation();
-        for (let i = 0; i < e.changedTouches.length; i++) {
-            if (e.changedTouches[i].identifier === joystickTouchId) { resetJoystick(); break; }
-        }
-    });
-    joystickArea.addEventListener('touchcancel', e => {
-        e.preventDefault(); e.stopPropagation();
-        for (let i = 0; i < e.changedTouches.length; i++) {
-            if (e.changedTouches[i].identifier === joystickTouchId) { resetJoystick(); break; }
-        }
-    });
-
-    const btnGas = document.getElementById('btn-gas');
-    const btnBrake = document.getElementById('btn-brake');
-    const handleBtn = (elem, key, isPressed) => {
-        if(isPressed) { elem.style.background = 'rgba(255,255,255,0.5)'; keys[key] = true; }
-        else { elem.style.background = ''; keys[key] = false; }
-    };
-    btnGas.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); handleBtn(btnGas, 'ArrowUp', true); });
-    btnGas.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); handleBtn(btnGas, 'ArrowUp', false); });
-    btnBrake.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); handleBtn(btnBrake, 'ArrowDown', true); });
-    btnBrake.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); handleBtn(btnBrake, 'ArrowDown', false); });
-
-    let lastTime = 0;
-    function gameLoop(time) {
-        const dt = Math.min(1, (time - lastTime) / 1000);
-        lastTime = time;
-        update(dt);
-        render();
-        requestAnimationFrame(gameLoop);
-    }
-
-    // 초기 상태 설정
-    setCenterMessage("Retro Racer 3D", "TAP TO START");
-    requestAnimationFrame(gameLoop);
-
-</script>
-</body>
-</html>
-            overflow: hidden;
-            color: white;
-            font-family: 'Black Ops One', cursive;
-            touch-action: none;
-        }
-        canvas {
-            width: 100%;
-            height: 100vh;
-            display: block;
-        }
-        #ui {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            font-size: 20px;
-            color: #fff;
-            text-shadow: 2px 2px 0 #000;
-            pointer-events: none;
-            z-index: 10;
-        }
-        #center-msg {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 60px;
-            color: #fff;
-            text-shadow: 0 0 10px #ff00de, 3px 3px 0 #000;
-            display: none;
-            z-index: 20;
-            white-space: nowrap;
-            text-align: center;
-            line-height: 1.5;
-        }
-        #center-sub {
-            font-size: 30px;
-            color: #ffff00;
-            display: block;
-            margin-top: 10px;
-            animation: blink 1s infinite;
-        }
-        @keyframes blink { 50% { opacity: 0; } }
-
-        #drift-msg {
-            position: absolute;
-            top: 30%;
-            left: 50%;
-            transform: translate(-50%, -50%) rotate(-15deg);
-            font-size: 60px;
-            font-weight: bold;
-            color: #ffcc00; 
-            text-shadow: 5px 5px 0 #000, 0 0 20px #ff0000;
-            display: none;
-            pointer-events: none;
-            z-index: 15;
-            font-style: italic;
-            border: 4px solid #000;
-            padding: 10px 40px;
-            background: rgba(255, 0, 0, 0.6);
-        }
-
-        .touch-controls {
-            position: absolute;
-            bottom: 20px;
-            width: 100%;
-            height: 150px;
-            z-index: 50;
-            display: none;
-            pointer-events: none;
-        }
-        .touch-btn {
-            pointer-events: auto;
-            position: absolute;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.2);
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            backdrop-filter: blur(4px);
-            touch-action: none;
-        }
-        .touch-btn:active { background: rgba(255, 255, 255, 0.5); }
-        
-        #joystick-area {
-            position: absolute;
-            bottom: 20px; left: 20px;
-            width: 160px; height: 160px;
-            background: rgba(0,0,0,0.2);
-            border-radius: 50%;
-            border: 2px dashed rgba(255,255,255,0.3);
-            pointer-events: auto;
-        }
-        #joystick-knob {
-            position: absolute;
-            top: 50%; left: 50%;
-            width: 60px; height: 60px;
-            margin-top: -30px; margin-left: -30px;
-            background: rgba(0, 255, 255, 0.5);
-            border-radius: 50%;
-            box-shadow: 0 0 10px rgba(0,255,255,0.5);
-            transform: translate(0px, 0px);
-        }
-
-        #btn-gas {
-            bottom: 40px; right: 30px;
-            width: 90px; height: 140px;
-            background: rgba(0, 255, 0, 0.3);
-            border-radius: 20px;
-            border: 3px solid #0f0;
-        }
-        #btn-gas::after { content: 'GAS'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); color: #fff; }
-        
-        #btn-brake {
-            bottom: 40px; right: 140px;
-            width: 70px; height: 90px;
-            background: rgba(255, 0, 0, 0.3);
-            border-radius: 10px;
-            border: 3px solid #f00;
-        }
-        #btn-brake::after { content: 'BRAKE'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); color: #fff; font-size: 12px; }
-
-        @media (hover: none) and (pointer: coarse) {
-            .touch-controls { display: block; }
-            #instructions { display: none; }
-        }
-    </style>
-</head>
-<body>
-
-    <div id="ui">
-        LEVEL: <span id="levelDisplay">1</span><br>
-        SPEED: <span id="speedDisplay">0</span> km/h<br>
-        SCORE: <span id="scoreDisplay">0</span><br>
-        DIST: <span id="distDisplay">0</span>
-    </div>
-    
-    <div id="center-msg">
-        Retro Racer 3D<br>
-        <span id="center-sub">TAP TO START</span>
-    </div>
-    
-    <div id="drift-msg">KANSEI DRIFT!!</div>
-
-    <div class="touch-controls">
-        <div id="joystick-area">
-            <div id="joystick-knob"></div>
-        </div>
-        <div id="btn-brake" class="touch-btn"></div>
-        <div id="btn-gas" class="touch-btn"></div>
-    </div>
-
-    <canvas id="gameCanvas"></canvas>
-
-<script>
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    const speedDisplay = document.getElementById('speedDisplay');
-    const scoreDisplay = document.getElementById('scoreDisplay');
-    const distDisplay = document.getElementById('distDisplay');
-    const levelDisplay = document.getElementById('levelDisplay');
-    const driftMsg = document.getElementById('drift-msg');
-    const centerMsg = document.getElementById('center-msg');
-    const centerSub = document.getElementById('center-sub');
-
-    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    if(isMobile) {
-        document.querySelector('.touch-controls').style.display = 'block';
-    }
-
-    function resize() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    }
-    window.addEventListener('resize', resize);
-    resize();
-
-    // --- 게임 상수 ---
-    const SEGMENT_LENGTH = 200;
-    const DRAW_DISTANCE = 300;
-    // 도로 폭 확대 (기존 2000 -> 3000)
-    const ROAD_WIDTH = 3000;
-    const CAMERA_HEIGHT = 1000;
-    const FIELD_OF_VIEW = 100;
-    const CAMERA_DEPTH = 1 / Math.tan((FIELD_OF_VIEW / 2) * Math.PI / 180);
-
-    // --- 상태 변수 ---
-    let currentLevel = 1;
-    const MAX_LEVEL = 3;
-    let gameState = 'start'; // start, play, clear, gameover
-    let position = 0;       
-    let playerX = 0;        
-    let playerTurn = 0;     
-    let speed = 0;
-    let maxSpeed = 13000;
-    let accel = 30;
-    let breaking = 80;
-    let decel = 15;
-    let offRoadDecel = 300;
-    let score = 0;
-    let driftMode = false;
-    let analogSteer = 0;
-    let trackLength = 0;
-
-    let segments = [];
-    let skids = [];
-    let checkpointLocs = [];
-
-    const keys = { 
-        ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false,
-        Space: false, ShiftLeft: false 
-    };
-
-    // --- 레벨 및 도로 생성 ---
-    function initLevel(level) {
-        currentLevel = level;
-        levelDisplay.innerText = currentLevel;
-        position = 0;
-        playerX = 0;
-        playerTurn = 0;
-        speed = 0;
-        skids = [];
-        driftMode = false;
-        
-        createRoad(level);
-        gameState = 'play';
-        
-        showMessage(`LEVEL ${level} START!`, '#fff', 2000);
-    }
-
-    function createRoad(level) {
-        segments = [];
-        checkpointLocs = [];
-        
-        // 레벨별 난이도 설정
-        let numSegments = 0;
-        let hills = 0;
-        let curves = 0;
-        
-        if (level === 1) {
-            numSegments = 2000; // 입문
-            hills = 0;
-            curves = 2;
-        } else if (level === 2) {
-            numSegments = 3000; // 중급
-            hills = 500;
-            curves = 4;
-        } else {
-            numSegments = 4000; // 고수 (Touge)
-            hills = 1500;
-            curves = 6;
-        }
-
-        trackLength = numSegments * SEGMENT_LENGTH;
-
-        // 시작 지점
-        checkpointLocs.push({ pos: 10, name: "START", passed: false, color: "#00ff00" });
-
-        for (let i = 0; i < numSegments; i++) {
-            let curve = 0;
-            let y = 0;
-
-            // 절차적 코스 생성 (Procedural Generation)
-            if (level === 1) {
-                // 완만한 곡선
-                if (i > 300 && i < 800) curve = 2;
-                if (i > 1200 && i < 1700) curve = -2;
-            } else if (level === 2) {
-                // S자 코스
-                curve = Math.sin(i / 200) * curves; 
-                y = Math.sin(i / 300) * hills;
-            } else {
-                // 험난한 고개
-                curve = Math.sin(i / 150) * curves + Math.cos(i / 50) * 2;
-                y = Math.sin(i / 100) * hills;
-                if (i % 500 < 50) y += 500; // 점프대?
-            }
-
-            // 피니시 라인 근처는 평지/직선
-            if (i > numSegments - 100) {
-                curve = 0; 
-                y = 0;
-            }
-
-            const floorColor = (Math.floor(i / 3) % 2) ? '#222' : '#252525';
-            const rumbleColor = (Math.floor(i / 3) % 2) ? '#fff' : '#c00';
-            
-            let feature = null;
-            // 체크포인트 (시작, 골, 중간)
-            if (i === 10) feature = { type: 'arch', name: 'START', color: '#00ff00' };
-            if (i === numSegments - 20) feature = { type: 'arch', name: 'GOAL', color: '#ff0055' };
-
-            segments.push({
-                index: i,
-                p1: { world: { x: 0, y: y, z: i * SEGMENT_LENGTH }, camera: {}, screen: {} },
-                p2: { world: { x: 0, y: y, z: (i + 1) * SEGMENT_LENGTH }, camera: {}, screen: {} },
-                curve: curve,
-                color: { road: floorColor, rumble: rumbleColor },
-                feature: feature
-            });
-        }
-        
-        // 골 지점 등록
-        checkpointLocs.push({ pos: Math.floor(numSegments - 20), name: "GOAL", passed: false, color: "#ff0055" });
-    }
-
-    // --- 3D 엔진 유틸리티 ---
-    function project3D(x, y, z, cx, cy, scale, yaw) {
-        let cos = Math.cos(yaw);
-        let sin = Math.sin(yaw);
-        let rx = x * cos - z * sin;
-        let rz = x * sin + z * cos;
-        let ry = y;
-
-        const pitch = 0.2; 
-        let cosP = Math.cos(pitch);
-        let sinP = Math.sin(pitch);
-        let y2 = ry * cosP - rz * sinP;
-        let z2 = ry * sinP + rz * cosP;
-
-        const camZ = 500; 
-        const pz = z2 + camZ; 
-
-        if (pz <= 0) return { x: 0, y: 0, scale: 0, visible: false, depth: pz };
-        
-        const fov = 600; 
-        const proj = fov / pz;
-        
-        return {
-            x: cx + rx * proj * scale,
-            y: cy + y2 * proj * scale, 
-            scale: proj * scale,
-            visible: true,
-            depth: pz
-        };
-    }
-
-    function drawQuad(ctx, p1, p2, p3, p4, color, strokeColor) {
-        if (!p1.visible || !p2.visible || !p3.visible || !p4.visible) return;
-        ctx.fillStyle = color;
-        ctx.strokeStyle = strokeColor || color;
-        ctx.lineWidth = 1;
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y);
-        ctx.closePath(); ctx.fill(); ctx.stroke();
-    }
-
-    function project(p, cameraX, cameraY, cameraZ, cameraDepth, width, height, roadWidth) {
-        p.camera.x = (p.world.x || 0) - cameraX;
-        p.camera.y = (p.world.y || 0) - cameraY;
-        p.camera.z = (p.world.z || 0) - cameraZ;
-        if (p.camera.z <= 0) p.screen.scale = 0;
-        else p.screen.scale = cameraDepth / p.camera.z;
-        p.screen.x = (width / 2) + (p.screen.scale * p.camera.x * width / 2);
-        p.screen.y = (height / 2) - (p.screen.scale * p.camera.y * height / 2);
-        p.screen.w = (p.screen.scale * roadWidth * width / 2);
-    }
-
-    function polygon(ctx, x1, y1, x2, y2, x3, y3, x4, y4, color) {
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3); ctx.lineTo(x4, y4);
-        ctx.closePath(); ctx.fill();
-    }
-
-    function showMessage(text, color='#fff', duration=2000) {
-        // 게임 상태 메시지와 겹치지 않게 처리 (간단한 인게임 알림용)
-        if (gameState !== 'play') return; 
-
-        const msg = document.createElement('div');
-        msg.innerText = text;
-        msg.style.position = 'absolute';
-        msg.style.top = '40%';
-        msg.style.left = '50%';
-        msg.style.transform = 'translate(-50%, -50%)';
-        msg.style.fontSize = '40px';
-        msg.style.color = color;
-        msg.style.textShadow = '0 0 10px #000';
-        msg.style.pointerEvents = 'none';
-        msg.style.zIndex = '30';
-        msg.style.animation = 'pop 0.5s ease-out';
-        document.body.appendChild(msg);
-        setTimeout(() => msg.remove(), duration);
-    }
-
-    function setCenterMessage(title, sub, show=true) {
-        centerMsg.style.display = show ? 'block' : 'none';
-        if (show) {
-            centerMsg.innerHTML = `${title}<br><span id="center-sub">${sub}</span>`;
-        }
-    }
-
-    function render() {
-        const width = canvas.width;
-        const height = canvas.height;
-        ctx.clearRect(0, 0, width, height);
-
-        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-        bgGrad.addColorStop(0, '#0a0a2a');
-        bgGrad.addColorStop(1, '#000');
-        ctx.fillStyle = bgGrad;
-        ctx.fillRect(0, 0, width, height);
-
-        ctx.fillStyle = '#fffc';
-        ctx.beginPath(); ctx.arc(width*0.8, 100, 40, 0, Math.PI*2); ctx.fill();
-
-        // **수정된 부분: 도로 데이터(segments)가 없으면 렌더링 중단**
-        if (segments.length === 0) return;
-
-        let baseSegment = segments[Math.floor(position / SEGMENT_LENGTH) % segments.length];
-        let maxy = height; 
-        let dx = -(baseSegment.curve * (position % SEGMENT_LENGTH) / SEGMENT_LENGTH);
-        let x = 0; 
-        
-        for (let n = 0; n < DRAW_DISTANCE; n++) {
-            const currentIdx = (baseSegment.index + n);
-            if (currentIdx >= segments.length) break; // 끝이 있는 맵이므로 루프 안함
-
-            let segment = segments[currentIdx];
-            
-            let playerSegIdx = Math.floor((position+100)/SEGMENT_LENGTH);
-            let playerY = 0;
-            if (playerSegIdx < segments.length) playerY = segments[playerSegIdx].p1.world.y;
-
-            let camY = CAMERA_HEIGHT + playerY;
-
-            project(segment.p1, (playerX * ROAD_WIDTH) - x, camY, position, CAMERA_DEPTH, width, height, ROAD_WIDTH);
-            project(segment.p2, (playerX * ROAD_WIDTH) - x - dx, camY, position, CAMERA_DEPTH, width, height, ROAD_WIDTH);
-
-            x += dx; dx += segment.curve;
-
-            if (segment.p1.camera.z <= CAMERA_DEPTH || segment.p2.screen.y > maxy - 1 || segment.p2.screen.y >= segment.p1.screen.y) {
-                continue; 
-            }
-
-            let r1 = segment.p1.screen.w; let r2 = segment.p2.screen.w;
-            let l1 = segment.p1.screen.x; let l2 = segment.p2.screen.x;
-            let y1 = segment.p1.screen.y; let y2 = segment.p2.screen.y;
-
-            let renderY2 = y2 - 1; 
-
-            ctx.fillStyle = '#001100'; 
-            ctx.fillRect(0, renderY2, width, y1 - renderY2); 
-
-            polygon(ctx, l1 - r1 * 1.2, y1, l1 - r1, y1, l2 - r2, renderY2, l2 - r2 * 1.2, renderY2, segment.color.rumble);
-            polygon(ctx, l1 + r1 * 1.2, y1, l1 + r1, y1, l2 + r2, renderY2, l2 + r2 * 1.2, renderY2, segment.color.rumble);
-            polygon(ctx, l1 - r1, y1, l1 + r1, y1, l2 + r2, renderY2, l2 - r2, renderY2, segment.color.road);
-
-            if (segment.feature && segment.feature.type === 'arch') {
-                drawArch(ctx, l2, renderY2, r2, segment.feature);
-            }
-
-            maxy = y2; 
-        }
-
-        drawSkidMarks();
-        draw3DCarModel(); 
-    }
-
-    function drawArch(ctx, cx, cy, w, feature) {
-        const archWidth = w * 2.5; 
-        const archHeight = w * 2.0; 
-        const pillarW = w * 0.2;
-
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.fillStyle = '#444';
-        ctx.fillRect(-archWidth/2, -archHeight, pillarW, archHeight); 
-        ctx.fillRect(archWidth/2 - pillarW, -archHeight, pillarW, archHeight); 
-        ctx.fillStyle = feature.color || '#fff';
-        ctx.fillRect(-archWidth/2 - pillarW, -archHeight - pillarW, archWidth + pillarW*2, pillarW*2);
-        ctx.fillStyle = '#000';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.font = `bold ${Math.max(10, w * 0.8)}px sans-serif`;
-        ctx.fillText(feature.name, 0, -archHeight);
-        ctx.restore();
-    }
-
-    function drawSkidMarks() {
-        const width = canvas.width;
-        const height = canvas.height;
-        const carOffset = playerTurn * (width * 0.12);
-        const centerX = (width / 2) + carOffset;
-        const centerY = height - 20;
-        
-        ctx.save();
-        for(let i=0; i<skids.length; i++) {
-            const s = skids[i];
-            s.life -= 0.05;
-            s.y += (speed / maxSpeed) * 15; 
-            s.x -= (playerTurn * 5); 
-            if(s.life <= 0 || s.y > height) { skids.splice(i, 1); i--; continue; }
-            ctx.globalAlpha = s.life * 0.4;
-            ctx.fillStyle = '#fff'; 
-            ctx.beginPath();
-            ctx.arc(centerX + s.x, centerY + s.offsetY, s.size * (1 + (s.y/100)), 0, Math.PI*2);
-            ctx.fill();
-        }
-        ctx.restore();
-    }
-
-    function draw3DCarModel() {
-        const width = canvas.width;
-        const height = canvas.height;
-        const scale = width / 400; 
-        
-        const bounce = Math.sin(Date.now() / 50) * (speed / maxSpeed) * 3;
-        const carScreenOffset = playerTurn * (width * 0.12); 
-        const cx = (width / 2) + carScreenOffset;
-        const cy = height - 80 * (width/1200) + bounce;
-
-        // 차량 회전 각도 축소 (기존 PI/3 -> PI/6)
-        const maxAngle = Math.PI / 6; 
-        const driftFactor = driftMode ? 1.5 : 1.0;
-        const yaw = -playerTurn * maxAngle * driftFactor;
-
-        // 자동차 정점 데이터
-        const w = 35; const h = 24; const l = 75; 
-        const ch = 18; const cw = 28; const cl_f = 20; const cl_b = 40; 
-        const verts = [
-            {x:-w, y:0, z:l}, {x:w, y:0, z:l}, {x:w, y:0, z:-l}, {x:-w, y:0, z:-l}, // Bottom
-            {x:-w, y:-h, z:l}, {x:w, y:-h, z:l}, {x:w, y:-h, z:-l}, {x:-w, y:-h, z:-l}, // Body
-            {x:-cw, y:-h-ch, z:cl_f}, {x:cw, y:-h-ch, z:cl_f}, {x:cw, y:-h-ch, z:-cl_b}, {x:-cw, y:-h-ch, z:-cl_b} // Roof
-        ];
-        const pl_h = 6; 
-        verts.push({x:-w+5, y:-h-pl_h, z:l-10}, {x:-w+15, y:-h-pl_h, z:l-10}, {x:-w+15, y:-h, z:l-10}, {x:-w+5, y:-h, z:l-10}); // L Light
-        verts.push({x:w-15, y:-h-pl_h, z:l-10}, {x:w-5, y:-h-pl_h, z:l-10}, {x:w-5, y:-h, z:l-10}, {x:w-15, y:-h, z:l-10}); // R Light
-
-        const pVerts = verts.map(v => project3D(v.x, v.y, v.z, cx, cy, scale, yaw));
-        const isFrontFacing = (p1, p2, p3) => (p2.x - p1.x) * (p3.y - p1.y) - (p2.y - p1.y) * (p3.x - p1.x) > 0;
-        const faces = [];
-        const addFace = (indices, col, stroke, type) => {
-            const p = indices.map(i => pVerts[i]);
-            if (p.some(v => !v.visible)) return;
-            if (!isFrontFacing(p[0], p[1], p[2])) return;
-            faces.push({ verts: p, col: col, stroke: stroke, type: type });
-        };
-
-        addFace([4, 5, 1, 0], '#eee', '#ccc'); // Front
-        // Back
-        const backIdx = [7, 6, 2, 3];
-        const backP = backIdx.map(i => pVerts[i]);
-        if (backP.every(v => v.visible) && isFrontFacing(backP[0], backP[1], backP[2])) {
-            faces.push({ verts: backP, col: '#ccc', stroke: '#bbb' });
-            faces.push({ verts: backP, col: null, stroke: null, type: 'back_detail' });
-        }
-        addFace([3, 0, 4, 7], '#f4f4f4', '#ddd'); // Left
-        addFace([3, 0, 4, 7], '#111', null, 'side_molding'); 
-        addFace([1, 2, 6, 5], '#f4f4f4', '#ddd'); // Right
-        addFace([1, 2, 6, 5], '#111', null, 'side_molding'); 
-        addFace([4, 5, 6, 7], '#fff', '#eee'); // Top Body
-        addFace([8, 9, 5, 4], '#222', '#111'); // Front Glass
-        addFace([11, 10, 6, 7], '#222', '#111'); // Rear Glass
-        addFace([8, 11, 7, 4], '#222', '#111'); // Left Glass
-        addFace([5, 6, 10, 9], '#222', '#111'); // Right Glass
-        addFace([8, 9, 10, 11], '#ddd', '#ccc'); // Roof
-        addFace([12, 13, 14, 15], '#fff', '#ccc'); // L Light
-        addFace([16, 17, 18, 19], '#fff', '#ccc'); // R Light
-
-        // Wheels
-        function create3DWheel(x, y, z, width, radius, isFront) {
-            const wheelFaces = [];
-            const segments = 8;
-            const wheelVerts = [];
-            let steerAngle = 0;
-            if (isFront) {
-                const steerLimit = 0.5;
-                if(keys.ArrowLeft) steerAngle = steerLimit;
-                else if(keys.ArrowRight) steerAngle = -steerLimit;
-                else if(Math.abs(analogSteer) > 0.1) steerAngle = -analogSteer * steerLimit;
-            }
-            for(let i=0; i<segments; i++) {
-                const theta = (i / segments) * Math.PI * 2;
-                wheelVerts.push({x: width/2, y: Math.cos(theta) * radius, z: Math.sin(theta) * radius}); // Outer
-            }
-            for(let i=0; i<segments; i++) {
-                const theta = (i / segments) * Math.PI * 2;
-                wheelVerts.push({x: -width/2, y: Math.cos(theta) * radius, z: Math.sin(theta) * radius}); // Inner
-            }
-            const transformedVerts = wheelVerts.map(v => {
-                let vx = v.x, vy = v.y, vz = v.z;
-                if(isFront) {
-                   const cosS = Math.cos(steerAngle);
-                   const sinS = Math.sin(steerAngle);
-                   const tx = vx * cosS - vz * sinS;
-                   const tz = vx * sinS + vz * cosS;
-                   vx = tx; vz = tz;
-                }
-                vx += x; vy += y; vz += z;
-                return project3D(vx, vy, vz, cx, cy, scale, yaw);
-            });
-            const outerPoly = [];
-            if (x > 0) { for(let i=segments-1; i>=0; i--) outerPoly.push(transformedVerts[i]); } 
-            else { for(let i=0; i<segments; i++) outerPoly.push(transformedVerts[i]); }
-            
-            if (outerPoly[0].visible && isFrontFacing(outerPoly[0], outerPoly[1], outerPoly[2])) {
-                wheelFaces.push({ verts: outerPoly, col: '#333', stroke: '#111', type: 'wheel_face' });
-            }
-            for(let i=0; i<segments; i++) {
-                const next = (i+1)%segments;
-                let poly;
-                if (x > 0) poly = [transformedVerts[next], transformedVerts[i], transformedVerts[i+segments], transformedVerts[next+segments]];
-                else poly = [transformedVerts[i], transformedVerts[next], transformedVerts[next+segments], transformedVerts[i+segments]];
-                if (poly[0].visible && isFrontFacing(poly[0], poly[1], poly[2])) {
-                    wheelFaces.push({ verts: poly, col: '#111', stroke: '#000', type: 'wheel_tread' });
-                }
-            }
-            return wheelFaces;
-        }
-
-        const wheelW = 10; const wheelR = 12; const wheelZ_F = l - 15; const wheelZ_B = -l + 15;
-        const allWheelFaces = [
-            ...create3DWheel(-w, 0, wheelZ_F, wheelW, wheelR, true), ...create3DWheel(w, 0, wheelZ_F, wheelW, wheelR, true),
-            ...create3DWheel(-w, 0, wheelZ_B, wheelW, wheelR, false), ...create3DWheel(w, 0, wheelZ_B, wheelW, wheelR, false)
-        ];
-
-        [...faces, ...allWheelFaces].forEach(f => {
-            let zSum = 0, count = 0;
-            f.verts.forEach(v => { if(v) { zSum += v.depth; count++; } });
-            f.z = count > 0 ? zSum / count : 0;
-        });
-        const allFaces = [...faces, ...allWheelFaces].sort((a, b) => b.z - a.z);
-
-        allFaces.forEach(f => {
-            if(!f.verts[0] || !f.verts[0].visible) return;
-            if (f.type === 'side_molding') return; 
-
-            if (f.type === 'wheel_face') {
-                const pts = f.verts;
-                ctx.fillStyle = '#333'; ctx.strokeStyle = '#111'; ctx.lineWidth = 1;
-                ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
-                for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-                ctx.closePath(); ctx.fill(); ctx.stroke();
-                
-                let cx=0, cy=0; pts.forEach(p=>{cx+=p.x; cy+=p.y;}); cx/=pts.length; cy/=pts.length;
-                ctx.fillStyle = '#888'; ctx.beginPath();
-                for(let i=0; i<pts.length; i++) {
-                    const px = cx + (pts[i].x - cx)*0.6; const py = cy + (pts[i].y - cy)*0.6;
-                    if(i===0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-                }
-                ctx.closePath(); ctx.fill();
-                return;
-            }
-            if (f.type === 'back_detail') {
-                const p = f.verts; 
-                const lerp = (a, b, t) => ({ x: a.x + (b.x-a.x)*t, y: a.y + (b.y-a.y)*t });
-                const ml = lerp(p[3], p[0], 0.4); const mr = lerp(p[2], p[1], 0.4); 
-                
-                ctx.fillStyle = '#111'; ctx.beginPath(); ctx.moveTo(ml.x, ml.y); ctx.lineTo(mr.x, mr.y); ctx.lineTo(p[2].x, p[2].y); ctx.lineTo(p[3].x, p[3].y); ctx.fill();
-
-                const tl = lerp(p[3], p[0], 0.5); const tr = lerp(p[2], p[1], 0.5);
-                const tlh = lerp(p[3], p[0], 0.7); const trh = lerp(p[2], p[1], 0.7);
-                
-                ctx.fillStyle = '#aa0000';
-                if(keys.ArrowDown || keys.Space || keys.ShiftLeft) { ctx.fillStyle = '#ff0000'; ctx.shadowBlur=10; ctx.shadowColor='red'; }
-                
-                ctx.beginPath();
-                const l1 = lerp(tl, tr, 0.05); const l2 = lerp(tl, tr, 0.4);
-                const l1h = lerp(tlh, trh, 0.05); const l2h = lerp(tlh, trh, 0.4);
-                ctx.moveTo(l1h.x, l1h.y); ctx.lineTo(l2h.x, l2h.y); ctx.lineTo(l2.x, l2.y); ctx.lineTo(l1.x, l1.y); ctx.fill();
-
-                ctx.beginPath();
-                const r1 = lerp(tl, tr, 0.6); const r2 = lerp(tl, tr, 0.95);
-                const r1h = lerp(tlh, trh, 0.6); const r2h = lerp(tlh, trh, 0.95);
-                ctx.moveTo(r1h.x, r1h.y); ctx.lineTo(r2h.x, r2h.y); ctx.lineTo(r2.x, r2.y); ctx.lineTo(r1.x, r1.y); ctx.fill(); ctx.shadowBlur=0;
-
-                ctx.fillStyle = '#f1c40f';
-                const plateY = (ml.y + p[0].y) * 0.5; const plateW = (mr.x - ml.x) * 0.2; const plateX = (ml.x + mr.x) * 0.5 - plateW/2;
-                ctx.fillRect(plateX, plateY - 5, plateW, 10);
-                return;
-            }
-            if(f.verts.length === 4) drawQuad(ctx, f.verts[0], f.verts[1], f.verts[2], f.verts[3], f.col, f.stroke);
-            if (f.col === '#222') { 
-                ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.beginPath();
-                ctx.moveTo(f.verts[0].x, f.verts[0].y); ctx.lineTo(f.verts[1].x, f.verts[1].y); ctx.lineTo(f.verts[2].x, f.verts[2].y); ctx.fill();
-            }
-        });
-    }
-
-    // --- 업데이트 ---
-    function update(dt) {
-        if (gameState !== 'play') return;
-
-        position = (position + speed * dt);
-        
-        // 체크포인트 및 골 처리
-        const currentSegIndex = Math.floor((position + 100) / SEGMENT_LENGTH);
-        checkpointLocs.forEach(cp => {
-            if (!cp.passed && currentSegIndex >= cp.pos) {
-                cp.passed = true;
-                showMessage(cp.name, cp.color);
-                
-                if (cp.name === "GOAL") {
-                    levelComplete();
-                } else {
-                    score += 5000;
-                }
-            }
-        });
-
-        const accelInput = keys.ArrowUp;
-        const brakeInput = keys.ArrowDown || keys.Space || keys.ShiftLeft;
-        
-        let turnInput = 0;
-        if(keys.ArrowLeft) turnInput = -1;
-        else if(keys.ArrowRight) turnInput = 1;
-        else turnInput = analogSteer; 
-
-        if (accelInput) speed += accel;
-        else if (brakeInput) speed -= breaking;
-        else speed -= decel;
-
-        speed = Math.max(0, Math.min(speed, maxSpeed));
-
-        const isTurning = Math.abs(turnInput) > 0.1;
-        driftMode = brakeInput && isTurning && speed > 4000;
-
-        if (driftMode) {
-            driftMsg.style.display = 'block';
-            speed -= 20; 
-            if (Math.random() > 0.3) {
-                skids.push({ x: (Math.random()-0.5)*40 - playerTurn*120, y: 0, offsetY: 0, life: 1.0, size: Math.random()*5+5 });
-            }
-        } else {
-            driftMsg.style.display = 'none';
-        }
-
-        let targetTurn = 0;
-        let turnLimit = driftMode ? 1.5 : 0.7; 
-
-        if(Math.abs(turnInput) > 0) targetTurn = turnInput * turnLimit;
-        
-        const smoothing = driftMode ? 2.0 : 4.0;
-        playerTurn = playerTurn + (targetTurn - playerTurn) * dt * smoothing;
-
-        if (speed > 0) {
-            // 좌우 이동 속도 증가 (0.04 -> 0.06)
-            let moveAmount = (speed / maxSpeed) * 0.06 * playerTurn;
-            playerX += moveAmount;
-            
-            // 맵 끝에 다다르면 더 이상 나아가지 않음 (무한루프 방지)
-            if (position < trackLength) {
-                const playerSegment = segments[Math.floor((position + 100) / SEGMENT_LENGTH) % segments.length];
-                playerX -= (playerSegment.curve * 0.00015) * (speed / maxSpeed);
-            }
-        }
-
-        if ((playerX < -1 || playerX > 1) && speed > offRoadDecel) speed -= offRoadDecel;
-        playerX = Math.max(-2, Math.min(2, playerX));
-
-        speedDisplay.innerText = Math.floor(speed / 100);
-        score += Math.floor(speed / 1000);
-        scoreDisplay.innerText = score;
-        distDisplay.innerText = Math.floor(position / 1000) + "m";
-    }
-
-    function levelComplete() {
-        gameState = 'clear';
-        showMessage("LEVEL COMPLETED!", "#0ff", 3000);
-        
-        // 자동 브레이크 효과
-        const stopInterval = setInterval(() => {
-            speed -= 100;
-            if (speed <= 0) {
-                speed = 0;
-                clearInterval(stopInterval);
-                
-                if (currentLevel < MAX_LEVEL) {
-                    setCenterMessage(`LEVEL ${currentLevel} CLEARED`, "TAP TO NEXT LEVEL");
-                } else {
-                    setCenterMessage("ALL LEVELS CLEARED!", "YOU ARE THE DRIFT KING!");
-                }
-            }
-        }, 50);
-    }
-
-    // --- 입력 처리 (UI 및 컨트롤) ---
-    function handleInputStart() {
-        if (gameState === 'start') {
-            initLevel(1);
-        } else if (gameState === 'clear') {
-            if (currentLevel < MAX_LEVEL) {
-                initLevel(currentLevel + 1);
-            } else {
-                // 게임 클리어 후 처음으로
-                score = 0;
-                initLevel(1);
-            }
-            setCenterMessage("", "", false);
         }
     }
 
