@@ -3,874 +3,662 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Skeleton Knight's Revenge: Final</title>
+    <title>Skeleton Knight's Awakening</title>
     <style>
-        body {
-            background-color: #1a1a1a;
-            color: white;
-            margin: 0;
-            overflow: hidden;
-            font-family: 'DungGeunMo', monospace, sans-serif;
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
-        }
+        body { background-color: #1a1a1a; color: white; margin: 0; overflow: hidden; font-family: 'DungGeunMo', monospace, sans-serif; touch-action: none; user-select: none; -webkit-user-select: none; }
+        #game-container { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; background: #000; }
+        canvas { image-rendering: pixelated; display: block; }
         
-        #game-container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: #000;
-        }
-
-        canvas {
-            image-rendering: pixelated;
-            display: block;
-        }
-
-        /* UI 공통 */
-        .overlay { position: absolute; pointer-events: none; text-shadow: 2px 2px 0 #000; z-index: 10; }
-
-        #stat-bar {
-            top: 10px; left: 10px; right: 10px;
-            display: flex; justify-content: space-between; align-items: center;
-            background: rgba(0, 0, 0, 0.7); padding: 10px 20px;
-            border-radius: 8px; border: 2px solid #888;
-            font-size: 16px; pointer-events: auto; flex-wrap: wrap;
-        }
-        .stat-item { margin-right: 15px; }
-        .btn-group button {
-            background: #444; color: white; border: 1px solid #fff;
-            padding: 5px 10px; cursor: pointer; margin-left: 5px; font-family: inherit;
-        }
-        .btn-group button:hover { background: #666; }
-
-        #dialog-box {
-            bottom: 180px; left: 50%; transform: translateX(-50%);
-            width: 80%; max-width: 600px;
-            background: rgba(0, 0, 0, 0.9); border: 3px solid #fff;
-            padding: 20px; font-size: 18px; display: none;
-            white-space: pre-line; line-height: 1.6; z-index: 20; text-align: center;
-        }
-
-        #start-screen, #ending-screen, #map-screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9); display: flex; flex-direction: column;
-            justify-content: center; align-items: center; z-index: 100; text-align: center;
-        }
-        #ending-screen, #map-screen { display: none; z-index: 200; }
+        /* UI 오버레이 */
+        .overlay { position: absolute; pointer-events: none; text-shadow: 1px 1px 0 #000; z-index: 10; }
         
-        h1 { color: #e74c3c; font-size: 40px; margin-bottom: 10px; }
-        .keys { color: #f1c40f; margin: 20px 0; font-size: 20px; line-height: 1.5; }
+        /* 상단 바 (소형화) */
+        #top-bar {
+            top: 5px; left: 5px; right: 5px;
+            display: flex; flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: center;
+            background: rgba(0, 0, 0, 0.6); padding: 5px 10px;
+            border-radius: 5px; border: 1px solid #666;
+            pointer-events: auto; font-size: 12px;
+        }
+        .stat-group { display: flex; align-items: center; margin-right: 10px; }
+        .bar-bg { width: 60px; height: 6px; background: #333; display: inline-block; margin: 0 5px; position: relative; border: 1px solid #555; }
+        .bar-fill { height: 100%; display: block; }
+        .hp-fill { background: #e74c3c; } .mp-fill { background: #3498db; } .exp-fill { background: #f1c40f; }
         
-        .big-btn {
-            padding: 15px 40px; font-size: 24px; background: #e74c3c;
-            color: white; border: 4px solid #fff; cursor: pointer;
-            font-family: inherit; margin-top: 10px; animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        /* 버튼 스타일 */
+        .ui-btn { background: #444; color: white; border: 1px solid #fff; padding: 2px 6px; cursor: pointer; font-family: inherit; font-size: 11px; margin-left: 2px; }
+        .ui-btn:hover { background: #666; }
 
-        /* 지도 스타일 (수정됨) */
-        #map-canvas {
-            border: 4px solid gold;
-            background: #000;
-            image-rendering: pixelated;
-            margin-bottom: 20px;
-            /* 캔버스 실제 크기는 512px이지만 화면에는 300px로 축소하여 표시 */
-            width: 300px; 
-            height: 300px;
-        }
-        .map-legend { font-size: 14px; margin-bottom: 10px; color: #ccc; }
-        .legend-item { display: inline-block; margin: 0 5px; }
-        .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
-
-        /* === 패널 공통 === */
+        /* 패널 공통 */
         .game-panel {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 90%; max-width: 500px;
-            background: #2c3e50; border: 4px solid gold;
-            padding: 20px; display: none; text-align: center;
-            pointer-events: auto; z-index: 50;
-            box-shadow: 0 0 50px rgba(0,0,0,0.8);
-            max-height: 90vh; overflow-y: auto;
+            width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto;
+            background: #2c3e50; border: 3px solid gold; padding: 15px;
+            display: none; text-align: center; pointer-events: auto; z-index: 50;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
         }
-        .panel-header { color: gold; margin-bottom: 15px; border-bottom: 2px solid gold; padding-bottom: 10px; }
-        .panel-btn {
-            background: #e74c3c; color: white; border: none;
-            padding: 10px 20px; margin: 5px; cursor: pointer;
-            font-size: 16px; border-radius: 4px; font-family: inherit; width: 100%; margin-bottom: 10px;
-        }
-        .panel-btn:hover { background: #c0392b; }
-        .panel-btn.secondary { background: #555; }
-        .panel-btn:disabled { background: #777; cursor: not-allowed; opacity: 0.6; }
+        .panel-header { color: gold; margin-bottom: 10px; border-bottom: 2px solid gold; padding-bottom: 5px; font-size: 20px; }
+        .close-btn { position: absolute; top: 5px; right: 5px; background: #c0392b; border: none; color: white; cursor: pointer; }
 
-        #casino-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        #casino-menu button { height: 60px; font-size: 18px; width: auto; margin: 0; }
+        /* 상태창 & 인벤토리 */
+        .tab-menu { display: flex; justify-content: center; margin-bottom: 10px; }
+        .tab-btn { flex: 1; padding: 8px; background: #333; border: 1px solid #555; color: #aaa; cursor: pointer; }
+        .tab-btn.selected { background: #e67e22; border-color: gold; color: white; font-weight: bold; }
+        
+        .stat-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #444; font-size: 14px; }
+        .stat-up-btn { background: #27ae60; width: 20px; height: 20px; padding: 0; line-height: 20px; margin-left: 5px; border: none; color: white; cursor: pointer; }
+        
+        .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+        .inv-item { background: rgba(0,0,0,0.3); padding: 8px; border: 1px solid #555; text-align: left; font-size: 12px; }
+        .inv-item.equipped { border-color: lime; background: rgba(0, 255, 0, 0.1); }
+        .item-name { font-weight: bold; color: #fff; margin-bottom: 3px; display: block; }
+        .item-desc { font-size: 11px; color: #aaa; margin-bottom: 5px; display: block; }
+        .item-btn { background: #555; border: 1px solid #777; color: white; width: 100%; cursor: pointer; }
 
-        .game-view { display: none; }
-        .game-view.active { display: block; }
-        .result-msg { height: 30px; font-weight: bold; color: yellow; margin: 10px 0; }
-        .bet-info { background: rgba(0,0,0,0.3); padding: 10px; margin: 10px 0; border-radius: 5px; }
-        .bet-control { background: #333; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 18px; }
-        .bet-control input { background: #000; border: 1px solid #fff; color: gold; font-family: inherit; font-size: 18px; width: 100px; text-align: right; padding: 5px; }
+        /* 스킬 슬롯 */
+        #skill-bar {
+            bottom: 20px; right: 20px; display: flex; gap: 8px; pointer-events: auto;
+        }
+        .skill-slot {
+            width: 50px; height: 50px; background: rgba(0,0,0,0.8); border: 2px solid #888;
+            position: relative; display: flex; justify-content: center; align-items: center;
+            font-size: 20px; cursor: pointer; flex-direction: column;
+        }
+        .skill-slot.active { border-color: #3498db; box-shadow: 0 0 10px #3498db; }
+        .skill-cooldown {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center;
+            font-size: 12px; color: white;
+        }
+        .skill-key { position: absolute; top: 2px; left: 2px; font-size: 9px; color: gold; }
 
-        /* 미니게임 캔버스 */
-        .minigame-canvas {
-            margin: 10px auto; background: #004400;
-            border: 4px solid #d4af37; border-radius: 8px;
-            box-shadow: inset 0 0 20px #000; display: block;
-        }
-        #roulette-canvas { border-radius: 50%; background: #222; }
-        #slot-canvas { background: #333; }
-        #race-canvas { background: #2e7d32; }
-        #rps-canvas { background: #222; }
+        /* 기타 */
+        #map-canvas { border: 2px solid gold; background: #000; width: 250px; height: 250px; image-rendering: pixelated; margin: 0 auto; display: block;}
+        #toast { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); padding: 8px 16px; border-radius: 15px; display: none; z-index: 100; border: 1px solid white; font-size: 14px; }
+        .damage-text { position: absolute; font-weight: bold; font-size: 14px; animation: floatUp 0.8s forwards; pointer-events: none; text-shadow: 1px 1px 0 #000; }
+        @keyframes floatUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-30px); opacity: 0; } }
 
-        /* 모바일 컨트롤 */
-        #mobile-controls {
-            position: absolute; bottom: 20px; left: 0; width: 100%; height: 160px;
-            pointer-events: none; display: none; justify-content: space-between;
-            padding: 0 40px; box-sizing: border-box; z-index: 900;
-        }
-        @media (hover: none) and (pointer: coarse), (max-width: 768px) {
-            #mobile-controls { display: flex; }
-        }
-
-        .dpad-container { position: relative; width: 140px; height: 140px; pointer-events: auto; }
-        .dpad-btn {
-            position: absolute; width: 45px; height: 45px;
-            background: rgba(255, 255, 255, 0.2); border: 2px solid rgba(255, 255, 255, 0.5);
-            border-radius: 10px; display: flex; justify-content: center; align-items: center;
-            font-size: 20px; color: rgba(255,255,255,0.8); touch-action: none;
-        }
-        .dpad-btn:active, .dpad-btn.pressed { background: rgba(255, 255, 255, 0.5); }
-        #btn-up { top: 0; left: 47.5px; } #btn-down { bottom: 0; left: 47.5px; }
-        #btn-left { top: 47.5px; left: 0; } #btn-right { top: 47.5px; right: 0; }
-
-        .action-container { position: relative; width: 100px; height: 140px; display: flex; align-items: center; justify-content: center; pointer-events: auto; }
-        #action-btn {
-            width: 80px; height: 80px; border-radius: 50%; background: rgba(231, 76, 60, 0.6);
-            border: 4px solid rgba(255, 255, 255, 0.6); color: white; font-size: 24px; font-weight: bold;
-            display: flex; justify-content: center; align-items: center; touch-action: none;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-        }
-        #action-btn:active { background: rgba(231, 76, 60, 0.9); transform: scale(0.95); }
-
-        .shop-item {
-            display: flex; justify-content: space-between; align-items: center;
-            background: rgba(0,0,0,0.3); padding: 10px; margin-bottom: 8px; border-radius: 4px;
-        }
-        .shop-item span { text-align: left; font-size: 14px; }
-        .buy-btn { background: #27ae60; border: none; padding: 5px 10px; color: white; cursor: pointer; border-radius: 4px;}
-        .buy-btn:disabled { background: #555; cursor: default;}
-
-        #toast {
-            position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
-            background: rgba(0, 100, 0, 0.9); color: white;
-            padding: 10px 30px; border-radius: 20px; display: none; z-index: 999;
-            font-size: 18px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-        }
+        /* 모바일용 */
+        #mobile-controls { position: absolute; bottom: 20px; left: 20px; display: none; z-index: 90; }
+        @media (max-width: 768px) { #mobile-controls { display: block; } #skill-bar { bottom: 120px; } }
+        .dpad-btn { width: 45px; height: 45px; background: rgba(255,255,255,0.15); margin: 2px; display: inline-block; text-align: center; line-height: 45px; color: white; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); font-size: 18px; }
+        .dpad-btn:active { background: rgba(255,255,255,0.4); }
     </style>
 </head>
 <body>
 
-    <div id="game-container">
-        <canvas id="gameCanvas"></canvas>
-        
-        <div id="start-screen">
-            <h1>💀 해골 기사의 복수</h1>
-            <p>1. 노가다와 카지노로 돈을 모으세요.<br>2. 장비를 사면 <span style="color:gold;">성문</span>이 열립니다.<br>3. 밖으로 나가면 드넓은 평야에서 몬스터들이 기다립니다!</p>
-            <div class="keys">[이동] 방향키 / [공격] 스페이스바</div>
-            <button class="big-btn" onclick="startGameFlow()">게임 시작</button>
-        </div>
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
 
-        <div id="ending-screen">
-            <h1 style="color:gold;">👑 복수 성공!</h1>
-            <p>비열한 미카엘을 쓰러뜨리고<br>당신은 명예를 되찾았습니다.</p>
-            <p>최종 소지금: <span id="final-gold"></span>G</p>
-            <button class="big-btn" onclick="location.reload()">다시 하기</button>
-        </div>
-
-        <div id="map-screen">
-            <h2 style="color:gold;">🗺️ 월드 맵</h2>
-            <canvas id="map-canvas"></canvas>
-            <div class="map-legend">
-                <span class="legend-item"><span class="dot" style="background:#2e8b57;"></span>풀</span>
-                <span class="legend-item"><span class="dot" style="background:#3498db;"></span>물</span>
-                <span class="legend-item"><span class="dot" style="background:#8b4513;"></span>길</span>
-                <span class="legend-item"><span class="dot" style="background:#d3a95d;"></span>마을</span>
-                <span class="legend-item"><span class="dot" style="background:#440000;"></span>보스성</span>
+    <!-- 상단 정보창 (축소됨) -->
+    <div id="top-bar" class="overlay">
+        <div style="display: flex; align-items: center;">
+            <div class="stat-group">
+                <span>Lv.<span id="ui-lvl">1</span></span>
+                <div class="bar-bg"><div id="ui-exp-bar" class="bar-fill exp-fill" style="width:0%"></div></div>
             </div>
-            <p style="color:#aaa; font-size:14px;">(하얀 점은 현재 위치입니다)</p>
-            <button class="panel-btn secondary" style="width:200px;" onclick="toggleMap()">닫기</button>
-        </div>
-
-        <div id="stat-bar" class="overlay">
-            <div style="display:flex;">
-                <div class="stat-item">❤️ <span id="hp-display">100</span></div>
-                <div class="stat-item">⚡ <span id="energy-display">100</span></div>
-                <div class="stat-item">⚔️ <span id="atk-display">10</span></div>
-                <div class="stat-item">💰 <span id="gold-display" style="color:gold;">0</span>G</div>
-            </div>
-            <div class="btn-group">
-                <button onclick="toggleMap()">🗺️ 지도</button>
-                <button onclick="saveGame()">💾 저장</button>
-                <button onclick="loadGame()">📂 로드</button>
+            <div class="stat-group">
+                <span style="color:gold;">💰<span id="ui-gold">0</span></span>
             </div>
         </div>
-
-        <div id="mobile-controls">
-            <div class="dpad-container">
-                <div class="dpad-btn" id="btn-up">▲</div>
-                <div class="dpad-btn" id="btn-left">◀</div>
-                <div class="dpad-btn" id="btn-right">▶</div>
-                <div class="dpad-btn" id="btn-down">▼</div>
+        <div style="display: flex; align-items: center;">
+            <div class="stat-group">
+                <span style="color:#e74c3c;">HP</span>
+                <div class="bar-bg"><div id="ui-hp-bar" class="bar-fill hp-fill" style="width:100%"></div></div>
             </div>
-            <div class="action-container"><div id="action-btn">A</div></div>
-        </div>
-
-        <div id="dialog-box" class="overlay"></div>
-        <div id="toast">알림</div>
-
-        <div id="casino-panel" class="game-panel">
-            <h2 class="panel-header">🎰 고블린 카지노</h2>
-            <div class="bet-control">판돈: <input type="number" id="bet-input" value="100" min="10" step="10"> G</div>
-            <div id="casino-menu">
-                <button class="panel-btn" onclick="showGame('blackjack')">🃏 블랙잭</button>
-                <button class="panel-btn" onclick="showGame('roulette')">🎡 룰렛</button>
-                <button class="panel-btn" onclick="showGame('slots')">🍒 슬롯머신</button>
-                <button class="panel-btn" onclick="showGame('racing')">🐎 경마</button>
-                <button class="panel-btn" onclick="showGame('sicbo')">🎲 다이사이</button>
-                <button class="panel-btn" onclick="showGame('rps')">✌️✊✋ 가위바위보</button>
-                <button class="panel-btn secondary" onclick="closePanel()" style="grid-column: span 2;">🚪 나가기</button>
-            </div>
-            <div id="game-blackjack" class="game-view">
-                <h3>블랙잭</h3><div class="bet-info">(승리 시 2배)</div>
-                <canvas id="bj-canvas" class="minigame-canvas" width="300" height="200"></canvas>
-                <div id="bj-result" class="result-msg"></div>
-                <div id="bj-actions" class="hidden"><button class="panel-btn" style="width:auto;display:inline-block;" onclick="bjHit()">히트</button><button class="panel-btn" style="width:auto;display:inline-block;" onclick="bjStand()">스탠드</button></div>
-                <div id="bj-controls"><button class="panel-btn" onclick="startBlackjack()">게임 시작</button><button class="panel-btn secondary" onclick="backToMenu()">뒤로가기</button></div>
-            </div>
-            <div id="game-roulette" class="game-view">
-                <h3>리얼 룰렛</h3><div class="bet-info">(홀짝 2배 / 7 10배)</div>
-                <canvas id="roulette-canvas" class="minigame-canvas" width="300" height="300"></canvas>
-                <div id="roulette-result" class="result-msg"></div>
-                <div id="roulette-btns"><button class="panel-btn" style="width:30%;display:inline-block;" onclick="startRoulette('odd')">홀수</button><button class="panel-btn" style="width:30%;display:inline-block;" onclick="startRoulette('even')">짝수</button><button class="panel-btn" style="width:30%;display:inline-block;" onclick="startRoulette('lucky7')">7</button></div>
-                <button class="panel-btn secondary" onclick="backToMenu()" style="margin-top:10px;">뒤로가기</button>
-            </div>
-            <div id="game-slots" class="game-view">
-                <h3>슬롯머신</h3><div class="bet-info">(잭팟 50배)</div>
-                <canvas id="slot-canvas" class="minigame-canvas" width="300" height="150"></canvas>
-                <div id="slot-result" class="result-msg"></div>
-                <button class="panel-btn" id="slot-spin-btn" onclick="spinSlots()">돌리기</button><button class="panel-btn secondary" onclick="backToMenu()">뒤로가기</button>
-            </div>
-            <div id="game-racing" class="game-view">
-                <h3>해골 경마</h3><div class="bet-info">(우승 4배)</div>
-                <canvas id="race-canvas" class="minigame-canvas" width="350" height="200"></canvas>
-                <div id="race-result" class="result-msg"></div>
-                <div id="race-btns"><button class="panel-btn" style="width:20%;display:inline-block;" onclick="startRace(1)">1</button><button class="panel-btn" style="width:20%;display:inline-block;" onclick="startRace(2)">2</button><button class="panel-btn" style="width:20%;display:inline-block;" onclick="startRace(3)">3</button><button class="panel-btn" style="width:20%;display:inline-block;" onclick="startRace(4)">4</button></div>
-                <button class="panel-btn secondary" onclick="backToMenu()">뒤로가기</button>
-            </div>
-            <div id="game-sicbo" class="game-view">
-                <h3>다이사이</h3><div class="bet-info">(2배)</div>
-                <canvas id="sicbo-canvas" class="minigame-canvas" width="300" height="200"></canvas>
-                <div id="sicbo-result" class="result-msg"></div>
-                <div id="sicbo-btns"><button class="panel-btn" style="width:40%;display:inline-block;" onclick="playSicBo('small')">소</button><button class="panel-btn" style="width:40%;display:inline-block;" onclick="playSicBo('big')">대</button></div>
-                <button class="panel-btn secondary" onclick="backToMenu()" style="margin-top:10px;">뒤로가기</button>
-            </div>
-            <div id="game-rps" class="game-view">
-                <h3>가위바위보</h3><div class="bet-info">이기면 룰렛 찬스!</div>
-                <canvas id="rps-canvas" class="minigame-canvas" width="300" height="250"></canvas>
-                <div id="rps-result" class="result-msg"></div>
-                <div id="rps-btns"><button class="panel-btn" style="width:30%;display:inline-block;" onclick="playRPS('scissors')">✌️</button><button class="panel-btn" style="width:30%;display:inline-block;" onclick="playRPS('rock')">✊</button><button class="panel-btn" style="width:30%;display:inline-block;" onclick="playRPS('paper')">✋</button></div>
-                <div id="rps-bonus-btn" style="display:none;"><button class="panel-btn" onclick="spinRpsWheel()">룰렛 돌리기!</button></div>
-                <button class="panel-btn secondary" onclick="backToMenu()" style="margin-top:10px;">뒤로가기</button>
+            <div class="stat-group">
+                <span style="color:#3498db;">MP</span>
+                <div class="bar-bg"><div id="ui-mp-bar" class="bar-fill mp-fill" style="width:100%"></div></div>
             </div>
         </div>
-
-        <div id="shop-panel" class="game-panel">
-            <h2 class="panel-header">⚒️ 대장간</h2>
-            <p style="color:#aaa; font-size:14px; margin-bottom:10px;">(무기를 사면 성문이 열립니다)</p>
-            <div id="shop-items"></div>
-            <button class="panel-btn secondary" onclick="closePanel()">나가기</button>
+        <div>
+            <button class="ui-btn" onclick="toggleMenu()">메뉴(C)</button>
+            <button class="ui-btn" onclick="toggleMap()">지도(M)</button>
+            <button class="ui-btn" onclick="saveGame()">저장</button>
         </div>
-
-        <div id="inn-panel" class="game-panel">
-            <h2 class="panel-header">🏨 달빛 여관</h2>
-            <p>숙박비: 50G (HP/피로도 회복)</p>
-            <button class="panel-btn" onclick="sleepAtInn()">잠자기</button>
-            <button class="panel-btn secondary" onclick="closePanel()">나가기</button>
-        </div>
-
     </div>
 
+    <!-- 스킬 바 -->
+    <div id="skill-bar" class="overlay">
+        <div class="skill-slot" id="skill-1" onclick="toggleAutoSkill()">
+            <span class="skill-key">Auto</span>
+            <span id="skill-icon-1">💥</span>
+            <div class="skill-cooldown" id="cd-1"></div>
+        </div>
+        <div class="skill-slot" id="skill-2" onclick="useSkill(2)">
+            <span class="skill-key">H</span>
+            <span>❤️</span>
+            <div class="skill-cooldown" id="cd-2"></div>
+        </div>
+    </div>
+
+    <!-- 메뉴 패널 (상태창/인벤토리) -->
+    <div id="menu-panel" class="game-panel">
+        <button class="close-btn" onclick="toggleMenu()">X</button>
+        <div class="tab-menu">
+            <div id="tab-btn-status" class="tab-btn selected" onclick="switchTab('status')">능력치</div>
+            <div id="tab-btn-inventory" class="tab-btn" onclick="switchTab('inventory')">인벤토리</div>
+        </div>
+        
+        <!-- 상태창 -->
+        <div id="tab-status">
+            <h4 style="color:gold; margin:5px 0;">잔여 포인트: <span id="ui-stat-points">0</span></h4>
+            <div class="stat-row"><span>힘 (STR)</span> <div><span id="val-str">10</span> <button class="stat-up-btn" onclick="upStat('str')">+</button></div></div>
+            <div class="stat-row"><span>체력 (VIT)</span> <div><span id="val-vit">10</span> <button class="stat-up-btn" onclick="upStat('vit')">+</button></div></div>
+            <div class="stat-row"><span>지능 (INT)</span> <div><span id="val-int">10</span> <button class="stat-up-btn" onclick="upStat('int')">+</button></div></div>
+            <hr style="border-color:#444;">
+            <div class="stat-row"><span>공격력: <span id="total-atk">0</span></span> <span>방어력: <span id="total-def">0</span></span></div>
+        </div>
+
+        <!-- 인벤토리 -->
+        <div id="tab-inventory" style="display:none;">
+            <div id="inv-list" class="inv-grid"></div>
+        </div>
+    </div>
+
+    <!-- 상점 패널 -->
+    <div id="shop-panel" class="game-panel">
+        <h2 class="panel-header">💰 만물상점</h2>
+        <div id="shop-list" class="inv-grid"></div>
+        <button class="ui-btn" style="margin-top:20px; padding: 5px 20px; font-size: 14px;" onclick="closePanel()">나가기</button>
+    </div>
+
+    <!-- 지도 패널 -->
+    <div id="map-panel" class="game-panel">
+        <h2 class="panel-header">월드 맵</h2>
+        <canvas id="map-canvas"></canvas>
+        <p style="font-size:12px; color:#aaa;">(초록:초급 / 주황:중급 / 빨강:고급 / 보라:보스)</p>
+        <button class="ui-btn" style="padding: 5px 20px; font-size: 14px;" onclick="toggleMap()">닫기</button>
+    </div>
+
+    <!-- 시작 화면 -->
+    <div id="start-screen" style="position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:100; text-align:center; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+        <h1 style="color:#e74c3c; margin-bottom:10px;">💀 해골의 각성</h1>
+        <p style="color:#ccc; font-size:14px; line-height:1.6;">
+            몬스터를 잡아 레벨업하고 스탯을 찍으세요.<br>
+            스킬을 배우고 장비를 맞춰 마왕을 처단하세요.
+        </p>
+        <button style="padding:10px 30px; font-size:20px; background:#e74c3c; border:2px solid white; color:white; cursor:pointer; margin-top:20px;" onclick="startGameFlow()">게임 시작</button>
+    </div>
+
+    <!-- 엔딩 화면 -->
+    <div id="ending-screen" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:200; text-align:center; padding-top:20%;">
+        <h1 style="color:gold;">👑 복수 성공!</h1>
+        <p>마왕을 물리쳤습니다. 당신은 전설이 되었습니다.</p>
+        <button style="padding:10px 30px; font-size:20px; cursor:pointer;" onclick="location.reload()">다시 하기</button>
+    </div>
+
+    <!-- 토스트 & 데미지 컨테이너 -->
+    <div id="toast"></div>
+    <div id="damage-container" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:90;"></div>
+
+    <!-- 모바일 컨트롤 -->
+    <div id="mobile-controls">
+        <div style="text-align:center;">
+            <div class="dpad-btn" onpointerdown="startMove(0,-1)" onpointerup="stopMove()" onpointerleave="stopMove()">▲</div><br>
+            <div class="dpad-btn" onpointerdown="startMove(-1,0)" onpointerup="stopMove()" onpointerleave="stopMove()">◀</div>
+            <div class="dpad-btn" onpointerdown="startMove(0,1)" onpointerup="stopMove()" onpointerleave="stopMove()">▼</div>
+            <div class="dpad-btn" onpointerdown="startMove(1,0)" onpointerup="stopMove()" onpointerleave="stopMove()">▶</div>
+        </div>
+    </div>
+</div>
+
 <script>
+    // === 1. 설정 및 상수 ===
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    const dialogBox = document.getElementById('dialog-box');
-    const goldDisplay = document.getElementById('gold-display');
-    const hpDisplay = document.getElementById('hp-display');
-    const energyDisplay = document.getElementById('energy-display');
-    const atkDisplay = document.getElementById('atk-display');
-
     const TILE_SIZE = 40;
-    const MAP_SIZE = 512;
-    const TILE = { GRASS: 0, WATER: 1, MOUNTAIN: 2, VILLAGE: 3, WALL: 4, GATE: 5, BOSS_WALL: 6, BOSS_FLOOR: 7, SHOP: 8, CASINO: 9, ROAD: 10, INN: 11, SCARECROW: 12 };
-    const STATE = { MENU: 'menu', EXPLORE: 'explore', DIALOG: 'dialog', MINIGAME: 'minigame', MAP: 'map' };
-    
-    let currentState = STATE.MENU;
-    let camera = { x: 0, y: 0 };
-    let mapData = [];
-    let particles = [];
-    let enemies = [];
-    let boss = null;
-    let gatesOpen = false;
+    const MAP_SIZE = 512; // 512x512 타일
 
-    const player = { 
-        x: 256, y: 256, gold: 500, hp: 100, maxHp: 100, energy: 100, maxEnergy: 100, atk: 10,
-        sprite: '💀', hasSword: false, hasArmor: false
+    const TILE = { GRASS:0, WATER:1, MOUNTAIN:2, VILLAGE:3, ROAD:4, WALL:5, GATE:6, SHOP:7, CASINO:8, BOSS:9, BOSS_WALL:10, INN:11 };
+    
+    // 게임 상태
+    let mapData = [];
+    let enemies = [];
+    let camera = { x: 0, y: 0 };
+    let gatesOpen = false;
+    let autoSkill = false;
+    let moveTimer = null;
+
+    // 플레이어 객체
+    const player = {
+        x: 256, y: 256,
+        lvl: 1, exp: 0, maxExp: 100,
+        gold: 500,
+        str: 10, vit: 10, int: 10, statPoints: 0,
+        hp: 100, maxHp: 100,
+        mp: 50, maxMp: 50,
+        atk: 0, def: 0,
+        equip: { weapon: null, armor: null },
+        inventory: [],
+        sprite: '💀'
     };
 
+    // 스킬 데이터
+    const skills = {
+        smash: { name: "강타", cost: 10, dmgMult: 2.5, cd: 3000, last: 0 },
+        heal: { name: "회복", cost: 20, heal: 30, cd: 5000, last: 0 }
+    };
+
+    // 아이템 데이터
+    const itemDB = {
+        w1: { name: "녹슨 검", type: "weapon", atk: 10, cost: 500, desc: "오래된 검" },
+        w2: { name: "뼈 분쇄기", type: "weapon", atk: 30, cost: 2000, desc: "뼈를 부수는 둔기" },
+        w3: { name: "용사의 검", type: "weapon", atk: 60, cost: 8000, desc: "빛나는 검" },
+        a1: { name: "가죽 갑옷", type: "armor", def: 5, cost: 500, desc: "질긴 가죽" },
+        a2: { name: "철 갑옷", type: "armor", def: 15, cost: 2500, desc: "단단한 철" },
+        a3: { name: "드래곤 아머", type: "armor", def: 40, cost: 10000, desc: "전설의 갑옷" },
+        p1: { name: "체력 포션", type: "use", heal: 50, cost: 50, desc: "HP 50 회복" },
+        p2: { name: "마나 포션", type: "use", mp: 30, cost: 50, desc: "MP 30 회복" }
+    };
+
+    // === 2. 초기화 및 맵 생성 ===
+    
+    // 화면 리사이즈 함수
     function resizeCanvas() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
+        // 카메라 위치 업데이트가 필요할 경우
         if(typeof updateCamera === 'function') updateCamera();
+        if(typeof draw === 'function') draw();
     }
     window.addEventListener('resize', resizeCanvas);
 
+    function init() {
+        generateMap(); // 맵을 먼저 생성
+        resizeCanvas(); // 그 다음 캔버스 리사이즈 (draw 호출됨)
+        calcStats();
+        updateUI();
+        requestAnimationFrame(gameLoop);
+    }
+
     function generateMap() {
         for(let y=0; y<MAP_SIZE; y++) mapData.push(new Array(MAP_SIZE).fill(TILE.GRASS));
-        for(let i=0; i<300; i++) createBlob(TILE.MOUNTAIN, 10, 20);
-        for(let i=0; i<100; i++) createBlob(TILE.WATER, 5, 10);
-        for(let i=0; i<50; i++) createBlob(TILE.GRASS, 20, 50);
+        for(let i=0; i<400; i++) createBlob(TILE.MOUNTAIN, 10, 25);
+        for(let i=0; i<200; i++) createBlob(TILE.WATER, 5, 15);
+        for(let i=0; i<50; i++) createBlob(TILE.GRASS, 20, 40);
 
-        const center = MAP_SIZE / 2;
-        const vRad = 15;
-        for(let y=center-vRad; y<=center+vRad; y++) {
-            for(let x=center-vRad; x<=center+vRad; x++) {
-                if(Math.sqrt((x-center)**2 + (y-center)**2) < vRad) {
-                    mapData[y][x] = TILE.VILLAGE;
-                }
-                let dist = Math.sqrt((x-center)**2 + (y-center)**2);
-                if (dist >= vRad - 1 && dist <= vRad + 1) {
-                    if ((Math.abs(x-center) < 3 && y > center) || (Math.abs(x-center) < 3 && y < center) || 
-                        (Math.abs(y-center) < 3 && x > center) || (Math.abs(y-center) < 3 && x < center)) {
-                        mapData[y][x] = TILE.GATE;
-                    } else {
-                        mapData[y][x] = TILE.WALL;
-                    }
-                }
-            }
-        }
+        const cx = MAP_SIZE/2, cy = MAP_SIZE/2;
+        drawRect(cx-15, cy-15, 30, 30, TILE.VILLAGE);
+        drawRectBorder(cx-16, cy-16, 32, 32, TILE.WALL);
+        mapData[cy-16][cx] = TILE.GATE; mapData[cy+16][cx] = TILE.GATE;
+        mapData[cy][cx-16] = TILE.GATE; mapData[cy][cx+16] = TILE.GATE;
 
-        mapData[center-5][center] = TILE.CASINO;
-        mapData[center-5][center+1] = TILE.CASINO;
-        mapData[center+5][center] = TILE.SHOP;
-        mapData[center][center-5] = TILE.INN;
-        mapData[center+2][center+5] = TILE.SCARECROW;
-        
-        createRoads(center, vRad);
-        createBossCastle(50, 50);
-        spawnEnemies(center);
+        mapData[cy-5][cx] = TILE.SHOP;
+        mapData[cy+5][cx] = TILE.INN;
+        mapData[cy][cx-8] = TILE.CASINO;
+
+        createRoad(cx, cy-16, 0, -1, 200);
+        createRoad(cx, cy+16, 0, 1, 200);
+        createRoad(cx-16, cy, -1, 0, 200);
+        createRoad(cx+16, cy, 1, 0, 200);
+
+        drawRect(10, 10, 20, 20, TILE.BOSS_FLOOR);
+        drawRectBorder(10, 10, 20, 20, TILE.BOSS_WALL);
+        mapData[30][20] = TILE.BOSS_FLOOR;
+        enemies.push({x:20, y:20, type:'boss', name:'마왕', hp:2000, maxHp:2000, atk:100, exp:0, sprite:'👿'});
+
+        spawnZoneEnemies(cx, cy);
     }
 
-    function createRoads(center, vRad) {
-        const paveRoad = (x, y) => {
-            if(x<0||x>=MAP_SIZE||y<0||y>=MAP_SIZE) return;
-            if(mapData[y][x] !== TILE.WALL && mapData[y][x] !== TILE.GATE && 
-               mapData[y][x] !== TILE.VILLAGE && mapData[y][x] !== TILE.CASINO && 
-               mapData[y][x] !== TILE.SHOP && mapData[y][x] !== TILE.INN && 
-               mapData[y][x] !== TILE.SCARECROW) {
+    function createRoad(sx, sy, dx, dy, len) {
+        for(let i=1; i<len; i++) {
+            let x = sx + dx*i, y = sy + dy*i;
+            if(x>0 && x<MAP_SIZE && y>0 && y<MAP_SIZE) {
+                for(let ty=y-2; ty<=y+2; ty++) for(let tx=x-2; tx<=x+2; tx++) {
+                    if(tx>=0 && tx<MAP_SIZE && ty>=0 && ty<MAP_SIZE) {
+                        if(mapData[ty][tx] === TILE.WATER || mapData[ty][tx] === TILE.MOUNTAIN) mapData[ty][tx] = TILE.GRASS;
+                    }
+                }
                 mapData[y][x] = TILE.ROAD;
-                for(let dy=-3; dy<=3; dy++) {
-                    for(let dx=-3; dx<=3; dx++) {
-                        let nx = x+dx, ny = y+dy;
-                        if(nx>=0 && nx<MAP_SIZE && ny>=0 && ny<MAP_SIZE) {
-                            const t = mapData[ny][nx];
-                            if(t === TILE.WATER || t === TILE.MOUNTAIN) mapData[ny][nx] = TILE.GRASS;
-                        }
-                    }
-                }
-            }
-        };
-        const roadLen = 180;
-        for(let i=vRad+1; i < roadLen; i++) {
-            paveRoad(center, center-i); paveRoad(center, center+i);
-            paveRoad(center+i, center); paveRoad(center-i, center);
-        }
-        let cx = center, cy = center, bx = 50, by = 50;
-        let dist = Math.sqrt((bx-cx)**2 + (by-cy)**2);
-        for(let i=0; i<dist; i++) {
-            let t = i/dist; let x = Math.floor(cx + (bx-cx)*t); let y = Math.floor(cy + (by-cy)*t);
-            if(Math.sqrt((x-cx)**2 + (y-cy)**2) > vRad) paveRoad(x, y);
-        }
-    }
-
-    function createBlob(type, min, max) {
-        let cx = Math.floor(Math.random() * MAP_SIZE), cy = Math.floor(Math.random() * MAP_SIZE);
-        let size = Math.floor(Math.random() * (max - min) + min);
-        for(let y=cy-size; y<cy+size; y++) {
-            for(let x=cx-size; x<cx+size; x++) {
-                if(x>=0 && x<MAP_SIZE && y>=0 && y<MAP_SIZE) {
-                    if(Math.random() > 0.3) {
-                        if(mapData[y][x] === TILE.GRASS || mapData[y][x] === TILE.MOUNTAIN || mapData[y][x] === TILE.WATER) {
-                             mapData[y][x] = type;
-                        }
-                    } 
-                }
             }
         }
     }
 
-    function createBossCastle(bx, by) {
-        for(let y=by-5; y<=by+5; y++) {
-            for(let x=bx-5; x<=bx+5; x++) {
-                mapData[y][x] = TILE.BOSS_FLOOR;
-                if(y===by-5 || y===by+5 || x===bx-5 || x===bx+5) mapData[y][x] = TILE.BOSS_WALL;
-            }
+    function spawnZoneEnemies(cx, cy) {
+        for(let i=0; i<300; i++) {
+            let x = Math.floor(Math.random()*MAP_SIZE);
+            let y = Math.floor(Math.random()*MAP_SIZE);
+            if(mapData[y][x] !== TILE.GRASS) continue;
+            let dist = Math.sqrt((x-cx)**2 + (y-cy)**2);
+            if(dist < 30) continue;
+            let mob = null;
+            if(dist < 100) mob = {name:'슬라임', hp:30, atk:5, exp:10, sprite:'💧'};
+            else if(dist < 200) mob = {name:'고블린', hp:80, atk:20, exp:30, sprite:'👺'};
+            else mob = {name:'오크', hp:200, atk:50, exp:80, sprite:'🐗'};
+            if(mob) enemies.push({x, y, ...mob, maxHp: mob.hp});
         }
-        mapData[by+5][bx] = TILE.BOSS_FLOOR;
-        boss = { x: bx, y: by, hp: 1000, maxHp: 1000, atk: 50, sprite: '👿', name: '미카엘' };
     }
 
-    function spawnEnemies(center) {
-        for(let i=0; i<150; i++) spawnMob(center, 30, 100, {hp:30, atk:5, sprite:'🦠', name:'슬라임', exp:10});
-        for(let i=0; i<100; i++) spawnMob(center, 100, 200, {hp:100, atk:20, sprite:'👺', name:'고블린', exp:30});
-        for(let i=0; i<80; i++) spawnMob(center, 200, 350, {hp:250, atk:40, sprite:'💀', name:'암흑기사', exp:100});
+    function createBlob(tile, min, max) { 
+        let cx = Math.floor(Math.random()*MAP_SIZE), cy = Math.floor(Math.random()*MAP_SIZE);
+        let size = Math.floor(Math.random()*(max-min)+min);
+        for(let y=cy-size; y<cy+size; y++) for(let x=cx-size; x<cx+size; x++) 
+            if(x>=0 && x<MAP_SIZE && y>=0 && y<MAP_SIZE && Math.random()>0.3) mapData[y][x] = tile;
+    }
+    function drawRect(x,y,w,h,tile) { for(let j=y; j<y+h; j++) for(let i=x; i<x+w; i++) if(i>=0&&i<MAP_SIZE&&j>=0&&j<MAP_SIZE) mapData[j][i]=tile; }
+    function drawRectBorder(x,y,w,h,tile) { for(let j=y; j<=y+h; j++) for(let i=x; i<=x+w; i++) if(i===x||i===x+w||j===y||j===y+h) if(i>=0&&i<MAP_SIZE&&j>=0&&j<MAP_SIZE) mapData[j][i]=tile; }
+
+    // === 3. 게임 로직 ===
+    function calcStats() {
+        let addAtk = player.equip.weapon ? itemDB[player.equip.weapon].atk : 0;
+        let addDef = player.equip.armor ? itemDB[player.equip.armor].def : 0;
+        player.maxHp = player.vit * 10;
+        player.maxMp = player.int * 5;
+        player.atk = player.str * 2 + addAtk;
+        player.def = Math.floor(player.vit / 2) + addDef;
     }
 
-    function spawnMob(center, minR, maxR, stats) {
-        let spawned = false;
-        while(!spawned) {
-            let angle = Math.random() * Math.PI * 2;
-            let dist = Math.random() * (maxR - minR) + minR;
-            let ex = Math.floor(center + Math.cos(angle) * dist);
-            let ey = Math.floor(center + Math.sin(angle) * dist);
-            if (ex>=0 && ex<MAP_SIZE && ey>=0 && ey<MAP_SIZE && mapData[ey][ex] === TILE.GRASS) {
-                enemies.push({ x:ex, y:ey, ...stats, lastMove: 0 });
-                spawned = true;
-            }
+    function gainExp(amount) {
+        player.exp += amount;
+        showToast(`경험치 +${amount}`);
+        if(player.exp >= player.maxExp) {
+            player.lvl++;
+            player.exp -= player.maxExp;
+            player.maxExp = Math.floor(player.maxExp * 1.2);
+            player.statPoints += 3;
+            // 레벨업 시 즉시 회복
+            player.hp = player.maxHp;
+            player.mp = player.maxMp;
+            showToast(`⭐ 레벨 업! (Lv.${player.lvl})`);
         }
-    }
-    generateMap();
-
-    // --- 파티클 & 루프 ---
-    class Particle {
-        constructor(x, y, color) {
-            this.x = x; this.y = y; this.color = color;
-            this.vx = (Math.random() - 0.5) * 10; this.vy = (Math.random() - 0.5) * 10;
-            this.life = 1.0;
-        }
-        update() { this.x += this.vx; this.y += this.vy; this.life -= 0.05; }
-        draw(ctx, offsetX, offsetY) {
-            ctx.globalAlpha = this.life; ctx.fillStyle = this.color;
-            ctx.fillRect(this.x + offsetX, this.y + offsetY, 4, 4); ctx.globalAlpha = 1.0;
-        }
-    }
-    function spawnParticles(x, y, color, count=10) {
-        for(let i=0; i<count; i++) particles.push(new Particle(x * TILE_SIZE + 20, y * TILE_SIZE + 20, color));
+        updateUI();
     }
 
-    function updateCamera() {
-        camera.x = player.x * TILE_SIZE - canvas.width / 2 + (TILE_SIZE / 2);
-        camera.y = player.y * TILE_SIZE - canvas.height / 2 + (TILE_SIZE / 2);
-    }
-    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
-    
-    function update() {
-        if(currentState !== STATE.EXPLORE) return;
-        for(let i=particles.length-1; i>=0; i--) {
-            particles[i].update(); if(particles[i].life <= 0) particles.splice(i, 1);
+    setInterval(() => {
+        if(player.mp < player.maxMp) {
+            player.mp = Math.min(player.maxMp, player.mp + (player.int/5));
+            updateUI();
         }
+    }, 1000);
+
+    function gameLoop() {
         const now = Date.now();
-        enemies.forEach((e, idx) => {
-            if (!e.lastMove) e.lastMove = 0;
-            if (now - e.lastMove > 800) {
-                const dist = Math.abs(player.x - e.x) + Math.abs(player.y - e.y);
-                if (dist < 10) {
-                    let dx = Math.sign(player.x - e.x);
-                    let dy = Math.sign(player.y - e.y);
-                    if(Math.random() > 0.5) { if (Math.abs(player.x - e.x) > Math.abs(player.y - e.y)) dy = 0; else dx = 0; }
-                    let nx = e.x + dx;
-                    let ny = e.y + dy;
-                    if (nx === player.x && ny === player.y) { processEnemyAttack(e, idx); }
-                    else if (canMoveMob(nx, ny)) { e.x = nx; e.y = ny; }
+        // 몬스터 AI
+        enemies.forEach(e => {
+            if(e.type === 'boss' && e.hp <= 0) return;
+            if(!e.lastMove) e.lastMove = 0;
+            if(now - e.lastMove > 1000) { 
+                let dist = Math.abs(player.x - e.x) + Math.abs(player.y - e.y);
+                if(dist < 8) {
+                    let dx = Math.sign(player.x - e.x), dy = Math.sign(player.y - e.y);
+                    if(Math.abs(player.x - e.x) > Math.abs(player.y - e.y)) dy = 0; else dx = 0;
+                    let nx = e.x + dx, ny = e.y + dy;
+                    if(nx === player.x && ny === player.y) {
+                        let dmg = Math.max(1, e.atk - player.def);
+                        player.hp -= dmg;
+                        showDamage(player.x, player.y, dmg, 'red');
+                        if(player.hp <= 0) gameOver();
+                    } else if (mapData[ny][nx] !== TILE.WALL && mapData[ny][nx] !== TILE.WATER) {
+                        e.x = nx; e.y = ny;
+                    }
                 }
                 e.lastMove = now;
             }
         });
+        
+        draw();
+        updateUI(); // 쿨타임 UI 갱신
+        requestAnimationFrame(gameLoop);
     }
 
-    function canMoveMob(x, y) {
-        if(x<0||x>=MAP_SIZE||y<0||y>=MAP_SIZE) return false;
-        const t = mapData[y][x]; 
-        return t === TILE.GRASS || t === TILE.ROAD || t === TILE.BOSS_FLOOR;
-    }
-
-    function processEnemyAttack(enemy, idx) {
-        player.hp -= enemy.atk;
-        spawnParticles(player.x, player.y, '#ffffff', 3);
-        enemy.hp -= player.atk;
-        spawnParticles(enemy.x, enemy.y, '#ff0000', 3);
-        if (enemy.hp <= 0) {
-            showToast(`${enemy.name} 처치! +${enemy.exp}G`);
-            player.gold += enemy.exp;
-            enemies.splice(idx, 1);
+    function attack(targetIdx) {
+        const target = enemies[targetIdx];
+        let dmg = player.atk;
+        const now = Date.now();
+        
+        if(autoSkill && player.mp >= skills.smash.cost && now - skills.smash.last > skills.smash.cd) {
+            player.mp -= skills.smash.cost;
+            skills.smash.last = now;
+            dmg = Math.floor(dmg * skills.smash.dmgMult);
+            showDamage(target.x, target.y, "강타!", 'gold');
         }
-        if (player.hp <= 0) {
-            player.hp = 0; alert("사망했습니다... 마을로 귀환합니다.");
-            player.hp = player.maxHp; player.energy = player.maxEnergy; 
-            player.x = MAP_SIZE/2; player.y = MAP_SIZE/2; player.gold = Math.floor(player.gold / 2);
+
+        target.hp -= dmg;
+        showDamage(target.x, target.y, dmg, 'white');
+        
+        if(target.hp <= 0) {
+            gainExp(target.exp);
+            player.gold += target.exp * 2;
+            if(target.type === 'boss') document.getElementById('ending-screen').style.display = 'block';
+            enemies.splice(targetIdx, 1);
         }
         updateUI();
     }
 
+    // 이름 변경: useSkill -> triggerSkill (재귀 호출 방지)
+    function triggerSkill(slot) {
+        const now = Date.now();
+        if(slot === 2) { 
+            if(player.mp >= skills.heal.cost && now - skills.heal.last > skills.heal.cd) {
+                player.mp -= skills.heal.cost;
+                player.hp = Math.min(player.maxHp, player.hp + skills.heal.heal);
+                skills.heal.last = now;
+                showDamage(player.x, player.y, "Heal", 'lime');
+                updateUI();
+            } else {
+                showToast("마나 부족 또는 쿨타임!");
+            }
+        }
+    }
+
+    function movePlayer(dx, dy) {
+        let nx = player.x + dx, ny = player.y + dy;
+        let enemyIdx = enemies.findIndex(e => e.x === nx && e.y === ny);
+        if(enemyIdx !== -1) { attack(enemyIdx); return; }
+
+        if(nx>=0 && nx<MAP_SIZE && ny>=0 && ny<MAP_SIZE) {
+            let t = mapData[ny][nx];
+            if(t !== TILE.WATER && t !== TILE.MOUNTAIN && t !== TILE.WALL && t !== TILE.BOSS_WALL) {
+                if(t === TILE.GATE && !gatesOpen) { showToast("무기를 장착해야 성문이 열립니다."); return; }
+                player.x = nx; player.y = ny;
+                if(t === TILE.SHOP) openShop();
+                if(t === TILE.INN) { player.hp=player.maxHp; player.mp=player.maxMp; showToast("회복 완료!"); }
+            }
+        }
+        camera.x = player.x * TILE_SIZE - window.innerWidth/2;
+        camera.y = player.y * TILE_SIZE - window.innerHeight/2;
+    }
+
     function draw() {
-        if (currentState === STATE.MENU || currentState === STATE.MAP) return;
-        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // 안전 장치: 맵 데이터가 없으면 그리지 않음
+        if(!mapData || mapData.length === 0) return;
+
+        ctx.fillStyle = '#000'; ctx.fillRect(0,0,canvas.width, canvas.height);
+        
+        // 화면 크기에 따른 렌더링 범위 동적 계산
+        const viewW = Math.ceil(canvas.width / TILE_SIZE) + 2;
+        const viewH = Math.ceil(canvas.height / TILE_SIZE) + 2;
+
         const startCol = Math.floor(camera.x / TILE_SIZE);
         const startRow = Math.floor(camera.y / TILE_SIZE);
-        const endCol = startCol + (canvas.width / TILE_SIZE) + 1;
-        const endRow = startRow + (canvas.height / TILE_SIZE) + 1;
-        const offsetX = -camera.x + startCol * TILE_SIZE;
-        const offsetY = -camera.y + startRow * TILE_SIZE;
-
-        for (let y = startRow; y <= endRow; y++) {
-            for (let x = startCol; x <= endCol; x++) {
-                if (y >= 0 && y < MAP_SIZE && x >= 0 && x < MAP_SIZE) {
-                    const tile = mapData[y][x];
-                    let color = '#2e8b57';
-                    if (tile === TILE.WATER) color = '#3498db'; 
-                    else if (tile === TILE.MOUNTAIN) color = '#555';
-                    else if (tile === TILE.VILLAGE) color = '#d3a95d'; 
-                    else if (tile === TILE.ROAD) color = '#8b4513';
-                    else if (tile === TILE.WALL) color = '#5d4037';
-                    else if (tile === TILE.GATE) color = gatesOpen ? '#8b4513' : '#3e2723';
-                    else if (tile === TILE.CASINO) color = '#8e44ad';
-                    else if (tile === TILE.SHOP) color = '#e67e22'; 
-                    else if (tile === TILE.INN) color = '#16a085'; 
-                    else if (tile === TILE.SCARECROW) color = '#d35400';
-                    else if (tile === TILE.BOSS_FLOOR) color = '#440000';
-                    else if (tile === TILE.BOSS_WALL) color = '#220000';
+        
+        for(let y=startRow; y<startRow+viewH; y++) {
+            for(let x=startCol; x<startCol+viewW; x++) {
+                if(x>=0 && x<MAP_SIZE && y>=0 && y<MAP_SIZE) {
+                    let c = '#222';
+                    let t = mapData[y][x];
+                    if(t===TILE.GRASS) c = '#2e8b57'; else if(t===TILE.WATER) c = '#3498db';
+                    else if(t===TILE.MOUNTAIN) c = '#555'; else if(t===TILE.ROAD) c = '#8b4513';
+                    else if(t===TILE.VILLAGE) c = '#d3a95d'; else if(t===TILE.GATE) c = gatesOpen?'#8b4513':'#3e2723';
+                    else if(t===TILE.SHOP) c = '#e67e22'; else if(t===TILE.INN) c = '#16a085';
+                    else if(t===TILE.BOSS_FLOOR) c = '#440000'; else if(t===TILE.WALL||t===TILE.BOSS_WALL) c='#4a2c2a';
                     
-                    ctx.fillStyle = color; 
-                    ctx.fillRect((x - startCol)*TILE_SIZE + offsetX, (y - startRow)*TILE_SIZE + offsetY, TILE_SIZE+1, TILE_SIZE+1);
-                    
-                    if (tile === TILE.CASINO) { ctx.font = '20px Arial'; ctx.fillStyle = '#fff'; ctx.fillText("🎰", (x-startCol)*TILE_SIZE+offsetX+8, (y-startRow)*TILE_SIZE+offsetY+28); }
-                    if (tile === TILE.SHOP) { ctx.font = '20px Arial'; ctx.fillStyle = '#fff'; ctx.fillText("⚒️", (x-startCol)*TILE_SIZE+offsetX+8, (y-startRow)*TILE_SIZE+offsetY+28); }
-                    if (tile === TILE.INN) { ctx.font = '20px Arial'; ctx.fillStyle = '#fff'; ctx.fillText("🏨", (x-startCol)*TILE_SIZE+offsetX+8, (y-startRow)*TILE_SIZE+offsetY+28); }
-                    if (tile === TILE.SCARECROW) { ctx.font = '20px Arial'; ctx.fillStyle = '#fff'; ctx.fillText("🎯", (x-startCol)*TILE_SIZE+offsetX+8, (y-startRow)*TILE_SIZE+offsetY+28); }
-                    if (tile === TILE.GATE && !gatesOpen) { ctx.font = '20px Arial'; ctx.fillStyle = '#fff'; ctx.fillText("🔒", (x-startCol)*TILE_SIZE+offsetX+8, (y-startRow)*TILE_SIZE+offsetY+28); }
+                    ctx.fillStyle = c; ctx.fillRect(x*TILE_SIZE - camera.x, y*TILE_SIZE - camera.y, TILE_SIZE, TILE_SIZE);
+                    if(t===TILE.SHOP) drawText('⚒️', x, y);
+                    if(t===TILE.INN) drawText('🏨', x, y);
+                    if(t===TILE.CASINO) drawText('🎰', x, y);
                 }
             }
         }
         enemies.forEach(e => {
-            const ex = e.x * TILE_SIZE - camera.x; const ey = e.y * TILE_SIZE - camera.y;
-            if(ex > -TILE_SIZE && ex < canvas.width && ey > -TILE_SIZE && ey < canvas.height) {
-                ctx.font = '30px Arial'; ctx.fillText(e.sprite, ex + 5, ey + 30);
-                ctx.fillStyle = 'red'; ctx.fillRect(ex, ey-5, 40, 4);
-                ctx.fillStyle = 'lime'; ctx.fillRect(ex, ey-5, 40 * (e.hp/30), 4);
+            if(isInView(e.x, e.y)) {
+                drawText(e.sprite, e.x, e.y, 30);
+                let sx = e.x*TILE_SIZE - camera.x; let sy = e.y*TILE_SIZE - camera.y;
+                ctx.fillStyle='red'; ctx.fillRect(sx, sy-5, 40, 4);
+                ctx.fillStyle='lime'; ctx.fillRect(sx, sy-5, 40*(e.hp/e.maxHp), 4);
             }
         });
-        if(boss && boss.hp > 0) {
-            const bx = boss.x * TILE_SIZE - camera.x; const by = boss.y * TILE_SIZE - camera.y;
-            ctx.font = '60px Arial'; ctx.fillText(boss.sprite, bx - 10, by + 40);
-            ctx.fillStyle = 'red'; ctx.fillRect(bx-20, by-20, 80, 8);
-            ctx.fillStyle = 'lime'; ctx.fillRect(bx-20, by-20, 80 * (boss.hp/boss.maxHp), 8);
-        }
-        particles.forEach(p => p.draw(ctx, -camera.x, -camera.y));
-        const px = player.x * TILE_SIZE - camera.x; const py = player.y * TILE_SIZE - camera.y;
-        ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.ellipse(px + 20, py + 35, 10, 5, 0, 0, Math.PI * 2); ctx.fill();
-        if(player.hasSword) { ctx.font = '20px Arial'; ctx.fillText('🗡️', px - 10, py + 25); }
-        ctx.font = '30px Arial'; ctx.fillText(player.sprite, px + 5, py + 30);
-        if(player.hasArmor) { ctx.font = '20px Arial'; ctx.fillText('🛡️', px + 30, py + 25); }
+        let px = player.x*TILE_SIZE - camera.x; let py = player.y*TILE_SIZE - camera.y;
+        ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.ellipse(px+20, py+35, 10, 5, 0, 0, Math.PI*2); ctx.fill();
+        if(player.equip.weapon) { ctx.font='20px sans-serif'; ctx.fillText('⚔️', px-10, py+25); }
+        ctx.font='30px sans-serif'; ctx.fillText(player.sprite, px+5, py+30);
+        if(player.equip.armor) { ctx.font='20px sans-serif'; ctx.fillText('🛡️', px+30, py+25); }
     }
-    resizeCanvas(); gameLoop();
 
-    // --- 시스템 로직 ---
-    function startGameFlow() {
-        document.getElementById('start-screen').style.display = 'none';
-        currentState = STATE.EXPLORE; updateUI();
-        showDialog("피로도에 주의하세요!\n허수아비를 쳐서 돈을 벌거나 여관에서 쉬세요.");
+    function drawText(txt, x, y, size=24) {
+        let sx = x*TILE_SIZE - camera.x; let sy = y*TILE_SIZE - camera.y;
+        if(sx > -TILE_SIZE && sx < canvas.width && sy > -TILE_SIZE && sy < canvas.height) {
+            ctx.font = `${size}px Arial`; ctx.fillText(txt, sx+5, sy+30);
+        }
     }
+    function isInView(x, y) { return x*TILE_SIZE - camera.x > -TILE_SIZE && x*TILE_SIZE - camera.x < canvas.width && y*TILE_SIZE - camera.y > -TILE_SIZE && y*TILE_SIZE - camera.y < canvas.height; }
+
+    // === UI ===
+    function updateUI() {
+        calcStats();
+        document.getElementById('ui-lvl').innerText = player.lvl;
+        document.getElementById('ui-gold').innerText = player.gold;
+        document.getElementById('ui-hp-bar').style.width = `${(player.hp/player.maxHp)*100}%`;
+        document.getElementById('ui-mp-bar').style.width = `${(player.mp/player.maxMp)*100}%`;
+        document.getElementById('ui-exp-bar').style.width = `${(player.exp/player.maxExp)*100}%`;
+        
+        document.getElementById('ui-stat-points').innerText = player.statPoints;
+        document.getElementById('val-str').innerText = player.str;
+        document.getElementById('val-vit').innerText = player.vit;
+        document.getElementById('val-int').innerText = player.int;
+        document.getElementById('total-atk').innerText = player.atk;
+        document.getElementById('total-def').innerText = player.def;
+
+        updateCooldownUI('cd-1', skills.smash);
+        updateCooldownUI('cd-2', skills.heal);
+    }
+
+    function updateCooldownUI(id, skill) {
+        const el = document.getElementById(id);
+        const diff = Date.now() - skill.last;
+        if(diff < skill.cd) { el.style.display='flex'; el.innerText=((skill.cd-diff)/1000).toFixed(1); } else el.style.display='none';
+    }
+
+    // === 기능 ===
+    window.toggleAutoSkill = () => { autoSkill = !autoSkill; document.getElementById('skill-1').classList.toggle('active', autoSkill); showToast(autoSkill?"자동 스킬 ON":"자동 스킬 OFF"); };
+    window.upStat = (type) => { if(player.statPoints>0){ player.statPoints--; player[type]++; calcStats(); updateUI(); } };
     
-    function updateUI() { 
-        goldDisplay.innerText = player.gold; hpDisplay.innerText = player.hp; atkDisplay.innerText = player.atk;
-        energyDisplay.innerText = player.energy;
-    }
+    // 수정: useSkill 호출 시 triggerSkill 사용
+    window.useSkill = (s) => triggerSkill(s);
     
-    function handleInput(dx, dy) {
-        if (currentState !== STATE.EXPLORE) return;
-        const nx = player.x + dx, ny = player.y + dy;
-        if(boss && boss.hp > 0 && nx === boss.x && ny === boss.y) { attackTarget(boss); return; }
-        let hitIdx = enemies.findIndex(e => e.x === nx && e.y === ny);
-        if(hitIdx !== -1) { attackTarget(enemies[hitIdx], hitIdx); return; }
-        if(mapData[ny][nx] === TILE.SCARECROW) { hitScarecrow(); return; }
-        if (canMove(nx, ny)) { player.x = nx; player.y = ny; updateCamera(); }
-        else {
-            if (mapData[ny][nx] === TILE.GATE && !gatesOpen) showDialog("🔒 잠김. (무기 필요)");
+    window.toggleMenu = () => { let p = document.getElementById('menu-panel'); p.style.display = p.style.display==='block'?'none':'block'; switchTab('status'); };
+    window.switchTab = (t) => {
+        document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('selected'));
+        document.getElementById('tab-btn-'+t).classList.add('selected');
+        document.getElementById('tab-status').style.display=t==='status'?'block':'none';
+        document.getElementById('tab-inventory').style.display=t==='inventory'?'block':'none';
+        if(t==='inventory') renderInventory();
+    };
+    function renderInventory() {
+        const l = document.getElementById('inv-list'); l.innerHTML='';
+        player.inventory.forEach(id => {
+            const i = itemDB[id]; const d = document.createElement('div'); d.className='inv-item';
+            if(player.equip.weapon===id || player.equip.armor===id) d.classList.add('equipped');
+            d.innerHTML = `<span class="item-name">${i.name}</span><span class="item-desc">${i.desc}</span><button class="item-btn" onclick="equipItem('${id}')">${(player.equip.weapon === id || player.equip.armor === id) ? '해제' : '장착/사용'}</button>`;
+            l.appendChild(d);
+        });
+    }
+    window.equipItem = (id) => {
+        const i = itemDB[id];
+        if(i.type === 'use') {
+            if(i.heal) player.hp = Math.min(player.maxHp, player.hp + i.heal);
+            if(i.mp) player.mp = Math.min(player.maxMp, player.mp + i.mp);
+            showToast(`${i.name} 사용함`);
+            // 사용한 아이템 인벤토리에서 제거 (1개만)
+            const idx = player.inventory.indexOf(id);
+            if(idx > -1) player.inventory.splice(idx, 1);
+        } else if(i.type==='weapon') {
+            player.equip.weapon = (player.equip.weapon===id)?null:id;
+            if(i.type==='weapon' && player.equip.weapon) gatesOpen=true; 
+        } else if(i.type==='armor') {
+            player.equip.armor = (player.equip.armor===id)?null:id;
         }
-    }
-
-    function canMove(x, y) {
-        if(x<0||x>=MAP_SIZE||y<0||y>=MAP_SIZE) return false;
-        const t = mapData[y][x]; 
-        if (t === TILE.BOSS_WALL) return false;
-        if (t === TILE.WALL) return false;
-        if (t === TILE.GATE && !gatesOpen) return false;
-        return t !== TILE.WATER && t !== TILE.MOUNTAIN;
-    }
-
-    function consumeEnergy(amount) {
-        if (player.energy < amount) { showToast("💦 너무 지쳤습니다! 여관으로 가세요."); return false; }
-        player.energy -= amount; updateUI(); return true;
-    }
-    function hitScarecrow() {
-        if(!consumeEnergy(1)) return;
-        player.gold += 1; spawnParticles(player.x * TILE_SIZE + 60, player.y * TILE_SIZE + 20, 'gold', 5); updateUI();
-    }
-    function attackTarget(target, idx) {
-        if(!consumeEnergy(2)) return;
-        spawnParticles(target.x, target.y, '#ff0000', 5);
-        target.hp -= player.atk; 
-        if(target.hp <= 0) {
-            if(target === boss) {
-                showDialog(`미카엘 처단!`);
-                setTimeout(() => { document.getElementById('final-gold').innerText = player.gold; document.getElementById('ending-screen').style.display = 'flex'; }, 2000);
-            } else {
-                showToast(`${target.name} 처치! (+${target.exp || 50}G)`); 
-                enemies.splice(idx, 1); player.gold += (target.exp || 50); spawnParticles(player.x, player.y, 'gold', 10);
-            }
-        } else {
-            player.hp -= target.atk; spawnParticles(player.x, player.y, '#ffffff', 3);
-            if(player.hp <= 0) {
-                player.hp = 0; alert("사망... 마을로 귀환합니다.");
-                player.hp = player.maxHp; player.energy = player.maxEnergy; player.x = MAP_SIZE/2; player.y = MAP_SIZE/2; player.gold = Math.floor(player.gold / 2);
-            }
-        }
-        updateUI();
-    }
-    function checkInteraction() {
-        const t = mapData[player.y][player.x];
-        if (t === TILE.CASINO) openPanel('casino'); else if (t === TILE.SHOP) openPanel('shop'); 
-        else if (t === TILE.INN) openPanel('inn'); else showDialog("아무것도 없다.");
-    }
-
-    function openPanel(type) {
-        if (document.getElementById('mobile-controls')) document.getElementById('mobile-controls').style.display = 'none';
-        if(type === 'casino') { document.getElementById('casino-panel').style.display = 'block'; currentState = STATE.MINIGAME; backToMenu(); }
-        else if(type === 'shop') { document.getElementById('shop-panel').style.display = 'block'; currentState = STATE.DIALOG; renderShop(); }
-        else if(type === 'inn') { document.getElementById('inn-panel').style.display = 'block'; currentState = STATE.DIALOG; }
-    }
-    function closePanel() {
-        document.querySelectorAll('.game-panel').forEach(el => el.style.display = 'none');
-        currentState = STATE.EXPLORE;
-        document.getElementById('mobile-controls').style.removeProperty('display');
-    }
-    window.sleepAtInn = function() {
-        if(player.gold < 50) { showToast("돈이 부족합니다!"); return; }
-        player.gold -= 50; player.hp = player.maxHp; player.energy = player.maxEnergy; updateUI();
-        showToast("푹 잤습니다. 회복 완료!"); closePanel();
-    }
-
-    const shopItems = [
-        { id: 'w1', name: '녹슨 검 (공+10)', cost: 1000, type: 'atk', val: 10 },
-        { id: 'w2', name: '뼈 분쇄기 (공+25)', cost: 3000, type: 'atk', val: 25 },
-        { id: 'w3', name: '기사의 검 (공+50)', cost: 8000, type: 'atk', val: 50 },
-        { id: 'a1', name: '가죽 갑옷 (체+50)', cost: 1000, type: 'hp', val: 50 },
-        { id: 'a2', name: '흑요석 갑옷 (체+150)', cost: 4000, type: 'hp', val: 150 },
-        { id: 'a3', name: '황금 갑옷 (체+300)', cost: 10000, type: 'hp', val: 300 },
-        { id: 'p1', name: '체력 포션 (회복)', cost: 200, type: 'heal', val: 9999 }
-    ];
+        calcStats(); updateUI(); renderInventory();
+    };
+    function openShop() { document.getElementById('shop-panel').style.display='block'; renderShop(); }
+    window.closePanel = () => document.querySelectorAll('.game-panel').forEach(e=>e.style.display='none');
     function renderShop() {
-        const c = document.getElementById('shop-items'); c.innerHTML = '';
-        shopItems.forEach(i => {
-            const d = document.createElement('div'); d.className = 'shop-item';
-            d.innerHTML = `<span>${i.name}</span><button class="buy-btn" onclick="buyItem('${i.id}')">${i.cost}G</button>`;
-            c.appendChild(d);
-        });
-    }
-    window.buyItem = function(id) {
-        const i = shopItems.find(x => x.id === id);
-        if(player.gold < i.cost) { showToast("돈이 부족합니다!"); return; }
-        player.gold -= i.cost;
-        if(i.type === 'atk') {
-            player.atk += i.val; player.hasSword = true; showToast("공격력 증가!"); 
-            if(!gatesOpen) { gatesOpen = true; alert("⚔️ 무기 장착! 성문이 열리고 길이 드러납니다!"); } 
+        const l = document.getElementById('shop-list'); l.innerHTML='';
+        for(let id in itemDB) {
+            const i = itemDB[id]; const d = document.createElement('div'); d.className='inv-item';
+            d.innerHTML=`<span class="item-name">${i.name}</span><span class="item-desc">${i.desc}</span><button class="item-btn" style="background:#e67e22" onclick="buyItem('${id}')">${i.cost}G 구매</button>`;
+            l.appendChild(d);
         }
-        else if(i.type === 'hp') { player.maxHp += i.val; player.hp += i.val; player.hasArmor = true; showToast("최대 체력 증가!"); }
-        else if(i.type === 'heal') { player.hp = Math.min(player.hp + i.val, player.maxHp); showToast("체력 회복 완료."); }
-        updateUI(); spawnParticles(canvas.width/2/TILE_SIZE + camera.x/TILE_SIZE, canvas.height/2/TILE_SIZE + camera.y/TILE_SIZE, 'white', 20);
     }
+    window.buyItem = (id) => {
+        const i = itemDB[id];
+        if(player.gold >= i.cost) {
+            player.gold -= i.cost;
+            player.inventory.push(id); 
+            showToast("구매 완료");
+            if(i.type === 'weapon') gatesOpen = true; 
+            updateUI();
+        } else showToast("골드 부족");
+    };
 
-    // --- 지도 시스템 (수정됨) ---
-    window.toggleMap = function() {
-        const mapScreen = document.getElementById('map-screen');
-        if (mapScreen.style.display === 'flex') { mapScreen.style.display = 'none'; currentState = STATE.EXPLORE; }
-        else { if (currentState !== STATE.EXPLORE) return; mapScreen.style.display = 'flex'; currentState = STATE.MAP; drawMiniMap(); }
-    }
-    function drawMiniMap() {
-        const mCanvas = document.getElementById('map-canvas'); 
-        const mCtx = mCanvas.getContext('2d');
-        
-        // 캔버스 해상도를 실제 맵 데이터 크기에 맞춤 (선명하게 그리기 위함)
-        mCanvas.width = MAP_SIZE;
-        mCanvas.height = MAP_SIZE;
-
-        const imgData = mCtx.createImageData(MAP_SIZE, MAP_SIZE);
-        const data = imgData.data;
-
-        for (let y = 0; y < MAP_SIZE; y++) {
-            for (let x = 0; x < MAP_SIZE; x++) {
-                const index = (y * MAP_SIZE + x) * 4;
-                const tile = mapData[y][x];
-                let r=0, g=0, b=0;
-
-                // 타일별 색상 지정
-                if (tile === TILE.GRASS) { r=46; g=139; b=87; }
-                else if (tile === TILE.WATER) { r=52; g=152; b=219; }
-                else if (tile === TILE.MOUNTAIN) { r=85; g=85; b=85; }
-                else if (tile === TILE.VILLAGE) { r=211; g=169; b=93; }
-                else if (tile === TILE.ROAD || tile === TILE.GATE) { r=139; g=69; b=19; }
-                else if (tile === TILE.WALL) { r=93; g=64; b=55; }
-                else if (tile === TILE.CASINO) { r=142; g=68; b=173; }
-                else if (tile === TILE.SHOP) { r=230; g=126; b=34; }
-                else if (tile === TILE.INN) { r=22; g=160; b=133; }
-                else if (tile === TILE.SCARECROW) { r=211; g=84; b=0; }
-                else if (tile === TILE.BOSS_FLOOR || tile === TILE.BOSS_WALL) { r=68; g=0; b=0; }
-                
-                data[index] = r;
-                data[index+1] = g;
-                data[index+2] = b;
-                data[index+3] = 255;
+    window.toggleMap = () => {
+        const p = document.getElementById('map-panel');
+        if(p.style.display==='block') { p.style.display='none'; return; }
+        p.style.display='block';
+        const mc = document.getElementById('map-canvas'); const mctx = mc.getContext('2d');
+        // 축소 맵 그리기 (250x250)
+        mctx.fillStyle='#000'; mctx.fillRect(0,0,250,250);
+        const step = MAP_SIZE/250;
+        for(let y=0; y<250; y++) {
+            for(let x=0; x<250; x++) {
+                let mx = Math.floor(x*step), my = Math.floor(y*step);
+                let t = mapData[my][mx], c = '#000';
+                if(t===TILE.GRASS) c='#2e8b57'; else if(t===TILE.WATER) c='#3498db'; else if(t===TILE.ROAD) c='#8b4513';
+                else if(t===TILE.VILLAGE) c='#d3a95d'; else if(t===TILE.BOSS_FLOOR) c='#440000';
+                mctx.fillStyle=c; mctx.fillRect(x,y,1,1);
             }
         }
-        mCtx.putImageData(imgData, 0, 0);
+        mctx.fillStyle='white'; mctx.fillRect(player.x/step, player.y/step, 3, 3);
+    };
 
-        // 플레이어 위치 (잘 보이게)
-        mCtx.fillStyle = 'white';
-        mCtx.beginPath(); mCtx.arc(player.x, player.y, 4, 0, Math.PI * 2); mCtx.fill();
-        mCtx.strokeStyle = 'red'; mCtx.lineWidth = 2; mCtx.stroke();
-        
-        // 보스 위치
-        if(boss && boss.hp > 0) {
-            mCtx.fillStyle = 'purple'; mCtx.fillRect(boss.x-4, boss.y-4, 8, 8);
+    window.showToast = (msg) => { const t = document.getElementById('toast'); t.innerText=msg; t.style.display='block'; setTimeout(()=>t.style.display='none', 2000); };
+    function showDamage(x, y, dmg, color) {
+        const el = document.createElement('div'); el.className='damage-text';
+        el.style.left = (x*TILE_SIZE - camera.x + 10)+'px'; el.style.top = (y*TILE_SIZE - camera.y)+'px';
+        el.innerText = dmg; el.style.color = color;
+        document.getElementById('damage-container').appendChild(el);
+        setTimeout(()=>el.remove(), 800);
+    }
+    
+    // updateCamera 함수 (누락 복구)
+    function updateCamera() {
+        camera.x = player.x * TILE_SIZE - canvas.width / 2 + (TILE_SIZE / 2);
+        camera.y = player.y * TILE_SIZE - canvas.height / 2 + (TILE_SIZE / 2);
+    }
+
+    function gameOver() { alert("사망했습니다."); player.hp=player.maxHp; player.x=256; player.y=256; }
+    window.startGameFlow = () => document.getElementById('start-screen').style.display='none';
+    window.saveGame = () => { localStorage.setItem('save_v71', JSON.stringify(player)); showToast("저장됨"); };
+    
+    // 키보드 & 터치
+    window.addEventListener('keydown', e => {
+        if(e.key==='ArrowUp') movePlayer(0,-1); if(e.key==='ArrowDown') movePlayer(0,1);
+        if(e.key==='ArrowLeft') movePlayer(-1,0); if(e.key==='ArrowRight') movePlayer(1,0);
+        if(e.key==='c'||e.key==='C') toggleMenu(); if(e.key==='m'||e.key==='M') toggleMap();
+        if(e.key===' ') {
+            let closeIdx = -1, minD = 2;
+            enemies.forEach((en, i) => {
+                let d = Math.abs(en.x-player.x) + Math.abs(en.y-player.y);
+                if(d < minD) { minD = d; closeIdx = i; }
+            });
+            if(closeIdx !== -1) attack(closeIdx);
         }
-    }
-
-    function showToast(msg) {
-        const t = document.getElementById('toast'); t.innerText = msg; t.style.display = 'block';
-        setTimeout(() => t.style.display = 'none', 2000);
-    }
-    window.saveGame = function() { if(currentState !== STATE.EXPLORE) return; localStorage.setItem('skeletonRPG_v15', JSON.stringify({ ...player, gatesOpen })); showToast("저장 완료!"); };
-    window.loadGame = function() {
-        const s = localStorage.getItem('skeletonRPG_v15'); if(!s) { showToast("저장된 파일 없음"); return; }
-        const d = JSON.parse(s); Object.assign(player, d); gatesOpen = d.gatesOpen; updateUI(); updateCamera(); showToast("로드 완료!");
-    };
-    function showDialog(t) { const d = document.getElementById('dialog-box'); d.innerText = t; d.style.display = 'block'; setTimeout(() => d.style.display='none', 2000); }
-
-    window.addEventListener('keydown', (e) => {
-        if (currentState === STATE.MENU || currentState === STATE.MINIGAME || currentState === STATE.MAP) return;
-        let dx=0, dy=0;
-        if (e.key === 'ArrowUp') dy=-1; if (e.key === 'ArrowDown') dy=1;
-        if (e.key === 'ArrowLeft') dx=-1; if (e.key === 'ArrowRight') dx=1;
-        if (dx||dy) handleInput(dx,dy);
-        if (e.key === ' ') checkInteraction();
-        if (e.key === 'm' || e.key === 'M') toggleMap();
     });
+    window.startMove = (dx,dy) => { movePlayer(dx,dy); moveTimer = setInterval(()=>movePlayer(dx,dy), 150); };
+    window.stopMove = () => clearInterval(moveTimer);
 
-    let moveInterval = null;
-    function setupTouchButton(id, dx, dy) {
-        const btn = document.getElementById(id);
-        const start = (e) => { e.preventDefault(); btn.classList.add('pressed'); handleInput(dx,dy); moveInterval=setInterval(()=>handleInput(dx,dy),150); };
-        const end = (e) => { e.preventDefault(); btn.classList.remove('pressed'); clearInterval(moveInterval); };
-        btn.addEventListener('touchstart', start, {passive:false}); btn.addEventListener('touchend', end, {passive:false});
-    }
-    setupTouchButton('btn-up',0,-1); setupTouchButton('btn-down',0,1);
-    setupTouchButton('btn-left',-1,0); setupTouchButton('btn-right',1,0);
-    document.getElementById('action-btn').addEventListener('touchstart', (e)=>{e.preventDefault(); checkInteraction();}, {passive:false});
-
-    // === 카지노 ===
-    window.backToMenu = function() { document.querySelectorAll('.game-view').forEach(el => el.classList.remove('active')); document.getElementById('casino-menu').style.display = 'grid'; };
-    window.showGame = function(gameId) {
-        document.querySelectorAll('.game-view').forEach(el => el.classList.remove('active')); document.getElementById('casino-menu').style.display = 'none';
-        document.getElementById('game-' + gameId).classList.add('active'); document.querySelectorAll('.result-msg').forEach(el => el.innerText = '');
-        if(gameId==='racing') initRaceCanvas(); if(gameId==='roulette') initRoulette(); if(gameId==='blackjack') initBlackjack(); if(gameId==='slots') initSlots(); if(gameId==='sicbo') initSicBo(); if(gameId==='rps') initRPS();
-    };
-    function getBetAmount() { const v = parseInt(document.getElementById('bet-input').value); return (isNaN(v) || v < 10) ? 10 : v; }
-    function checkGold(amount) { if(player.gold < amount) { showToast("골드가 부족합니다!"); return false; } if(!consumeEnergy(2)) return false; player.gold -= amount; updateUI(); return true; }
-
-    const bjCtx=document.getElementById('bj-canvas').getContext('2d'); let bjState={p:[],d:[]}; let currentBet = 0;
-    function initBlackjack(){bjState={p:[],d:[]};drawBj();document.getElementById('bj-controls').classList.remove('hidden');document.getElementById('bj-actions').classList.add('hidden');}
-    function drawBj(){bjCtx.clearRect(0,0,300,200);bjCtx.fillStyle='#aaa';bjCtx.font='14px Arial';bjCtx.textAlign='center';bjCtx.fillText("딜러",150,30);bjState.d.forEach((c,i)=>drawCard(150+(i-bjState.d.length/2)*30,50,c));bjCtx.fillText("나",150,150);bjState.p.forEach((c,i)=>drawCard(150+(i-bjState.p.length/2)*30,110,c));if(bjState.p.length>0){bjCtx.fillStyle='white';bjCtx.fillText(getSum(bjState.p),150,180);bjCtx.fillText(bjState.d.length==1?"?":getSum(bjState.d),150,20);}}
-    function drawCard(x,y,v){bjCtx.fillStyle='white';bjCtx.fillRect(x-12,y-18,24,36);bjCtx.strokeStyle='#000';bjCtx.strokeRect(x-12,y-18,24,36);bjCtx.fillStyle='black';bjCtx.font='16px Arial';bjCtx.fillText(v,x,y+5);}
-    window.startBlackjack=function(){currentBet=getBetAmount();document.getElementById('bj-result').innerText="";if(!checkGold(currentBet))return;bjState.p=[rCard(),rCard()];bjState.d=[rCard()];drawBj();document.getElementById('bj-controls').classList.add('hidden');document.getElementById('bj-actions').classList.remove('hidden');};
-    window.bjHit=function(){bjState.p.push(rCard());drawBj();if(getSum(bjState.p)>21)endBj(false,"버스트!");};
-    window.bjStand=function(){while(getSum(bjState.d)<17)bjState.d.push(rCard());drawBj();let p=getSum(bjState.p),d=getSum(bjState.d);if(d>21||p>d)endBj(true,"승리!");else if(p==d){player.gold+=currentBet*2;endBj(false,"무승부");}else endBj(false,"패배");};
-    function rCard(){return Math.floor(Math.random()*10)+2;} function getSum(h){return h.reduce((a,b)=>a+(b=='?'?0:b),0);}
-    function endBj(w,m){document.getElementById('bj-result').innerText=m;if(w){player.gold+=currentBet*2;updateUI();}setTimeout(()=>{document.getElementById('bj-controls').classList.remove('hidden');document.getElementById('bj-actions').classList.add('hidden');},1500);}
-
-    const rCtx=document.getElementById('roulette-canvas').getContext('2d'); let rSpin=false;
-    function initRoulette(){drawWheel(0);document.getElementById('roulette-btns').style.display='block';}
-    function drawWheel(r){rCtx.clearRect(0,0,300,300);rCtx.save();rCtx.translate(150,150);rCtx.rotate(r);for(let i=0;i<12;i++){rCtx.beginPath();rCtx.arc(0,0,140,i*Math.PI/6,(i+1)*Math.PI/6);rCtx.lineTo(0,0);rCtx.fillStyle=i%2==0?'#e74c3c':'#2c3e50';rCtx.fill();rCtx.stroke();rCtx.save();rCtx.rotate(i*Math.PI/6+Math.PI/12);rCtx.translate(110,0);rCtx.rotate(Math.PI/2);rCtx.fillStyle='white';rCtx.font='20px Arial';rCtx.textAlign='center';rCtx.fillText(i+1,0,5);rCtx.restore();}rCtx.restore();rCtx.beginPath();rCtx.moveTo(150,10);rCtx.lineTo(140,-10);rCtx.lineTo(160,-10);rCtx.fillStyle='gold';rCtx.fill();}
-    window.startRoulette=function(t){currentBet=getBetAmount();if(rSpin||!checkGold(currentBet))return;rSpin=true;document.getElementById('roulette-btns').style.display='none';let s=0.5,d=0.005,rot=Math.random()*6;function ani(){if(s>0){rot+=s;s-=d;if(s<0)s=0;drawWheel(rot);requestAnimationFrame(ani);}else{rSpin=false;calcR(rot,t);}}ani();}
-    function calcR(r,t){let a=r%(Math.PI*2),p=(Math.PI*1.5-a)%(Math.PI*2);if(p<0)p+=Math.PI*2;let res=Math.floor(p/(Math.PI/6))+1,w=false,m=0;if(t=='odd'&&res%2!=0){w=true;m=2;}else if(t=='even'&&res%2==0){w=true;m=2;}else if(t=='lucky7'&&res==7){w=true;m=10;}let msg=document.getElementById('roulette-result');if(w){player.gold+=currentBet*m;msg.innerText=`당첨! ${res}`;msg.style.color='lime';}else{msg.innerText=`꽝! ${res}`;msg.style.color='red';}updateUI();document.getElementById('roulette-btns').style.display='block';}
-
-    const sCtx=document.getElementById('slot-canvas').getContext('2d'); const syms=['🍒','🍋','🍇','💎','7️⃣'];
-    function initSlots(){drawS([0,0,0]);}
-    function drawS(o){sCtx.clearRect(0,0,300,150);sCtx.fillStyle='#111';sCtx.fillRect(10,10,280,130);for(let i=0;i<3;i++){sCtx.save();sCtx.beginPath();sCtx.rect(20+i*90,20,80,110);sCtx.clip();for(let j=0;j<10;j++){sCtx.font='40px Arial';sCtx.fillStyle='white';sCtx.textAlign='center';sCtx.textBaseline='middle';sCtx.fillText(syms[j%5],60+i*90,j*80+(o[i]%400)-200);}sCtx.restore();sCtx.strokeStyle='gold';sCtx.lineWidth=3;sCtx.strokeRect(20+i*90,20,80,110);}sCtx.strokeStyle='rgba(255,0,0,0.5)';sCtx.beginPath();sCtx.moveTo(10,75);sCtx.lineTo(290,75);sCtx.stroke();}
-    window.spinSlots=function(){currentBet=getBetAmount();if(!checkGold(currentBet))return;document.getElementById('slot-spin-btn').disabled=true;let res=[Math.floor(Math.random()*5),Math.floor(Math.random()*5),Math.floor(Math.random()*5)],t=[0,0,0],c=[0,0,0],st=null;for(let i=0;i<3;i++)t[i]=(5+i*3)*400+(275-res[i]*80)%400;function ani(ts){if(!st)st=ts;let p=ts-st,d=0;for(let i=0;i<3;i++){let dur=1000+i*1000;if(p<dur){let e=1-Math.pow(1-p/dur,3);c[i]=t[i]*e;}else{c[i]=t[i];d++;}}drawS(c);if(d<3)requestAnimationFrame(ani);else{checkS(res);document.getElementById('slot-spin-btn').disabled=false;}}requestAnimationFrame(ani);}
-    function checkS(r){let w=0;if(r[0]==4&&r[1]==4&&r[2]==4)w=50;else if(r[0]==r[1]&&r[1]==r[2])w=10;else if(r[0]==r[1]||r[1]==r[2]||r[0]==r[2])w=2;let m=document.getElementById('slot-result');if(w>0){player.gold+=currentBet*w;m.innerText=`당첨! +${currentBet*w}G`;m.style.color='gold';}else{m.innerText="꽝";m.style.color='#ccc';}updateUI();}
-
-    const rcCtx=document.getElementById('race-canvas').getContext('2d');
-    function initRaceCanvas(){rcCtx.clearRect(0,0,350,200);rcCtx.fillStyle='#2e7d32';rcCtx.fillRect(0,0,350,200);rcCtx.strokeStyle='white';rcCtx.setLineDash([5,5]);for(let i=1;i<4;i++){rcCtx.beginPath();rcCtx.moveTo(0,i*50);rcCtx.lineTo(350,i*50);rcCtx.stroke();}rcCtx.setLineDash([]);rcCtx.fillStyle='red';rcCtx.fillRect(320,0,5,200);for(let i=0;i<4;i++)drawHorse(10,i*50+35,i+1);document.getElementById('race-btns').style.display='block';}
-    function drawHorse(x,y,n){rcCtx.save();rcCtx.translate(x,y);rcCtx.scale(-1,1);rcCtx.font='30px Arial';rcCtx.fillText('🐎',-15,0);rcCtx.restore();rcCtx.fillStyle='white';rcCtx.font='12px Arial';rcCtx.fillText(n,x-5,y+5);}
-    window.startRace=function(p){currentBet=getBetAmount();if(!checkGold(currentBet))return;document.getElementById('race-btns').style.display='none';let h=[10,10,10,10],t=setInterval(()=>{rcCtx.fillStyle='#2e7d32';rcCtx.fillRect(0,0,350,200);rcCtx.strokeStyle='white';rcCtx.setLineDash([5,5]);for(let i=1;i<4;i++){rcCtx.beginPath();rcCtx.moveTo(0,i*50);rcCtx.lineTo(350,i*50);rcCtx.stroke();}rcCtx.setLineDash([]);rcCtx.fillStyle='red';rcCtx.fillRect(320,0,5,200);let w=null;h.forEach((v,i)=>{h[i]+=Math.random()*5;drawHorse(h[i],i*50+35+Math.sin(Date.now()/50+i)*3,i+1);if(h[i]>320&&!w)w=i+1;});if(w){clearInterval(t);let m=document.getElementById('race-result');if(w==p){player.gold+=currentBet*4;m.innerText=`우승! ${w}번`;m.style.color='lime';}else{m.innerText=`패배.. ${w}번`;m.style.color='red';}updateUI();document.getElementById('race-btns').style.display='block';}},30);}
-
-    const scCtx=document.getElementById('sicbo-canvas').getContext('2d');
-    function initSicBo(){scCtx.clearRect(0,0,300,200);scCtx.beginPath();scCtx.arc(150,100,80,0,6.28);scCtx.fillStyle='rgba(0,0,0,0.3)';scCtx.fill();scCtx.stroke();drawDice(130,100,1);drawDice(170,100,2);drawDice(150,80,3);document.getElementById('sicbo-btns').style.display='block';}
-    function drawDice(x,y,n,a=0){scCtx.save();scCtx.translate(x,y);scCtx.rotate(a);scCtx.fillStyle='white';scCtx.fillRect(-15,-15,30,30);scCtx.strokeRect(-15,-15,30,30);scCtx.fillStyle='black';scCtx.font='20px Arial';scCtx.textAlign='center';scCtx.fillText(['⚀','⚁','⚂','⚃','⚄','⚅'][n-1],0,8);scCtx.restore();
-    }
-    window.playSicBo=function(p){currentBet=getBetAmount();if(!checkGold(currentBet))return;document.getElementById('sicbo-btns').style.display='none';let dice=[{x:150,y:100,vx:0,vy:0},{x:150,y:100,vx:0,vy:0},{x:150,y:100,vx:0,vy:0}];dice.forEach(d=>{d.vx=(Math.random()-0.5)*20;d.vy=(Math.random()-0.5)*20;});let f=0;function loop(){scCtx.clearRect(0,0,300,200);scCtx.beginPath();scCtx.arc(150,100,80,0,6.28);scCtx.fillStyle='rgba(0,0,0,0.3)';scCtx.fill();scCtx.stroke();dice.forEach(d=>{d.x+=d.vx;d.y+=d.vy;if(Math.sqrt((d.x-150)**2+(d.y-100)**2)>70){d.vx*=-0.8;d.vy*=-0.8;d.x=150+(d.x-150)*0.9;d.y=100+(d.y-100)*0.9;}d.vx*=0.95;d.vy*=0.95;drawDice(d.x,d.y,Math.floor(Math.random()*6)+1,f/5);});f++;if(f<60)requestAnimationFrame(loop);else{let v=[0,0,0].map(()=>Math.floor(Math.random()*6)+1);scCtx.clearRect(0,0,300,200);scCtx.beginPath();scCtx.arc(150,100,80,0,6.28);scCtx.fillStyle='rgba(0,0,0,0.3)';scCtx.fill();scCtx.stroke();drawDice(120,100,v[0]);drawDice(180,100,v[1]);drawDice(150,70,v[2]);let s=v.reduce((a,b)=>a+b,0),r=(s>=4&&s<=10)?'small':'big';if(v[0]==v[1]&&v[1]==v[2])r='triple';let m=document.getElementById('sicbo-result');if(p==r){player.gold+=currentBet*2;m.innerText="적중!";m.style.color='lime';}else{m.innerText="실패";m.style.color='red';}updateUI();document.getElementById('sicbo-btns').style.display='block';}}loop();}
-
-    // 6. 가위바위보 (RPS)
-    const rpsCanvas = document.getElementById('rps-canvas');
-    const rpsCtx = rpsCanvas ? rpsCanvas.getContext('2d') : null;
-    function initRPS() { if(!rpsCtx) return; drawRPS('?', '?'); document.getElementById('rps-btns').style.display='block'; document.getElementById('rps-bonus-btn').style.display='none'; document.getElementById('rps-result').innerText="선택하세요"; }
-    function drawRPS(p, c) { rpsCtx.clearRect(0,0,300,250); rpsCtx.fillStyle='#222'; rpsCtx.fillRect(0,0,300,250); rpsCtx.fillStyle='white'; rpsCtx.font='20px Arial'; rpsCtx.textAlign='center'; rpsCtx.fillText("YOU",75,40); rpsCtx.fillText("COM",225,40); rpsCtx.font='60px Arial'; rpsCtx.fillText(getHand(p),75,120); rpsCtx.fillText(getHand(c),225,120); rpsCtx.font='30px Arial'; rpsCtx.fillStyle='red'; rpsCtx.fillText("VS",150,120); }
-    function getHand(t) { if(t=='rock')return '✊'; if(t=='scissors')return '✌️'; if(t=='paper')return '✋'; return '❓'; }
-    window.playRPS=function(c) {
-        currentBet=getBetAmount(); if(!checkGold(currentBet))return; document.getElementById('rps-btns').style.display='none';
-        let cnt=0, hands=['rock','scissors','paper'], anim=setInterval(()=>{drawRPS(hands[cnt%3],hands[(cnt+1)%3]);cnt++;},100);
-        setTimeout(()=>{clearInterval(anim); let com=hands[Math.floor(Math.random()*3)]; drawRPS(c,com);
-            let res='draw'; if(c==com) res='draw'; else if((c=='scissors'&&com=='paper')||(c=='rock'&&com=='scissors')||(c=='paper'&&com=='rock')) res='win'; else res='lose';
-            let msg=document.getElementById('rps-result');
-            if(res=='win'){msg.innerText="승리! 룰렛 찬스!";msg.style.color='lime';document.getElementById('rps-bonus-btn').style.display='block';}
-            else if(res=='draw'){msg.innerText="무승부 (반환)";msg.style.color='white';player.gold+=currentBet;updateUI();setTimeout(()=>{document.getElementById('rps-btns').style.display='block';},1000);}
-            else{msg.innerText="패배...";msg.style.color='red';setTimeout(()=>{document.getElementById('rps-btns').style.display='block';},1000);}
-        },1000);
-    };
-    function drawRpsWheel(a) {
-        rpsCtx.clearRect(0,0,300,250);rpsCtx.save();rpsCtx.translate(150,125);rpsCtx.rotate(a);
-        const rw=['x1','x2','x3','x4','꽝','x1'], cl=['#3498db','#2ecc71','#f1c40f','#e67e22','#e74c3c','#9b59b6'];
-        for(let i=0;i<6;i++){rpsCtx.beginPath();rpsCtx.moveTo(0,0);rpsCtx.arc(0,0,100,i*Math.PI/3,(i+1)*Math.PI/3);rpsCtx.fillStyle=cl[i];rpsCtx.fill();rpsCtx.stroke();
-        rpsCtx.save();rpsCtx.rotate(i*Math.PI/3+Math.PI/6);rpsCtx.translate(70,0);rpsCtx.rotate(Math.PI/2);rpsCtx.fillStyle='white';rpsCtx.font='bold 20px Arial';rpsCtx.fillText(rw[i],0,5);rpsCtx.restore();}
-        rpsCtx.restore();rpsCtx.beginPath();rpsCtx.moveTo(150,25);rpsCtx.lineTo(140,5);rpsCtx.lineTo(160,5);rpsCtx.fillStyle='gold';rpsCtx.fill();
-    }
-    window.spinRpsWheel=function(){
-        document.getElementById('rps-bonus-btn').style.display='none';
-        let s=0.5,dec=0.005,ang=Math.random()*6;
-        function ani(){if(s>0){ang+=s;s-=dec;if(s<0)s=0;drawRpsWheel(ang);requestAnimationFrame(ani);}else{
-            let a=ang%(Math.PI*2),ptr=(Math.PI*1.5-a)%(Math.PI*2); if(ptr<0)ptr+=Math.PI*2;
-            let idx=Math.floor(ptr/(Math.PI/3)), mul=[1,2,3,4,0,1][idx];
-            let w=currentBet*mul; player.gold+=w; updateUI();
-            let msg=document.getElementById('rps-result');
-            if(mul>0){msg.innerText=`축하! x${mul}배 (+${w}G)`;msg.style.color='gold';}else{msg.innerText="꽝!";msg.style.color='gray';}
-            setTimeout(initRPS,2000);
-        }}ani();
-    };
+    init();
 
 </script>
 </body>
