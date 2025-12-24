@@ -47,15 +47,16 @@
         .panel-btn:disabled { background: #777; cursor: not-allowed; opacity: 0.6; }
         .close-btn { position: absolute; top: 5px; right: 5px; background: #c0392b; border: none; color: white; cursor: pointer; }
 
-        /* 저장 슬롯 스타일 */
+        /* 저장 슬롯 스타일 (컴팩트하게 수정됨) */
         .slot-btn {
             background: rgba(0,0,0,0.3); border: 1px solid #777; color: #fff;
-            width: 100%; padding: 15px; margin-bottom: 10px; text-align: left;
+            width: 100%; padding: 8px 12px; margin-bottom: 5px; text-align: left;
             cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+            font-size: 13px; /* 폰트 줄임 */
         }
         .slot-btn:hover { background: rgba(255,255,255,0.1); border-color: gold; }
-        .slot-info { font-size: 14px; }
-        .slot-empty { color: #888; font-style: italic; }
+        .slot-info { font-size: 12px; color: #ddd; }
+        .slot-empty { color: #888; font-style: italic; font-size: 12px; }
 
         /* 상태창 & 인벤토리 */
         .tab-menu { display: flex; justify-content: center; margin-bottom: 10px; }
@@ -96,7 +97,6 @@
         .bet-info { background: rgba(0,0,0,0.3); padding: 10px; margin: 10px 0; border-radius: 5px; }
         .bet-control { background: #333; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 18px; }
         .bet-control input { background: #000; border: 1px solid #fff; color: gold; font-family: inherit; font-size: 18px; width: 100px; text-align: right; padding: 5px; }
-        
         .minigame-canvas { margin: 10px auto; background: #004400; border: 4px solid #d4af37; border-radius: 8px; box-shadow: inset 0 0 20px #000; display: block; }
         #roulette-canvas, #rps-canvas { background: #222; } #roulette-canvas { border-radius: 50%; }
 
@@ -164,13 +164,13 @@
         <div id="tab-inventory" style="display:none;"><div id="inv-list" class="inv-grid"></div></div>
     </div>
 
-    <!-- 저장/로드 패널 -->
-    <div id="save-load-panel" class="game-panel">
-        <h2 class="panel-header" id="sl-header">게임 저장/로드</h2>
+    <!-- 저장/로드 패널 (크기 줄임) -->
+    <div id="save-load-panel" class="game-panel" style="max-width: 400px; padding: 10px;">
+        <h3 class="panel-header" id="sl-header" style="font-size:18px; margin-bottom:8px;">게임 저장/로드</h3>
         <div id="sl-slots-container">
-            <!-- 자바스크립트로 슬롯 생성됨 -->
+            <!-- 슬롯 -->
         </div>
-        <button class="panel-btn secondary" onclick="closePanel()">닫기</button>
+        <button class="panel-btn secondary" style="width:100%; margin-top:5px;" onclick="closePanel()">닫기</button>
     </div>
 
     <!-- 카지노 패널 -->
@@ -722,16 +722,15 @@
             if(data) {
                 try {
                     const parsed = JSON.parse(data);
-                    infoText = `
-                        <span class="slot-info">
-                            Lv.${parsed.lvl} | Gold: ${parsed.gold}<br>
-                            <span style="font-size:12px; color:#aaa;">${parsed.saveTime || '날짜 정보 없음'}</span>
-                        </span>
-                    `;
+                    // 아이템 갯수 등도 저장됨
+                    infoText = `<span class="slot-info">Slot ${i} | ${parsed.saveTime || 'No Date'} | Lv.${parsed.lvl} | ${parsed.gold}G</span>`;
                 } catch(e) { infoText = "데이터 손상"; }
+            } else {
+                 infoText = `<span class="slot-empty">Slot ${i} (비어있음)</span>`;
             }
             
-            btn.innerHTML = `<strong>Slot ${i}</strong> ${infoText}`;
+            // 한 줄로 표시
+            btn.innerHTML = infoText;
             btn.onclick = () => handleSlot(i);
             container.appendChild(btn);
         }
@@ -746,8 +745,8 @@
                 saveTime: new Date().toLocaleString()
             };
             localStorage.setItem(slotKey, JSON.stringify(saveData));
-            showToast(`슬롯 ${i}에 저장되었습니다.`);
-            renderSlots(); // UI 갱신
+            showToast(`슬롯 ${i} 저장 완료`);
+            renderSlots(); // 갱신
         } else {
             const data = localStorage.getItem(slotKey);
             if(!data) {
@@ -759,7 +758,6 @@
                 Object.assign(player, parsed);
                 gatesOpen = parsed.gatesOpen || false;
                 
-                // 로드 후 처리
                 document.getElementById('save-load-panel').style.display = 'none';
                 document.getElementById('start-screen').style.display = 'none';
                 currentState = STATE.EXPLORE;
@@ -767,21 +765,18 @@
                 updateCamera();
                 showToast(`슬롯 ${i} 로드 완료!`);
             } catch(e) {
-                showToast("세이브 파일 로드 실패!");
+                showToast("로드 실패!");
             }
         }
     }
     
-    // 타이틀 화면에서 로드 버튼 클릭 시
     window.loadGameFromTitle = function() {
         openSaveLoadMenu('load', true);
     }
     
     window.closePanel = () => {
         document.querySelectorAll('.game-panel').forEach(e=>e.style.display='none');
-        // 만약 타이틀 화면에서 로드창 열었다가 닫으면 다시 타이틀로? 
-        // 간단히 처리: 게임 시작 전이라면 타이틀 보여주기
-        if(currentState === STATE.MENU && player.x === 256 && player.y === 256) { // 대충 초기상태 체크
+        if(currentState === STATE.MENU && player.x === 256 && player.y === 256) {
              document.getElementById('start-screen').style.display = 'flex';
         } else {
             currentState = STATE.EXPLORE;
@@ -842,7 +837,7 @@
     function gameOver() { alert("사망했습니다."); player.hp=player.maxHp; player.x=256; player.y=256; }
     window.startGameFlow = () => document.getElementById('start-screen').style.display='none';
     
-    // 기존의 단일 세이브 함수는 하위 호환성을 위해 남겨두거나 삭제 가능. 여기선 버튼 연결을 바꿨으므로 사용 안 함.
+    // 기본 저장 버튼(상단)은 슬롯 메뉴 열기
     window.saveGame = () => openSaveLoadMenu('save');
     
     function consumeEnergy(a) { if(player.energy >= a) { player.energy -= a; return true; } showToast("피로도 부족"); return false; }
@@ -892,7 +887,7 @@
         function loop(){ s-=0.005; rot+=s; drawWheel(rot); if(s>0) requestAnimationFrame(loop); else calcR(rot, t); } loop();
     }
     function initRoulette(){drawWheel(0);document.getElementById('roulette-btns').style.display='block';}
-    function drawWheel(r){ rCtx.clearRect(0,0,300,300); rCtx.save(); rCtx.translate(150,150); rCtx.rotate(r); for(let i=0;i<12;i++){ rCtx.beginPath(); rCtx.arc(0,0,140,i*Math.PI/6,(i+1)*Math.PI/6); rCtx.lineTo(0,0); rCtx.fillStyle=i%2==0?'#e74c3c':'#2c3e50'; rCtx.fill(); rCtx.save(); rCtx.rotate(i*Math.PI/6+Math.PI/12); rCtx.fillStyle='white'; rCtx.font='20px Arial'; rCtx.textAlign='center'; rCtx.fillText(i+1, 120, 5); rCtx.restore(); } rCtx.restore(); rCtx.fillStyle='gold'; rCtx.fillRect(145,0,10,20); }
+    function drawWheel(r){ rCtx.clearRect(0,0,300,300); rCtx.save(); rCtx.translate(150,150); rCtx.rotate(r); for(let i=0;i<12;i++){ rCtx.beginPath(); rCtx.arc(0,0,140,i*Math.PI/6,(i+1)*Math.PI/6); rCtx.lineTo(0,0); rCtx.fillStyle=i%2==0?'#e74c3c':'#2c3e50'; rCtx.fill(); rCtx.stroke(); rCtx.save(); rCtx.rotate(i*Math.PI/6+Math.PI/12); rCtx.fillStyle='white'; rCtx.font='20px Arial'; rCtx.textAlign='center'; rCtx.fillText(i+1, 120, 5); rCtx.restore(); } rCtx.restore(); rCtx.fillStyle='gold'; rCtx.fillRect(145,0,10,20); }
     function calcR(rot, t){ let angle=rot%(Math.PI*2), ptr=(Math.PI*1.5-angle)%(Math.PI*2); if(ptr<0) ptr+=Math.PI*2; let res=Math.floor(ptr/(Math.PI/6))+1; let w=false, m=0; if(t=='odd'&&res%2!=0){w=true;m=2;} else if(t=='even'&&res%2==0){w=true;m=2;} else if(t=='lucky7'&&res==7){w=true;m=10;} document.getElementById('roulette-result').innerText = w ? `당첨! ${res}` : `꽝! ${res}`; if(w){ player.gold+=currentBet*m; updateUI(); } }
 
     // 슬롯
