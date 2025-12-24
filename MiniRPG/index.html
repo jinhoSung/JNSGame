@@ -86,6 +86,7 @@
         .bet-info { background: rgba(0,0,0,0.3); padding: 10px; margin: 10px 0; border-radius: 5px; }
         .bet-control { background: #333; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 18px; }
         .bet-control input { background: #000; border: 1px solid #fff; color: gold; font-family: inherit; font-size: 18px; width: 100px; text-align: right; padding: 5px; }
+        
         .minigame-canvas { margin: 10px auto; background: #004400; border: 4px solid #d4af37; border-radius: 8px; box-shadow: inset 0 0 20px #000; display: block; }
         #roulette-canvas, #rps-canvas { background: #222; } #roulette-canvas { border-radius: 50%; }
 
@@ -438,6 +439,7 @@
             player.exp -= player.maxExp;
             player.maxExp = Math.floor(player.maxExp * 1.2);
             player.statPoints += 3;
+            // 레벨업 시 즉시 회복
             player.hp = player.maxHp;
             player.mp = player.maxMp;
             showToast(`⭐ 레벨 업! (Lv.${player.lvl})`);
@@ -452,6 +454,7 @@
     function gameLoop() {
         if(!mapData.length) return;
         const now = Date.now();
+        // 몬스터 AI
         enemies.forEach(e => {
             if(e.type === 'boss' && e.hp <= 0) return;
             if(!e.lastMove) e.lastMove = 0;
@@ -610,6 +613,7 @@
         document.getElementById('ui-hp-bar').style.width = `${(player.hp/player.maxHp)*100}%`;
         document.getElementById('ui-mp-bar').style.width = `${(player.mp/player.maxMp)*100}%`;
         document.getElementById('ui-exp-bar').style.width = `${(player.exp/player.maxExp)*100}%`;
+        
         document.getElementById('ui-stat-points').innerText = player.statPoints;
         document.getElementById('val-str').innerText = player.str;
         document.getElementById('val-vit').innerText = player.vit;
@@ -699,6 +703,7 @@
         if(p.style.display==='block') { p.style.display='none'; return; }
         p.style.display='block';
         const mc = document.getElementById('map-canvas'); const mctx = mc.getContext('2d');
+        // 축소 맵 그리기 (250x250)
         mctx.fillStyle='#000'; mctx.fillRect(0,0,250,250);
         const step = MAP_SIZE/250;
         for(let y=0; y<250; y++) {
@@ -771,7 +776,7 @@
         function loop(){ s-=0.005; rot+=s; drawWheel(rot); if(s>0) requestAnimationFrame(loop); else calcR(rot, t); } loop();
     }
     function initRoulette(){drawWheel(0);document.getElementById('roulette-btns').style.display='block';}
-    function drawWheel(r){ rCtx.clearRect(0,0,300,300); rCtx.save(); rCtx.translate(150,150); rCtx.rotate(r); for(let i=0;i<12;i++){ rCtx.beginPath(); rCtx.arc(0,0,140,i*Math.PI/6,(i+1)*Math.PI/6); rCtx.lineTo(0,0); rCtx.fillStyle=i%2==0?'red':'black'; rCtx.fill(); rCtx.save(); rCtx.rotate(i*Math.PI/6+Math.PI/12); rCtx.fillStyle='white'; rCtx.fillText(i+1, 120, 5); rCtx.restore(); } rCtx.restore(); rCtx.fillStyle='gold'; rCtx.fillRect(145,0,10,20); }
+    function drawWheel(r){ rCtx.clearRect(0,0,300,300); rCtx.save(); rCtx.translate(150,150); rCtx.rotate(r); for(let i=0;i<12;i++){ rCtx.beginPath(); rCtx.arc(0,0,140,i*Math.PI/6,(i+1)*Math.PI/6); rCtx.lineTo(0,0); rCtx.fillStyle=i%2==0?'#e74c3c':'#2c3e50'; rCtx.fill(); rCtx.save(); rCtx.rotate(i*Math.PI/6+Math.PI/12); rCtx.fillStyle='white'; rCtx.font='20px Arial'; rCtx.textAlign='center'; rCtx.fillText(i+1, 120, 5); rCtx.restore(); } rCtx.restore(); rCtx.fillStyle='gold'; rCtx.fillRect(145,0,10,20); }
     function calcR(rot, t){ let angle=rot%(Math.PI*2), ptr=(Math.PI*1.5-angle)%(Math.PI*2); if(ptr<0) ptr+=Math.PI*2; let res=Math.floor(ptr/(Math.PI/6))+1; let w=false, m=0; if(t=='odd'&&res%2!=0){w=true;m=2;} else if(t=='even'&&res%2==0){w=true;m=2;} else if(t=='lucky7'&&res==7){w=true;m=10;} document.getElementById('roulette-result').innerText = w ? `당첨! ${res}` : `꽝! ${res}`; if(w){ player.gold+=currentBet*m; updateUI(); } }
 
     // 슬롯
@@ -780,20 +785,94 @@
         function ani(ts){ if(!st)st=ts; let p=ts-st, fin=0; for(let i=0;i<3;i++){ let d=1000+i*1000; if(p<d){ let e=1-Math.pow(1-p/d,3); c[i]=t[i]*e; } else { c[i]=t[i]; fin++; } } drawS(c); if(fin<3) requestAnimationFrame(ani); else checkS(res); } requestAnimationFrame(ani);
     }
     function initSlots(){drawS([0,0,0]);}
-    function drawS(o){ sCtx.clearRect(0,0,300,150); sCtx.fillStyle='#333'; sCtx.fillRect(10,10,280,130); for(let i=0;i<3;i++){ sCtx.save(); sCtx.beginPath(); sCtx.rect(20+i*90,20,80,110); sCtx.clip(); for(let j=0;j<10;j++) sCtx.fillText(syms[j%5], 40+i*90, j*80+(o[i]%400)-200); sCtx.restore(); } }
+    function drawS(o){ 
+        sCtx.clearRect(0,0,300,150); 
+        sCtx.fillStyle='#333'; sCtx.fillRect(10,10,280,130); 
+        const SYMBOL_H = 80; const CYCLE = 400;
+        for(let i=0;i<3;i++){ 
+            sCtx.save(); sCtx.beginPath(); sCtx.rect(20+i*90,20,80,110); sCtx.clip(); 
+            let scrollY = o[i] % CYCLE;
+            for(let j=0;j<10;j++){
+                let symIdx = j % 5; let symbol = syms[symIdx];
+                let yPos = (j * SYMBOL_H) + scrollY - 200;
+                sCtx.font='50px Arial'; sCtx.textAlign='center'; sCtx.textBaseline='middle';
+                sCtx.fillStyle='white';
+                sCtx.fillText(symbol, 60+i*90, yPos); 
+            }
+            sCtx.restore(); 
+            sCtx.strokeStyle='gold'; sCtx.lineWidth=3; sCtx.strokeRect(20+i*90,20,80,110);
+        } 
+        sCtx.strokeStyle='rgba(255,0,0,0.7)'; sCtx.lineWidth=2; sCtx.beginPath(); sCtx.moveTo(10,75); sCtx.lineTo(290,75); sCtx.stroke();
+    }
     function checkS(r){ let w=0; if(r[0]==4&&r[1]==4&&r[2]==4)w=50; else if(r[0]==r[1]&&r[1]==r[2])w=10; else if(r[0]==r[1]||r[1]==r[2]||r[0]==r[2])w=2; document.getElementById('slot-result').innerText = w>0 ? `당첨! x${w}` : "꽝"; if(w>0){ player.gold+=currentBet*w; updateUI(); } }
     
     // 경마
     const rcCtx = document.getElementById('race-canvas').getContext('2d');
-    function startRace(p){ currentBet=getBetAmount(); if(!checkGold(currentBet)) return; let h=[0,0,0,0], t=setInterval(()=>{ rcCtx.clearRect(0,0,350,200); let w=null; h.forEach((v,i)=>{ h[i]+=Math.random()*5; rcCtx.fillText('🐎', h[i], i*40+40); if(h[i]>300 && !w) w=i+1; }); if(w){ clearInterval(t); let m=document.getElementById('race-result'); if(w==p){ player.gold+=currentBet*4; m.innerText=`승리! ${w}번`; } else m.innerText=`패배.. ${w}번`; updateUI(); } }, 30); }
-    function initRaceCanvas(){ rcCtx.clearRect(0,0,350,200); rcCtx.fillStyle='#2e7d32'; rcCtx.fillRect(0,0,350,200); rcCtx.strokeStyle='white'; rcCtx.setLineDash([5,5]); for(let i=1;i<4;i++){rcCtx.beginPath();rcCtx.moveTo(0,i*50);rcCtx.lineTo(350,i*50);rcCtx.stroke();} rcCtx.setLineDash([]); rcCtx.fillStyle='red'; rcCtx.fillRect(320,0,5,200); for(let i=0;i<4;i++) drawHorse(10,i*50+35,i+1); document.getElementById('race-btns').style.display='block'; }
-    function drawHorse(x,y,n){ rcCtx.save(); rcCtx.translate(x,y); rcCtx.scale(-1,1); rcCtx.font='30px Arial'; rcCtx.fillText('🐎',-15,0); rcCtx.restore(); rcCtx.fillStyle='white'; rcCtx.font='12px Arial'; rcCtx.fillText(n,x-5,y+5); }
+    function startRace(p){ currentBet=getBetAmount(); if(!checkGold(currentBet)) return; let h=[10,10,10,10], t=setInterval(()=>{ rcCtx.clearRect(0,0,350,200); 
+        // Draw Grass
+        rcCtx.fillStyle = '#2e7d32'; rcCtx.fillRect(0,0,350,200);
+        // Draw Lines
+        rcCtx.strokeStyle = 'white'; rcCtx.setLineDash([5, 5]);
+        for(let i=1; i<4; i++) {
+            rcCtx.beginPath(); rcCtx.moveTo(0, i*50); rcCtx.lineTo(350, i*50); rcCtx.stroke();
+        }
+        rcCtx.setLineDash([]);
+        // Finish Line
+        rcCtx.fillStyle = '#e74c3c'; rcCtx.fillRect(320, 0, 5, 200);
+        
+        let w=null; 
+        h.forEach((v,i)=>{ 
+            h[i]+=Math.random()*5; 
+            let hop=Math.sin(Date.now()/50+i)*3;
+            drawHorse(h[i], i*50+35+hop, i+1); 
+            if(h[i]>320 && !w) w=i+1; 
+        }); 
+        if(w){ clearInterval(t); let m=document.getElementById('race-result'); if(w==p){ player.gold+=currentBet*4; m.innerText=`승리! ${w}번`; } else m.innerText=`패배.. ${w}번`; updateUI(); } }, 30); }
+    
+    function initRaceCanvas(){ 
+        rcCtx.clearRect(0,0,350,200); 
+        rcCtx.fillStyle='#2e7d32'; rcCtx.fillRect(0,0,350,200); 
+        rcCtx.strokeStyle='white'; rcCtx.setLineDash([5, 5]);
+        for(let i=1; i<4; i++) {
+            rcCtx.beginPath(); rcCtx.moveTo(0, i*50); rcCtx.lineTo(350, i*50); rcCtx.stroke();
+        }
+        rcCtx.setLineDash([]);
+        rcCtx.fillStyle = '#e74c3c'; rcCtx.fillRect(320, 0, 5, 200);
+        for(let i=0;i<4;i++) drawHorse(10,i*50+35,i+1); 
+        document.getElementById('race-btns').style.display='block'; 
+    }
+    
+    function drawHorse(x,y,n){ 
+        rcCtx.save(); 
+        rcCtx.translate(x,y); 
+        rcCtx.scale(-1,1); // Flip horizontal
+        rcCtx.font='30px Arial'; 
+        rcCtx.textAlign='center';
+        rcCtx.textBaseline='middle';
+        rcCtx.fillText('🐎',0,0); // Adjusted from -15 to 0 because of centering
+        rcCtx.restore(); 
+        rcCtx.fillStyle='white'; rcCtx.font='12px Arial'; rcCtx.fillText(n,x-5,y+5); 
+    }
     
     // 다이사이
     const scCtx = document.getElementById('sicbo-canvas').getContext('2d');
-    function playSicBo(p){ currentBet=getBetAmount(); if(!checkGold(currentBet)) return; let d=[0,0,0].map(()=>Math.floor(Math.random()*6)+1); scCtx.clearRect(0,0,300,200); scCtx.fillText(`🎲 ${d.join(' ')}`, 100, 100); let s=d.reduce((a,b)=>a+b), r=(s>=4&&s<=10)?'small':'big'; if(d[0]==d[1]&&d[1]==d[2]) r='triple'; let m=document.getElementById('sicbo-result'); if(p==r){ player.gold+=currentBet*2; m.innerText="적중!"; } else m.innerText="실패"; updateUI(); }
-    function initSicBo(){ scCtx.clearRect(0,0,300,200); scCtx.beginPath(); scCtx.arc(150,100,80,0,6.28); scCtx.fillStyle='rgba(0,0,0,0.3)'; scCtx.fill(); scCtx.stroke(); drawDice(130,100,1); drawDice(170,100,2); drawDice(150,80,3); document.getElementById('sicbo-btns').style.display='block'; }
-    function drawDice(x,y,n,a=0){ scCtx.save(); scCtx.translate(x,y); scCtx.rotate(a); scCtx.fillStyle='white'; scCtx.fillRect(-15,-15,30,30); scCtx.strokeRect(-15,-15,30,30); scCtx.fillStyle='black'; scCtx.font='20px Arial'; scCtx.textAlign='center'; scCtx.fillText(['⚀','⚁','⚂','⚃','⚄','⚅'][n-1],0,8); scCtx.restore(); }
+    function playSicBo(p){ currentBet=getBetAmount(); if(!checkGold(currentBet)) return; let dice=[{x:150,y:100,vx:0,vy:0},{x:150,y:100,vx:0,vy:0},{x:150,y:100,vx:0,vy:0}]; dice.forEach(d=>{d.vx=(Math.random()-0.5)*20;d.vy=(Math.random()-0.5)*20;}); let f=0; 
+        function loop(){ 
+            scCtx.clearRect(0,0,300,200); scCtx.beginPath(); scCtx.arc(150,100,80,0,6.28); scCtx.fillStyle='rgba(0,0,0,0.3)'; scCtx.fill(); scCtx.strokeStyle='#fff'; scCtx.lineWidth=2; scCtx.stroke(); 
+            dice.forEach(d=>{ d.x+=d.vx; d.y+=d.vy; if(Math.sqrt((d.x-150)**2+(d.y-100)**2)>70){d.vx*=-0.8;d.vy*=-0.8;d.x=150+(d.x-150)*0.9;d.y=100+(d.y-100)*0.9;} d.vx*=0.95; d.vy*=0.95; drawDice(d.x,d.y,Math.floor(Math.random()*6)+1,f/5); }); 
+            f++; 
+            if(f<60) requestAnimationFrame(loop); 
+            else { 
+                let d=[0,0,0].map(()=>Math.floor(Math.random()*6)+1); 
+                scCtx.clearRect(0,0,300,200); scCtx.beginPath(); scCtx.arc(150,100,80,0,6.28); scCtx.fillStyle='rgba(0,0,0,0.3)'; scCtx.fill(); scCtx.stroke(); 
+                drawDice(120,100,d[0]); drawDice(180,100,d[1]); drawDice(150,70,d[2]); 
+                let s=d.reduce((a,b)=>a+b), r=(s>=4&&s<=10)?'small':'big'; if(d[0]==d[1]&&d[1]==d[2]) r='triple'; 
+                let m=document.getElementById('sicbo-result'); if(p==r){ player.gold+=currentBet*2; m.innerText="적중!"; } else m.innerText="실패"; updateUI(); 
+            } 
+        } loop(); 
+    }
+    function initSicBo(){ scCtx.clearRect(0,0,300,200); scCtx.beginPath(); scCtx.arc(150,100,80,0,6.28); scCtx.fillStyle='rgba(0,0,0,0.3)'; scCtx.fill(); scCtx.strokeStyle='#fff'; scCtx.lineWidth=2; scCtx.stroke(); drawDice(130,100,1); drawDice(170,100,2); drawDice(150,80,3); document.getElementById('sicbo-btns').style.display='block'; }
+    function drawDice(x,y,n,a=0){ scCtx.save(); scCtx.translate(x,y); scCtx.rotate(a); scCtx.fillStyle='white'; scCtx.fillRect(-15,-15,30,30); scCtx.strokeRect(-15,-15,30,30); scCtx.fillStyle='black'; scCtx.font='20px Arial'; scCtx.textAlign='center'; scCtx.textBaseline='middle'; scCtx.fillText(['⚀','⚁','⚂','⚃','⚄','⚅'][n-1],0,2); scCtx.restore(); }
     
     // 가위바위보
     const rpsCanvas = document.getElementById('rps-canvas');
