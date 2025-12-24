@@ -47,16 +47,24 @@
         .panel-btn:disabled { background: #777; cursor: not-allowed; opacity: 0.6; }
         .close-btn { position: absolute; top: 5px; right: 5px; background: #c0392b; border: none; color: white; cursor: pointer; }
 
-        /* 저장 슬롯 스타일 (컴팩트하게 수정됨) */
+        /* 저장 슬롯 스타일 (스크롤 제거 및 컴팩트화) */
+        #save-load-panel {
+            overflow: visible !important; /* 스크롤 제거 강제 */
+            height: auto !important;
+            max-height: none !important;
+            width: 320px !important; /* 너비 고정으로 깔끔하게 */
+            padding: 10px;
+        }
         .slot-btn {
-            background: rgba(0,0,0,0.3); border: 1px solid #777; color: #fff;
-            width: 100%; padding: 8px 12px; margin-bottom: 5px; text-align: left;
+            background: rgba(0,0,0,0.4); border: 1px solid #777; color: #fff;
+            width: 100%; padding: 8px 10px; margin-bottom: 4px; text-align: left;
             cursor: pointer; display: flex; justify-content: space-between; align-items: center;
-            font-size: 13px; /* 폰트 줄임 */
+            font-size: 12px; box-sizing: border-box;
         }
         .slot-btn:hover { background: rgba(255,255,255,0.1); border-color: gold; }
-        .slot-info { font-size: 12px; color: #ddd; }
-        .slot-empty { color: #888; font-style: italic; font-size: 12px; }
+        .slot-num { font-weight: bold; color: gold; margin-right: 5px; }
+        .slot-info { color: #ddd; flex-grow: 1; text-align: right; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+        .slot-empty { color: #666; font-style: italic; font-size: 12px; }
 
         /* 상태창 & 인벤토리 */
         .tab-menu { display: flex; justify-content: center; margin-bottom: 10px; }
@@ -111,6 +119,10 @@
         @media (max-width: 768px) { #mobile-controls { display: block; } #skill-bar { bottom: 120px; } }
         .dpad-btn { width: 45px; height: 45px; background: rgba(255,255,255,0.15); margin: 2px; display: inline-block; text-align: center; line-height: 45px; color: white; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); font-size: 18px; }
         .dpad-btn:active { background: rgba(255,255,255,0.4); }
+        .shop-item { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 10px; margin-bottom: 8px; border-radius: 4px; }
+        .shop-item span { text-align: left; font-size: 14px; }
+        .buy-btn { background: #27ae60; border: none; padding: 5px 10px; color: white; cursor: pointer; border-radius: 4px;}
+        .buy-btn:disabled { background: #555; cursor: default;}
     </style>
 </head>
 <body>
@@ -164,13 +176,13 @@
         <div id="tab-inventory" style="display:none;"><div id="inv-list" class="inv-grid"></div></div>
     </div>
 
-    <!-- 저장/로드 패널 (크기 줄임) -->
-    <div id="save-load-panel" class="game-panel" style="max-width: 400px; padding: 10px;">
-        <h3 class="panel-header" id="sl-header" style="font-size:18px; margin-bottom:8px;">게임 저장/로드</h3>
+    <!-- 저장/로드 패널 (컴팩트 수정됨) -->
+    <div id="save-load-panel" class="game-panel">
+        <h3 class="panel-header" id="sl-header" style="font-size:16px; margin-bottom:8px;">게임 저장/로드</h3>
         <div id="sl-slots-container">
-            <!-- 슬롯 -->
+            <!-- 슬롯 내용이 여기 들어갑니다 -->
         </div>
-        <button class="panel-btn secondary" style="width:100%; margin-top:5px;" onclick="closePanel()">닫기</button>
+        <button class="panel-btn secondary" style="width:100%; margin-top:5px; padding: 5px;" onclick="closePanel()">닫기</button>
     </div>
 
     <!-- 카지노 패널 -->
@@ -328,7 +340,7 @@
     let autoSkill = false;
     let moveTimer = null;
     let boss = null;
-    let currentSLContext = 'save'; // save or load
+    let currentSLContext = 'save'; 
 
     const player = {
         x: 256, y: 256,
@@ -550,6 +562,12 @@
 
     function movePlayer(dx, dy) {
         let nx = player.x + dx, ny = player.y + dy;
+        // 맵 데이터가 준비되지 않은 상태에서 호출되면 무시
+        if (!mapData || mapData.length === 0) return;
+
+        // 경계 체크를 먼저 해서 undefined 참조 방지
+        if (nx < 0 || nx >= MAP_SIZE || ny < 0 || ny >= MAP_SIZE) return;
+
         let enemyIdx = enemies.findIndex(e => e.x === nx && e.y === ny);
         if(enemyIdx !== -1) { attack(enemyIdx); return; }
 
@@ -722,15 +740,12 @@
             if(data) {
                 try {
                     const parsed = JSON.parse(data);
-                    // 아이템 갯수 등도 저장됨
-                    infoText = `<span class="slot-info">Slot ${i} | ${parsed.saveTime || 'No Date'} | Lv.${parsed.lvl} | ${parsed.gold}G</span>`;
+                    // 한 줄로 요약
+                    infoText = `<span class="slot-info">${parsed.saveTime || 'No Date'} | Lv.${parsed.lvl} | ${parsed.gold}G</span>`;
                 } catch(e) { infoText = "데이터 손상"; }
-            } else {
-                 infoText = `<span class="slot-empty">Slot ${i} (비어있음)</span>`;
             }
             
-            // 한 줄로 표시
-            btn.innerHTML = infoText;
+            btn.innerHTML = `<span class="slot-num">${i}번</span> ${infoText}`;
             btn.onclick = () => handleSlot(i);
             container.appendChild(btn);
         }
@@ -739,13 +754,15 @@
     function handleSlot(i) {
         const slotKey = `skeletonRPG_slot_${i}`;
         if(currentSLContext === 'save') {
+            const now = new Date();
+            const timeString = `${now.getMonth()+1}.${now.getDate()} ${now.getHours()}:${now.getMinutes().toString().padStart(2,'0')}`;
             const saveData = {
                 ...player,
                 gatesOpen: gatesOpen,
-                saveTime: new Date().toLocaleString()
+                saveTime: timeString
             };
             localStorage.setItem(slotKey, JSON.stringify(saveData));
-            showToast(`슬롯 ${i} 저장 완료`);
+            showToast(`${i}번 슬롯 저장 완료`);
             renderSlots(); // 갱신
         } else {
             const data = localStorage.getItem(slotKey);
@@ -763,7 +780,7 @@
                 currentState = STATE.EXPLORE;
                 updateUI();
                 updateCamera();
-                showToast(`슬롯 ${i} 로드 완료!`);
+                showToast(`${i}번 슬롯 로드 완료!`);
             } catch(e) {
                 showToast("로드 실패!");
             }
@@ -1011,76 +1028,48 @@
         loop();
     }
 
-    // 6. 가위바위보 (RPS) - 리얼 애니메이션
+    // 6. 가위바위보 (RPS) & 룰렛 시스템 개선
     const rpsCanvas = document.getElementById('rps-canvas');
     const rpsCtx = rpsCanvas ? rpsCanvas.getContext('2d') : null;
     
+    // 룰렛 시각적 배치 (12분할)
+    const rpsSegments = [10, 2, 0, 2, 1, 2, 5, 2, 0, 2, 1, 3];
+    const rpsColors = [
+        '#9b59b6', '#2ecc71', '#7f8c8d', '#2ecc71', '#3498db', '#2ecc71', 
+        '#e67e22', '#2ecc71', '#7f8c8d', '#2ecc71', '#3498db', '#f1c40f'
+    ];
+
     function initRPS() { 
         if(!rpsCtx) return; 
-        // 대기 화면: 양쪽에 주먹 대기
         drawRPSState('ready'); 
         document.getElementById('rps-btns').style.display='block'; 
         document.getElementById('rps-bonus-btn').style.display='none'; 
         document.getElementById('rps-result').innerText="선택하세요"; 
     }
 
-    // 상태 그리기 (ready, shaking, result)
+    // (drawRPSState, getHand 함수는 이전과 동일하므로 생략하지 않고 유지)
     function drawRPSState(state, pHand=null, cHand=null, shakeOffset=0) {
         rpsCtx.clearRect(0,0,300,250);
         rpsCtx.fillStyle='#222'; rpsCtx.fillRect(0,0,300,250);
-        
-        // 텍스트
         rpsCtx.fillStyle='white'; rpsCtx.font='20px Arial'; rpsCtx.textAlign='center';
-        rpsCtx.fillText("YOU", 75, 40);
-        rpsCtx.fillText("COM", 225, 40);
-
-        // 손 그리기
+        rpsCtx.fillText("YOU", 75, 40); rpsCtx.fillText("COM", 225, 40);
         rpsCtx.font='80px Arial';
         
         if (state === 'ready') {
-            // 대기: 양쪽 주먹
             rpsCtx.fillText('✊', 75, 150);
-            // COM 주먹 (좌우 반전 효과를 위해 scaleX를 쓰고 싶으나, 텍스트라 복잡하므로 그냥 그림)
-            // 이모지는 방향이 고정이라 아쉽지만 그대로 사용하거나,
-            // 캔버스 변환으로 뒤집을 수 있음.
-            rpsCtx.save();
-            rpsCtx.translate(225, 150);
-            rpsCtx.scale(-1, 1);
-            rpsCtx.fillText('✊', 0, 0);
-            rpsCtx.restore();
+            rpsCtx.save(); rpsCtx.translate(225, 150); rpsCtx.scale(-1, 1); rpsCtx.fillText('✊', 0, 0); rpsCtx.restore();
         } else if (state === 'shaking') {
-            // 흔들기: 위아래로 움직임 (shakeOffset)
-            let py = 150 + shakeOffset;
-            let cy = 150 + shakeOffset;
-            
+            let py = 150 + shakeOffset; let cy = 150 + shakeOffset;
             rpsCtx.fillText('✊', 75, py);
-            
-            rpsCtx.save();
-            rpsCtx.translate(225, cy);
-            rpsCtx.scale(-1, 1);
-            rpsCtx.fillText('✊', 0, 0);
-            rpsCtx.restore();
-            
+            rpsCtx.save(); rpsCtx.translate(225, cy); rpsCtx.scale(-1, 1); rpsCtx.fillText('✊', 0, 0); rpsCtx.restore();
         } else if (state === 'result') {
-            // 결과: 선택한 손
             rpsCtx.fillText(getHand(pHand), 75, 150);
-            
-            rpsCtx.save();
-            rpsCtx.translate(225, 150);
-            rpsCtx.scale(-1, 1);
-            rpsCtx.fillText(getHand(cHand), 0, 0);
-            rpsCtx.restore();
-            
-            // VS 텍스트 대신 결과 이펙트
+            rpsCtx.save(); rpsCtx.translate(225, 150); rpsCtx.scale(-1, 1); rpsCtx.fillText(getHand(cHand), 0, 0); rpsCtx.restore();
+        } else if (state === 'wheel') {
+             // 룰렛 회전 시에는 캔버스를 drawRpsWheel에서 전담하므로 여기선 패스
         }
     }
-
-    function getHand(t) { 
-        if(t=='rock')return '✊'; 
-        if(t=='scissors')return '✌️'; 
-        if(t=='paper')return '✋'; 
-        return '❓'; 
-    }
+    function getHand(t) { if(t=='rock')return '✊'; if(t=='scissors')return '✌️'; return '✋'; }
 
     window.playRPS = function(choice) {
         currentBet = getBetAmount(); 
@@ -1090,19 +1079,13 @@
         document.getElementById('rps-result').innerText = "가위... 바위...";
         
         let frames = 0;
-        let shakeDir = 1;
-        
-        // 애니메이션 루프
         function animateShake() {
-            // 0 ~ 30 프레임 (약 0.5초) 동안 흔들기
             if (frames < 40) {
-                // 위아래 흔들기 (-20 ~ +20)
                 let offset = Math.sin(frames * 0.5) * 20;
                 drawRPSState('shaking', null, null, offset);
                 frames++;
                 requestAnimationFrame(animateShake);
             } else {
-                // 결과 공개
                 showRPSResult(choice);
             }
         }
@@ -1111,10 +1094,8 @@
     
     function showRPSResult(pChoice) {
         let comChoice = ['rock','scissors','paper'][Math.floor(Math.random()*3)];
-        
         drawRPSState('result', pChoice, comChoice);
         
-        // 승패 판정
         let res = 'lose';
         if (pChoice == comChoice) res = 'draw';
         else if (
@@ -1125,46 +1106,121 @@
         
         let msg = document.getElementById('rps-result');
         if (res == 'win') {
-            msg.innerText = "승리! 보너스 룰렛!";
-            msg.style.color = 'lime';
+            msg.innerText = "승리! 보너스 룰렛!"; msg.style.color = 'lime';
             document.getElementById('rps-bonus-btn').style.display = 'block';
         } else if (res == 'draw') {
-            msg.innerText = "무승부 (판돈 반환)";
-            msg.style.color = 'white';
-            player.gold += currentBet;
-            updateUI();
+            msg.innerText = "무승부 (판돈 반환)"; msg.style.color = 'white';
+            player.gold += currentBet; updateUI();
             setTimeout(() => { document.getElementById('rps-btns').style.display='block'; }, 1500);
         } else {
-            msg.innerText = "패배...";
-            msg.style.color = 'red';
+            msg.innerText = "패배..."; msg.style.color = 'red';
             setTimeout(() => { document.getElementById('rps-btns').style.display='block'; }, 1500);
         }
     }
 
-    function drawRpsWheel(a) {
-        // (기존 룰렛 코드 유지)
-        rpsCtx.clearRect(0,0,300,250);rpsCtx.save();rpsCtx.translate(150,125);rpsCtx.rotate(a);
-        const rw=['x1','x2','x3','x4','꽝','x1'], cl=['#3498db','#2ecc71','#f1c40f','#e67e22','#e74c3c','#9b59b6'];
-        for(let i=0;i<6;i++){rpsCtx.beginPath();rpsCtx.moveTo(0,0);rpsCtx.arc(0,0,100,i*Math.PI/3,(i+1)*Math.PI/3);rpsCtx.fillStyle=cl[i];rpsCtx.fill();rpsCtx.stroke();
-        rpsCtx.save();rpsCtx.rotate(i*Math.PI/3+Math.PI/6);rpsCtx.translate(70,0);rpsCtx.rotate(Math.PI/2);rpsCtx.fillStyle='white';rpsCtx.font='bold 20px Arial';rpsCtx.fillText(rw[i],0,5);rpsCtx.restore();}
-        rpsCtx.restore();rpsCtx.beginPath();rpsCtx.moveTo(150,25);rpsCtx.lineTo(140,5);rpsCtx.lineTo(160,5);rpsCtx.fillStyle='gold';rpsCtx.fill();
+    // --- 룰렛 로직 (확률 적용) ---
+    function drawRpsWheel(angle) {
+        rpsCtx.clearRect(0,0,300,250); rpsCtx.fillStyle='#222'; rpsCtx.fillRect(0,0,300,250);
+        
+        rpsCtx.save();
+        rpsCtx.translate(150, 125);
+        rpsCtx.rotate(angle);
+        
+        const seg = 12;
+        const arc = Math.PI * 2 / seg;
+        
+        for(let i=0; i<seg; i++){
+            rpsCtx.beginPath();
+            rpsCtx.moveTo(0,0);
+            rpsCtx.arc(0,0,100, i*arc, (i+1)*arc);
+            rpsCtx.fillStyle = rpsColors[i];
+            rpsCtx.fill();
+            rpsCtx.stroke();
+            
+            rpsCtx.save();
+            rpsCtx.rotate(i*arc + arc/2);
+            rpsCtx.translate(70, 0);
+            rpsCtx.rotate(Math.PI/2);
+            rpsCtx.fillStyle = 'white';
+            rpsCtx.font = 'bold 16px Arial';
+            rpsCtx.textAlign = 'center';
+            let label = rpsSegments[i] === 0 ? "꽝" : `x${rpsSegments[i]}`;
+            rpsCtx.fillText(label, 0, 5);
+            rpsCtx.restore();
+        }
+        rpsCtx.restore();
+        
+        // 화살표 (12시 방향 고정)
+        rpsCtx.beginPath();
+        rpsCtx.moveTo(150, 25); rpsCtx.lineTo(140, 5); rpsCtx.lineTo(160, 5);
+        rpsCtx.fillStyle = 'gold'; rpsCtx.fill();
     }
     
     window.spinRpsWheel = function() {
         document.getElementById('rps-bonus-btn').style.display='none';
-        let s=0.5, dec=0.005, ang=Math.random()*6;
-        function ani(){
-            if(s>0){ang+=s;s-=dec;if(s<0)s=0;drawRpsWheel(ang);requestAnimationFrame(ani);}
-            else{
-                let a=ang%(Math.PI*2),ptr=(Math.PI*1.5-a)%(Math.PI*2); if(ptr<0)ptr+=Math.PI*2;
-                let idx=Math.floor(ptr/(Math.PI/3)), mul=[1,2,3,4,0,1][idx];
-                let w=currentBet*mul; player.gold+=w; updateUI();
-                let msg=document.getElementById('rps-result');
-                if(mul>0){msg.innerText=`축하! x${mul}배 (+${w}G)`;msg.style.color='gold';}else{msg.innerText="꽝!";msg.style.color='gray';}
-                setTimeout(initRPS, 2000);
+        
+        // 1. 확률에 따른 결과 결정
+        const rand = Math.random() * 100;
+        let targetMulti = 0;
+        
+        if (rand < 50) targetMulti = 2;       // 50%
+        else if (rand < 70) targetMulti = 1;  // 20%
+        else if (rand < 90) targetMulti = 0;  // 20% (꽝)
+        else if (rand < 95) targetMulti = 3;  // 5%
+        else if (rand < 98) targetMulti = 5;  // 3%
+        else targetMulti = 10;                // 2%
+
+        // 2. 해당 결과가 있는 슬롯 인덱스 찾기
+        let possibleIndices = [];
+        rpsSegments.forEach((val, idx) => {
+            if(val === targetMulti) possibleIndices.push(idx);
+        });
+        // 가능한 슬롯 중 랜덤 하나 선택
+        let targetIndex = possibleIndices[Math.floor(Math.random() * possibleIndices.length)];
+        
+        // 3. 회전 각도 계산
+        const arc = (Math.PI * 2) / 12;
+        const randomOffset = (Math.random() - 0.5) * arc * 0.8;
+        const targetAngleLocal = targetIndex * arc + arc/2;
+        let finalAngle = (Math.PI * 1.5 - targetAngleLocal) + randomOffset;
+        const extraSpins = Math.PI * 2 * (5 + Math.floor(Math.random() * 3));
+        const totalRotation = extraSpins + finalAngle;
+        
+        let currentRotation = 0;
+        let startTime = null;
+        const duration = 4000; 
+
+        function animate(timestamp) {
+            if (!startTime) startTime = timestamp;
+            const progress = timestamp - startTime;
+            
+            if (progress < duration) {
+                const t = progress / duration;
+                const ease = 1 - Math.pow(1 - t, 3);
+                currentRotation = totalRotation * ease;
+                
+                drawRpsWheel(currentRotation);
+                requestAnimationFrame(animate);
+            } else {
+                drawRpsWheel(totalRotation);
+                
+                let winAmount = currentBet * targetMulti;
+                player.gold += winAmount;
+                updateUI();
+                
+                let msg = document.getElementById('rps-result');
+                if(targetMulti > 0) {
+                    msg.innerText = `축하합니다! x${targetMulti}배 당첨! (+${winAmount}G)`;
+                    msg.style.color = 'gold';
+                    if(targetMulti >= 5) spawnParticles(150, 125, 'gold', 30);
+                } else {
+                    msg.innerText = "꽝! 다음 기회에...";
+                    msg.style.color = 'gray';
+                }
+                setTimeout(initRPS, 2500);
             }
         }
-        ani();
+        requestAnimationFrame(animate);
     };
 
     // 키보드 & 터치
