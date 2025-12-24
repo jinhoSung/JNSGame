@@ -332,21 +332,57 @@
     }
 
     // --- 3D 엔진 유틸리티 ---
-    // World 좌표계에서 투영 (카메라 기준)
-    function projectWorld(x, y, z, playerX, playerY, playerZ, cameraDepth, width, height, roadWidth) {
-        const camX = x - (playerX * roadWidth);
-        const camY = y - (playerY + CAMERA_HEIGHT);
-        const camZ = z - playerZ; // 카메라 기준 Z (depth)
+    function project3D(x, y, z, cx, cy, scale, yaw) {
+        let cos = Math.cos(yaw);
+        let sin = Math.sin(yaw);
+        let rx = x * cos - z * sin;
+        let rz = x * sin + z * cos;
+        let ry = y;
 
-        // 카메라 뒤에 있으면 렌더링 안함
-        if (camZ <= 0) return { scale: 0, visible: false };
+        const pitch = 0.2; 
+        let cosP = Math.cos(pitch);
+        let sinP = Math.sin(pitch);
+        let y2 = ry * cosP - rz * sinP;
+        let z2 = ry * sinP + rz * cosP;
 
-        const scale = cameraDepth / camZ;
-        const screenX = (width / 2) + (scale * camX * width / 2);
-        const screenY = (height / 2) - (scale * camY * height / 2);
-        const screenW = scale * roadWidth * width / 2;
+        const camZ = 500; 
+        const pz = z2 + camZ; 
 
-        return { x: screenX, y: screenY, w: screenW, scale: scale, visible: true, depth: camZ };
+        if (pz <= 0) return { x: 0, y: 0, scale: 0, visible: false, depth: pz };
+        
+        const fov = 600; 
+        const proj = fov / pz;
+        
+        return {
+            x: cx + rx * proj * scale,
+            y: cy + y2 * proj * scale, 
+            scale: proj * scale,
+            visible: true,
+            depth: pz
+        };
+    }
+
+    function drawQuad(ctx, p1, p2, p3, p4, color, strokeColor) {
+        if (!p1.visible || !p2.visible || !p3.visible || !p4.visible) return;
+        ctx.fillStyle = color;
+        ctx.strokeStyle = strokeColor || color;
+        ctx.lineWidth = 1;
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+
+    // 누락되었던 project 함수 복구
+    function project(p, cameraX, cameraY, cameraZ, cameraDepth, width, height, roadWidth) {
+        p.camera.x = (p.world.x || 0) - cameraX;
+        p.camera.y = (p.world.y || 0) - cameraY;
+        p.camera.z = (p.world.z || 0) - cameraZ;
+        if (p.camera.z <= 0) p.screen.scale = 0;
+        else p.screen.scale = cameraDepth / p.camera.z;
+        p.screen.x = (width / 2) + (p.screen.scale * p.camera.x * width / 2);
+        p.screen.y = (height / 2) - (p.screen.scale * p.camera.y * height / 2);
+        p.screen.w = (p.screen.scale * roadWidth * width / 2);
     }
 
     function polygon(ctx, x1, y1, x2, y2, x3, y3, x4, y4, color) {
@@ -502,6 +538,51 @@
         ctx.restore();
     }
 
+    // --- 복구된 drawSkidMarks ---
+    function drawSkidMarks() {
+        const width = canvas.width;
+        const height = canvas.height;
+        const carOffset = playerTurn * (width * 0.12);
+        const centerX = (width / 2) + carOffset;
+        const centerY = height - 20;
+        
+        ctx.save();
+        for(let i=0; i<skids.length; i++) {
+            const s = skids[i];
+            s.life -= 0.05;
+            s.y += (speed / maxSpeed) * 15; 
+            s.x -= (playerTurn * 5); 
+            if(s.life <= 0 || s.y > height) { skids.splice(i, 1); i--; continue; }
+            ctx.globalAlpha = s.life * 0.4;
+            ctx.fillStyle = '#fff'; 
+            ctx.beginPath();
+            ctx.arc(centerX + s.x, centerY + s.offsetY, s.size * (1 + (s.y/100)), 0, Math.PI*2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    // --- 복구된 drawParticles ---
+    function drawParticles() {
+        ctx.save();
+        for(let i=0; i<particles.length; i++) {
+            const p = particles[i];
+            p.life -= 0.03;
+            p.x += p.vx;
+            p.y += p.vy;
+            p.size += 0.5;
+
+            if(p.life <= 0) { particles.splice(i, 1); i--; continue; }
+
+            ctx.globalAlpha = p.life * 0.3; // 반투명
+            ctx.fillStyle = '#eee'; // 흰색 연기
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
     function render() {
         const width = canvas.width;
         const height = canvas.height;
@@ -527,23 +608,6 @@
         let dx = -(baseSegment.curve * (position % SEGMENT_LENGTH) / SEGMENT_LENGTH);
         let x = 0; 
         
-        // 도로 및 사물 렌더링 (Far-to-Near가 아닌 Near-to-Far 방식에 맞춤)
-        // 트래픽 차량은 해당 세그먼트 그리기 직후에 그림 (그래야 도로 위에 있음)
-        // 단, Painter's Algorithm 문제(뒤차가 앞차를 가림)는 Near-to-Far에서 역순이므로
-        // 멀리 있는 차부터 그려져야 하는데, Near-to-Far 루프에서는 가까운 차가 먼저 그려짐.
-        // 따라서 차는 별도 리스트에 모았다가 뒤에서부터 그리는게 맞지만, 
-        // 간단한 해결책으로 루프 내에서 그리되 Z-buffer 로직을 흉내낼 수 없으므로 
-        // 도로 렌더링 루프에서는 도로만, 그리고 오브젝트는 별도로 Back-to-Front로 그리는게 정석.
-        // 하지만 여기선 "Out Run" 방식(Scanline clipping)이라 도로 루프 내에서 그리는게 Clipping에 유리.
-        // 겹침 문제는 희소한 트래픽이라 무시하거나, 먼 곳 차가 먼저 그려지게 별도 처리가 필요.
-        
-        // 여기서는 간단히 루프 내에서 그리되, 멀리 있는 세그먼트가 나중에 그려지는 구조가 아니므로(Near-to-Far),
-        // 가까운 차가 먼저 그려지고 먼 차가 덮어씌우는 문제 발생.
-        // 해결: Render Sprites Loop separate? 
-        // No, use standard OutRun approach: Draw Sprites back-to-front AFTER road, but scale properly.
-        
-        // 1. 도로 먼저 그리기 (지평선 처리 및 MaxY 클리핑)
-        // 2. Sprite 수집
         let visibleCars = [];
 
         for (let n = 0; n < DRAW_DISTANCE; n++) {
@@ -563,18 +627,17 @@
 
             x += dx; dx += segment.curve;
 
-            if (segment.p1.camera.z <= CAMERA_DEPTH) continue; // Behind camera
+            if (segment.p1.camera.z <= CAMERA_DEPTH) continue; 
 
             // 화면 밖 체크 (MaxY clipping)
             if (segment.p2.screen.y >= maxy) {
-                 // 도로가 안보여도 차는 보일 수 있으니 수집은 함 (단, 언덕 너머는 제외)
-                 // 여기서는 간단히 넘어감
+                 // skip
             } else if (segment.p2.screen.y < segment.p1.screen.y) {
                 // 도로 그리기
                 let r1 = segment.p1.screen.w; let r2 = segment.p2.screen.w;
                 let l1 = segment.p1.screen.x; let l2 = segment.p2.screen.x;
                 let y1 = segment.p1.screen.y; let y2 = segment.p2.screen.y;
-                let renderY2 = y2; // 정밀하게 하려면 y2-1 등이지만
+                let renderY2 = y2; 
 
                 ctx.fillStyle = '#001100'; 
                 ctx.fillRect(0, renderY2, width, y1 - renderY2); 
@@ -586,22 +649,19 @@
                 maxy = y2;
             }
 
-            // 차 수집 (현재 화면에 보이는 범위 내)
-            // 인게임 루프에서 cars 배열을 순회하며 현재 세그먼트에 있는 차 찾기 (비효율적일 수 있으나 차가 적으므로 OK)
+            // 차 수집
             for(let c=0; c<cars.length; c++) {
                 if(cars[c].index === segment.index) {
                     visibleCars.push({ car: cars[c], segment: segment });
                 }
             }
-            // 아치 등 정적 오브젝트
             if (segment.feature && segment.feature.type === 'arch') {
-                // 아치는 도로 그릴때 같이 그리는게 자연스러움 (기둥)
-                if (segment.p1.screen.y > maxy) // 클리핑 고려
+                if (segment.p1.screen.y > maxy)
                     visibleCars.push({ type: 'arch', segment: segment });
             }
         }
 
-        // 3. 스프라이트(차, 아치) 그리기 (Back-to-Front: 멀리 있는 것부터)
+        // 3. 스프라이트 그리기 (Back-to-Front)
         for (let i = visibleCars.length - 1; i >= 0; i--) {
             const obj = visibleCars[i];
             if (obj.type === 'arch') {
@@ -629,29 +689,22 @@
         // 트래픽 이동 업데이트
         for(let i=0; i<cars.length; i++) {
             cars[i].z += cars[i].speed * dt;
-            // 차의 Z위치에 맞는 세그먼트 인덱스 계산
             let newIndex = Math.floor(cars[i].z / SEGMENT_LENGTH);
-            if (newIndex >= segments.length) newIndex = 0; // Loop or remove? Remove if finished.
+            if (newIndex >= segments.length) newIndex = 0; 
             cars[i].index = newIndex;
         }
 
         const currentSegIndex = Math.floor((position + 100) / SEGMENT_LENGTH);
         
-        // 충돌 체크 (Collision Check)
+        // 충돌 체크
         for(let i=0; i<cars.length; i++) {
             const car = cars[i];
-            // 플레이어 Z와 차 Z 비교 (position vs car.z)
-            // 플레이어 차체 길이 고려 (약 200)
             if (car.z > position && car.z < position + 250) {
-                // X축 충돌 (offset 비교)
-                // 플레이어 offset: playerX (-1 ~ 1 이지만 도로폭 기준), 차 offset (-1 ~ 1)
-                // 차폭 고려 (약 0.25)
                 if (Math.abs(playerX - car.offset) < 0.5) {
                     if (speed > 5000) {
                         speed = speed * 0.4; // 감속
                         cameraShake = 30;
                         showMessage("CRASH!!", "#ff0000", 800);
-                        // 튕겨나감 효과
                         playerX -= (car.offset - playerX) * 0.5; 
                     }
                 }
