@@ -27,9 +27,17 @@
             position: absolute;
             top: 20px;
             left: 20px;
+            width: calc(100% - 40px);
             pointer-events: none;
             text-shadow: 0 0 10px #0ff;
             z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .score-box {
+            text-align: left;
         }
 
         h1 {
@@ -52,6 +60,34 @@
             margin-top: 5px;
             opacity: 0;
             transition: opacity 0.3s;
+        }
+
+        /* 랭킹 버튼 스타일 */
+        #btn-show-ranking {
+            pointer-events: auto;
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid #ffd700;
+            color: #ffd700;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-family: 'Noto Sans KR', sans-serif;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        #btn-show-ranking:hover {
+            background: rgba(255, 215, 0, 0.2);
+            transform: scale(1.05);
+        }
+
+        #btn-show-ranking:active {
+            transform: scale(0.95);
         }
 
         #center-ui {
@@ -112,12 +148,28 @@
             text-shadow: 0 0 10px #0ff;
         }
 
+        /* 닫기 버튼 (X) */
+        #btn-modal-close {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            margin: 0;
+            line-height: 1;
+        }
+        #btn-modal-close:hover { color: #f00; }
+
         .rank-list {
             list-style: none;
             padding: 0;
             margin: 0 0 20px 0;
             text-align: left;
-            max-height: 200px;
+            max-height: 250px;
             overflow-y: auto;
             border-bottom: 1px solid #333;
         }
@@ -152,7 +204,7 @@
             outline: none;
         }
 
-        button {
+        button.action-btn {
             background: linear-gradient(45deg, #0088ff, #00ffff);
             border: none;
             color: #000;
@@ -165,8 +217,8 @@
             margin: 5px;
         }
 
-        button:active { transform: scale(0.95); }
-        button:disabled { background: #555; color: #888; cursor: not-allowed; }
+        button.action-btn:active { transform: scale(0.95); }
+        button.action-btn:disabled { background: #555; color: #888; cursor: not-allowed; }
 
         #final-score {
             font-size: 32px;
@@ -198,10 +250,14 @@
 <body>
 
     <div id="ui-layer">
-        <h1>NEON LAUNCHER</h1>
-        <div>Distance: <span id="score-display">0</span> m</div>
-        <div id="combo-display">COMBO x0</div>
-        <div style="font-size: 14px; color: #888; margin-top: 5px;">Best: <span id="best-score">0</span> m</div>
+        <div class="score-box">
+            <h1>NEON LAUNCHER</h1>
+            <div>Distance: <span id="score-display">0</span> m</div>
+            <div id="combo-display">COMBO x0</div>
+            <div style="font-size: 14px; color: #888; margin-top: 5px;">Best: <span id="best-score">0</span> m</div>
+        </div>
+        <!-- 랭킹 확인 버튼 추가 -->
+        <button id="btn-show-ranking">🏆 랭킹 보기</button>
     </div>
 
     <div id="hit-feedback">PERFECT!</div>
@@ -212,22 +268,23 @@
 
     <!-- 랭킹 및 결과 모달 -->
     <div id="ranking-modal">
-        <h2>GAME OVER</h2>
-        <div id="final-score">0 m</div>
+        <button id="btn-modal-close">&times;</button>
+        <h2 id="modal-title">GAME OVER</h2>
+        <div id="final-score" class="hidden">0 m</div>
         
         <!-- 등록 폼 -->
-        <div id="register-form">
+        <div id="register-form" class="hidden">
             <input type="text" id="player-name" placeholder="이름을 입력하세요 (최대 8자)" maxlength="8">
-            <button id="btn-submit">랭킹 등록</button>
+            <button id="btn-submit" class="action-btn">랭킹 등록</button>
         </div>
 
         <!-- 랭킹 리스트 -->
-        <div id="ranking-container" class="hidden">
-            <div id="my-rank-info">내 순위 계산 중...</div>
+        <div id="ranking-container">
+            <div id="my-rank-info" class="hidden">내 순위 계산 중...</div>
             <ul class="rank-list" id="rank-list">
-                <!-- JS로 채워짐 -->
+                <li style="padding:10px; color:#888;">데이터를 불러오는 중...</li>
             </ul>
-            <button id="btn-retry">다시 하기</button>
+            <button id="btn-retry" class="action-btn hidden">다시 하기</button>
         </div>
     </div>
 
@@ -244,16 +301,16 @@
             db: null,
             auth: null,
             user: null,
-            appId: 'neon-launcher', // 기본값
+            appId: 'neon-launcher', 
             initFirebase: async function() {
                 const firebaseConfig = {
-                    apiKey: "AIzaSyAYSKqmUyDMy-7JojaiId4NZBwOQ-iOldI",
-                    authDomain: "jnsgamerankscore.firebaseapp.com",
-                    projectId: "jnsgamerankscore",
-                    storageBucket: "jnsgamerankscore.firebasestorage.app",
-                    messagingSenderId: "508728667972",
-                    appId: "1:508728667972:web:9b5bf07ad0d3fa6e217111",
-                    measurementId: "G-BSX2NBMK3X"
+                  apiKey: "AIzaSyAYSKqmUyDMy-7JojaiId4NZBwOQ-iOldI",
+                  authDomain: "jnsgamerankscore.firebaseapp.com",
+                  projectId: "jnsgamerankscore",
+                  storageBucket: "jnsgamerankscore.firebasestorage.app",
+                  messagingSenderId: "508728667972",
+                  appId: "1:508728667972:web:9b5bf07ad0d3fa6e217111",
+                  measurementId: "G-BSX2NBMK3X"
                 };
                 if (!firebaseConfig.apiKey) {
                     console.warn("Firebase config not found. Ranking disabled.");
@@ -264,13 +321,11 @@
                 this.auth = getAuth(app);
                 this.db = getFirestore(app);
                 
-                // 앱 ID 설정 (환경변수 존재 시 덮어쓰기)
                 if(typeof window.__app_id !== 'undefined') {
                     this.appId = window.__app_id;
                 }
 
                 try {
-                    // 환경에 맞는 인증 방식 선택 (커스텀 토큰 우선)
                     if (typeof window.__initial_auth_token !== 'undefined' && window.__initial_auth_token) {
                         await signInWithCustomToken(this.auth, window.__initial_auth_token);
                     } else {
@@ -279,21 +334,18 @@
 
                     onAuthStateChanged(this.auth, (user) => {
                         this.user = user;
-                        // console.log("Logged in as", user?.uid);
                     });
                 } catch (e) {
                     console.error("Auth failed", e);
                 }
             },
             saveScore: async function(name, score) {
-                // auth.currentUser를 직접 사용하여 최신 상태 확인
                 const currentUser = this.auth?.currentUser || this.user;
                 if (!this.db || !currentUser) {
                     console.error("No DB or User found");
                     return false;
                 }
                 try {
-                    // 규칙에 맞는 경로: artifacts/{appId}/public/data/{collectionName}
                     const scoresRef = collection(this.db, 'artifacts', this.appId, 'public', 'data', 'scores');
                     await addDoc(scoresRef, {
                         name: name,
@@ -312,37 +364,33 @@
                 
                 const scoresRef = collection(this.db, 'artifacts', this.appId, 'public', 'data', 'scores');
                 
-                // 1. Top 10 가져오기
                 const qTop = query(scoresRef, orderBy('score', 'desc'), limit(10));
                 const snapshot = await getDocs(qTop);
                 const top10 = snapshot.docs.map(doc => doc.data());
 
-                // 2. 내 순위 계산 (나보다 점수 높은 사람 수 + 1)
-                // Firestore 인덱스 문제 발생 시 예외 처리
                 let myRank = '-';
-                try {
-                    const qBetter = query(scoresRef, where("score", ">", myScore));
-                    const snapshotBetter = await getCountFromServer(qBetter);
-                    myRank = snapshotBetter.data().count + 1;
-                } catch (e) {
-                    console.warn("Ranking count failed (Index might be building):", e);
-                    // 인덱스 없을 땐 단순하게 top10 안에 있는지 확인
-                    const idx = top10.findIndex(d => d.score === myScore && d.name === document.getElementById('player-name').value);
-                    if(idx !== -1) myRank = idx + 1;
-                    else myRank = "10위 밖 (인덱스 생성중)";
+                if (myScore !== null && myScore !== undefined) {
+                    try {
+                        const qBetter = query(scoresRef, where("score", ">", myScore));
+                        const snapshotBetter = await getCountFromServer(qBetter);
+                        myRank = snapshotBetter.data().count + 1;
+                    } catch (e) {
+                        console.warn("Ranking count failed:", e);
+                        const idx = top10.findIndex(d => d.score === myScore);
+                        if(idx !== -1) myRank = idx + 1;
+                        else myRank = "집계중";
+                    }
                 }
 
                 return { top10, myRank };
             }
         };
 
-        // Initialize Firebase
         window.GAME.initFirebase();
     </script>
 
     <!-- Main Game Script -->
     <script>
-        // 사운드 매니저
         const Sound = {
             ctx: null,
             init: function() {
@@ -373,14 +421,12 @@
                 const gain = this.ctx.createGain();
                 
                 if (isPerfect) {
-                    // 깡! (홈런)
                     osc.type = 'sawtooth';
                     osc.frequency.setValueAtTime(600, this.ctx.currentTime);
                     osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.15);
                     gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
                     gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
                 } else {
-                    // 픽.. (빗맞음)
                     osc.type = 'triangle';
                     osc.frequency.setValueAtTime(200, this.ctx.currentTime);
                     osc.frequency.linearRampToValueAtTime(100, this.ctx.currentTime + 0.1); 
@@ -397,7 +443,6 @@
             playBlast: function() { this.playTone(100, 'sawtooth', 0.5, 0.2); this.playTone(50, 'square', 0.5, 0.2); }
         };
 
-        // --- Game Logic ---
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const uiScore = document.getElementById('score-display');
@@ -408,6 +453,7 @@
         
         // Modal UI Elements
         const modal = document.getElementById('ranking-modal');
+        const modalTitle = document.getElementById('modal-title');
         const finalScoreEl = document.getElementById('final-score');
         const registerForm = document.getElementById('register-form');
         const rankingContainer = document.getElementById('ranking-container');
@@ -416,6 +462,8 @@
         const playerNameInput = document.getElementById('player-name');
         const btnSubmit = document.getElementById('btn-submit');
         const btnRetry = document.getElementById('btn-retry');
+        const btnShowRanking = document.getElementById('btn-show-ranking');
+        const btnModalClose = document.getElementById('btn-modal-close');
 
         const STATE = { READY: 0, DROPPING: 1, FLYING: 2, STOPPED: 3, MISS: 4 };
         let gameState = STATE.READY;
@@ -444,19 +492,18 @@
             if (!name) { alert("이름을 입력해주세요."); return; }
             if (name.length > 8) { alert("이름은 8자 이하로 입력해주세요."); return; }
 
-            // 로컬 스토리지에 이름 저장
             localStorage.setItem('neon_launcher_name', name);
 
             btnSubmit.disabled = true;
             btnSubmit.innerText = "등록 중...";
 
-            // Firebase 저장
             if (window.GAME) {
                 const success = await window.GAME.saveScore(name, currentScore);
                 if (success) {
-                    await showRankingBoard(currentScore, name);
+                    await updateRankingBoard(currentScore, name);
                     registerForm.classList.add('hidden');
                     rankingContainer.classList.remove('hidden');
+                    btnRetry.classList.remove('hidden'); // 등록 후 재시작 버튼 보이기
                 } else {
                     alert("점수 저장 실패. 네트워크를 확인해주세요.");
                     btnSubmit.disabled = false;
@@ -467,25 +514,68 @@
             }
         });
 
+        // 재시작 버튼 (게임 오버 후)
         btnRetry.addEventListener('click', () => {
             modal.style.display = 'none';
             resetGame();
         });
 
-        // 랭킹 보드 표시 함수
-        async function showRankingBoard(myScore, myName) {
+        // 랭킹 보기 버튼 (상시)
+        btnShowRanking.addEventListener('click', async () => {
+            modalTitle.innerText = "TOP RANKING";
+            finalScoreEl.classList.add('hidden');
+            registerForm.classList.add('hidden');
+            btnRetry.classList.add('hidden'); // 단순 조회 시 재시작 버튼 숨김
+            rankingContainer.classList.remove('hidden');
+            myRankEl.classList.add('hidden'); // 단순 조회 시 내 순위 숨김
+            
+            modal.style.display = 'block';
+            await updateRankingBoard(null, null); // 점수 없이 조회
+        });
+
+        // 모달 닫기 (X) 버튼
+        btnModalClose.addEventListener('click', () => {
+            modal.style.display = 'none';
+            // 만약 게임 오버 상태에서 닫았다면, 화면 터치로 재시작 가능하게 하거나 리셋
+            if (gameState === STATE.STOPPED || gameState === STATE.MISS) {
+                resetGame();
+            }
+        });
+
+        // 랭킹 보드 업데이트 함수
+        async function updateRankingBoard(myScore, myName) {
+            rankListEl.innerHTML = '<li style="padding:10px; color:#888;">로딩 중...</li>';
+            
             const { top10, myRank } = await window.GAME.getRanking(myScore);
             
-            myRankEl.innerText = `나의 순위: ${myRank}위`;
+            if (myScore !== null) {
+                myRankEl.innerText = `이번 기록 순위: ${myRank}위`;
+                myRankEl.classList.remove('hidden');
+            } else {
+                myRankEl.classList.add('hidden');
+            }
+
             rankListEl.innerHTML = '';
+            if (top10.length === 0) {
+                rankListEl.innerHTML = '<li style="padding:10px; color:#888;">등록된 랭킹이 없습니다.</li>';
+                return;
+            }
 
             top10.forEach((item, index) => {
                 const li = document.createElement('li');
                 li.className = 'rank-item';
-                if (item.name === myName && item.score === myScore) li.classList.add('my-score');
+                // 내 점수 하이라이트 (이름과 점수가 일치할 때)
+                if (myName && item.name === myName && item.score === myScore) {
+                    li.classList.add('my-score');
+                }
                 
+                let rankIcon = index + 1;
+                if (index === 0) rankIcon = '🥇';
+                else if (index === 1) rankIcon = '🥈';
+                else if (index === 2) rankIcon = '🥉';
+
                 li.innerHTML = `
-                    <span class="rank-rank">${index + 1}</span>
+                    <span class="rank-rank">${rankIcon}</span>
                     <span class="rank-name">${item.name}</span>
                     <span class="rank-score">${item.score}m</span>
                 `;
@@ -493,7 +583,6 @@
             });
         }
 
-        // 초기 이름 로드
         const savedName = localStorage.getItem('neon_launcher_name');
         if (savedName) playerNameInput.value = savedName;
 
@@ -741,9 +830,12 @@
                 checkBestScore();
                 
                 // Show Result Modal
+                modalTitle.innerText = "GAME OVER";
                 finalScoreEl.innerText = `${currentScore} m`;
+                finalScoreEl.classList.remove('hidden');
                 registerForm.classList.remove('hidden');
                 rankingContainer.classList.add('hidden');
+                btnRetry.classList.add('hidden');
                 btnSubmit.disabled = false;
                 btnSubmit.innerText = "랭킹 등록";
                 modal.style.display = 'block';
@@ -778,12 +870,12 @@
         function init() {
             resize(); window.addEventListener('resize', resize);
             const inputHandler = (e) => {
-                if(e.target.closest('#ranking-modal')) return;
+                if(e.target.closest('#ranking-modal') || e.target.closest('#btn-show-ranking')) return;
                 Sound.init(); handleInput();
             };
             window.addEventListener('mousedown', inputHandler);
             window.addEventListener('touchstart', (e) => {
-                 if(!e.target.closest('#ranking-modal')) e.preventDefault();
+                 if(!e.target.closest('#ranking-modal') && !e.target.closest('#btn-show-ranking')) e.preventDefault();
                  Sound.init(); handleInput();
             }, {passive: false});
 
@@ -803,7 +895,7 @@
 
         function addBoosters(count) {
              for(let i=0; i<count; i++) {
-                // [수정] 부스터 생성 빈도 조정 (조금 줄임: 200~500 간격)
+                // 부스터 생성 빈도 조정
                 let gap = (200 + Math.random() * 500) * scaleFactor;
                 lastBoosterX += gap;
                 let by = height - 100 - (Math.random() * 2000 * scaleFactor); 
@@ -857,13 +949,35 @@
             if (type === "MISS") {
                 // 실격 시 점수 0으로 등록 화면 표시
                 currentScore = 0;
+                modalTitle.innerText = "GAME OVER";
                 finalScoreEl.innerText = "MISS";
+                finalScoreEl.classList.remove('hidden');
                 registerForm.classList.remove('hidden');
                 rankingContainer.classList.add('hidden');
+                btnRetry.classList.add('hidden');
                 btnSubmit.disabled = false;
                 btnSubmit.innerText = "랭킹 등록";
                 modal.style.display = 'block';
             }
+        }
+
+        function resetGame() {
+            gameState = STATE.READY;
+            camera.x = 0;
+            camera.y = 0;
+            batter.reset();
+            ball.reset();
+            combo = 0;
+            uiCombo.style.opacity = 0;
+            
+            // UI 초기화
+            uiMsg.classList.remove('hidden');
+            uiMsg.innerHTML = "화면을 클릭하면<br>공이 떨어집니다!";
+            
+            // 모달 및 버튼 상태 초기화
+            modal.style.display = 'none';
+            
+            initBoosters();
         }
 
         function checkBestScore() {
