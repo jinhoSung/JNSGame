@@ -3,29 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Launcher - Final Complete</title>
+    <title>Neon Launcher - Ranking Battle</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+KR:wght@400;700&display=swap');
 
         body {
             margin: 0;
             overflow: hidden;
             background-color: #050510;
-            font-family: 'Orbitron', sans-serif;
+            font-family: 'Orbitron', 'Noto Sans KR', sans-serif;
             touch-action: none;
             user-select: none;
             -webkit-user-select: none;
+            color: #fff;
         }
 
         canvas {
             display: block;
         }
 
+        /* UI 레이어 */
         #ui-layer {
             position: absolute;
             top: 20px;
             left: 20px;
-            color: #fff;
             pointer-events: none;
             text-shadow: 0 0 10px #0ff;
             z-index: 10;
@@ -65,7 +66,6 @@
         }
 
         #status-msg {
-            color: white;
             font-size: 24px;
             text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
             margin-bottom: 30px;
@@ -87,6 +87,101 @@
             z-index: 30;
         }
 
+        /* 랭킹 모달 스타일 */
+        #ranking-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 400px;
+            background: rgba(0, 0, 20, 0.95);
+            border: 2px solid #0ff;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            z-index: 50;
+            display: none; /* 기본 숨김 */
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+
+        #ranking-modal h2 {
+            color: #0ff;
+            margin: 0 0 20px 0;
+            text-shadow: 0 0 10px #0ff;
+        }
+
+        .rank-list {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 20px 0;
+            text-align: left;
+            max-height: 200px;
+            overflow-y: auto;
+            border-bottom: 1px solid #333;
+        }
+
+        .rank-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+        }
+
+        .rank-item.my-score {
+            color: #ff0;
+            font-weight: bold;
+            background: rgba(255, 255, 0, 0.1);
+        }
+
+        .rank-rank { width: 30px; text-align: center; }
+        .rank-name { flex-grow: 1; padding-left: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .rank-score { width: 80px; text-align: right; }
+
+        input[type="text"] {
+            background: #111;
+            border: 1px solid #0ff;
+            color: #fff;
+            padding: 10px;
+            width: 70%;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        button {
+            background: linear-gradient(45deg, #0088ff, #00ffff);
+            border: none;
+            color: #000;
+            padding: 10px 20px;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: transform 0.1s;
+            margin: 5px;
+        }
+
+        button:active { transform: scale(0.95); }
+        button:disabled { background: #555; color: #888; cursor: not-allowed; }
+
+        #final-score {
+            font-size: 32px;
+            color: #f0f;
+            margin-bottom: 20px;
+            text-shadow: 0 0 15px #f0f;
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        #my-rank-info {
+            color: #aaa;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
         @keyframes pop {
             0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
             50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
@@ -97,36 +192,13 @@
             animation: pop 1s forwards;
         }
 
-        #retry-btn {
-            background: rgba(0, 0, 0, 0.8);
-            border: 2px solid #0ff;
-            color: #0ff;
-            padding: 15px 50px;
-            font-size: 24px;
-            font-family: 'Orbitron', sans-serif;
-            cursor: pointer;
-            text-transform: uppercase;
-            box-shadow: 0 0 20px #0ff;
-            border-radius: 5px;
-            pointer-events: auto;
-            display: none;
-            margin-top: 20px;
-        }
-
-        #retry-btn:active {
-            transform: scale(0.95);
-            background: rgba(0, 255, 255, 0.2);
-        }
-
-        .hidden {
-            opacity: 0;
-        }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
     <div id="ui-layer">
-        <h1>NEON SWING</h1>
+        <h1>NEON LAUNCHER</h1>
         <div>Distance: <span id="score-display">0</span> m</div>
         <div id="combo-display">COMBO x0</div>
         <div style="font-size: 14px; color: #888; margin-top: 5px;">Best: <span id="best-score">0</span> m</div>
@@ -136,30 +208,141 @@
 
     <div id="center-ui">
         <div id="status-msg">화면을 클릭하면<br>공이 떨어집니다!</div>
-        <button id="retry-btn">RETRY</button>
+    </div>
+
+    <!-- 랭킹 및 결과 모달 -->
+    <div id="ranking-modal">
+        <h2>GAME OVER</h2>
+        <div id="final-score">0 m</div>
+        
+        <!-- 등록 폼 -->
+        <div id="register-form">
+            <input type="text" id="player-name" placeholder="이름을 입력하세요 (최대 8자)" maxlength="8">
+            <button id="btn-submit">랭킹 등록</button>
+        </div>
+
+        <!-- 랭킹 리스트 -->
+        <div id="ranking-container" class="hidden">
+            <div id="my-rank-info">내 순위 계산 중...</div>
+            <ul class="rank-list" id="rank-list">
+                <!-- JS로 채워짐 -->
+            </ul>
+            <button id="btn-retry">다시 하기</button>
+        </div>
     </div>
 
     <canvas id="gameCanvas"></canvas>
 
+    <!-- Firebase SDK Modules -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, where, getCountFromServer } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Global Variables for Game ---
+        window.GAME = {
+            db: null,
+            auth: null,
+            user: null,
+            appId: 'neon-launcher', // 기본값
+            initFirebase: async function() {
+                const firebaseConfig = {
+                    apiKey: "AIzaSyAYSKqmUyDMy-7JojaiId4NZBwOQ-iOldI",
+                    authDomain: "jnsgamerankscore.firebaseapp.com",
+                    projectId: "jnsgamerankscore",
+                    storageBucket: "jnsgamerankscore.firebasestorage.app",
+                    messagingSenderId: "508728667972",
+                    appId: "1:508728667972:web:9b5bf07ad0d3fa6e217111",
+                    measurementId: "G-BSX2NBMK3X"
+                };
+                if (!firebaseConfig.apiKey) {
+                    console.warn("Firebase config not found. Ranking disabled.");
+                    return;
+                }
+
+                const app = initializeApp(firebaseConfig);
+                this.auth = getAuth(app);
+                this.db = getFirestore(app);
+                
+                // 앱 ID 설정 (환경변수 존재 시 덮어쓰기)
+                if(typeof window.__app_id !== 'undefined') {
+                    this.appId = window.__app_id;
+                }
+
+                try {
+                    // 환경에 맞는 인증 방식 선택 (커스텀 토큰 우선)
+                    if (typeof window.__initial_auth_token !== 'undefined' && window.__initial_auth_token) {
+                        await signInWithCustomToken(this.auth, window.__initial_auth_token);
+                    } else {
+                        await signInAnonymously(this.auth);
+                    }
+
+                    onAuthStateChanged(this.auth, (user) => {
+                        this.user = user;
+                        // console.log("Logged in as", user?.uid);
+                    });
+                } catch (e) {
+                    console.error("Auth failed", e);
+                }
+            },
+            saveScore: async function(name, score) {
+                // auth.currentUser를 직접 사용하여 최신 상태 확인
+                const currentUser = this.auth?.currentUser || this.user;
+                if (!this.db || !currentUser) {
+                    console.error("No DB or User found");
+                    return false;
+                }
+                try {
+                    // 규칙에 맞는 경로: artifacts/{appId}/public/data/{collectionName}
+                    const scoresRef = collection(this.db, 'artifacts', this.appId, 'public', 'data', 'scores');
+                    await addDoc(scoresRef, {
+                        name: name,
+                        score: score,
+                        userId: currentUser.uid,
+                        timestamp: Date.now()
+                    });
+                    return true;
+                } catch (e) {
+                    console.error("Save score failed", e);
+                    return false;
+                }
+            },
+            getRanking: async function(myScore) {
+                if (!this.db) return { top10: [], myRank: '-' };
+                
+                const scoresRef = collection(this.db, 'artifacts', this.appId, 'public', 'data', 'scores');
+                
+                // 1. Top 10 가져오기
+                const qTop = query(scoresRef, orderBy('score', 'desc'), limit(10));
+                const snapshot = await getDocs(qTop);
+                const top10 = snapshot.docs.map(doc => doc.data());
+
+                // 2. 내 순위 계산 (나보다 점수 높은 사람 수 + 1)
+                // Firestore 인덱스 문제 발생 시 예외 처리
+                let myRank = '-';
+                try {
+                    const qBetter = query(scoresRef, where("score", ">", myScore));
+                    const snapshotBetter = await getCountFromServer(qBetter);
+                    myRank = snapshotBetter.data().count + 1;
+                } catch (e) {
+                    console.warn("Ranking count failed (Index might be building):", e);
+                    // 인덱스 없을 땐 단순하게 top10 안에 있는지 확인
+                    const idx = top10.findIndex(d => d.score === myScore && d.name === document.getElementById('player-name').value);
+                    if(idx !== -1) myRank = idx + 1;
+                    else myRank = "10위 밖 (인덱스 생성중)";
+                }
+
+                return { top10, myRank };
+            }
+        };
+
+        // Initialize Firebase
+        window.GAME.initFirebase();
+    </script>
+
+    <!-- Main Game Script -->
     <script>
-        /**
-         * NEON SWING (Final Complete Version)
-         * - Sound Effects (Hit Sound differentiation)
-         * - Increased Boosters
-         * - Speed Lines (Visual Juice)
-         * - Fever Mode (Rainbow)
-         */
-
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const uiScore = document.getElementById('score-display');
-        const uiCombo = document.getElementById('combo-display');
-        const uiBest = document.getElementById('best-score');
-        const uiMsg = document.getElementById('status-msg');
-        const uiFeedback = document.getElementById('hit-feedback');
-        const btnRetry = document.getElementById('retry-btn');
-
-        // --- Sound Manager (Web Audio API) ---
+        // 사운드 매니저
         const Sound = {
             ctx: null,
             init: function() {
@@ -186,65 +369,66 @@
             playHit: function(isPerfect) {
                 this.init();
                 if(!this.ctx) return;
-                
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 
                 if (isPerfect) {
-                    // [수정] 홈런 소리 (Sawtooth로 날카롭게 '깡!')
+                    // 깡! (홈런)
                     osc.type = 'sawtooth';
                     osc.frequency.setValueAtTime(600, this.ctx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.15); // 빠른 피치 하강
+                    osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.15);
                     gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
                     gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
                 } else {
-                    // [수정] 빗맞은 소리 (Triangle로 둔탁하게 '픽' or '틱')
+                    // 픽.. (빗맞음)
                     osc.type = 'triangle';
                     osc.frequency.setValueAtTime(200, this.ctx.currentTime);
                     osc.frequency.linearRampToValueAtTime(100, this.ctx.currentTime + 0.1); 
                     gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
                     gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.1);
                 }
-
                 osc.connect(gain);
                 gain.connect(this.ctx.destination);
                 osc.start();
                 osc.stop(this.ctx.currentTime + 0.2);
             },
-            playBoost: function() {
-                this.playTone(600, 'sine', 0.2);
-                setTimeout(() => this.playTone(1200, 'sine', 0.4), 50);
-            },
-            playJump: function() {
-                this.playTone(300, 'square', 0.1);
-                setTimeout(() => this.playTone(600, 'square', 0.3), 50);
-            },
-            playBlast: function() {
-                // 노이즈 같은 느낌을 흉내 (저주파 쏘우투스)
-                this.playTone(100, 'sawtooth', 0.5, 0.2);
-                this.playTone(50, 'square', 0.5, 0.2);
-            }
+            playBoost: function() { this.playTone(600, 'sine', 0.2); setTimeout(() => this.playTone(1200, 'sine', 0.4), 50); },
+            playJump: function() { this.playTone(300, 'square', 0.1); setTimeout(() => this.playTone(600, 'square', 0.3), 50); },
+            playBlast: function() { this.playTone(100, 'sawtooth', 0.5, 0.2); this.playTone(50, 'square', 0.5, 0.2); }
         };
 
-        const STATE = {
-            READY: 0,
-            DROPPING: 1,
-            FLYING: 2,
-            STOPPED: 3,
-            MISS: 4
-        };
+        // --- Game Logic ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const uiScore = document.getElementById('score-display');
+        const uiCombo = document.getElementById('combo-display');
+        const uiBest = document.getElementById('best-score');
+        const uiMsg = document.getElementById('status-msg');
+        const uiFeedback = document.getElementById('hit-feedback');
+        
+        // Modal UI Elements
+        const modal = document.getElementById('ranking-modal');
+        const finalScoreEl = document.getElementById('final-score');
+        const registerForm = document.getElementById('register-form');
+        const rankingContainer = document.getElementById('ranking-container');
+        const rankListEl = document.getElementById('rank-list');
+        const myRankEl = document.getElementById('my-rank-info');
+        const playerNameInput = document.getElementById('player-name');
+        const btnSubmit = document.getElementById('btn-submit');
+        const btnRetry = document.getElementById('btn-retry');
 
+        const STATE = { READY: 0, DROPPING: 1, FLYING: 2, STOPPED: 3, MISS: 4 };
         let gameState = STATE.READY;
         let width, height;
         let frameId;
         let bestDistance = 0;
-        let lastBoosterX = 0; 
-        let scaleFactor = 1; 
+        let lastBoosterX = 0;
+        let scaleFactor = 1;
         let lastTime = 0;
-        let combo = 0; 
+        let combo = 0;
+        let currentScore = 0;
 
         const camera = { x: 0, y: 0, shake: 0 };
-
         const GRAVITY_BASE = 0.25;
         let GRAVITY = GRAVITY_BASE;
         const FRICTION_AIR = 0.998; 
@@ -252,23 +436,70 @@
         const BOUNCE = 0.6; 
         const CHAR_SCALE = 1.3;
 
-        let ball;
-        let batter;
-        let particles = [];
-        let shockwaves = []; 
-        let speedLines = []; 
-        let stars = [];
-        let boosters = [];
-        let mountains = [];
+        let ball, batter, particles = [], shockwaves = [], speedLines = [], stars = [], boosters = [], mountains = [];
 
-        // =========================================
-        // 클래스 정의
-        // =========================================
+        // UI Event Listeners
+        btnSubmit.addEventListener('click', async () => {
+            const name = playerNameInput.value.trim();
+            if (!name) { alert("이름을 입력해주세요."); return; }
+            if (name.length > 8) { alert("이름은 8자 이하로 입력해주세요."); return; }
 
-        class SpeedLine {
-            constructor() {
-                this.reset();
+            // 로컬 스토리지에 이름 저장
+            localStorage.setItem('neon_launcher_name', name);
+
+            btnSubmit.disabled = true;
+            btnSubmit.innerText = "등록 중...";
+
+            // Firebase 저장
+            if (window.GAME) {
+                const success = await window.GAME.saveScore(name, currentScore);
+                if (success) {
+                    await showRankingBoard(currentScore, name);
+                    registerForm.classList.add('hidden');
+                    rankingContainer.classList.remove('hidden');
+                } else {
+                    alert("점수 저장 실패. 네트워크를 확인해주세요.");
+                    btnSubmit.disabled = false;
+                    btnSubmit.innerText = "랭킹 등록";
+                }
+            } else {
+                alert("랭킹 시스템을 초기화하지 못했습니다.");
             }
+        });
+
+        btnRetry.addEventListener('click', () => {
+            modal.style.display = 'none';
+            resetGame();
+        });
+
+        // 랭킹 보드 표시 함수
+        async function showRankingBoard(myScore, myName) {
+            const { top10, myRank } = await window.GAME.getRanking(myScore);
+            
+            myRankEl.innerText = `나의 순위: ${myRank}위`;
+            rankListEl.innerHTML = '';
+
+            top10.forEach((item, index) => {
+                const li = document.createElement('li');
+                li.className = 'rank-item';
+                if (item.name === myName && item.score === myScore) li.classList.add('my-score');
+                
+                li.innerHTML = `
+                    <span class="rank-rank">${index + 1}</span>
+                    <span class="rank-name">${item.name}</span>
+                    <span class="rank-score">${item.score}m</span>
+                `;
+                rankListEl.appendChild(li);
+            });
+        }
+
+        // 초기 이름 로드
+        const savedName = localStorage.getItem('neon_launcher_name');
+        if (savedName) playerNameInput.value = savedName;
+
+        // --- Classes ---
+        class SpeedLine {
+            constructor() { this.reset(); }
             reset() {
                 this.x = Math.random() * width;
                 this.y = Math.random() * height;
@@ -304,22 +535,16 @@
 
         class Shockwave {
             constructor(x, y, color) {
-                this.x = x;
-                this.y = y;
-                this.color = color;
-                this.radius = 10;
-                this.maxRadius = 100 * scaleFactor;
-                this.alpha = 1.0;
-                this.lineWidth = 5 * scaleFactor;
+                this.x = x; this.y = y; this.color = color;
+                this.radius = 10; this.maxRadius = 100 * scaleFactor;
+                this.alpha = 1.0; this.lineWidth = 5 * scaleFactor;
             }
-
             update(dt) {
-                this.radius += 8 * scaleFactor * dt; 
+                this.radius += 8 * scaleFactor * dt;
                 this.alpha -= 0.08 * dt;
                 this.lineWidth -= 0.2 * dt;
                 if (this.lineWidth < 0) this.lineWidth = 0;
             }
-
             draw() {
                 if (this.alpha <= 0) return;
                 ctx.save();
@@ -334,129 +559,72 @@
         }
 
         class Star {
-            constructor() {
-                this.reset();
-            }
+            constructor() { this.reset(); }
             reset() {
-                this.x = Math.random() * width;
-                this.y = Math.random() * height; 
-                this.size = Math.random() * 2;
-                this.blinkSpeed = 0.01 + Math.random() * 0.05;
-                this.alpha = Math.random();
-                this.parallax = 0.05 + Math.random() * 0.2;
+                this.x = Math.random() * width; this.y = Math.random() * height; 
+                this.size = Math.random() * 2; this.blinkSpeed = 0.01 + Math.random() * 0.05;
+                this.alpha = Math.random(); this.parallax = 0.05 + Math.random() * 0.2;
             }
             draw() {
                 this.alpha += this.blinkSpeed;
                 if (this.alpha > 1 || this.alpha < 0) this.blinkSpeed *= -1;
-                
-                let renderX = (this.x - camera.x * this.parallax) % width;
-                if (renderX < 0) renderX += width;
-                let renderY = this.y - camera.y * this.parallax;
-
+                let rx = (this.x - camera.x * this.parallax) % width;
+                if (rx < 0) rx += width;
+                let ry = this.y - camera.y * this.parallax;
                 ctx.globalAlpha = Math.abs(this.alpha);
                 ctx.fillStyle = '#fff';
-                ctx.beginPath();
-                ctx.arc(renderX, renderY, this.size, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.beginPath(); ctx.arc(rx, ry, this.size, 0, Math.PI * 2); ctx.fill();
                 ctx.globalAlpha = 1.0;
             }
         }
 
         class Mountain {
-            constructor(x, w, h) {
-                this.x = x;
-                this.w = w;
-                this.h = h;
-                this.parallax = 0.15;
-            }
+            constructor(x, w, h) { this.x = x; this.w = w; this.h = h; this.parallax = 0.15; }
             draw() {
-                let renderX = this.x - camera.x * this.parallax;
-                if (renderX < -this.w) this.x += width * 2; 
-
-                if (renderX > width || renderX + this.w < 0) return;
-
-                const groundY = height - 50 - camera.y; 
-
-                ctx.fillStyle = '#111';
-                ctx.strokeStyle = '#0ff';
-                ctx.lineWidth = 1;
-                
-                ctx.beginPath();
-                ctx.moveTo(renderX, groundY);
-                ctx.lineTo(renderX + this.w / 2, groundY - this.h * scaleFactor); 
-                ctx.lineTo(renderX + this.w, groundY);
-                ctx.fill();
-                ctx.stroke();
+                let rx = this.x - camera.x * this.parallax;
+                if (rx < -this.w) this.x += width * 2; 
+                if (rx > width || rx + this.w < 0) return;
+                const gy = height - 50 - camera.y; 
+                ctx.fillStyle = '#111'; ctx.strokeStyle = '#0ff'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(rx, gy); ctx.lineTo(rx + this.w / 2, gy - this.h * scaleFactor); ctx.lineTo(rx + this.w, gy); ctx.fill(); ctx.stroke();
             }
         }
 
         class Particle {
             constructor(x, y, color, speed, sizeObj = 2) {
-                this.x = x;
-                this.y = y;
-                this.color = color;
-                const angle = Math.random() * Math.PI * 2;
-                const velocity = Math.random() * speed * scaleFactor;
-                this.vx = Math.cos(angle) * velocity;
-                this.vy = Math.sin(angle) * velocity;
-                this.life = 1.0;
-                this.decay = 0.02 + Math.random() * 0.03;
+                this.x = x; this.y = y; this.color = color;
+                const a = Math.random() * Math.PI * 2;
+                const v = Math.random() * speed * scaleFactor;
+                this.vx = Math.cos(a) * v; this.vy = Math.sin(a) * v;
+                this.life = 1.0; this.decay = 0.02 + Math.random() * 0.03;
                 this.size = (sizeObj + Math.random() * 3) * scaleFactor;
             }
-            update(dt) { 
-                this.x += this.vx * dt;
-                this.y += this.vy * dt;
-                this.vy += 0.05 * scaleFactor * dt; 
-                this.life -= this.decay * dt;
-            }
+            update(dt) { this.x += this.vx * dt; this.y += this.vy * dt; this.vy += 0.05 * scaleFactor * dt; this.life -= this.decay * dt; }
             draw() {
                 if (this.life <= 0) return;
-                ctx.globalAlpha = this.life;
-                ctx.fillStyle = this.color;
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = this.color;
-                ctx.beginPath();
-                ctx.arc(this.x - camera.x, this.y - camera.y, this.size, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.shadowBlur = 0;
-                ctx.globalAlpha = 1.0;
+                ctx.globalAlpha = this.life; ctx.fillStyle = this.color;
+                ctx.shadowBlur = 10; ctx.shadowColor = this.color;
+                ctx.beginPath(); ctx.arc(this.x - camera.x, this.y - camera.y, this.size, 0, Math.PI * 2); ctx.fill();
+                ctx.shadowBlur = 0; ctx.globalAlpha = 1.0;
             }
         }
 
         class Booster {
             constructor(x, y, type) {
-                this.x = x;
-                this.y = y;
-                this.type = type || 'speed';
-                this.radius = 35 * scaleFactor; 
-                this.active = true;
-                this.pulse = 0;
-                
-                if (this.type === 'speed') {
-                    this.color = '#ffd700'; 
-                    this.glow = '#ff8800';
-                } else if (this.type === 'jump') {
-                    this.color = '#00ffff'; 
-                    this.glow = '#0088ff';
-                } else if (this.type === 'blast') {
-                    this.color = '#ff0055'; 
-                    this.glow = '#ff0000';
-                }
+                this.x = x; this.y = y; this.type = type || 'speed';
+                this.radius = 35 * scaleFactor; this.active = true; this.pulse = 0;
+                if (this.type === 'speed') { this.color = '#ffd700'; this.glow = '#ff8800'; }
+                else if (this.type === 'jump') { this.color = '#00ffff'; this.glow = '#0088ff'; }
+                else if (this.type === 'blast') { this.color = '#ff0055'; this.glow = '#ff0000'; }
             }
-
             draw() {
                 if (!this.active) return;
                 if (this.x - camera.x < -100 || this.x - camera.x > width + 100) return;
                 if (this.y - camera.y < -100 || this.y - camera.y > height + 100) return;
-
                 this.pulse += 0.1;
                 const r = this.radius + Math.sin(this.pulse) * 5;
-                
-                ctx.strokeStyle = this.color;
-                ctx.lineWidth = 3;
-                ctx.shadowBlur = 20;
-                ctx.shadowColor = this.glow;
-                
+                ctx.strokeStyle = this.color; ctx.lineWidth = 3;
+                ctx.shadowBlur = 20; ctx.shadowColor = this.glow;
                 ctx.beginPath();
                 if (this.type === 'blast') {
                     ctx.moveTo(this.x - camera.x, this.y - camera.y - r);
@@ -464,444 +632,166 @@
                     ctx.lineTo(this.x - camera.x, this.y - camera.y + r);
                     ctx.lineTo(this.x - camera.x - r, this.y - camera.y);
                     ctx.closePath();
-                } else {
-                    ctx.arc(this.x - camera.x, this.y - camera.y, r, 0, Math.PI * 2);
-                }
+                } else { ctx.arc(this.x - camera.x, this.y - camera.y, r, 0, Math.PI * 2); }
                 ctx.stroke();
-
-                ctx.fillStyle = this.color;
-                ctx.globalAlpha = 0.2;
-                ctx.fill();
-                ctx.globalAlpha = 1.0;
-                ctx.shadowBlur = 0;
-
-                ctx.fillStyle = '#fff';
-                ctx.font = `bold ${16 * scaleFactor}px Arial`; 
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                let icon = '>>';
-                if (this.type === 'jump') icon = 'UP';
-                if (this.type === 'blast') icon = '★';
+                ctx.fillStyle = this.color; ctx.globalAlpha = 0.2; ctx.fill(); ctx.globalAlpha = 1.0; ctx.shadowBlur = 0;
+                ctx.fillStyle = '#fff'; ctx.font = `bold ${16 * scaleFactor}px Arial`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                let icon = '>>'; if (this.type === 'jump') icon = 'UP'; if (this.type === 'blast') icon = '★';
                 ctx.fillText(icon, this.x - camera.x, this.y - camera.y);
             }
-
             checkCollision(p) {
                 if (!this.active) return false;
-                const dx = this.x - p.x;
-                const dy = this.y - p.y;
+                const dx = this.x - p.x; const dy = this.y - p.y;
                 const dist = Math.sqrt(dx*dx + dy*dy);
-                if (dist < this.radius + p.radius) {
-                    this.active = false;
-                    return true;
-                }
+                if (dist < this.radius + p.radius) { this.active = false; return true; }
                 return false;
             }
         }
 
         class Batter {
-            constructor() {
-                this.x = 200 * scaleFactor; 
-                this.y = height - 50; 
-                this.armAngle = -Math.PI / 2;
-                this.swinging = false;
-                this.swingSpeed = 0;
-            }
-
-            reset() {
-                this.x = 200 * scaleFactor;
-                this.y = height - 50;
-                this.armAngle = -Math.PI * 0.65; 
-                this.swinging = false;
-                this.swingSpeed = 0;
-            }
-
-            swing() {
-                if (!this.swinging) {
-                    this.swinging = true;
-                    this.swingSpeed = 0.15; 
-                }
-            }
-
-            update(dt) { 
+            constructor() { this.x = 200 * scaleFactor; this.y = height - 50; this.armAngle = -Math.PI / 2; this.swinging = false; this.swingSpeed = 0; }
+            reset() { this.x = 200 * scaleFactor; this.y = height - 50; this.armAngle = -Math.PI * 0.65; this.swinging = false; this.swingSpeed = 0; }
+            swing() { if (!this.swinging) { this.swinging = true; this.swingSpeed = 0.15; } }
+            update(dt) {
                 if (this.swinging) {
-                    this.armAngle += this.swingSpeed * dt;
-                    this.swingSpeed += 0.05 * dt; 
-
-                    if (this.armAngle > Math.PI * 0.2) { 
-                        this.swinging = false;
-                        this.armAngle = Math.PI * 0.2; 
-                        
-                        if (gameState === STATE.DROPPING) {
-                            endGame("MISS");
-                        }
-                    }
-                } else {
-                    if (gameState === STATE.READY) {
-                         const targetAngle = -Math.PI * 0.65;
-                         this.armAngle += (targetAngle - this.armAngle) * 0.1 * dt;
-                    }
+                    this.armAngle += this.swingSpeed * dt; this.swingSpeed += 0.05 * dt;
+                    if (this.armAngle > Math.PI * 0.2) { this.swinging = false; this.armAngle = Math.PI * 0.2; if (gameState === STATE.DROPPING) endGame("MISS"); }
+                } else if (gameState === STATE.READY) {
+                     const targetAngle = -Math.PI * 0.65; this.armAngle += (targetAngle - this.armAngle) * 0.1 * dt;
                 }
             }
-
             draw() {
-                const drawX = this.x - camera.x;
-                const drawY = this.y - camera.y; 
-                const s = scaleFactor * CHAR_SCALE; 
-
+                const drawX = this.x - camera.x; const drawY = this.y - camera.y; const s = scaleFactor * CHAR_SCALE;
                 if (drawX < -100 || drawX > width + 100) return;
-
-                ctx.save();
-                ctx.translate(drawX, drawY);
-
-                ctx.strokeStyle = '#0ff';
-                ctx.fillStyle = '#000';
-                ctx.lineWidth = 3 * s;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = '#0ff';
-
-                ctx.beginPath();
-                ctx.moveTo(-5*s, -55*s); 
-                ctx.lineTo(-20*s, -25*s); 
-                ctx.lineTo(-35*s, 0);   
-                ctx.stroke();
-
-                ctx.beginPath();
-                ctx.moveTo(5*s, -55*s); 
-                ctx.lineTo(25*s, -25*s); 
-                ctx.lineTo(30*s, 0);   
-                ctx.stroke();
-
-                ctx.fillStyle = '#051515'; 
-                ctx.beginPath();
-                ctx.moveTo(-12*s, -100*s); 
-                ctx.lineTo(12*s, -100*s);  
-                ctx.lineTo(6*s, -55*s);   
-                ctx.lineTo(-6*s, -55*s);  
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-
-                ctx.fillStyle = '#0ff';
-                ctx.beginPath();
-                ctx.arc(0, -80*s, 5*s, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.save();
-                ctx.translate(0, -105*s); 
-                ctx.fillStyle = '#000';
-                ctx.beginPath();
-                ctx.arc(0, 0, 16*s, 0, Math.PI * 2); 
-                ctx.fill();
-                ctx.stroke();
-                ctx.shadowColor = '#f0f'; 
-                ctx.fillStyle = '#f0f';
-                ctx.beginPath();
-                ctx.moveTo(7*s, -5*s);
-                ctx.lineTo(16*s, -3*s);
-                ctx.lineTo(16*s, 5*s);
-                ctx.lineTo(7*s, 7*s);
-                ctx.closePath();
-                ctx.fill();
-                ctx.restore();
-
-                ctx.save();
-                ctx.translate(0, -95*s); 
-                ctx.rotate(this.armAngle);
-                ctx.strokeStyle = '#fff'; 
-                ctx.beginPath();
-                ctx.moveTo(0, 0);
-                ctx.lineTo(30*s, 0); 
-                ctx.stroke();
-                ctx.translate(30*s, 0); 
-                ctx.fillStyle = '#555';
-                ctx.fillRect(0, -5*s, 12*s, 10*s);
-                ctx.shadowColor = '#0f0'; 
-                ctx.shadowBlur = 20;
+                ctx.save(); ctx.translate(drawX, drawY);
+                ctx.strokeStyle = '#0ff'; ctx.fillStyle = '#000'; ctx.lineWidth = 3 * s;
+                ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.shadowBlur = 10; ctx.shadowColor = '#0ff';
+                // Legs
+                ctx.beginPath(); ctx.moveTo(-5*s, -55*s); ctx.lineTo(-20*s, -25*s); ctx.lineTo(-35*s, 0); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(5*s, -55*s); ctx.lineTo(25*s, -25*s); ctx.lineTo(30*s, 0); ctx.stroke();
+                // Body
+                ctx.fillStyle = '#051515'; ctx.beginPath(); ctx.moveTo(-12*s, -100*s); ctx.lineTo(12*s, -100*s); ctx.lineTo(6*s, -55*s); ctx.lineTo(-6*s, -55*s); ctx.closePath(); ctx.fill(); ctx.stroke();
+                // Core
+                ctx.fillStyle = '#0ff'; ctx.beginPath(); ctx.arc(0, -80*s, 5*s, 0, Math.PI * 2); ctx.fill();
+                // Head
+                ctx.save(); ctx.translate(0, -105*s); ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(0, 0, 16*s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.shadowColor = '#f0f'; ctx.fillStyle = '#f0f'; ctx.beginPath(); ctx.moveTo(7*s, -5*s); ctx.lineTo(16*s, -3*s); ctx.lineTo(16*s, 5*s); ctx.lineTo(7*s, 7*s); ctx.closePath(); ctx.fill(); ctx.restore();
+                // Arm & Bat
+                ctx.save(); ctx.translate(0, -95*s); ctx.rotate(this.armAngle);
+                ctx.strokeStyle = '#fff'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(30*s, 0); ctx.stroke();
+                ctx.translate(30*s, 0); ctx.fillStyle = '#555'; ctx.fillRect(0, -5*s, 12*s, 10*s);
+                ctx.shadowColor = '#0f0'; ctx.shadowBlur = 20;
                 const batGrad = ctx.createLinearGradient(0, 0, 110*s, 0);
-                batGrad.addColorStop(0, '#fff');
-                batGrad.addColorStop(0.3, '#0f0');
-                batGrad.addColorStop(1, 'rgba(0, 255, 0, 0.5)');
-                ctx.fillStyle = batGrad;
-                ctx.beginPath();
-                ctx.moveTo(12*s, -6*s);
-                ctx.lineTo(110*s, -9*s); 
-                ctx.lineTo(115*s, 0); 
-                ctx.lineTo(110*s, 9*s);
-                ctx.lineTo(12*s, 6*s);
-                ctx.closePath();
-                ctx.fill();
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 2 * s;
-                ctx.beginPath();
-                ctx.moveTo(12*s, 0);
-                ctx.lineTo(105*s, 0);
-                ctx.stroke();
-                ctx.restore(); 
-                ctx.restore(); 
+                batGrad.addColorStop(0, '#fff'); batGrad.addColorStop(0.3, '#0f0'); batGrad.addColorStop(1, 'rgba(0, 255, 0, 0.5)');
+                ctx.fillStyle = batGrad; ctx.beginPath(); ctx.moveTo(12*s, -6*s); ctx.lineTo(110*s, -9*s); ctx.lineTo(115*s, 0); ctx.lineTo(110*s, 9*s); ctx.lineTo(12*s, 6*s); ctx.closePath(); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.moveTo(12*s, 0); ctx.lineTo(105*s, 0); ctx.stroke();
+                ctx.restore(); ctx.restore(); 
             }
         }
 
         class Ball {
-            constructor() {
-                this.radius = 15; 
-                this.reset();
-            }
-
-            reset() {
-                this.x = 200 * scaleFactor; 
-                this.y = -50 * scaleFactor; 
-                this.vx = 0;
-                this.vy = 0;
-                this.rotation = 0;
-                this.trail = [];
-                this.isStopped = false;
-                this.radius = 15 * scaleFactor;
-            }
-
-            drop() {
-                this.x = 200 * scaleFactor;
-                this.y = -180 * scaleFactor; 
-                this.vx = 0;
-                this.vy = 0;
-            }
-
+            constructor() { this.radius = 15; this.reset(); }
+            reset() { this.x = 200 * scaleFactor; this.y = -50 * scaleFactor; this.vx = 0; this.vy = 0; this.rotation = 0; this.trail = []; this.isStopped = false; this.radius = 15 * scaleFactor; }
+            drop() { this.x = 200 * scaleFactor; this.y = -180 * scaleFactor; this.vx = 0; this.vy = 0; }
             hit(speed, angleDeg) {
-                // [수정] hit 소리 처리 (Perfect 여부는 attemptHit에서 판단해서 인자로 넘겨줄 수도 있지만, 
-                // 여기서는 speed/angle로 유추하거나 attemptHit에서 직접 부르는게 나음.
-                // 여기서는 Sound.playHit() 호출 제거하고 attemptHit에서 제어
-                
                 const rad = angleDeg * Math.PI / 180;
                 this.vx = Math.cos(rad) * speed * scaleFactor;
                 this.vy = Math.sin(rad) * speed * scaleFactor;
-                
                 camera.shake = 20; 
                 shockwaves.push(new Shockwave(this.x, this.y, '#fff')); 
-
-                for(let i=0; i<30; i++) {
-                    particles.push(new Particle(this.x, this.y, '#fff', 8));
-                }
+                for(let i=0; i<30; i++) particles.push(new Particle(this.x, this.y, '#fff', 8));
             }
-
             update(dt) { 
                 if (gameState === STATE.READY) return;
-
                 if (gameState === STATE.DROPPING) {
-                    this.vy += GRAVITY * 0.5 * dt; 
-                    this.y += this.vy * dt;
-                    
-                    if (this.y > height - 50) {
-                        endGame("MISS");
-                    }
+                    this.vy += GRAVITY * 0.5 * dt; this.y += this.vy * dt;
+                    if (this.y > height - 50) endGame("MISS");
                     return;
                 }
-
                 if (gameState === STATE.FLYING) {
-                    this.x += this.vx * dt;
-                    this.y += this.vy * dt;
-                    this.vy += GRAVITY * dt; 
-
-                    this.vx *= Math.pow(FRICTION_AIR, dt);
-                    this.vy *= Math.pow(FRICTION_AIR, dt);
-                    
+                    this.x += this.vx * dt; this.y += this.vy * dt; this.vy += GRAVITY * dt; 
+                    this.vx *= Math.pow(FRICTION_AIR, dt); this.vy *= Math.pow(FRICTION_AIR, dt);
                     this.rotation += this.vx * 0.1 * dt;
-
-                    if (frameId % 3 === 0) {
-                        this.trail.push({x: this.x, y: this.y});
-                        if (this.trail.length > 25) this.trail.shift();
-                    }
-
+                    if (frameId % 3 === 0) { this.trail.push({x: this.x, y: this.y}); if (this.trail.length > 25) this.trail.shift(); }
                     if (this.y + this.radius > height - 50) {
-                        this.y = height - 50 - this.radius;
-                        this.vy *= -BOUNCE;
-                        this.vx *= Math.pow(FRICTION_GROUND, dt); 
-                        
-                        if (combo > 0) {
-                            combo = 0;
-                            uiCombo.style.opacity = 0;
-                        }
-
-                        if (Math.abs(this.vx) < 1.0 && Math.abs(this.vy) < 2.0) {
-                            this.vx = 0;
-                            this.vy = 0;
-                            this.stop();
-                        } else if (Math.abs(this.vx) > 0.5) {
-                            if(Math.random() > 0.7)
-                                particles.push(new Particle(this.x, this.y + 10, '#555', 2));
-                        }
+                        this.y = height - 50 - this.radius; this.vy *= -BOUNCE; this.vx *= Math.pow(FRICTION_GROUND, dt); 
+                        if (combo > 0) { combo = 0; uiCombo.style.opacity = 0; }
+                        if (Math.abs(this.vx) < 1.0 && Math.abs(this.vy) < 2.0) { this.vx = 0; this.vy = 0; this.stop(); }
+                        else if (Math.abs(this.vx) > 0.5 && Math.random() > 0.7) particles.push(new Particle(this.x, this.y + 10, '#555', 2));
                     }
-
                     boosters.forEach(b => {
                         if (b.checkCollision(this)) {
-                            combo++;
-                            uiCombo.innerText = `COMBO x${combo}`;
-                            uiCombo.style.opacity = 1;
-                            
+                            combo++; uiCombo.innerText = `COMBO x${combo}`; uiCombo.style.opacity = 1;
                             const comboBonus = 1 + (combo * 0.1);
-
                             const boostPower = 15 * scaleFactor * comboBonus;
                             const jumpPower = 25 * scaleFactor * comboBonus;
                             const blastPower = 25 * scaleFactor * comboBonus;
-
-                            if (b.type === 'speed') {
-                                Sound.playBoost(); 
-                                this.vx += boostPower; 
-                                this.vy = -12 * scaleFactor; 
-                                showFeedback("SPEED!", "#ff0");
-                                camera.shake = 5;
-                                shockwaves.push(new Shockwave(this.x, this.y, '#ff0'));
-                                for(let i=0; i<15; i++) particles.push(new Particle(this.x, this.y, '#ff0', 8));
-                            } 
-                            else if (b.type === 'jump') {
-                                Sound.playJump(); 
-                                this.vx += 5 * scaleFactor; 
-                                this.vy = -jumpPower; 
-                                showFeedback("HIGH JUMP!", "#0ff");
-                                camera.shake = 8;
-                                shockwaves.push(new Shockwave(this.x, this.y, '#0ff'));
-                                for(let i=0; i<20; i++) particles.push(new Particle(this.x, this.y, '#0ff', 10));
-                            }
-                            else if (b.type === 'blast') {
-                                Sound.playBlast(); 
-                                this.vx += blastPower; 
-                                this.vy = -20 * scaleFactor; 
-                                showFeedback("EXPLOSION!", "#f05");
-                                camera.shake = 15; 
-                                shockwaves.push(new Shockwave(this.x, this.y, '#f05'));
-                                for(let i=0; i<30; i++) particles.push(new Particle(this.x, this.y, '#f05', 12));
-                            }
+                            if (b.type === 'speed') { Sound.playBoost(); this.vx += boostPower; this.vy = -12 * scaleFactor; showFeedback("SPEED!", "#ff0"); camera.shake = 5; shockwaves.push(new Shockwave(this.x, this.y, '#ff0')); for(let i=0; i<15; i++) particles.push(new Particle(this.x, this.y, '#ff0', 8)); } 
+                            else if (b.type === 'jump') { Sound.playJump(); this.vx += 5 * scaleFactor; this.vy = -jumpPower; showFeedback("HIGH JUMP!", "#0ff"); camera.shake = 8; shockwaves.push(new Shockwave(this.x, this.y, '#0ff')); for(let i=0; i<20; i++) particles.push(new Particle(this.x, this.y, '#0ff', 10)); }
+                            else if (b.type === 'blast') { Sound.playBlast(); this.vx += blastPower; this.vy = -20 * scaleFactor; showFeedback("EXPLOSION!", "#f05"); camera.shake = 15; shockwaves.push(new Shockwave(this.x, this.y, '#f05')); for(let i=0; i<30; i++) particles.push(new Particle(this.x, this.y, '#f05', 12)); }
                         }
                     });
                 }
             }
-
             stop() {
                 if (this.isStopped) return;
                 this.isStopped = true;
                 gameState = STATE.STOPPED;
+                currentScore = Math.floor((this.x - 200 * scaleFactor) / scaleFactor);
                 checkBestScore();
                 
-                let dist = Math.floor((this.x - 200 * scaleFactor) / scaleFactor);
-                
-                uiMsg.innerHTML = `기록: <span style="color:#f0f; font-size:1.5em">${dist}m</span>`;
-                uiMsg.classList.remove('hidden');
-                btnRetry.style.display = 'inline-block';
+                // Show Result Modal
+                finalScoreEl.innerText = `${currentScore} m`;
+                registerForm.classList.remove('hidden');
+                rankingContainer.classList.add('hidden');
+                btnSubmit.disabled = false;
+                btnSubmit.innerText = "랭킹 등록";
+                modal.style.display = 'block';
             }
-
             draw() {
                 if (gameState === STATE.DROPPING && this.y < 0) {
-                    ctx.save();
-                    ctx.fillStyle = '#f00';
-                    ctx.shadowBlur = 10;
-                    ctx.shadowColor = '#f00';
-                    ctx.translate(this.x - camera.x, 30);
-                    
-                    if (Math.floor(Date.now() / 100) % 2 === 0) {
-                        ctx.beginPath();
-                        ctx.moveTo(-10, -10);
-                        ctx.lineTo(10, -10);
-                        ctx.lineTo(0, 10);
-                        ctx.fill();
-                    }
+                    ctx.save(); ctx.fillStyle = '#f00'; ctx.shadowBlur = 10; ctx.shadowColor = '#f00'; ctx.translate(this.x - camera.x, 30);
+                    if (Math.floor(Date.now() / 100) % 2 === 0) { ctx.beginPath(); ctx.moveTo(-10, -10); ctx.lineTo(10, -10); ctx.lineTo(0, 10); ctx.fill(); }
                     ctx.restore();
                 }
-
                 if (gameState === STATE.READY && this.y < 0) return;
-
-                const drawX = this.x - camera.x;
-                const drawY = this.y - camera.y;
-
+                const drawX = this.x - camera.x; const drawY = this.y - camera.y;
                 if (gameState === STATE.FLYING && this.trail.length > 1) {
-                    ctx.beginPath();
-                    ctx.moveTo(this.trail[0].x - camera.x, this.trail[0].y - camera.y);
-                    for (let i = 1; i < this.trail.length; i++) {
-                        ctx.lineTo(this.trail[i].x - camera.x, this.trail[i].y - camera.y);
-                    }
-                    
+                    ctx.beginPath(); ctx.moveTo(this.trail[0].x - camera.x, this.trail[0].y - camera.y);
+                    for (let i = 1; i < this.trail.length; i++) ctx.lineTo(this.trail[i].x - camera.x, this.trail[i].y - camera.y);
                     if (combo >= 5) {
                         const grad = ctx.createLinearGradient(0,0,width,0);
-                        grad.addColorStop(0, "red");
-                        grad.addColorStop(0.2, "orange");
-                        grad.addColorStop(0.4, "yellow");
-                        grad.addColorStop(0.6, "green");
-                        grad.addColorStop(0.8, "blue");
-                        grad.addColorStop(1, "violet");
-                        ctx.strokeStyle = grad;
-                        ctx.lineWidth = 4;
-                    } else {
-                        ctx.strokeStyle = '#0ff';
-                        ctx.lineWidth = 2;
-                    }
-                    ctx.shadowBlur = 10;
-                    ctx.shadowColor = '#0ff';
-                    ctx.stroke();
-                    ctx.shadowBlur = 0;
+                        grad.addColorStop(0, "red"); grad.addColorStop(0.2, "orange"); grad.addColorStop(0.4, "yellow"); grad.addColorStop(0.6, "green"); grad.addColorStop(0.8, "blue"); grad.addColorStop(1, "violet");
+                        ctx.strokeStyle = grad; ctx.lineWidth = 4;
+                    } else { ctx.strokeStyle = '#0ff'; ctx.lineWidth = 2; }
+                    ctx.shadowBlur = 10; ctx.shadowColor = '#0ff'; ctx.stroke(); ctx.shadowBlur = 0;
                 }
-
-                ctx.save();
-                ctx.translate(drawX, drawY);
-                ctx.rotate(this.rotation);
-                
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = '#0ff';
-                ctx.fillStyle = '#0ff';
-                ctx.beginPath();
-                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-                ctx.fill();
-                
-                ctx.fillStyle = '#fff';
-                ctx.beginPath();
-                ctx.arc(0, 0, this.radius * 0.5, 0, Math.PI * 2);
-                ctx.fill();
-                
+                ctx.save(); ctx.translate(drawX, drawY); ctx.rotate(this.rotation);
+                ctx.shadowBlur = 15; ctx.shadowColor = '#0ff'; ctx.fillStyle = '#0ff';
+                ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, this.radius * 0.5, 0, Math.PI * 2); ctx.fill();
                 ctx.restore();
             }
         }
 
-        // =========================================
-        // 게임 로직
-        // =========================================
-
+        // --- Init Functions ---
         function init() {
-            resize();
-            window.addEventListener('resize', resize);
-            
+            resize(); window.addEventListener('resize', resize);
             const inputHandler = (e) => {
-                if(e.target === btnRetry) return; 
-                Sound.init(); 
-                handleInput();
+                if(e.target.closest('#ranking-modal')) return;
+                Sound.init(); handleInput();
             };
-            
             window.addEventListener('mousedown', inputHandler);
             window.addEventListener('touchstart', (e) => {
-                 if(e.target !== btnRetry) e.preventDefault();
-                 Sound.init();
-                 handleInput();
+                 if(!e.target.closest('#ranking-modal')) e.preventDefault();
+                 Sound.init(); handleInput();
             }, {passive: false});
 
-            btnRetry.addEventListener('click', (e) => {
-                e.stopPropagation();
-                resetGame();
-            });
-            btnRetry.addEventListener('touchstart', (e) => {
-                e.stopPropagation();
-                resetGame();
-            });
-
-            batter = new Batter();
-            ball = new Ball();
-
+            batter = new Batter(); ball = new Ball();
             for(let i=0; i<80; i++) stars.push(new Star());
-            
-            mountains.push(new Mountain(100, 300, 150));
-            mountains.push(new Mountain(600, 400, 200));
-            mountains.push(new Mountain(1200, 250, 120));
-
+            mountains.push(new Mountain(100, 300, 150)); mountains.push(new Mountain(600, 400, 200)); mountains.push(new Mountain(1200, 250, 120));
             for(let i=0; i<20; i++) speedLines.push(new SpeedLine());
-
             initBoosters();
-            
             requestAnimationFrame(loop);
         }
 
@@ -913,81 +803,51 @@
 
         function addBoosters(count) {
              for(let i=0; i<count; i++) {
-                // [수정] 부스터를 더 많이 (간격 좁힘)
-                let gap = (80 + Math.random() * 200) * scaleFactor;
+                // [수정] 부스터 생성 빈도 조정 (조금 줄임: 200~500 간격)
+                let gap = (200 + Math.random() * 500) * scaleFactor;
                 lastBoosterX += gap;
-                
                 let by = height - 100 - (Math.random() * 2000 * scaleFactor); 
-
                 let rand = Math.random();
                 let type = 'speed'; 
-                if (rand > 0.85) type = 'blast'; 
-                else if (rand > 0.5) type = 'jump'; 
-
+                if (rand > 0.85) type = 'blast'; else if (rand > 0.5) type = 'jump'; 
                 boosters.push(new Booster(lastBoosterX, by, type));
             }
         }
 
         function resize() {
-            width = window.innerWidth;
-            height = window.innerHeight;
-            canvas.width = width;
-            canvas.height = height;
-            
+            width = window.innerWidth; height = window.innerHeight;
+            canvas.width = width; canvas.height = height;
             scaleFactor = Math.min(width, height) / 800; 
-            if (scaleFactor < 0.6) scaleFactor = 0.6; 
-            if (scaleFactor > 1.2) scaleFactor = 1.2; 
-            
+            if (scaleFactor < 0.6) scaleFactor = 0.6; if (scaleFactor > 1.2) scaleFactor = 1.2; 
             GRAVITY = GRAVITY_BASE * scaleFactor;
-
-            if (batter) batter.reset();
-            if (ball) ball.reset();
+            if (batter) batter.reset(); if (ball) ball.reset();
         }
 
         function handleInput() {
             if (gameState === STATE.READY) {
-                gameState = STATE.DROPPING;
-                ball.drop();
-                uiMsg.classList.add('hidden');
-            } else if (gameState === STATE.DROPPING) {
-                attemptHit();
-            }
+                gameState = STATE.DROPPING; ball.drop(); uiMsg.classList.add('hidden');
+            } else if (gameState === STATE.DROPPING) { attemptHit(); }
         }
 
         function attemptHit() {
             batter.swing(); 
-
             const shoulderY = batter.y - (95 * scaleFactor * CHAR_SCALE); 
             const hitZoneY = shoulderY + 10 * scaleFactor; 
             const distY = ball.y - hitZoneY; 
 
             if (Math.abs(distY) < 90 * scaleFactor) {
                 gameState = STATE.FLYING;
-                
-                let power = 25 * scaleFactor; 
-                let angle = -45; 
-
-                // 퍼펙트 판정
+                let power = 25 * scaleFactor; let angle = -45; 
                 if (Math.abs(distY) < 20 * scaleFactor) {
-                    power = 40 * scaleFactor; 
-                    angle = -45; 
-                    showFeedback("PERFECT!", "#0ff");
-                    Sound.playHit(true); // [추가] 퍼펙트 사운드
+                    power = 40 * scaleFactor; angle = -45; 
+                    showFeedback("PERFECT!", "#0ff"); Sound.playHit(true);
                 } else {
                     power = (28 * scaleFactor) - (Math.abs(distY) * 0.15); 
-                    
-                    if (distY < 0) { 
-                        angle = -45 + (distY * 0.5); 
-                        showFeedback("TOO EARLY", "#ff8");
-                    } else { 
-                        angle = -45 + (distY * 0.8);
-                        showFeedback("TOO LATE", "#f88");
-                    }
-                    Sound.playHit(false); // [추가] 빗맞은 사운드
+                    if (distY < 0) { angle = -45 + (distY * 0.5); showFeedback("TOO EARLY", "#ff8"); } 
+                    else { angle = -45 + (distY * 0.8); showFeedback("TOO LATE", "#f88"); }
+                    Sound.playHit(false);
                 }
-                
                 if (power < 10 * scaleFactor) power = 10 * scaleFactor;
-                
                 ball.hit(power / scaleFactor, angle); 
             }
         }
@@ -995,201 +855,81 @@
         function endGame(type) {
             gameState = STATE.STOPPED; 
             if (type === "MISS") {
-                uiMsg.innerHTML = "빗나갔습니다!<br>다시 시도하세요.";
-                uiMsg.classList.remove('hidden');
-                btnRetry.style.display = 'inline-block';
+                // 실격 시 점수 0으로 등록 화면 표시
+                currentScore = 0;
+                finalScoreEl.innerText = "MISS";
+                registerForm.classList.remove('hidden');
+                rankingContainer.classList.add('hidden');
+                btnSubmit.disabled = false;
+                btnSubmit.innerText = "랭킹 등록";
+                modal.style.display = 'block';
             }
         }
 
-        function resetGame() {
-            gameState = STATE.READY;
-            camera.x = 0;
-            camera.y = 0;
-            batter.reset();
-            ball.reset();
-            combo = 0; 
-            uiCombo.style.opacity = 0;
-            
-            uiMsg.classList.remove('hidden');
-            uiMsg.innerHTML = "화면을 클릭하면<br>공이 떨어집니다!";
-            btnRetry.style.display = 'none';
-            
-            initBoosters();
-        }
-
         function checkBestScore() {
-            let dist = Math.floor((ball.x - 200 * scaleFactor) / scaleFactor);
-            if (dist > bestDistance) {
-                bestDistance = dist;
+            if (currentScore > bestDistance) {
+                bestDistance = currentScore;
                 uiBest.innerText = bestDistance;
             }
         }
 
         function showFeedback(text, color) {
-            uiFeedback.innerText = text;
-            uiFeedback.style.color = color;
-            uiFeedback.style.textShadow = `0 0 20px ${color}`;
-            
-            uiFeedback.classList.remove('pop-anim');
-            void uiFeedback.offsetWidth; 
-            uiFeedback.classList.add('pop-anim');
+            uiFeedback.innerText = text; uiFeedback.style.color = color; uiFeedback.style.textShadow = `0 0 20px ${color}`;
+            uiFeedback.classList.remove('pop-anim'); void uiFeedback.offsetWidth; uiFeedback.classList.add('pop-anim');
         }
 
         function loop(timestamp) {
             if (!lastTime) lastTime = timestamp;
-            const deltaTime = timestamp - lastTime;
-            lastTime = timestamp;
-
+            const deltaTime = timestamp - lastTime; lastTime = timestamp;
             const dt = Math.min(deltaTime, 100) / (1000 / 60);
-
-            update(dt);
-            draw();
-            frameId = requestAnimationFrame(loop);
+            update(dt); draw(); frameId = requestAnimationFrame(loop);
         }
 
         function update(dt) {
-            batter.update(dt);
-            ball.update(dt);
-
+            batter.update(dt); ball.update(dt);
             if (gameState === STATE.FLYING) {
-                let targetCamX = ball.x - width * 0.2;
-                if (targetCamX < 0) targetCamX = 0;
-                
+                let targetCamX = ball.x - width * 0.2; if (targetCamX < 0) targetCamX = 0;
                 camera.x += (targetCamX - camera.x) * 0.1 * dt;
-
-                let targetCamY = ball.y - height * 0.5;
-                if (targetCamY > 0) targetCamY = 0; 
-                
+                let targetCamY = ball.y - height * 0.5; if (targetCamY > 0) targetCamY = 0; 
                 camera.y += (targetCamY - camera.y) * 0.1 * dt;
-
-                if (ball.x > lastBoosterX - width * 2) {
-                    addBoosters(10); 
-                }
-
-                if (boosters.length > 50) {
-                     while(boosters.length > 0 && boosters[0].x < ball.x - width * 2) {
-                         boosters.shift();
-                     }
-                }
-            } else {
-                camera.y += (0 - camera.y) * 0.1 * dt;
-            }
-
-            if (camera.shake > 0) {
-                camera.shake *= Math.pow(0.9, dt); 
-                if(camera.shake < 0.5) camera.shake = 0;
-            }
-
-            for (let i = particles.length - 1; i >= 0; i--) {
-                particles[i].update(dt);
-                if (particles[i].life <= 0) particles.splice(i, 1);
-            }
-
-            for (let i = shockwaves.length - 1; i >= 0; i--) {
-                shockwaves[i].update(dt);
-                if (shockwaves[i].alpha <= 0) shockwaves.splice(i, 1);
-            }
-
-            const ballSpeed = Math.abs(ball.vx);
-            speedLines.forEach(l => l.update(ballSpeed));
-
+                if (ball.x > lastBoosterX - width * 2) addBoosters(10); 
+                if (boosters.length > 50) { while(boosters.length > 0 && boosters[0].x < ball.x - width * 2) boosters.shift(); }
+            } else { camera.y += (0 - camera.y) * 0.1 * dt; }
+            if (camera.shake > 0) { camera.shake *= Math.pow(0.9, dt); if(camera.shake < 0.5) camera.shake = 0; }
+            for (let i = particles.length - 1; i >= 0; i--) { particles[i].update(dt); if (particles[i].life <= 0) particles.splice(i, 1); }
+            for (let i = shockwaves.length - 1; i >= 0; i--) { shockwaves[i].update(dt); if (shockwaves[i].alpha <= 0) shockwaves.splice(i, 1); }
+            const ballSpeed = Math.abs(ball.vx); speedLines.forEach(l => l.update(ballSpeed));
             if (gameState === STATE.FLYING || gameState === STATE.STOPPED) {
-                let dist = Math.floor((ball.x - 200 * scaleFactor) / scaleFactor);
-                if (dist < 0) dist = 0;
-                uiScore.innerText = dist;
+                let dist = Math.floor((ball.x - 200 * scaleFactor) / scaleFactor); if (dist < 0) dist = 0; uiScore.innerText = dist;
             }
         }
 
         function draw() {
-            const shakeX = (Math.random() - 0.5) * camera.shake;
-            const shakeY = (Math.random() - 0.5) * camera.shake;
-
-            ctx.save();
-            ctx.translate(shakeX, shakeY);
-
+            const shakeX = (Math.random() - 0.5) * camera.shake; const shakeY = (Math.random() - 0.5) * camera.shake;
+            ctx.save(); ctx.translate(shakeX, shakeY);
             let skyFactor = Math.min(1, Math.abs(camera.y) / (height * 2)); 
-            
             const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-            if (skyFactor < 0.5) {
-                bgGrad.addColorStop(0, '#200044'); 
-                bgGrad.addColorStop(1, '#440088'); 
-            } else {
-                bgGrad.addColorStop(0, '#000000'); 
-                bgGrad.addColorStop(1, '#100022'); 
-            }
-            
-            ctx.fillStyle = bgGrad;
-            ctx.fillRect(0, 0, width, height);
-
-            ctx.fillStyle = '#ff9';
-            ctx.shadowBlur = 50;
-            ctx.shadowColor = '#ff9';
-            ctx.beginPath();
-            ctx.arc(width - 100, 100, 60, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-
-            stars.forEach(s => s.draw());
-            mountains.forEach(m => m.draw());
-            
-            speedLines.forEach(l => l.draw());
-
-            boosters.forEach(b => b.draw());
-
+            if (skyFactor < 0.5) { bgGrad.addColorStop(0, '#200044'); bgGrad.addColorStop(1, '#440088'); } 
+            else { bgGrad.addColorStop(0, '#000000'); bgGrad.addColorStop(1, '#100022'); }
+            ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, width, height);
+            ctx.fillStyle = '#ff9'; ctx.shadowBlur = 50; ctx.shadowColor = '#ff9'; ctx.beginPath(); ctx.arc(width - 100, 100, 60, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+            stars.forEach(s => s.draw()); mountains.forEach(m => m.draw()); speedLines.forEach(l => l.draw()); boosters.forEach(b => b.draw());
             const groundY = height - 50 - camera.y;
-            ctx.strokeStyle = '#f0f';
-            ctx.lineWidth = 2;
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = '#f0f';
-            ctx.beginPath();
-            ctx.moveTo(0, groundY);
-            ctx.lineTo(width, groundY);
-            ctx.stroke();
-
-            const gridSize = 100 * scaleFactor;
-            const offsetX = camera.x % gridSize;
-            ctx.lineWidth = 1;
-            ctx.globalAlpha = 0.3;
-            ctx.beginPath();
-            for (let i = -gridSize; i < width + gridSize; i += gridSize) {
-                let x = i - offsetX;
-                ctx.moveTo(x, groundY);
-                ctx.lineTo(x - (width/2 - x)*2, height); 
-            }
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-            ctx.globalAlpha = 1.0;
-
+            ctx.strokeStyle = '#f0f'; ctx.lineWidth = 2; ctx.shadowBlur = 10; ctx.shadowColor = '#f0f'; ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(width, groundY); ctx.stroke();
+            const gridSize = 100 * scaleFactor; const offsetX = camera.x % gridSize; ctx.lineWidth = 1; ctx.globalAlpha = 0.3;
+            ctx.beginPath(); for (let i = -gridSize; i < width + gridSize; i += gridSize) { let x = i - offsetX; ctx.moveTo(x, groundY); ctx.lineTo(x - (width/2 - x)*2, height); } ctx.stroke(); ctx.shadowBlur = 0; ctx.globalAlpha = 1.0;
             if (gameState === STATE.DROPPING) {
                 const hitZoneY = batter.y - (85 * scaleFactor * CHAR_SCALE); 
-                ctx.fillStyle = 'rgba(0, 255, 0, 0.15)';
-                ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
-                ctx.setLineDash([5, 5]);
-                ctx.beginPath();
-                ctx.arc(200 * scaleFactor, hitZoneY, 60 * scaleFactor, 0, Math.PI*2);
-                ctx.fill();
-                ctx.stroke();
-                ctx.setLineDash([]);
-                
-                ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
-                ctx.font = `12px Orbitron`;
-                ctx.textAlign = 'center';
-                ctx.fillText("HIT HERE", 200 * scaleFactor, hitZoneY + 75 * scaleFactor);
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.15)'; ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)'; ctx.setLineDash([5, 5]);
+                ctx.beginPath(); ctx.arc(200 * scaleFactor, hitZoneY, 60 * scaleFactor, 0, Math.PI*2); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.5)'; ctx.font = `12px Orbitron`; ctx.textAlign = 'center'; ctx.fillText("HIT HERE", 200 * scaleFactor, hitZoneY + 75 * scaleFactor);
             }
-
-            batter.draw();
-            ball.draw();
-
-            ctx.globalCompositeOperation = 'lighter';
-            particles.forEach(p => p.draw());
-            shockwaves.forEach(s => s.draw()); 
-            ctx.globalCompositeOperation = 'source-over';
-
-            ctx.restore(); 
+            batter.draw(); ball.draw();
+            ctx.globalCompositeOperation = 'lighter'; particles.forEach(p => p.draw()); shockwaves.forEach(s => s.draw()); 
+            ctx.globalCompositeOperation = 'source-over'; ctx.restore(); 
         }
 
         init();
-
     </script>
 </body>
 </html>
