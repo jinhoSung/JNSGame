@@ -275,7 +275,10 @@
         <!-- 등록 폼 -->
         <div id="register-form" class="hidden">
             <input type="text" id="player-name" placeholder="이름을 입력하세요 (최대 8자)" maxlength="8">
-            <button id="btn-submit" class="action-btn">랭킹 등록</button>
+            <div style="display: flex; gap: 5px; justify-content: center;">
+                <button id="btn-submit" class="action-btn" style="flex: 2;">랭킹 등록</button>
+                <button id="btn-skip" class="action-btn" style="flex: 1; background: #333; border: 1px solid #555; color: #aaa;">재시작</button>
+            </div>
         </div>
 
         <!-- 랭킹 리스트 -->
@@ -293,7 +296,7 @@
     <!-- Firebase SDK Modules -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, where, getCountFromServer } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Global Variables for Game ---
@@ -318,16 +321,14 @@
                     this.auth = getAuth(app);
                     this.db = getFirestore(app);
 
-                    // 익명 로그인 시도 (Firebase 콘솔에서 익명 로그인 활성화 필요)
+                    // 익명 로그인 시도
                     await signInAnonymously(this.auth);
                     
                     onAuthStateChanged(this.auth, (user) => {
                         this.user = user;
-                        console.log("Firebase Connected:", user?.uid);
                     });
                 } catch (e) {
                     console.error("Firebase Init Failed:", e);
-                    // alert("랭킹 서버 연결 실패: 콘솔에서 익명 로그인을 활성화했는지 확인해주세요.");
                 }
             },
             saveScore: async function(name, score) {
@@ -370,7 +371,6 @@
                             const snapshotBetter = await getCountFromServer(qBetter);
                             myRank = snapshotBetter.data().count + 1;
                         } catch (e) {
-                            console.warn("Ranking index missing:", e);
                             // 인덱스 없을 땐 클라이언트 측에서 단순 계산 (데이터 적을 때 유효)
                             const idx = top10.findIndex(d => d.score === myScore);
                             if(idx !== -1) myRank = idx + 1;
@@ -465,6 +465,7 @@
         const btnRetry = document.getElementById('btn-retry');
         const btnShowRanking = document.getElementById('btn-show-ranking');
         const btnModalClose = document.getElementById('btn-modal-close');
+        const btnSkip = document.getElementById('btn-skip');
 
         const STATE = { READY: 0, DROPPING: 1, FLYING: 2, STOPPED: 3, MISS: 4 };
         let gameState = STATE.READY;
@@ -517,6 +518,12 @@
 
         // 재시작 버튼 (게임 오버 후)
         btnRetry.addEventListener('click', () => {
+            modal.style.display = 'none';
+            resetGame();
+        });
+
+        // 랭킹 등록 스킵 버튼
+        btnSkip.addEventListener('click', () => {
             modal.style.display = 'none';
             resetGame();
         });
