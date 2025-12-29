@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Launcher - Cyber Batter</title>
+    <title>Neon Launcher - Big Batter & More Boosters</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
 
@@ -134,9 +134,11 @@
 
     <script>
         /**
-         * NEON SWING (Cyber Batter Upgrade)
-         * - 캐릭터 그래픽 대폭 개선 (로봇/사이버펑크 스타일)
-         * - 플라즈마 배트 효과 추가
+         * NEON SWING (Big Batter & More Boosters)
+         * - 공 낙하 속도: 0.5 (느림)
+         * - 캐릭터 크기: 1.3배 확대
+         * - 타격 범위: 대폭 증가
+         * - 부스터: 간격 좁히고 개수 증가
          */
 
         const canvas = document.getElementById('gameCanvas');
@@ -160,18 +162,23 @@
         let width, height;
         let frameId;
         let bestDistance = 0;
-        let lastBoosterX = 0; // 마지막 부스터 위치 추적용
-        
-        // 카메라 (뷰포트)
+        let lastBoosterX = 0; 
+        let scaleFactor = 1; 
+        let lastTime = 0;
+
         const camera = { x: 0, y: 0, shake: 0 };
 
-        // 설정값
-        const GRAVITY = 0.25;
+        const BASE_HEIGHT = 900;
+        const GRAVITY_BASE = 0.25;
+        
+        let GRAVITY = GRAVITY_BASE;
         const FRICTION_AIR = 0.998; 
         const FRICTION_GROUND = 0.85; 
         const BOUNCE = 0.6; 
         
-        // 객체들
+        // [수정] 캐릭터 크기 확대 비율
+        const CHAR_SCALE = 1.3;
+
         let ball;
         let batter;
         let particles = [];
@@ -233,7 +240,7 @@
                 
                 ctx.beginPath();
                 ctx.moveTo(renderX, groundY);
-                ctx.lineTo(renderX + this.w / 2, groundY - this.h);
+                ctx.lineTo(renderX + this.w / 2, groundY - this.h * scaleFactor); 
                 ctx.lineTo(renderX + this.w, groundY);
                 ctx.fill();
                 ctx.stroke();
@@ -246,18 +253,18 @@
                 this.y = y;
                 this.color = color;
                 const angle = Math.random() * Math.PI * 2;
-                const velocity = Math.random() * speed;
+                const velocity = Math.random() * speed * scaleFactor;
                 this.vx = Math.cos(angle) * velocity;
                 this.vy = Math.sin(angle) * velocity;
                 this.life = 1.0;
                 this.decay = 0.02 + Math.random() * 0.03;
-                this.size = sizeObj + Math.random() * 3;
+                this.size = (sizeObj + Math.random() * 3) * scaleFactor;
             }
-            update() {
-                this.x += this.vx;
-                this.y += this.vy;
-                this.vy += 0.05;
-                this.life -= this.decay;
+            update(dt) { 
+                this.x += this.vx * dt;
+                this.y += this.vy * dt;
+                this.vy += 0.05 * scaleFactor * dt; 
+                this.life -= this.decay * dt;
             }
             draw() {
                 if (this.life <= 0) return;
@@ -277,20 +284,19 @@
             constructor(x, y, type) {
                 this.x = x;
                 this.y = y;
-                this.type = type || 'speed'; // speed, jump, blast
-                this.radius = 35;
+                this.type = type || 'speed';
+                this.radius = 35 * scaleFactor; 
                 this.active = true;
                 this.pulse = 0;
                 
-                // 타입별 색상 설정
                 if (this.type === 'speed') {
-                    this.color = '#ffd700'; // Gold
+                    this.color = '#ffd700'; 
                     this.glow = '#ff8800';
                 } else if (this.type === 'jump') {
-                    this.color = '#00ffff'; // Cyan
+                    this.color = '#00ffff'; 
                     this.glow = '#0088ff';
                 } else if (this.type === 'blast') {
-                    this.color = '#ff0055'; // Red/Pink
+                    this.color = '#ff0055'; 
                     this.glow = '#ff0000';
                 }
             }
@@ -311,20 +317,17 @@
                 ctx.beginPath();
                 
                 if (this.type === 'blast') {
-                    // 폭발형은 삐죽삐죽한 모양
                     ctx.moveTo(this.x - camera.x, this.y - camera.y - r);
                     ctx.lineTo(this.x - camera.x + r, this.y - camera.y);
                     ctx.lineTo(this.x - camera.x, this.y - camera.y + r);
                     ctx.lineTo(this.x - camera.x - r, this.y - camera.y);
                     ctx.closePath();
                 } else {
-                    // 원형
                     ctx.arc(this.x - camera.x, this.y - camera.y, r, 0, Math.PI * 2);
                 }
                 
                 ctx.stroke();
 
-                // 내부 아이콘/빛
                 ctx.fillStyle = this.color;
                 ctx.globalAlpha = 0.2;
                 ctx.fill();
@@ -332,9 +335,8 @@
                 
                 ctx.shadowBlur = 0;
 
-                // 아이콘 텍스트
                 ctx.fillStyle = '#fff';
-                ctx.font = 'bold 16px Arial';
+                ctx.font = `bold ${16 * scaleFactor}px Arial`; 
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 let icon = '>>';
@@ -358,16 +360,16 @@
 
         class Batter {
             constructor() {
-                this.x = 200;
-                this.y = height - 120; // 발 근처 좌표 (기존 유지)
+                this.x = 200 * scaleFactor; 
+                this.y = height - 50; 
                 this.armAngle = -Math.PI / 2;
                 this.swinging = false;
                 this.swingSpeed = 0;
             }
 
             reset() {
-                this.y = height - 120;
-                // 준비 자세: 어깨 위쪽 뒤
+                this.x = 200 * scaleFactor;
+                this.y = height - 50;
                 this.armAngle = -Math.PI * 0.65; 
                 this.swinging = false;
                 this.swingSpeed = 0;
@@ -376,16 +378,15 @@
             swing() {
                 if (!this.swinging) {
                     this.swinging = true;
-                    this.swingSpeed = 0.15;
+                    this.swingSpeed = 0.15; 
                 }
             }
 
-            update() {
+            update(dt) { 
                 if (this.swinging) {
-                    this.armAngle += this.swingSpeed;
-                    this.swingSpeed += 0.05; 
+                    this.armAngle += this.swingSpeed * dt;
+                    this.swingSpeed += 0.05 * dt; 
 
-                    // 스윙 끝: 수평보다 아래 (다운 스윙 유지)
                     if (this.armAngle > Math.PI * 0.2) { 
                         this.swinging = false;
                         this.armAngle = Math.PI * 0.2; 
@@ -397,166 +398,159 @@
                 } else {
                     if (gameState === STATE.READY) {
                          const targetAngle = -Math.PI * 0.65;
-                         this.armAngle += (targetAngle - this.armAngle) * 0.1;
+                         this.armAngle += (targetAngle - this.armAngle) * 0.1 * dt;
                     }
                 }
             }
 
-            // [수정] 캐릭터 그리기 고도화
             draw() {
                 const drawX = this.x - camera.x;
-                const drawY = this.y - camera.y; // 발 위치 근처
-                
-                // 화면 밖이면 안 그림
+                const drawY = this.y - camera.y; 
+                // [수정] 캐릭터 크기 1.3배 적용
+                const s = scaleFactor * CHAR_SCALE; 
+
                 if (drawX < -100 || drawX > width + 100) return;
 
                 ctx.save();
-                ctx.translate(drawX, drawY); // 좌표계 이동
+                ctx.translate(drawX, drawY);
 
-                // 스타일 공통 설정
+                // 스타일 설정
                 ctx.strokeStyle = '#0ff';
                 ctx.fillStyle = '#000';
-                ctx.lineWidth = 3;
+                ctx.lineWidth = 3 * s;
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
                 ctx.shadowBlur = 10;
                 ctx.shadowColor = '#0ff';
 
-                // 1. 다리 (역동적 자세)
-                // 왼쪽 다리 (뒤)
+                // 다리
                 ctx.beginPath();
-                ctx.moveTo(-5, -40); // 골반
-                ctx.lineTo(-20, -15); // 무릎
-                ctx.lineTo(-30, 0);   // 발
+                ctx.moveTo(-5*s, -55*s); 
+                ctx.lineTo(-20*s, -25*s); 
+                ctx.lineTo(-35*s, 0);   
                 ctx.stroke();
 
-                // 오른쪽 다리 (앞)
                 ctx.beginPath();
-                ctx.moveTo(5, -40); // 골반
-                ctx.lineTo(20, -15); // 무릎
-                ctx.lineTo(25, 0);   // 발
+                ctx.moveTo(5*s, -55*s); 
+                ctx.lineTo(25*s, -25*s); 
+                ctx.lineTo(30*s, 0);   
                 ctx.stroke();
 
-                // 2. 몸통 (갑옷 스타일)
-                ctx.fillStyle = '#051515'; // 짙은 청록색 슈트
+                // 몸통
+                ctx.fillStyle = '#051515'; 
                 ctx.beginPath();
-                ctx.moveTo(-10, -80); // 어깨 왼쪽
-                ctx.lineTo(10, -80);  // 어깨 오른쪽
-                ctx.lineTo(5, -40);   // 허리 오른쪽
-                ctx.lineTo(-5, -40);  // 허리 왼쪽
+                ctx.moveTo(-12*s, -100*s); 
+                ctx.lineTo(12*s, -100*s);  
+                ctx.lineTo(6*s, -55*s);   
+                ctx.lineTo(-6*s, -55*s);  
                 ctx.closePath();
                 ctx.fill();
                 ctx.stroke();
 
-                // 코어 (가슴의 빛)
+                // 코어
                 ctx.fillStyle = '#0ff';
                 ctx.beginPath();
-                ctx.arc(0, -65, 4, 0, Math.PI * 2);
+                ctx.arc(0, -80*s, 5*s, 0, Math.PI * 2);
                 ctx.fill();
 
-                // 3. 머리 (헬멧 & 바이저)
+                // 머리
                 ctx.save();
-                ctx.translate(0, -85); // 목 위치 위로
+                ctx.translate(0, -105*s); 
                 
-                // 헬멧
                 ctx.fillStyle = '#000';
                 ctx.beginPath();
-                ctx.arc(0, 0, 14, 0, Math.PI * 2);
+                ctx.arc(0, 0, 16*s, 0, Math.PI * 2); 
                 ctx.fill();
                 ctx.stroke();
 
-                // 바이저 (고글)
-                ctx.shadowColor = '#f0f'; // 핑크색 바이저
+                // 바이저
+                ctx.shadowColor = '#f0f'; 
                 ctx.fillStyle = '#f0f';
                 ctx.beginPath();
-                // 옆모습 바이저
-                ctx.moveTo(6, -4);
-                ctx.lineTo(14, -2);
-                ctx.lineTo(14, 4);
-                ctx.lineTo(6, 6);
+                ctx.moveTo(7*s, -5*s);
+                ctx.lineTo(16*s, -3*s);
+                ctx.lineTo(16*s, 5*s);
+                ctx.lineTo(7*s, 7*s);
                 ctx.closePath();
                 ctx.fill();
                 ctx.restore();
 
-                // 4. 팔과 배트 (회전 적용)
+                // 팔과 배트
                 ctx.save();
-                ctx.translate(0, -75); // 어깨 관절 위치
+                ctx.translate(0, -95*s); 
                 ctx.rotate(this.armAngle);
 
                 // 팔
-                ctx.strokeStyle = '#fff'; // 흰색 팔 (슈트 포인트)
+                ctx.strokeStyle = '#fff'; 
                 ctx.beginPath();
                 ctx.moveTo(0, 0);
-                ctx.lineTo(25, 0); // 팔 길이
+                ctx.lineTo(30*s, 0); 
                 ctx.stroke();
 
-                // 플라즈마 배트 (광선검 스타일)
-                ctx.translate(25, 0); // 손 위치
+                // 배트
+                ctx.translate(30*s, 0); 
                 
-                // 핸들
                 ctx.fillStyle = '#555';
-                ctx.fillRect(0, -4, 10, 8);
+                ctx.fillRect(0, -5*s, 12*s, 10*s);
 
-                // 에너지 블레이드
-                ctx.shadowColor = '#0f0'; // 녹색 에너지
+                ctx.shadowColor = '#0f0'; 
                 ctx.shadowBlur = 20;
                 
-                // 그라데이션 배트
-                const batGrad = ctx.createLinearGradient(0, 0, 90, 0);
+                const batGrad = ctx.createLinearGradient(0, 0, 110*s, 0);
                 batGrad.addColorStop(0, '#fff');
                 batGrad.addColorStop(0.3, '#0f0');
                 batGrad.addColorStop(1, 'rgba(0, 255, 0, 0.5)');
                 
                 ctx.fillStyle = batGrad;
                 ctx.beginPath();
-                ctx.moveTo(10, -5);
-                ctx.lineTo(95, -8); // 끝으로 갈수록 살짝 굵게
-                ctx.lineTo(100, 0); // 뾰족한 끝
-                ctx.lineTo(95, 8);
-                ctx.lineTo(10, 5);
+                ctx.moveTo(12*s, -6*s);
+                ctx.lineTo(110*s, -9*s); 
+                ctx.lineTo(115*s, 0); 
+                ctx.lineTo(110*s, 9*s);
+                ctx.lineTo(12*s, 6*s);
                 ctx.closePath();
                 ctx.fill();
                 
-                // 배트 코어 라인
                 ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 2;
+                ctx.lineWidth = 2 * s;
                 ctx.beginPath();
-                ctx.moveTo(10, 0);
-                ctx.lineTo(90, 0);
+                ctx.moveTo(12*s, 0);
+                ctx.lineTo(105*s, 0);
                 ctx.stroke();
 
-                ctx.restore(); // 팔 복구
-                ctx.restore(); // 캐릭터 전체 복구
+                ctx.restore(); 
+                ctx.restore(); 
             }
         }
 
         class Ball {
             constructor() {
-                this.radius = 15;
+                this.radius = 15; 
                 this.reset();
             }
 
             reset() {
-                this.x = 200; 
-                this.y = -50; 
+                this.x = 200 * scaleFactor; 
+                this.y = -50 * scaleFactor; 
                 this.vx = 0;
                 this.vy = 0;
                 this.rotation = 0;
                 this.trail = [];
                 this.isStopped = false;
+                this.radius = 15 * scaleFactor;
             }
 
             drop() {
-                this.x = 200;
-                this.y = -180; 
+                this.x = 200 * scaleFactor;
+                this.y = -180 * scaleFactor; 
                 this.vx = 0;
                 this.vy = 0;
             }
 
             hit(speed, angleDeg) {
                 const rad = angleDeg * Math.PI / 180;
-                this.vx = Math.cos(rad) * speed;
-                this.vy = Math.sin(rad) * speed;
+                this.vx = Math.cos(rad) * speed * scaleFactor;
+                this.vy = Math.sin(rad) * speed * scaleFactor;
                 
                 camera.shake = 10;
 
@@ -565,13 +559,13 @@
                 }
             }
 
-            update() {
+            update(dt) { 
                 if (gameState === STATE.READY) return;
 
                 if (gameState === STATE.DROPPING) {
-                    // 낙하 속도 (75% of GRAVITY)
-                    this.vy += GRAVITY * 0.75; 
-                    this.y += this.vy;
+                    // [수정] 공 낙하 속도 0.5 적용 (매우 느림)
+                    this.vy += GRAVITY * 0.5 * dt; 
+                    this.y += this.vy * dt;
                     
                     if (this.y > height - 50) {
                         endGame("MISS");
@@ -580,14 +574,14 @@
                 }
 
                 if (gameState === STATE.FLYING) {
-                    this.x += this.vx;
-                    this.y += this.vy;
-                    this.vy += GRAVITY;
+                    this.x += this.vx * dt;
+                    this.y += this.vy * dt;
+                    this.vy += GRAVITY * dt; 
 
-                    this.vx *= FRICTION_AIR;
-                    this.vy *= FRICTION_AIR;
+                    this.vx *= Math.pow(FRICTION_AIR, dt);
+                    this.vy *= Math.pow(FRICTION_AIR, dt);
                     
-                    this.rotation += this.vx * 0.1;
+                    this.rotation += this.vx * 0.1 * dt;
 
                     if (frameId % 3 === 0) {
                         this.trail.push({x: this.x, y: this.y});
@@ -597,7 +591,7 @@
                     if (this.y + this.radius > height - 50) {
                         this.y = height - 50 - this.radius;
                         this.vy *= -BOUNCE;
-                        this.vx *= FRICTION_GROUND; 
+                        this.vx *= Math.pow(FRICTION_GROUND, dt); 
 
                         if (Math.abs(this.vx) < 1.0 && Math.abs(this.vy) < 2.0) {
                             this.vx = 0;
@@ -611,24 +605,27 @@
 
                     boosters.forEach(b => {
                         if (b.checkCollision(this)) {
-                            // 부스터 타입별 효과
+                            const boostPower = 15 * scaleFactor;
+                            const jumpPower = 25 * scaleFactor;
+                            const blastPower = 25 * scaleFactor;
+
                             if (b.type === 'speed') {
-                                this.vx += 15; 
-                                this.vy = -12; 
+                                this.vx += boostPower; 
+                                this.vy = -12 * scaleFactor; 
                                 showFeedback("SPEED!", "#ff0");
                                 camera.shake = 5;
                                 for(let i=0; i<15; i++) particles.push(new Particle(this.x, this.y, '#ff0', 8));
                             } 
                             else if (b.type === 'jump') {
-                                this.vx += 5; 
-                                this.vy = -25; 
+                                this.vx += 5 * scaleFactor; 
+                                this.vy = -jumpPower; 
                                 showFeedback("HIGH JUMP!", "#0ff");
                                 camera.shake = 8;
                                 for(let i=0; i<20; i++) particles.push(new Particle(this.x, this.y, '#0ff', 10));
                             }
                             else if (b.type === 'blast') {
-                                this.vx += 25; 
-                                this.vy = -20; 
+                                this.vx += blastPower; 
+                                this.vy = -20 * scaleFactor; 
                                 showFeedback("EXPLOSION!", "#f05");
                                 camera.shake = 15; 
                                 for(let i=0; i<30; i++) particles.push(new Particle(this.x, this.y, '#f05', 12));
@@ -644,7 +641,9 @@
                 gameState = STATE.STOPPED;
                 checkBestScore();
                 
-                uiMsg.innerHTML = `기록: <span style="color:#f0f; font-size:1.5em">${Math.floor(this.x - 200)}m</span>`;
+                let dist = Math.floor((this.x - 200 * scaleFactor) / scaleFactor);
+                
+                uiMsg.innerHTML = `기록: <span style="color:#f0f; font-size:1.5em">${dist}m</span>`;
                 uiMsg.classList.remove('hidden');
                 btnRetry.style.display = 'inline-block';
             }
@@ -744,21 +743,23 @@
             mountains.push(new Mountain(1200, 250, 120));
 
             initBoosters();
-            loop();
+            
+            requestAnimationFrame(loop);
         }
 
         function initBoosters() {
             boosters = [];
-            lastBoosterX = 600; 
+            lastBoosterX = 600 * scaleFactor; 
             addBoosters(25); 
         }
 
         function addBoosters(count) {
              for(let i=0; i<count; i++) {
-                let gap = 200 + Math.random() * 400;
+                // [수정] 부스터 간격 좁힘 (더 자주 생성)
+                let gap = (150 + Math.random() * 300) * scaleFactor;
                 lastBoosterX += gap;
                 
-                let by = height - 100 - (Math.random() * 2000); 
+                let by = height - 100 - (Math.random() * 2000 * scaleFactor); 
 
                 let rand = Math.random();
                 let type = 'speed'; 
@@ -774,7 +775,15 @@
             height = window.innerHeight;
             canvas.width = width;
             canvas.height = height;
+            
+            scaleFactor = Math.min(width, height) / 800; 
+            if (scaleFactor < 0.6) scaleFactor = 0.6; 
+            if (scaleFactor > 1.2) scaleFactor = 1.2; 
+            
+            GRAVITY = GRAVITY_BASE * scaleFactor;
+
             if (batter) batter.reset();
+            if (ball) ball.reset();
         }
 
         function handleInput() {
@@ -790,22 +799,25 @@
         function attemptHit() {
             batter.swing(); 
 
-            const shoulderY = batter.y - 40;
-            const hitZoneY = shoulderY + 10; 
+            // 타격 위치 조정 (캐릭터 크기 반영)
+            const shoulderY = batter.y - (95 * scaleFactor * CHAR_SCALE); 
+            const hitZoneY = shoulderY + 10 * scaleFactor; 
             const distY = ball.y - hitZoneY; 
 
-            if (Math.abs(distY) < 60) {
+            // [수정] 타격 범위 대폭 증가 (기존 60 -> 90)
+            if (Math.abs(distY) < 90 * scaleFactor) {
                 gameState = STATE.FLYING;
                 
-                let power = 25; 
+                let power = 25 * scaleFactor; 
                 let angle = -45; 
 
-                if (Math.abs(distY) < 12) {
-                    power = 40; 
+                // 퍼펙트 존도 확장 (12 -> 20)
+                if (Math.abs(distY) < 20 * scaleFactor) {
+                    power = 40 * scaleFactor; 
                     angle = -45; 
                     showFeedback("PERFECT!", "#0ff");
                 } else {
-                    power = 28 - (Math.abs(distY) * 0.2); 
+                    power = (28 * scaleFactor) - (Math.abs(distY) * 0.15); // 파워 감소율 완화
                     
                     if (distY < 0) { 
                         angle = -45 + (distY * 0.5); 
@@ -816,8 +828,9 @@
                     }
                 }
                 
-                if (power < 10) power = 10;
-                ball.hit(power, angle);
+                if (power < 10 * scaleFactor) power = 10 * scaleFactor;
+                
+                ball.hit(power / scaleFactor, angle); 
             }
         }
 
@@ -845,9 +858,9 @@
         }
 
         function checkBestScore() {
-            let currentDist = Math.floor(ball.x - 200);
-            if (currentDist > bestDistance) {
-                bestDistance = currentDist;
+            let dist = Math.floor((ball.x - 200 * scaleFactor) / scaleFactor);
+            if (dist > bestDistance) {
+                bestDistance = dist;
                 uiBest.innerText = bestDistance;
             }
         }
@@ -862,19 +875,32 @@
             uiFeedback.classList.add('pop-anim');
         }
 
-        function update() {
-            batter.update();
-            ball.update();
+        function loop(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            const deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
+
+            const dt = Math.min(deltaTime, 100) / (1000 / 60);
+
+            update(dt);
+            draw();
+            frameId = requestAnimationFrame(loop);
+        }
+
+        function update(dt) {
+            batter.update(dt);
+            ball.update(dt);
 
             if (gameState === STATE.FLYING) {
                 let targetCamX = ball.x - width * 0.2;
                 if (targetCamX < 0) targetCamX = 0;
-                camera.x += (targetCamX - camera.x) * 0.1;
+                
+                camera.x += (targetCamX - camera.x) * 0.1 * dt;
 
                 let targetCamY = ball.y - height * 0.5;
                 if (targetCamY > 0) targetCamY = 0; 
                 
-                camera.y += (targetCamY - camera.y) * 0.1;
+                camera.y += (targetCamY - camera.y) * 0.1 * dt;
 
                 if (ball.x > lastBoosterX - width * 2) {
                     addBoosters(10); 
@@ -886,21 +912,21 @@
                      }
                 }
             } else {
-                camera.y += (0 - camera.y) * 0.1;
+                camera.y += (0 - camera.y) * 0.1 * dt;
             }
 
             if (camera.shake > 0) {
-                camera.shake *= 0.9;
+                camera.shake *= Math.pow(0.9, dt); 
                 if(camera.shake < 0.5) camera.shake = 0;
             }
 
             for (let i = particles.length - 1; i >= 0; i--) {
-                particles[i].update();
+                particles[i].update(dt);
                 if (particles[i].life <= 0) particles.splice(i, 1);
             }
 
             if (gameState === STATE.FLYING || gameState === STATE.STOPPED) {
-                let dist = Math.floor(ball.x - 200);
+                let dist = Math.floor((ball.x - 200 * scaleFactor) / scaleFactor);
                 if (dist < 0) dist = 0;
                 uiScore.innerText = dist;
             }
@@ -944,7 +970,7 @@
             ctx.lineTo(width, groundY);
             ctx.stroke();
 
-            const gridSize = 100;
+            const gridSize = 100 * scaleFactor;
             const offsetX = camera.x % gridSize;
             ctx.lineWidth = 1;
             ctx.globalAlpha = 0.3;
@@ -959,20 +985,22 @@
             ctx.globalAlpha = 1.0;
 
             if (gameState === STATE.DROPPING) {
-                const hitZoneY = batter.y - 30; 
+                // [수정] 가이드라인 위치 조정 (캐릭터 크기 고려)
+                const hitZoneY = batter.y - (85 * scaleFactor * CHAR_SCALE); 
                 ctx.fillStyle = 'rgba(0, 255, 0, 0.15)';
                 ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
                 ctx.setLineDash([5, 5]);
+                // 가이드라인 크기도 키움
                 ctx.beginPath();
-                ctx.arc(200, hitZoneY, 40, 0, Math.PI*2);
+                ctx.arc(200 * scaleFactor, hitZoneY, 60 * scaleFactor, 0, Math.PI*2);
                 ctx.fill();
                 ctx.stroke();
                 ctx.setLineDash([]);
                 
                 ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
-                ctx.font = '12px Orbitron';
+                ctx.font = `12px Orbitron`;
                 ctx.textAlign = 'center';
-                ctx.fillText("HIT HERE", 200, hitZoneY + 55);
+                ctx.fillText("HIT HERE", 200 * scaleFactor, hitZoneY + 75 * scaleFactor);
             }
 
             batter.draw();
@@ -983,12 +1011,6 @@
             ctx.globalCompositeOperation = 'source-over';
 
             ctx.restore(); 
-        }
-
-        function loop() {
-            update();
-            draw();
-            frameId = requestAnimationFrame(loop);
         }
 
         init();
