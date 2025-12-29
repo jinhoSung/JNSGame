@@ -30,25 +30,6 @@
     <div id="root" style="height: 100%;"></div>
 
     <script type="text/babel" data-type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { 
-            getAuth, 
-            signInAnonymously, 
-            signInWithCustomToken, 
-            onAuthStateChanged 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { 
-            getFirestore, 
-            collection, 
-            addDoc, 
-            query, 
-            orderBy, 
-            onSnapshot, 
-            deleteDoc, 
-            doc, 
-            serverTimestamp 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
         // --- Icon Components (SVG) ---
         const IconBase = ({ children, className, ...props }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>{children}</svg>
@@ -119,21 +100,6 @@
                 });
             }
         };
-
-        // --- Firebase Config & Setup ---
-        const firebaseConfig = {
-            apiKey: "AIzaSyAYSKqmUyDMy-7JojaiId4NZBwOQ-iOldI",
-            authDomain: "jnsgamerankscore.firebaseapp.com",
-            projectId: "jnsgamerankscore",
-            storageBucket: "jnsgamerankscore.firebasestorage.app",
-            messagingSenderId: "508728667972",
-            appId: "1:508728667972:web:27cc29bfd5ee36a6217111",
-            measurementId: "G-K68BKHZ3LT"
-        };
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
 
         // --- Themes ---
         const THEMES = {
@@ -226,18 +192,13 @@
             if (!show) return null;
 
             const toggleNumber = (num) => {
-                // Check if already fixed
                 if (fixedNumbers.includes(num)) {
-                    // Fixed -> Excluded
                     setFixedNumbers(prev => prev.filter(n => n !== num));
                     setExcludedNumbers(prev => [...prev, num]);
                 } else if (excludedNumbers.includes(num)) {
-                    // Excluded -> Neutral
                     setExcludedNumbers(prev => prev.filter(n => n !== num));
                 } else {
-                    // Neutral -> Fixed
                     if (fixedNumbers.length >= 5) {
-                        // Max fixed reached
                         alert("고정수는 최대 5개까지만 설정 가능합니다.");
                         return;
                     }
@@ -389,13 +350,19 @@
         };
 
         const App = () => {
-            // Load settings from localStorage
-            const [user, setUser] = React.useState(null);
             const [gameCount, setGameCount] = React.useState(1);
             const [finalNumbers, setFinalNumbers] = React.useState([]);
             const [drawnNumbers, setDrawnNumbers] = React.useState([]);
             const [isRolling, setIsRolling] = React.useState(false);
-            const [history, setHistory] = React.useState([]);
+            // LocalStorage for history
+            const [history, setHistory] = React.useState(() => {
+                try {
+                    return JSON.parse(localStorage.getItem('lotto_history')) || [];
+                } catch {
+                    return [];
+                }
+            });
+            
             const [showHistory, setShowHistory] = React.useState(false);
             const [showStrategy, setShowStrategy] = React.useState(false);
             const [toast, setToast] = React.useState({ show: false, message: '' });
@@ -403,7 +370,6 @@
             const [currentDrawingNumber, setCurrentDrawingNumber] = React.useState(null);
             const [currentGameIndex, setCurrentGameIndex] = React.useState(0);
             
-            // Persisted States
             const [skipAnimation, setSkipAnimation] = React.useState(() => JSON.parse(localStorage.getItem('skipAnimation')) || false);
             const [soundEnabled, setSoundEnabled] = React.useState(() => JSON.parse(localStorage.getItem('soundEnabled')) || false);
             const [shakeEnabled, setShakeEnabled] = React.useState(() => JSON.parse(localStorage.getItem('shakeEnabled')) || false);
@@ -421,63 +387,24 @@
             React.useEffect(() => localStorage.setItem('fixedNumbers', JSON.stringify(fixedNumbers)), [fixedNumbers]);
             React.useEffect(() => localStorage.setItem('excludedNumbers', JSON.stringify(excludedNumbers)), [excludedNumbers]);
 
-            // --- Authentication ---
-            React.useEffect(() => {
-                const initAuth = async () => {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-                };
-                initAuth();
-                const unsubscribe = onAuthStateChanged(auth, setUser);
-                return () => unsubscribe();
-            }, []);
-
-            // --- History Loading ---
-            React.useEffect(() => {
-                if (!user) return;
-                const historyRef = collection(db, 'artifacts', appId, 'users', user.uid, 'lotto_history');
-                const unsubscribeHistory = onSnapshot(historyRef, (snapshot) => {
-                    const loadedHistory = snapshot.docs.map(doc => {
-                        const data = doc.data();
-                        let parsedNumbers = [];
-                        try {
-                            parsedNumbers = typeof data.numbers === 'string' ? JSON.parse(data.numbers) : data.numbers;
-                        } catch (e) {
-                            console.error("Error parsing history numbers:", e);
-                            parsedNumbers = [];
-                        }
-                        return { id: doc.id, ...data, numbers: parsedNumbers };
-                    }).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-                    setHistory(loadedHistory);
-                }, (error) => console.error("Error loading history:", error));
-                return () => unsubscribeHistory();
-            }, [user]);
-
-            // --- Shake Detection ---
+            // Shake Detection
             React.useEffect(() => {
                 if (!shakeEnabled) return;
-
                 const handleMotion = (event) => {
                     if (isRolling) return;
                     const now = Date.now();
                     if (now - lastShakeTime.current < 1000) return;
-
                     const accel = event.accelerationIncludingGravity;
                     if (!accel) return;
-
                     const threshold = 20; 
                     if (Math.abs(accel.x) > threshold || Math.abs(accel.y) > threshold || Math.abs(accel.z) > threshold) {
                         lastShakeTime.current = now;
                         startDrawProcess();
                     }
                 };
-
                 window.addEventListener('devicemotion', handleMotion);
                 return () => window.removeEventListener('devicemotion', handleMotion);
-            }, [shakeEnabled, isRolling, fixedNumbers, excludedNumbers]); // Add fixed/excluded dependencies
+            }, [shakeEnabled, isRolling, fixedNumbers, excludedNumbers]);
 
             React.useEffect(() => {
                 resetMachineBalls();
@@ -534,7 +461,7 @@
                 
                 if (numbers.size + availableNumbers.length < 6) {
                     showToast("가능한 번호가 부족합니다! 제외수를 줄여주세요.");
-                    throw new Error("Not enough numbers"); // Stop generation
+                    throw new Error("Not enough numbers");
                 }
 
                 while (numbers.size < 6) {
@@ -548,8 +475,6 @@
 
             const startDrawProcess = async () => {
                 if (document.body.getAttribute('data-rolling') === 'true') return;
-                
-                // Validate Strategy
                 const possibleCount = 45 - excludedNumbers.length;
                 if (possibleCount < 6) {
                     showToast("제외수가 너무 많습니다! (최대 39개)");
@@ -602,10 +527,8 @@
                     const numberToDraw = targetNumbers[i];
                     setMachineBalls(prev => prev.filter(ball => ball.number !== numberToDraw));
                     setCurrentDrawingNumber(numberToDraw);
-                    
                     if (soundEnabled) SoundManager.playPop();
                     if (navigator.vibrate) navigator.vibrate(30);
-
                     await new Promise(resolve => setTimeout(resolve, 600));
                     setDrawnNumbers(prev => [...prev, numberToDraw]);
                     setCurrentDrawingNumber(null);
@@ -629,29 +552,24 @@
                     });
                 }
 
-                if (user) {
-                    try {
-                        await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'lotto_history'), {
-                            numbers: JSON.stringify(sortedNumberSets),
-                            gameCount: gameCount,
-                            createdAt: serverTimestamp()
-                        });
-                        showToast("결과가 저장되었습니다!");
-                    } catch (e) {
-                        console.error("Save failed", e);
-                        showToast("저장에 실패했습니다.");
-                    }
-                }
+                // Save to LocalStorage
+                const newEntry = {
+                    id: Date.now(),
+                    numbers: sortedNumberSets,
+                    gameCount: gameCount,
+                    createdAt: new Date().toISOString()
+                };
+                const updatedHistory = [newEntry, ...history];
+                setHistory(updatedHistory);
+                localStorage.setItem('lotto_history', JSON.stringify(updatedHistory));
+                showToast("결과가 저장되었습니다!");
             };
 
             const deleteHistoryItem = async (docId) => {
-                if (!user) return;
-                try {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'lotto_history', docId));
-                    showToast("기록이 삭제되었습니다.");
-                } catch (e) {
-                    showToast("삭제 실패");
-                }
+                const updatedHistory = history.filter(item => item.id !== docId);
+                setHistory(updatedHistory);
+                localStorage.setItem('lotto_history', JSON.stringify(updatedHistory));
+                showToast("기록이 삭제되었습니다.");
             };
 
             const copyToClipboard = (numberSet) => {
@@ -896,7 +814,7 @@
                                         history.map((item) => (
                                             <div key={item.id} className="bg-white/5 rounded-2xl p-4 border border-white/5 space-y-3 animate-fade-in-up hover:border-white/10 transition-colors">
                                                 <div className="flex justify-between items-center text-xs text-indigo-300/70 mb-2 border-b border-white/5 pb-2">
-                                                    <span className="flex items-center gap-1.5 font-mono"><Sparkles className="w-3 h-3 text-yellow-500/50"/> {item.createdAt?.toDate().toLocaleDateString()} {item.createdAt?.toDate().toLocaleTimeString()}</span>
+                                                    <span className="flex items-center gap-1.5 font-mono"><Sparkles className="w-3 h-3 text-yellow-500/50"/> {new Date(item.createdAt).toLocaleDateString()} {new Date(item.createdAt).toLocaleTimeString()}</span>
                                                     <button onClick={() => deleteHistoryItem(item.id)} className="text-red-400/60 hover:text-red-400 p-1.5 hover:bg-red-400/10 rounded-md transition-all"><Trash2 className="w-4 h-4" /></button>
                                                 </div>
                                                 {item.numbers.map((set, idx) => (
