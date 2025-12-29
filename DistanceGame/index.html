@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Launcher - Breath Style</title>
+    <title>Neon Launcher - Ranking Battle</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+KR:wght@400;700;900&display=swap');
 
@@ -44,6 +44,7 @@
             margin: 0;
             font-size: 24px;
             color: #0ff;
+            text-shadow: 0 0 20px #0ff;
         }
 
         #score-display {
@@ -305,7 +306,7 @@
             auth: null,
             user: null,
             initFirebase: async function() {
-                // 사용자가 제공한 Firebase 설정 적용
+                // [복구] 사용자가 제공한 Firebase 설정 적용
                 const firebaseConfig = {
                     apiKey: "AIzaSyBUGN1Zlpk-Avfu-5s4G6qQrSfMaq_QXhw",
                     authDomain: "distancegame-f4bba.firebaseapp.com",
@@ -321,34 +322,36 @@
                     this.auth = getAuth(app);
                     this.db = getFirestore(app);
 
-                    // 익명 로그인 시도
+                    // 익명 로그인 시도 (Firebase 콘솔에서 익명 로그인 활성화 필요)
                     await signInAnonymously(this.auth);
                     
                     onAuthStateChanged(this.auth, (user) => {
                         this.user = user;
+                        // console.log("Firebase Connected:", user?.uid);
                     });
                 } catch (e) {
                     console.error("Firebase Init Failed:", e);
                 }
             },
             saveScore: async function(name, score) {
-                if (!this.db || !this.user) {
-                    console.error("DB not ready");
+                const currentUser = this.auth?.currentUser || this.user;
+                if (!this.db || !currentUser) {
+                    console.error("DB or User not ready");
                     return false;
                 }
                 try {
-                    // 개인 프로젝트이므로 루트 컬렉션 'scores' 사용
+                    // [복구] 개인 프로젝트 루트 컬렉션 'scores' 사용
                     const scoresRef = collection(this.db, 'scores');
                     await addDoc(scoresRef, {
                         name: name,
                         score: score,
-                        userId: this.user.uid,
+                        userId: currentUser.uid,
                         timestamp: Date.now()
                     });
                     return true;
                 } catch (e) {
                     console.error("Save score failed", e);
-                    alert("점수 저장 실패: Firestore 규칙을 확인해주세요.");
+                    alert("점수 저장 실패: Firestore 규칙을 확인해주세요 (root collection 사용 중).");
                     return false;
                 }
             },
@@ -356,6 +359,7 @@
                 if (!this.db) return { top10: [], myRank: '-' };
                 
                 try {
+                    // [복구] 개인 프로젝트 루트 컬렉션 'scores' 사용
                     const scoresRef = collection(this.db, 'scores');
                     
                     // 1. Top 10 가져오기
@@ -371,6 +375,7 @@
                             const snapshotBetter = await getCountFromServer(qBetter);
                             myRank = snapshotBetter.data().count + 1;
                         } catch (e) {
+                            console.warn("Ranking index missing or permission issue:", e);
                             // 인덱스 없을 땐 클라이언트 측에서 단순 계산 (데이터 적을 때 유효)
                             const idx = top10.findIndex(d => d.score === myScore);
                             if(idx !== -1) myRank = idx + 1;
@@ -420,7 +425,6 @@
                 if(!this.ctx) return;
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
-                
                 if (isPerfect) {
                     osc.type = 'sawtooth';
                     osc.frequency.setValueAtTime(600, this.ctx.currentTime);
@@ -443,9 +447,8 @@
             playJump: function() { this.playTone(300, 'square', 0.1); setTimeout(() => this.playTone(600, 'square', 0.3), 50); },
             playBlast: function() { this.playTone(100, 'sawtooth', 0.5, 0.2); this.playTone(50, 'square', 0.5, 0.2); },
             playBreath: function() {
-                // 호흡 효과음 (쿠구궁... 챙!)
-                this.playTone(100, 'sawtooth', 0.8, 0.3); // 베이스
-                setTimeout(() => this.playTone(800, 'square', 0.2, 0.5), 600); // 칼소리
+                this.playTone(100, 'sawtooth', 0.8, 0.3);
+                setTimeout(() => this.playTone(800, 'square', 0.2, 0.5), 600);
             }
         };
 
@@ -483,9 +486,9 @@
         let combo = 0;
         let currentScore = 0;
         
-        // [추가] 연출용 변수
+        // 연출용
         let hitFreeze = 0; 
-        let specialEffects = []; // 호흡 이펙트
+        let specialEffects = [];
 
         const camera = { x: 0, y: 0, shake: 0 };
         const GRAVITY_BASE = 0.25;
@@ -496,6 +499,7 @@
         const CHAR_SCALE = 1.3;
 
         let ball, batter, particles = [], shockwaves = [], speedLines = [], stars = [], boosters = [], mountains = [];
+        let cityBuildings = []; // [추가] 빌딩 배열
 
         // UI Event Listeners
         btnSubmit.addEventListener('click', async () => {
@@ -525,19 +529,9 @@
             }
         });
 
-        // 재시작 버튼
-        btnRetry.addEventListener('click', () => {
-            modal.style.display = 'none';
-            resetGame();
-        });
+        btnRetry.addEventListener('click', () => { modal.style.display = 'none'; resetGame(); });
+        btnSkip.addEventListener('click', () => { modal.style.display = 'none'; resetGame(); });
 
-        // 스킵 버튼
-        btnSkip.addEventListener('click', () => {
-            modal.style.display = 'none';
-            resetGame();
-        });
-
-        // 랭킹 보기 버튼
         btnShowRanking.addEventListener('click', async () => {
             modalTitle.innerText = "TOP RANKING";
             finalScoreEl.classList.add('hidden');
@@ -545,54 +539,36 @@
             btnRetry.classList.add('hidden'); 
             rankingContainer.classList.remove('hidden');
             myRankEl.classList.add('hidden'); 
-            
             modal.style.display = 'block';
             await updateRankingBoard(null, null); 
         });
 
-        // 모달 닫기
         btnModalClose.addEventListener('click', () => {
             modal.style.display = 'none';
-            if (gameState === STATE.STOPPED || gameState === STATE.MISS) {
-                resetGame();
-            }
+            if (gameState === STATE.STOPPED || gameState === STATE.MISS) { resetGame(); }
         });
 
         async function updateRankingBoard(myScore, myName) {
             rankListEl.innerHTML = '<li style="padding:10px; color:#888;">로딩 중...</li>';
-            
             const { top10, myRank } = await window.GAME.getRanking(myScore);
-            
             if (myScore !== null) {
                 myRankEl.innerText = `이번 기록 순위: ${myRank}위`;
                 myRankEl.classList.remove('hidden');
             } else {
                 myRankEl.classList.add('hidden');
             }
-
             rankListEl.innerHTML = '';
             if (top10.length === 0) {
                 rankListEl.innerHTML = '<li style="padding:10px; color:#888;">등록된 랭킹이 없습니다.</li>';
                 return;
             }
-
             top10.forEach((item, index) => {
                 const li = document.createElement('li');
                 li.className = 'rank-item';
-                if (myName && item.name === myName && item.score === myScore) {
-                    li.classList.add('my-score');
-                }
-                
+                if (myName && item.name === myName && item.score === myScore) li.classList.add('my-score');
                 let rankIcon = index + 1;
-                if (index === 0) rankIcon = '🥇';
-                else if (index === 1) rankIcon = '🥈';
-                else if (index === 2) rankIcon = '🥉';
-
-                li.innerHTML = `
-                    <span class="rank-rank">${rankIcon}</span>
-                    <span class="rank-name">${item.name}</span>
-                    <span class="rank-score">${item.score}m</span>
-                `;
+                if (index === 0) rankIcon = '🥇'; else if (index === 1) rankIcon = '🥈'; else if (index === 2) rankIcon = '🥉';
+                li.innerHTML = `<span class="rank-rank">${rankIcon}</span><span class="rank-name">${item.name}</span><span class="rank-score">${item.score}m</span>`;
                 rankListEl.appendChild(li);
             });
         }
@@ -601,65 +577,78 @@
         if (savedName) playerNameInput.value = savedName;
 
         // --- Classes ---
-        // [추가] 호흡 이펙트 클래스
-        class BreathEffect {
-            constructor() {
-                this.active = true;
-                this.life = 1.0;
-                this.text = "지노의 호흡... 제1형...";
-                this.subText = "벽력일섬 (霹靂一閃) ⚡";
-                this.flash = true; // 화면 번쩍임
-            }
-            update(dt) {
-                this.life -= 0.02 * dt; // 천천히 사라짐
-                if (this.life <= 0) this.active = false;
+        // [추가] 네온 빌딩 클래스 (패럴랙스 배경용)
+        class Building {
+            constructor(x, w, h, z) {
+                this.x = x; this.w = w; this.h = h; this.z = z; // z: 깊이 (클수록 멀리 있음, 느림)
+                this.windows = [];
+                // 창문 생성
+                const rows = Math.floor(h / 30);
+                const cols = Math.floor(w / 20);
+                for(let r=0; r<rows; r++) {
+                    for(let c=0; c<cols; c++) {
+                        if(Math.random() > 0.4) { // 60% 확률로 불 켜짐
+                            this.windows.push({x: c*20 + 5, y: r*30 + 10, on: true});
+                        }
+                    }
+                }
+                // 네온 색상 랜덤 (분홍, 청록, 보라)
+                const colors = ['#f0f', '#0ff', '#a0f'];
+                this.neonColor = colors[Math.floor(Math.random() * colors.length)];
             }
             draw() {
-                if (!this.active) return;
+                const parallax = 1 / this.z;
+                let rx = (this.x - camera.x * parallax);
+                // 무한 루프 배경
+                const totalWidth = 3000; // 가상 맵 너비
+                rx = rx % totalWidth;
+                if(rx < -this.w) rx += totalWidth;
                 
-                // 1. 배경 어둡게 (집중선 효과)
-                ctx.save();
-                ctx.fillStyle = `rgba(0, 0, 0, ${this.life * 0.7})`;
-                ctx.fillRect(0, 0, width, height);
+                if (rx > width || rx + this.w < 0) return;
 
-                // 2. 참격 (가로지르는 선)
-                const slashWidth = width * 1.5;
-                const slashHeight = 20 * scaleFactor;
+                const gy = height - 50 - camera.y; 
+                const by = gy - this.h * scaleFactor;
+
+                ctx.fillStyle = '#050510'; // 건물색
+                ctx.strokeStyle = this.neonColor;
+                ctx.lineWidth = 2;
                 
-                ctx.translate(width/2, height/2);
-                ctx.rotate(-Math.PI / 6); // 30도 기울기
-                
-                // 빛나는 참격
-                ctx.shadowBlur = 50;
-                ctx.shadowColor = '#ffff00';
-                ctx.fillStyle = '#fff';
-                ctx.globalAlpha = this.life;
-                
-                // 번개 모양 지그재그
+                // 외곽선
                 ctx.beginPath();
-                ctx.moveTo(-slashWidth/2, 0);
-                ctx.lineTo(slashWidth/2, 0);
-                ctx.lineWidth = 10 * scaleFactor;
-                ctx.strokeStyle = '#fff';
+                ctx.rect(rx, by, this.w * scaleFactor, this.h * scaleFactor);
+                ctx.fill();
                 ctx.stroke();
-                
-                // 3. 텍스트
-                ctx.rotate(Math.PI / 6); // 회전 복구
-                ctx.shadowBlur = 20;
-                ctx.shadowColor = '#00ffff';
-                ctx.fillStyle = '#fff';
-                ctx.textAlign = 'center';
-                
-                // 메인 텍스트
-                ctx.font = `bold ${40 * scaleFactor}px 'Noto Sans KR', sans-serif`;
-                ctx.fillText(this.text, 0, -50 * scaleFactor);
-                
-                // 서브 텍스트 (강조)
-                ctx.fillStyle = '#ffff00';
-                ctx.shadowColor = '#ff0000';
-                ctx.font = `900 ${60 * scaleFactor}px 'Noto Sans KR', sans-serif`;
-                ctx.fillText(this.subText, 0, 50 * scaleFactor);
 
+                // 창문
+                ctx.fillStyle = this.neonColor;
+                this.windows.forEach(win => {
+                    if(win.on) {
+                        ctx.globalAlpha = 0.5;
+                        ctx.fillRect(rx + win.x * scaleFactor, by + win.y * scaleFactor, 10 * scaleFactor, 15 * scaleFactor);
+                    }
+                });
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        class BreathEffect {
+            constructor() {
+                this.active = true; this.life = 1.0;
+                this.text = "지노의 호흡... 제1형..."; this.subText = "벽력일섬 (霹靂一閃) ⚡";
+            }
+            update(dt) { this.life -= 0.02 * dt; if (this.life <= 0) this.active = false; }
+            draw() {
+                if (!this.active) return;
+                ctx.save();
+                ctx.fillStyle = `rgba(0, 0, 0, ${this.life * 0.7})`; ctx.fillRect(0, 0, width, height);
+                const slashWidth = width * 1.5;
+                ctx.translate(width/2, height/2); ctx.rotate(-Math.PI / 6); 
+                ctx.shadowBlur = 50; ctx.shadowColor = '#ffff00'; ctx.fillStyle = '#fff'; ctx.globalAlpha = this.life;
+                ctx.beginPath(); ctx.moveTo(-slashWidth/2, 0); ctx.lineTo(slashWidth/2, 0); ctx.lineWidth = 10 * scaleFactor; ctx.strokeStyle = '#fff'; ctx.stroke();
+                ctx.rotate(Math.PI / 6); 
+                ctx.shadowBlur = 20; ctx.shadowColor = '#00ffff'; ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+                ctx.font = `bold ${40 * scaleFactor}px 'Noto Sans KR', sans-serif`; ctx.fillText(this.text, 0, -50 * scaleFactor);
+                ctx.fillStyle = '#ffff00'; ctx.shadowColor = '#ff0000'; ctx.font = `900 ${60 * scaleFactor}px 'Noto Sans KR', sans-serif`; ctx.fillText(this.subText, 0, 50 * scaleFactor);
                 ctx.restore();
             }
         }
@@ -730,17 +719,22 @@
                 this.x = Math.random() * width; this.y = Math.random() * height; 
                 this.size = Math.random() * 2; this.blinkSpeed = 0.01 + Math.random() * 0.05;
                 this.alpha = Math.random(); this.parallax = 0.05 + Math.random() * 0.2;
+                this.isShooting = false;
+            }
+            update(dt) {
+                if (Math.random() < 0.001 && !this.isShooting) { this.isShooting = true; this.vx = -10 - Math.random() * 10; this.vy = 5 + Math.random() * 5; this.life = 60; }
+                if (this.isShooting) { this.x += this.vx * dt; this.y += this.vy * dt; this.life -= dt; if (this.life <= 0) { this.reset(); this.isShooting = false; } }
             }
             draw() {
-                this.alpha += this.blinkSpeed;
-                if (this.alpha > 1 || this.alpha < 0) this.blinkSpeed *= -1;
-                let rx = (this.x - camera.x * this.parallax) % width;
-                if (rx < 0) rx += width;
-                let ry = this.y - camera.y * this.parallax;
-                ctx.globalAlpha = Math.abs(this.alpha);
-                ctx.fillStyle = '#fff';
-                ctx.beginPath(); ctx.arc(rx, ry, this.size, 0, Math.PI * 2); ctx.fill();
-                ctx.globalAlpha = 1.0;
+                if(this.isShooting) {
+                    // 유성 그리기
+                    ctx.save(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x - this.vx * 3, this.y - this.vy * 3); ctx.stroke(); ctx.restore();
+                } else {
+                    this.alpha += this.blinkSpeed; if (this.alpha > 1 || this.alpha < 0) this.blinkSpeed *= -1;
+                    let rx = (this.x - camera.x * this.parallax) % width; if (rx < 0) rx += width;
+                    let ry = this.y - camera.y * this.parallax;
+                    ctx.globalAlpha = Math.abs(this.alpha); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(rx, ry, this.size, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1.0;
+                }
             }
         }
 
@@ -759,8 +753,7 @@
         class Particle {
             constructor(x, y, color, speed, sizeObj = 2) {
                 this.x = x; this.y = y; this.color = color;
-                const a = Math.random() * Math.PI * 2;
-                const v = Math.random() * speed * scaleFactor;
+                const a = Math.random() * Math.PI * 2; const v = Math.random() * speed * scaleFactor;
                 this.vx = Math.cos(a) * v; this.vy = Math.sin(a) * v;
                 this.life = 1.0; this.decay = 0.02 + Math.random() * 0.03;
                 this.size = (sizeObj + Math.random() * 3) * scaleFactor;
@@ -768,8 +761,7 @@
             update(dt) { this.x += this.vx * dt; this.y += this.vy * dt; this.vy += 0.05 * scaleFactor * dt; this.life -= this.decay * dt; }
             draw() {
                 if (this.life <= 0) return;
-                ctx.globalAlpha = this.life; ctx.fillStyle = this.color;
-                ctx.shadowBlur = 10; ctx.shadowColor = this.color;
+                ctx.globalAlpha = this.life; ctx.fillStyle = this.color; ctx.shadowBlur = 10; ctx.shadowColor = this.color;
                 ctx.beginPath(); ctx.arc(this.x - camera.x, this.y - camera.y, this.size, 0, Math.PI * 2); ctx.fill();
                 ctx.shadowBlur = 0; ctx.globalAlpha = 1.0;
             }
@@ -789,15 +781,11 @@
                 if (this.y - camera.y < -100 || this.y - camera.y > height + 100) return;
                 this.pulse += 0.1;
                 const r = this.radius + Math.sin(this.pulse) * 5;
-                ctx.strokeStyle = this.color; ctx.lineWidth = 3;
-                ctx.shadowBlur = 20; ctx.shadowColor = this.glow;
+                ctx.strokeStyle = this.color; ctx.lineWidth = 3; ctx.shadowBlur = 20; ctx.shadowColor = this.glow;
                 ctx.beginPath();
                 if (this.type === 'blast') {
-                    ctx.moveTo(this.x - camera.x, this.y - camera.y - r);
-                    ctx.lineTo(this.x - camera.x + r, this.y - camera.y);
-                    ctx.lineTo(this.x - camera.x, this.y - camera.y + r);
-                    ctx.lineTo(this.x - camera.x - r, this.y - camera.y);
-                    ctx.closePath();
+                    ctx.moveTo(this.x - camera.x, this.y - camera.y - r); ctx.lineTo(this.x - camera.x + r, this.y - camera.y);
+                    ctx.lineTo(this.x - camera.x, this.y - camera.y + r); ctx.lineTo(this.x - camera.x - r, this.y - camera.y); ctx.closePath();
                 } else { ctx.arc(this.x - camera.x, this.y - camera.y, r, 0, Math.PI * 2); }
                 ctx.stroke();
                 ctx.fillStyle = this.color; ctx.globalAlpha = 0.2; ctx.fill(); ctx.globalAlpha = 1.0; ctx.shadowBlur = 0;
@@ -815,29 +803,38 @@
         }
 
         class Batter {
-            constructor() { this.x = 200 * scaleFactor; this.y = height - 50; this.armAngle = -Math.PI / 2; this.swinging = false; this.swingSpeed = 0; }
-            reset() { this.x = 200 * scaleFactor; this.y = height - 50; this.armAngle = -Math.PI * 0.65; this.swinging = false; this.swingSpeed = 0; }
+            constructor() { this.x = 200 * scaleFactor; this.y = height - 50; this.armAngle = -Math.PI / 2; this.swinging = false; this.swingSpeed = 0; this.idleTime = 0; }
+            reset() { this.x = 200 * scaleFactor; this.y = height - 50; this.armAngle = -Math.PI * 0.65; this.swinging = false; this.swingSpeed = 0; this.idleTime = 0; }
             swing() { if (!this.swinging) { this.swinging = true; this.swingSpeed = 0.15; } }
             update(dt) {
                 if (this.swinging) {
                     this.armAngle += this.swingSpeed * dt; this.swingSpeed += 0.05 * dt;
                     if (this.armAngle > Math.PI * 0.2) { this.swinging = false; this.armAngle = Math.PI * 0.2; if (gameState === STATE.DROPPING) endGame("MISS"); }
-                } else if (gameState === STATE.READY) {
-                     const targetAngle = -Math.PI * 0.65; this.armAngle += (targetAngle - this.armAngle) * 0.1 * dt;
+                } else if (gameState === STATE.READY || gameState === STATE.DROPPING) {
+                     // [추가] 아이들 애니메이션 (호흡)
+                     this.idleTime += dt * 0.05;
+                     const breath = Math.sin(this.idleTime) * 0.05;
+                     const targetAngle = -Math.PI * 0.65 + breath;
+                     this.armAngle += (targetAngle - this.armAngle) * 0.1 * dt;
                 }
             }
             draw() {
                 const drawX = this.x - camera.x; const drawY = this.y - camera.y; const s = scaleFactor * CHAR_SCALE;
                 if (drawX < -100 || drawX > width + 100) return;
+                
+                // [추가] 숨쉬기 효과 (Y축 미세 이동)
+                const breathY = Math.sin(this.idleTime) * 2 * s;
+
                 ctx.save(); ctx.translate(drawX, drawY);
                 ctx.strokeStyle = '#0ff'; ctx.fillStyle = '#000'; ctx.lineWidth = 3 * s;
                 ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.shadowBlur = 10; ctx.shadowColor = '#0ff';
-                // Legs
+                // Legs (고정)
                 ctx.beginPath(); ctx.moveTo(-5*s, -55*s); ctx.lineTo(-20*s, -25*s); ctx.lineTo(-35*s, 0); ctx.stroke();
                 ctx.beginPath(); ctx.moveTo(5*s, -55*s); ctx.lineTo(25*s, -25*s); ctx.lineTo(30*s, 0); ctx.stroke();
-                // Body
+                
+                // Body (움직임)
+                ctx.save(); ctx.translate(0, breathY);
                 ctx.fillStyle = '#051515'; ctx.beginPath(); ctx.moveTo(-12*s, -100*s); ctx.lineTo(12*s, -100*s); ctx.lineTo(6*s, -55*s); ctx.lineTo(-6*s, -55*s); ctx.closePath(); ctx.fill(); ctx.stroke();
-                // Core
                 ctx.fillStyle = '#0ff'; ctx.beginPath(); ctx.arc(0, -80*s, 5*s, 0, Math.PI * 2); ctx.fill();
                 // Head
                 ctx.save(); ctx.translate(0, -105*s); ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(0, 0, 16*s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -851,7 +848,9 @@
                 batGrad.addColorStop(0, '#fff'); batGrad.addColorStop(0.3, '#0f0'); batGrad.addColorStop(1, 'rgba(0, 255, 0, 0.5)');
                 ctx.fillStyle = batGrad; ctx.beginPath(); ctx.moveTo(12*s, -6*s); ctx.lineTo(110*s, -9*s); ctx.lineTo(115*s, 0); ctx.lineTo(110*s, 9*s); ctx.lineTo(12*s, 6*s); ctx.closePath(); ctx.fill();
                 ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.moveTo(12*s, 0); ctx.lineTo(105*s, 0); ctx.stroke();
-                ctx.restore(); ctx.restore(); 
+                ctx.restore(); 
+                ctx.restore(); // Body end
+                ctx.restore(); // Player end
             }
         }
 
@@ -879,7 +878,11 @@
                     this.x += this.vx * dt; this.y += this.vy * dt; this.vy += GRAVITY * dt; 
                     this.vx *= Math.pow(FRICTION_AIR, dt); this.vy *= Math.pow(FRICTION_AIR, dt);
                     this.rotation += this.vx * 0.1 * dt;
-                    if (frameId % 3 === 0) { this.trail.push({x: this.x, y: this.y}); if (this.trail.length > 25) this.trail.shift(); }
+                    if (frameId % 3 === 0) { 
+                        // [수정] 잔상 효과를 위해 현재 상태 저장
+                        this.trail.push({x: this.x, y: this.y, alpha: 1.0}); 
+                        if (this.trail.length > 25) this.trail.shift(); 
+                    }
                     if (this.y + this.radius > height - 50) {
                         this.y = height - 50 - this.radius; this.vy *= -BOUNCE; this.vx *= Math.pow(FRICTION_GROUND, dt); 
                         if (combo > 0) { combo = 0; uiCombo.style.opacity = 0; }
@@ -907,7 +910,6 @@
                 currentScore = Math.floor((this.x - 200 * scaleFactor) / scaleFactor);
                 checkBestScore();
                 
-                // Show Result Modal
                 modalTitle.innerText = "GAME OVER";
                 finalScoreEl.innerText = `${currentScore} m`;
                 finalScoreEl.classList.remove('hidden');
@@ -927,6 +929,18 @@
                 if (gameState === STATE.READY && this.y < 0) return;
                 const drawX = this.x - camera.x; const drawY = this.y - camera.y;
                 if (gameState === STATE.FLYING && this.trail.length > 1) {
+                    // [수정] 잔상 그리기 (Ghost Effect)
+                    if (Math.abs(this.vx) > 15) {
+                        this.trail.forEach(t => {
+                            ctx.fillStyle = `rgba(0, 255, 255, ${t.alpha * 0.2})`;
+                            ctx.beginPath();
+                            ctx.arc(t.x - camera.x, t.y - camera.y, this.radius * 0.8, 0, Math.PI*2);
+                            ctx.fill();
+                            t.alpha -= 0.05;
+                        });
+                    }
+                    
+                    // 기존 라인 꼬리
                     ctx.beginPath(); ctx.moveTo(this.trail[0].x - camera.x, this.trail[0].y - camera.y);
                     for (let i = 1; i < this.trail.length; i++) ctx.lineTo(this.trail[i].x - camera.x, this.trail[i].y - camera.y);
                     if (combo >= 5) {
@@ -959,7 +973,15 @@
 
             batter = new Batter(); ball = new Ball();
             for(let i=0; i<80; i++) stars.push(new Star());
-            mountains.push(new Mountain(100, 300, 150)); mountains.push(new Mountain(600, 400, 200)); mountains.push(new Mountain(1200, 250, 120));
+            // [추가] 네온 시티 빌딩 생성
+            for(let i=0; i<20; i++) {
+                let bw = 60 + Math.random() * 80;
+                let bh = 100 + Math.random() * 300;
+                let bx = i * 200 - 500; 
+                let bz = 1 + Math.random() * 2; // 원근감
+                cityBuildings.push(new Building(bx, bw, bh, bz));
+            }
+            
             for(let i=0; i<20; i++) speedLines.push(new SpeedLine());
             initBoosters();
             requestAnimationFrame(loop);
@@ -973,7 +995,6 @@
 
         function addBoosters(count) {
              for(let i=0; i<count; i++) {
-                // 부스터 생성 빈도 조정
                 let gap = (200 + Math.random() * 500) * scaleFactor;
                 lastBoosterX += gap;
                 let by = height - 100 - (Math.random() * 2000 * scaleFactor); 
@@ -1006,24 +1027,20 @@
             const distY = ball.y - hitZoneY; 
 
             if (Math.abs(distY) < 90 * scaleFactor) {
-                // [수정] Perfect Hit 시 호흡 이펙트 및 정지
                 let isPerfect = false;
                 if (Math.abs(distY) < 20 * scaleFactor) {
                     isPerfect = true;
-                    // 히트 스탑 & 이펙트 발동
-                    hitFreeze = 45; // 약 0.75초 정지
+                    hitFreeze = 45; // 히트 스탑
                     specialEffects.push(new BreathEffect());
-                    Sound.playBreath(); // 호흡 사운드
+                    Sound.playBreath();
                 }
 
-                // 공 물리 계산은 미리 해둠 (정지 풀리면 적용됨)
-                // 단, 위치는 정지 기간동안 고정되어야 함 -> loop에서 처리
                 gameState = STATE.FLYING;
                 let power = 25 * scaleFactor; let angle = -45; 
                 
                 if (isPerfect) {
                     power = 40 * scaleFactor; angle = -45; 
-                    showFeedback("PERFECT!", "#0ff"); Sound.playHit(true);
+                    //showFeedback("PERFECT!", "#0ff"); Sound.playHit(true);
                 } else {
                     power = (28 * scaleFactor) - (Math.abs(distY) * 0.15); 
                     if (distY < 0) { angle = -45 + (distY * 0.5); showFeedback("TOO EARLY", "#ff8"); } 
@@ -1038,7 +1055,6 @@
         function endGame(type) {
             gameState = STATE.STOPPED; 
             if (type === "MISS") {
-                // 실격 시 점수 0으로 등록 화면 표시
                 currentScore = 0;
                 modalTitle.innerText = "GAME OVER";
                 finalScoreEl.innerText = "MISS";
@@ -1060,14 +1076,9 @@
             ball.reset();
             combo = 0;
             uiCombo.style.opacity = 0;
-            
-            // UI 초기화
             uiMsg.classList.remove('hidden');
             uiMsg.innerHTML = "화면을 클릭하면<br>공이 떨어집니다!";
-            
-            // 모달 및 버튼 상태 초기화
             modal.style.display = 'none';
-            
             initBoosters();
         }
 
@@ -1088,19 +1099,14 @@
             const deltaTime = timestamp - lastTime; lastTime = timestamp;
             const dt = Math.min(deltaTime, 100) / (1000 / 60);
 
-            // [수정] 히트 스탑 로직
             if (hitFreeze > 0) {
                 hitFreeze -= dt;
-                // 물리 업데이트 스킵, 이펙트만 업데이트
                 specialEffects.forEach(e => e.update(dt));
-                // 렌더링은 계속 함
                 draw();
-                // 이펙트 그리기
                 specialEffects.forEach(e => e.draw());
             } else {
                 update(dt);
                 draw();
-                // 이펙트 잔상 그리기
                 specialEffects.forEach(e => e.draw());
             }
             
@@ -1109,8 +1115,8 @@
 
         function update(dt) {
             batter.update(dt); ball.update(dt);
+            stars.forEach(s => s.update(dt)); // 유성 업데이트
             
-            // 이펙트 업데이트 (히트 스탑 아닐때도 사라지게)
             specialEffects.forEach((e, i) => {
                 if(!e.active) specialEffects.splice(i, 1);
                 else e.update(dt);
@@ -1142,7 +1148,13 @@
             else { bgGrad.addColorStop(0, '#000000'); bgGrad.addColorStop(1, '#100022'); }
             ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, width, height);
             ctx.fillStyle = '#ff9'; ctx.shadowBlur = 50; ctx.shadowColor = '#ff9'; ctx.beginPath(); ctx.arc(width - 100, 100, 60, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
-            stars.forEach(s => s.draw()); mountains.forEach(m => m.draw()); speedLines.forEach(l => l.draw()); boosters.forEach(b => b.draw());
+            stars.forEach(s => s.draw()); 
+            // [수정] 네온 시티 빌딩 그리기
+            cityBuildings.forEach(b => b.draw()); 
+            
+            speedLines.forEach(l => l.draw());
+            boosters.forEach(b => b.draw());
+
             const groundY = height - 50 - camera.y;
             ctx.strokeStyle = '#f0f'; ctx.lineWidth = 2; ctx.shadowBlur = 10; ctx.shadowColor = '#f0f'; ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(width, groundY); ctx.stroke();
             const gridSize = 100 * scaleFactor; const offsetX = camera.x % gridSize; ctx.lineWidth = 1; ctx.globalAlpha = 0.3;
