@@ -144,7 +144,8 @@
     <script>
         /**
          * NEON SWING (Final Complete Version)
-         * - Sound Effects (Synthesized)
+         * - Sound Effects (Hit Sound differentiation)
+         * - Increased Boosters
          * - Speed Lines (Visual Juice)
          * - Fever Mode (Rainbow)
          */
@@ -182,20 +183,33 @@
                 osc.start();
                 osc.stop(this.ctx.currentTime + duration);
             },
-            playHit: function() {
+            playHit: function(isPerfect) {
                 this.init();
-                // 슝~ 하는 소리
                 if(!this.ctx) return;
+                
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
-                osc.frequency.setValueAtTime(800, this.ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.3);
-                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
-                gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.3);
+                
+                if (isPerfect) {
+                    // [수정] 홈런 소리 (Sawtooth로 날카롭게 '깡!')
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.15); // 빠른 피치 하강
+                    gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                } else {
+                    // [수정] 빗맞은 소리 (Triangle로 둔탁하게 '픽' or '틱')
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+                    osc.frequency.linearRampToValueAtTime(100, this.ctx.currentTime + 0.1); 
+                    gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.1);
+                }
+
                 osc.connect(gain);
                 gain.connect(this.ctx.destination);
                 osc.start();
-                osc.stop(this.ctx.currentTime + 0.3);
+                osc.stop(this.ctx.currentTime + 0.2);
             },
             playBoost: function() {
                 this.playTone(600, 'sine', 0.2);
@@ -242,7 +256,7 @@
         let batter;
         let particles = [];
         let shockwaves = []; 
-        let speedLines = []; // [추가] 스피드 라인
+        let speedLines = []; 
         let stars = [];
         let boosters = [];
         let mountains = [];
@@ -264,10 +278,9 @@
                 this.alpha = 0;
             }
             update(ballSpeed) {
-                // 공 속도가 빠를 때만 보임
                 if (ballSpeed > 15) {
                     this.alpha = Math.min(0.5, (ballSpeed - 15) * 0.05);
-                    this.x -= this.speed * (ballSpeed / 20); // 공 반대방향으로 이동
+                    this.x -= this.speed * (ballSpeed / 20); 
                     if (this.x < 0) {
                         this.x = width + Math.random() * 200;
                         this.y = Math.random() * height;
@@ -278,12 +291,14 @@
             }
             draw() {
                 if (this.alpha <= 0) return;
+                ctx.save();
                 ctx.globalAlpha = this.alpha;
                 ctx.fillStyle = '#fff';
                 ctx.beginPath();
                 ctx.rect(this.x, this.y, this.length, this.width);
                 ctx.fill();
                 ctx.globalAlpha = 1.0;
+                ctx.restore();
             }
         }
 
@@ -299,7 +314,7 @@
             }
 
             update(dt) {
-                this.radius += 8 * scaleFactor * dt; // 퍼지는 속도 증가
+                this.radius += 8 * scaleFactor * dt; 
                 this.alpha -= 0.08 * dt;
                 this.lineWidth -= 0.2 * dt;
                 if (this.lineWidth < 0) this.lineWidth = 0;
@@ -653,7 +668,10 @@
             }
 
             hit(speed, angleDeg) {
-                Sound.playHit(); // [추가] 타격음
+                // [수정] hit 소리 처리 (Perfect 여부는 attemptHit에서 판단해서 인자로 넘겨줄 수도 있지만, 
+                // 여기서는 speed/angle로 유추하거나 attemptHit에서 직접 부르는게 나음.
+                // 여기서는 Sound.playHit() 호출 제거하고 attemptHit에서 제어
+                
                 const rad = angleDeg * Math.PI / 180;
                 this.vx = Math.cos(rad) * speed * scaleFactor;
                 this.vy = Math.sin(rad) * speed * scaleFactor;
@@ -727,7 +745,7 @@
                             const blastPower = 25 * scaleFactor * comboBonus;
 
                             if (b.type === 'speed') {
-                                Sound.playBoost(); // [추가] 효과음
+                                Sound.playBoost(); 
                                 this.vx += boostPower; 
                                 this.vy = -12 * scaleFactor; 
                                 showFeedback("SPEED!", "#ff0");
@@ -736,7 +754,7 @@
                                 for(let i=0; i<15; i++) particles.push(new Particle(this.x, this.y, '#ff0', 8));
                             } 
                             else if (b.type === 'jump') {
-                                Sound.playJump(); // [추가] 효과음
+                                Sound.playJump(); 
                                 this.vx += 5 * scaleFactor; 
                                 this.vy = -jumpPower; 
                                 showFeedback("HIGH JUMP!", "#0ff");
@@ -745,7 +763,7 @@
                                 for(let i=0; i<20; i++) particles.push(new Particle(this.x, this.y, '#0ff', 10));
                             }
                             else if (b.type === 'blast') {
-                                Sound.playBlast(); // [추가] 효과음
+                                Sound.playBlast(); 
                                 this.vx += blastPower; 
                                 this.vy = -20 * scaleFactor; 
                                 showFeedback("EXPLOSION!", "#f05");
@@ -800,7 +818,7 @@
                     for (let i = 1; i < this.trail.length; i++) {
                         ctx.lineTo(this.trail[i].x - camera.x, this.trail[i].y - camera.y);
                     }
-                    // [추가] 피버 모드일 때 무지개 꼬리
+                    
                     if (combo >= 5) {
                         const grad = ctx.createLinearGradient(0,0,width,0);
                         grad.addColorStop(0, "red");
@@ -851,7 +869,7 @@
             
             const inputHandler = (e) => {
                 if(e.target === btnRetry) return; 
-                Sound.init(); // [추가] 사운드 컨텍스트 시작
+                Sound.init(); 
                 handleInput();
             };
             
@@ -880,7 +898,6 @@
             mountains.push(new Mountain(600, 400, 200));
             mountains.push(new Mountain(1200, 250, 120));
 
-            // [추가] 스피드 라인 생성
             for(let i=0; i<20; i++) speedLines.push(new SpeedLine());
 
             initBoosters();
@@ -896,7 +913,8 @@
 
         function addBoosters(count) {
              for(let i=0; i<count; i++) {
-                let gap = (150 + Math.random() * 300) * scaleFactor;
+                // [수정] 부스터를 더 많이 (간격 좁힘)
+                let gap = (80 + Math.random() * 200) * scaleFactor;
                 lastBoosterX += gap;
                 
                 let by = height - 100 - (Math.random() * 2000 * scaleFactor); 
@@ -949,10 +967,12 @@
                 let power = 25 * scaleFactor; 
                 let angle = -45; 
 
+                // 퍼펙트 판정
                 if (Math.abs(distY) < 20 * scaleFactor) {
                     power = 40 * scaleFactor; 
                     angle = -45; 
                     showFeedback("PERFECT!", "#0ff");
+                    Sound.playHit(true); // [추가] 퍼펙트 사운드
                 } else {
                     power = (28 * scaleFactor) - (Math.abs(distY) * 0.15); 
                     
@@ -963,6 +983,7 @@
                         angle = -45 + (distY * 0.8);
                         showFeedback("TOO LATE", "#f88");
                     }
+                    Sound.playHit(false); // [추가] 빗맞은 사운드
                 }
                 
                 if (power < 10 * scaleFactor) power = 10 * scaleFactor;
@@ -1069,8 +1090,6 @@
                 if (shockwaves[i].alpha <= 0) shockwaves.splice(i, 1);
             }
 
-            // [추가] 스피드 라인 업데이트
-            // 공 속도(vx)를 기준으로 투명도/위치 조절
             const ballSpeed = Math.abs(ball.vx);
             speedLines.forEach(l => l.update(ballSpeed));
 
@@ -1113,7 +1132,6 @@
             stars.forEach(s => s.draw());
             mountains.forEach(m => m.draw());
             
-            // 스피드 라인은 배경과 물체 사이에 그리기
             speedLines.forEach(l => l.draw());
 
             boosters.forEach(b => b.draw());
