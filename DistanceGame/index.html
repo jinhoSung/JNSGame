@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Launcher - Final Complete</title>
+    <title>Neon Launcher - New Boosters</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+KR:wght@400;700;900&display=swap');
 
@@ -29,7 +29,7 @@
             left: 20px;
             width: calc(100% - 40px);
             pointer-events: none;
-            text-shadow: 0 0 10px #0ff;
+            text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
             z-index: 10;
             display: flex;
             justify-content: space-between;
@@ -43,21 +43,21 @@
         h1 {
             margin: 0;
             font-size: 24px;
-            color: #0ff;
-            text-shadow: 0 0 20px #0ff;
+            color: #fff;
+            text-shadow: 0 0 10px #000;
         }
 
         #score-display {
             font-size: 40px;
             font-weight: bold;
-            color: #f0f;
-            text-shadow: 0 0 20px #f0f;
+            color: #fff;
+            text-shadow: 0 0 10px #000;
         }
 
         #combo-display {
             font-size: 24px;
             color: #ff0;
-            text-shadow: 0 0 10px #ff0;
+            text-shadow: 0 0 10px #000;
             margin-top: 5px;
             opacity: 0;
             transition: opacity 0.3s;
@@ -104,7 +104,7 @@
 
         #status-msg {
             font-size: 24px;
-            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+            text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
             margin-bottom: 30px;
             transition: opacity 0.2s;
             line-height: 1.5;
@@ -255,9 +255,8 @@
             <h1>NEON LAUNCHER</h1>
             <div>Distance: <span id="score-display">0</span> m</div>
             <div id="combo-display">COMBO x0</div>
-            <div style="font-size: 14px; color: #888; margin-top: 5px;">Best: <span id="best-score">0</span> m</div>
+            <div style="font-size: 14px; color: #fff; margin-top: 5px;">Best: <span id="best-score">0</span> m</div>
         </div>
-        <!-- 랭킹 확인 버튼 추가 -->
         <button id="btn-show-ranking">🏆 랭킹 보기</button>
     </div>
 
@@ -267,13 +266,11 @@
         <div id="status-msg">화면을 클릭하면<br>공이 떨어집니다!</div>
     </div>
 
-    <!-- 랭킹 및 결과 모달 -->
     <div id="ranking-modal">
         <button id="btn-modal-close">&times;</button>
         <h2 id="modal-title">GAME OVER</h2>
         <div id="final-score" class="hidden">0 m</div>
         
-        <!-- 등록 폼 -->
         <div id="register-form" class="hidden">
             <input type="text" id="player-name" placeholder="이름을 입력하세요 (최대 8자)" maxlength="8">
             <div style="display: flex; gap: 5px; justify-content: center;">
@@ -282,7 +279,6 @@
             </div>
         </div>
 
-        <!-- 랭킹 리스트 -->
         <div id="ranking-container">
             <div id="my-rank-info" class="hidden">내 순위 계산 중...</div>
             <ul class="rank-list" id="rank-list">
@@ -300,13 +296,11 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, where, getCountFromServer } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- Global Variables for Game ---
         window.GAME = {
             db: null,
             auth: null,
             user: null,
             initFirebase: async function() {
-                // [복구] 사용자가 제공한 Firebase 설정 적용
                 const firebaseConfig = {
                     apiKey: "AIzaSyBUGN1Zlpk-Avfu-5s4G6qQrSfMaq_QXhw",
                     authDomain: "distancegame-f4bba.firebaseapp.com",
@@ -316,18 +310,13 @@
                     appId: "1:180425278674:web:af07ce51992cb622fc990b",
                     measurementId: "G-0PGCH52GKN"
                 };
-
                 try {
                     const app = initializeApp(firebaseConfig);
                     this.auth = getAuth(app);
                     this.db = getFirestore(app);
-
-                    // 익명 로그인 시도 (Firebase 콘솔에서 익명 로그인 활성화 필요)
                     await signInAnonymously(this.auth);
-                    
                     onAuthStateChanged(this.auth, (user) => {
                         this.user = user;
-                        // console.log("Firebase Connected:", user?.uid);
                     });
                 } catch (e) {
                     console.error("Firebase Init Failed:", e);
@@ -335,12 +324,8 @@
             },
             saveScore: async function(name, score) {
                 const currentUser = this.auth?.currentUser || this.user;
-                if (!this.db || !currentUser) {
-                    console.error("DB or User not ready");
-                    return false;
-                }
+                if (!this.db || !currentUser) return false;
                 try {
-                    // [복구] 개인 프로젝트 루트 컬렉션 'scores' 사용
                     const scoresRef = collection(this.db, 'scores');
                     await addDoc(scoresRef, {
                         name: name,
@@ -350,24 +335,16 @@
                     });
                     return true;
                 } catch (e) {
-                    console.error("Save score failed", e);
-                    alert("점수 저장 실패: Firestore 규칙을 확인해주세요 (root collection 사용 중).");
                     return false;
                 }
             },
             getRanking: async function(myScore) {
                 if (!this.db) return { top10: [], myRank: '-' };
-                
                 try {
-                    // [복구] 개인 프로젝트 루트 컬렉션 'scores' 사용
                     const scoresRef = collection(this.db, 'scores');
-                    
-                    // 1. Top 10 가져오기
                     const qTop = query(scoresRef, orderBy('score', 'desc'), limit(10));
                     const snapshot = await getDocs(qTop);
                     const top10 = snapshot.docs.map(doc => doc.data());
-
-                    // 2. 내 순위 계산
                     let myRank = '-';
                     if (myScore !== null && myScore !== undefined) {
                         try {
@@ -375,26 +352,20 @@
                             const snapshotBetter = await getCountFromServer(qBetter);
                             myRank = snapshotBetter.data().count + 1;
                         } catch (e) {
-                            // 인덱스 없을 땐 클라이언트 측에서 단순 계산 (데이터 적을 때 유효)
                             const idx = top10.findIndex(d => d.score === myScore);
                             if(idx !== -1) myRank = idx + 1;
                             else myRank = "집계중";
                         }
                     }
-
                     return { top10, myRank };
                 } catch (e) {
-                    console.error("Get ranking failed", e);
                     return { top10: [], myRank: '-' };
                 }
             }
         };
-
-        // Initialize Firebase
         window.GAME.initFirebase();
     </script>
 
-    <!-- Main Game Script -->
     <script>
         const Sound = {
             ctx: null,
@@ -449,9 +420,15 @@
                 this.playTone(100, 'sawtooth', 0.8, 0.3);
                 setTimeout(() => this.playTone(800, 'square', 0.2, 0.5), 600);
             },
-            playCrash: function() { // [추가] 장애물 충돌음
+            playCrash: function() { 
                 this.playTone(150, 'sawtooth', 0.1, 0.5);
                 setTimeout(() => this.playTone(80, 'square', 0.2, 0.5), 50);
+            },
+            playShield: function() { // [추가] 쉴드 사운드
+                this.playTone(400, 'sine', 0.3, 0.3);
+            },
+            playFloat: function() { // [추가] 플로트 사운드
+                this.playTone(800, 'sine', 0.5, 0.1);
             }
         };
 
@@ -463,7 +440,6 @@
         const uiMsg = document.getElementById('status-msg');
         const uiFeedback = document.getElementById('hit-feedback');
         
-        // Modal UI Elements
         const modal = document.getElementById('ranking-modal');
         const modalTitle = document.getElementById('modal-title');
         const finalScoreEl = document.getElementById('final-score');
@@ -489,7 +465,6 @@
         let combo = 0;
         let currentScore = 0;
         
-        // 연출용
         let hitFreeze = 0; 
         let specialEffects = [];
 
@@ -502,18 +477,16 @@
         const CHAR_SCALE = 1.3;
 
         let ball, batter, particles = [], shockwaves = [], speedLines = [], stars = [], boosters = [], mountains = [], cityBuildings = [], obstacles = [];
+        let skyManager = null;
 
         // UI Event Listeners
         btnSubmit.addEventListener('click', async () => {
             const name = playerNameInput.value.trim();
             if (!name) { alert("이름을 입력해주세요."); return; }
             if (name.length > 8) { alert("이름은 8자 이하로 입력해주세요."); return; }
-
             localStorage.setItem('neon_launcher_name', name);
-
             btnSubmit.disabled = true;
             btnSubmit.innerText = "등록 중...";
-
             if (window.GAME) {
                 const success = await window.GAME.saveScore(name, currentScore);
                 if (success) {
@@ -522,13 +495,11 @@
                     rankingContainer.classList.remove('hidden');
                     btnRetry.classList.remove('hidden'); 
                 } else {
-                    alert("점수 저장 실패. 네트워크를 확인해주세요.");
+                    alert("점수 저장 실패.");
                     btnSubmit.disabled = false;
                     btnSubmit.innerText = "랭킹 등록";
                 }
-            } else {
-                alert("랭킹 시스템을 초기화하지 못했습니다.");
-            }
+            } else { alert("랭킹 시스템 오류"); }
         });
 
         btnRetry.addEventListener('click', () => { modal.style.display = 'none'; resetGame(); });
@@ -579,125 +550,161 @@
         if (savedName) playerNameInput.value = savedName;
 
         // --- Classes ---
-        // [추가] 장애물 클래스
-        class Obstacle {
-            constructor(x, y) {
-                this.x = x; this.y = y;
-                this.size = 40 * scaleFactor;
-                this.active = true;
-                this.rotation = Math.random() * Math.PI * 2;
-                this.rotSpeed = (Math.random() - 0.5) * 0.1;
+        class SkyManager {
+            constructor() {
+                this.time = 0.25; this.dayDuration = 6000; this.weather = 'clear'; this.weatherTimer = 0;
+                this.clouds = []; this.precipitations = []; this.sunX = 0; this.sunY = 0; this.moonX = 0; this.moonY = 0;
+                for(let i=0; i<8; i++) { this.clouds.push(new Cloud()); }
             }
             update(dt) {
-                this.rotation += this.rotSpeed * dt;
+                this.time = (this.time + (dt / this.dayDuration)) % 1.0;
+                const centerX = width / 2; const centerY = height + 200; const radius = Math.max(width, height) * 0.9;
+                const sunAngle = Math.PI + (this.time * Math.PI * 2); 
+                this.sunX = centerX + Math.cos(sunAngle) * radius; this.sunY = centerY + Math.sin(sunAngle) * radius;
+                const moonAngle = sunAngle + Math.PI;
+                this.moonX = centerX + Math.cos(moonAngle) * radius; this.moonY = centerY + Math.sin(moonAngle) * radius;
+                this.weatherTimer += dt;
+                if(this.weatherTimer > 600) {
+                    this.weatherTimer = 0; const r = Math.random();
+                    if(r < 0.6) this.weather = 'clear'; else if(r < 0.8) this.weather = 'rain'; else this.weather = 'snow';
+                }
+                this.clouds.forEach(c => c.update(dt));
+                if(this.weather !== 'clear') {
+                    const count = Math.ceil(width / 200); 
+                    for(let i=0; i<count; i++) { if(Math.random() > 0.5) this.precipitations.push(new WeatherParticle(this.weather)); }
+                }
+                this.precipitations.forEach((p, i) => { p.update(dt); if(!p.active) this.precipitations.splice(i, 1); });
             }
+            draw(ctx) {
+                const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+                const sunHeight = -Math.cos(this.time * Math.PI * 2); 
+                const L = Math.max(10, 10 + (sunHeight + 1) * 20); 
+                const H = 220 + sunHeight * 20; 
+                bgGrad.addColorStop(0, `hsl(${H}, 60%, ${L * 0.5}%)`); bgGrad.addColorStop(1, `hsl(${H + 20}, 70%, ${L}%)`);
+                ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, width, height);
+                const starAlpha = Math.max(0, -sunHeight); 
+                if(starAlpha > 0) { ctx.save(); ctx.globalAlpha = starAlpha; stars.forEach(s => s.draw(ctx)); ctx.restore(); }
+                ctx.save(); ctx.shadowBlur = 50; ctx.shadowColor = '#ffff00'; ctx.fillStyle = '#ffaa00'; ctx.beginPath(); ctx.arc(this.sunX, this.sunY, 60 * scaleFactor, 0, Math.PI*2); ctx.fill(); ctx.restore();
+                ctx.save(); ctx.shadowBlur = 30; ctx.shadowColor = '#ffffff'; ctx.fillStyle = '#ffffee'; ctx.beginPath(); ctx.arc(this.moonX, this.moonY, 50 * scaleFactor, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'rgba(200,200,200,0.3)'; ctx.beginPath(); ctx.arc(this.moonX - 10, this.moonY - 5, 10 * scaleFactor, 0, Math.PI*2); ctx.arc(this.moonX + 15, this.moonY + 10, 8 * scaleFactor, 0, Math.PI*2); ctx.fill(); ctx.restore();
+                this.clouds.forEach(c => c.draw(ctx));
+                this.precipitations.forEach(p => p.draw(ctx));
+            }
+        }
+
+        class Cloud {
+            constructor(x, y) {
+                this.x = x || Math.random() * width;
+                this.y = y || Math.random() * height * 0.4;
+                this.speed = 0.3 + Math.random() * 0.5; // 속도 조절
+                this.size = 0.8 + Math.random() * 1.5; // 크기 다양화
+                this.circles = [];
+                const count = 4 + Math.floor(Math.random() * 5); // 덩어리 개수
+                for(let i=0; i<count; i++) {
+                    this.circles.push({
+                        x: (Math.random() - 0.5) * 80, // 가로로 더 넓게 퍼짐
+                        y: (Math.random() - 0.5) * 20, // 세로는 납작하게
+                        r: 20 + Math.random() * 25
+                    });
+                }
+            }
+            update(dt) {
+                this.x -= this.speed * dt * 0.5; 
+                if(this.x < -200) { 
+                    this.x = width + 200; 
+                    this.y = Math.random() * height * 0.4; 
+                }
+            }
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.scale(this.size * scaleFactor, this.size * scaleFactor);
+                
+                // 은은한 네온 구름 스타일
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'; 
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = 'rgba(255, 255, 255, 0.4)';
+                
+                ctx.beginPath();
+                this.circles.forEach(c => {
+                    // 중심점 이동 없이 외곽선만 그리기 (선 제거)
+                    ctx.moveTo(c.x + c.r, c.y); 
+                    ctx.arc(c.x, c.y, c.r, 0, Math.PI*2);
+                });
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        class WeatherParticle {
+            constructor(type) {
+                this.type = type; this.x = Math.random() * width; this.y = -10; this.active = true;
+                if(type === 'rain') { this.vy = 15 + Math.random() * 10; this.vx = -2 - Math.random() * 2; this.len = 10 + Math.random() * 10; } 
+                else { this.vy = 2 + Math.random() * 3; this.vx = (Math.random() - 0.5) * 2; this.size = 2 + Math.random() * 3; this.angle = Math.random() * Math.PI * 2; }
+            }
+            update(dt) {
+                this.x += this.vx * dt; this.y += this.vy * dt;
+                if(this.type === 'snow') { this.angle += 0.1; this.x += Math.sin(this.angle) * 0.5; }
+                if(this.y > height) this.active = false;
+            }
+            draw(ctx) {
+                ctx.save();
+                if(this.type === 'rain') { ctx.strokeStyle = 'rgba(150, 200, 255, 0.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x + this.vx, this.y + this.len); ctx.stroke(); } 
+                else { ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill(); }
+                ctx.restore();
+            }
+        }
+
+        class Obstacle {
+            constructor(x, y) {
+                this.x = x; this.y = y; this.size = 40 * scaleFactor; this.active = true;
+                this.rotation = Math.random() * Math.PI * 2; this.rotSpeed = (Math.random() - 0.5) * 0.1;
+            }
+            update(dt) { this.rotation += this.rotSpeed * dt; }
             draw() {
                 if (!this.active) return;
-                // 화면 밖 체크
                 if (this.x - camera.x < -100 || this.x - camera.x > width + 100) return;
-                
-                ctx.save();
-                ctx.translate(this.x - camera.x, this.y - camera.y);
-                ctx.rotate(this.rotation);
-                
-                // 글리치 효과 (랜덤 오프셋)
-                const gx = (Math.random() - 0.5) * 5;
-                const gy = (Math.random() - 0.5) * 5;
-                
-                ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
-                ctx.fillRect(-this.size/2 + gx, -this.size/2 + gy, this.size, this.size);
-                
-                ctx.strokeStyle = '#f00';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(-this.size/2, -this.size/2, this.size, this.size);
-                
-                // X 표시
-                ctx.beginPath();
-                ctx.moveTo(-this.size/3, -this.size/3);
-                ctx.lineTo(this.size/3, this.size/3);
-                ctx.moveTo(this.size/3, -this.size/3);
-                ctx.lineTo(-this.size/3, this.size/3);
-                ctx.stroke();
-                
-                ctx.restore();
+                ctx.save(); ctx.translate(this.x - camera.x, this.y - camera.y); ctx.rotate(this.rotation);
+                const gx = (Math.random() - 0.5) * 5; const gy = (Math.random() - 0.5) * 5;
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.2)'; ctx.fillRect(-this.size/2 + gx, -this.size/2 + gy, this.size, this.size);
+                ctx.strokeStyle = '#f00'; ctx.lineWidth = 2; ctx.strokeRect(-this.size/2, -this.size/2, this.size, this.size);
+                ctx.beginPath(); ctx.moveTo(-this.size/3, -this.size/3); ctx.lineTo(this.size/3, this.size/3);
+                ctx.moveTo(this.size/3, -this.size/3); ctx.lineTo(-this.size/3, this.size/3); ctx.stroke(); ctx.restore();
             }
             checkCollision(p) {
                 if (!this.active) return false;
-                // 간단한 AABB or Circle collision
-                const dx = this.x - p.x;
-                const dy = this.y - p.y;
-                const dist = Math.sqrt(dx*dx + dy*dy);
-                if (dist < this.size/1.5 + p.radius) {
-                    this.active = false;
-                    return true;
-                }
+                const dx = this.x - p.x; const dy = this.y - p.y; const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < this.size/1.5 + p.radius) { this.active = false; return true; }
                 return false;
             }
         }
 
         class Building {
             constructor(x, w, h, z) {
-                this.x = x; this.w = w; this.h = h; this.z = z; // z: 깊이 (클수록 멀리 있음, 느림)
-                this.windows = [];
-                // 창문 생성
-                const rows = Math.floor(h / 30);
-                const cols = Math.floor(w / 20);
-                for(let r=0; r<rows; r++) {
-                    for(let c=0; c<cols; c++) {
-                        if(Math.random() > 0.4) { // 60% 확률로 불 켜짐
-                            this.windows.push({x: c*20 + 5, y: r*30 + 10, on: true});
-                        }
-                    }
-                }
-                // 네온 색상 랜덤 (분홍, 청록, 보라)
-                const colors = ['#f0f', '#0ff', '#a0f'];
-                this.neonColor = colors[Math.floor(Math.random() * colors.length)];
+                this.x = x; this.w = w; this.h = h; this.z = z; this.windows = [];
+                const rows = Math.floor(h / 30); const cols = Math.floor(w / 20);
+                for(let r=0; r<rows; r++) { for(let c=0; c<cols; c++) { if(Math.random() > 0.4) { this.windows.push({x: c*20 + 5, y: r*30 + 10, on: true}); } } }
+                const colors = ['#f0f', '#0ff', '#a0f']; this.neonColor = colors[Math.floor(Math.random() * colors.length)];
             }
             draw() {
-                const parallax = 1 / this.z;
-                let rx = (this.x - camera.x * parallax);
-                // 무한 루프 배경
-                const totalWidth = 3000; // 가상 맵 너비
-                rx = rx % totalWidth;
-                if(rx < -this.w) rx += totalWidth;
-                
+                const parallax = 1 / this.z; let rx = (this.x - camera.x * parallax);
+                const totalWidth = 3000; rx = rx % totalWidth; if(rx < -this.w) rx += totalWidth;
                 if (rx > width || rx + this.w < 0) return;
-
-                const gy = height - 50 - camera.y; 
-                const by = gy - this.h * scaleFactor;
-
-                ctx.fillStyle = '#050510'; // 건물색
-                ctx.strokeStyle = this.neonColor;
-                ctx.lineWidth = 2;
-                
-                // 외곽선
-                ctx.beginPath();
-                ctx.rect(rx, by, this.w * scaleFactor, this.h * scaleFactor);
-                ctx.fill();
-                ctx.stroke();
-
-                // 창문
+                const gy = height - 50 - camera.y; const by = gy - this.h * scaleFactor;
+                ctx.fillStyle = '#050510'; ctx.strokeStyle = this.neonColor; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.rect(rx, by, this.w * scaleFactor, this.h * scaleFactor); ctx.fill(); ctx.stroke();
                 ctx.fillStyle = this.neonColor;
-                this.windows.forEach(win => {
-                    if(win.on) {
-                        ctx.globalAlpha = 0.5;
-                        ctx.fillRect(rx + win.x * scaleFactor, by + win.y * scaleFactor, 10 * scaleFactor, 15 * scaleFactor);
-                    }
-                });
+                this.windows.forEach(win => { if(win.on) { ctx.globalAlpha = 0.5; ctx.fillRect(rx + win.x * scaleFactor, by + win.y * scaleFactor, 10 * scaleFactor, 15 * scaleFactor); } });
                 ctx.globalAlpha = 1.0;
             }
         }
 
         class BreathEffect {
-            constructor() {
-                this.active = true; this.life = 1.0;
-                this.text = "지노의 호흡... 제1형..."; this.subText = "벽력일섬 (霹靂一閃) ⚡";
-            }
+            constructor() { this.active = true; this.life = 1.0; this.text = "네온의 호흡... 제1형..."; this.subText = "벽력일섬 (霹靂一閃) ⚡"; }
             update(dt) { this.life -= 0.02 * dt; if (this.life <= 0) this.active = false; }
             draw() {
                 if (!this.active) return;
-                ctx.save();
-                ctx.fillStyle = `rgba(0, 0, 0, ${this.life * 0.7})`; ctx.fillRect(0, 0, width, height);
+                ctx.save(); ctx.fillStyle = `rgba(0, 0, 0, ${this.life * 0.7})`; ctx.fillRect(0, 0, width, height);
                 const slashWidth = width * 1.5;
                 ctx.translate(width/2, height/2); ctx.rotate(-Math.PI / 6); 
                 ctx.shadowBlur = 50; ctx.shadowColor = '#ffff00'; ctx.fillStyle = '#fff'; ctx.globalAlpha = this.life;
@@ -712,98 +719,44 @@
 
         class SpeedLine {
             constructor() { this.reset(); }
-            reset() {
-                this.x = Math.random() * width;
-                this.y = Math.random() * height;
-                this.length = 50 + Math.random() * 150;
-                this.speed = 20 + Math.random() * 30;
-                this.width = 1 + Math.random() * 2;
-                this.alpha = 0;
-            }
+            reset() { this.x = Math.random() * width; this.y = Math.random() * height; this.length = 50 + Math.random() * 150; this.speed = 20 + Math.random() * 30; this.width = 1 + Math.random() * 2; this.alpha = 0; }
             update(ballSpeed) {
                 if (ballSpeed > 15) {
-                    this.alpha = Math.min(0.5, (ballSpeed - 15) * 0.05);
-                    this.x -= this.speed * (ballSpeed / 20); 
-                    if (this.x < 0) {
-                        this.x = width + Math.random() * 200;
-                        this.y = Math.random() * height;
-                    }
-                } else {
-                    this.alpha = 0;
-                }
+                    this.alpha = Math.min(0.5, (ballSpeed - 15) * 0.05); this.x -= this.speed * (ballSpeed / 20); 
+                    if (this.x < 0) { this.x = width + Math.random() * 200; this.y = Math.random() * height; }
+                } else { this.alpha = 0; }
             }
             draw() {
                 if (this.alpha <= 0) return;
-                ctx.save();
-                ctx.globalAlpha = this.alpha;
-                ctx.fillStyle = '#fff';
-                ctx.beginPath();
-                ctx.rect(this.x, this.y, this.length, this.width);
-                ctx.fill();
-                ctx.globalAlpha = 1.0;
-                ctx.restore();
+                ctx.save(); ctx.globalAlpha = this.alpha; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.rect(this.x, this.y, this.length, this.width); ctx.fill(); ctx.globalAlpha = 1.0; ctx.restore();
             }
         }
 
         class Shockwave {
-            constructor(x, y, color) {
-                this.x = x; this.y = y; this.color = color;
-                this.radius = 10; this.maxRadius = 100 * scaleFactor;
-                this.alpha = 1.0; this.lineWidth = 5 * scaleFactor;
-            }
-            update(dt) {
-                this.radius += 8 * scaleFactor * dt;
-                this.alpha -= 0.08 * dt;
-                this.lineWidth -= 0.2 * dt;
-                if (this.lineWidth < 0) this.lineWidth = 0;
-            }
+            constructor(x, y, color) { this.x = x; this.y = y; this.color = color; this.radius = 10; this.maxRadius = 100 * scaleFactor; this.alpha = 1.0; this.lineWidth = 5 * scaleFactor; }
+            update(dt) { this.radius += 8 * scaleFactor * dt; this.alpha -= 0.08 * dt; this.lineWidth -= 0.2 * dt; if (this.lineWidth < 0) this.lineWidth = 0; }
             draw() {
                 if (this.alpha <= 0) return;
-                ctx.save();
-                ctx.globalAlpha = this.alpha;
-                ctx.strokeStyle = this.color;
-                ctx.lineWidth = this.lineWidth;
-                ctx.beginPath();
-                ctx.arc(this.x - camera.x, this.y - camera.y, this.radius, 0, Math.PI * 2);
-                ctx.stroke();
-                ctx.restore();
+                ctx.save(); ctx.globalAlpha = this.alpha; ctx.strokeStyle = this.color; ctx.lineWidth = this.lineWidth; ctx.beginPath(); ctx.arc(this.x - camera.x, this.y - camera.y, this.radius, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
             }
         }
 
         class Star {
             constructor() { this.reset(); }
-            reset() {
-                this.x = Math.random() * width; this.y = Math.random() * height; 
-                this.size = Math.random() * 2; this.blinkSpeed = 0.01 + Math.random() * 0.05;
-                this.alpha = Math.random(); this.parallax = 0.05 + Math.random() * 0.2;
-                this.isShooting = false;
-            }
+            reset() { this.x = Math.random() * width; this.y = Math.random() * height; this.size = Math.random() * 2; this.blinkSpeed = 0.01 + Math.random() * 0.05; this.alpha = Math.random(); this.parallax = 0.05 + Math.random() * 0.2; this.isShooting = false; }
             update(dt) {
                 if (Math.random() < 0.001 && !this.isShooting) { this.isShooting = true; this.vx = -10 - Math.random() * 10; this.vy = 5 + Math.random() * 5; this.life = 60; }
                 if (this.isShooting) { this.x += this.vx * dt; this.y += this.vy * dt; this.life -= dt; if (this.life <= 0) { this.reset(); this.isShooting = false; } }
             }
-            draw() {
+            draw(ctx) {
                 if(this.isShooting) {
-                    // 유성 그리기
                     ctx.save(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x - this.vx * 3, this.y - this.vy * 3); ctx.stroke(); ctx.restore();
                 } else {
-                    this.alpha += this.blinkSpeed; if (this.alpha > 1 || this.alpha < 0) this.blinkSpeed *= -1;
                     let rx = (this.x - camera.x * this.parallax) % width; if (rx < 0) rx += width;
                     let ry = this.y - camera.y * this.parallax;
-                    ctx.globalAlpha = Math.abs(this.alpha); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(rx, ry, this.size, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1.0;
+                    this.alpha += this.blinkSpeed; if (this.alpha > 1 || this.alpha < 0) this.blinkSpeed *= -1;
+                    ctx.save(); ctx.globalAlpha = ctx.globalAlpha * Math.abs(this.alpha); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(rx, ry, this.size, 0, Math.PI * 2); ctx.fill(); ctx.restore();
                 }
-            }
-        }
-
-        class Mountain {
-            constructor(x, w, h) { this.x = x; this.w = w; this.h = h; this.parallax = 0.15; }
-            draw() {
-                let rx = this.x - camera.x * this.parallax;
-                if (rx < -this.w) this.x += width * 2; 
-                if (rx > width || rx + this.w < 0) return;
-                const gy = height - 50 - camera.y; 
-                ctx.fillStyle = '#111'; ctx.strokeStyle = '#0ff'; ctx.lineWidth = 1;
-                ctx.beginPath(); ctx.moveTo(rx, gy); ctx.lineTo(rx + this.w / 2, gy - this.h * scaleFactor); ctx.lineTo(rx + this.w, gy); ctx.fill(); ctx.stroke();
             }
         }
 
@@ -831,6 +784,9 @@
                 if (this.type === 'speed') { this.color = '#ffd700'; this.glow = '#ff8800'; }
                 else if (this.type === 'jump') { this.color = '#00ffff'; this.glow = '#0088ff'; }
                 else if (this.type === 'blast') { this.color = '#ff0055'; this.glow = '#ff0000'; }
+                // [추가] 새로운 부스터 속성
+                else if (this.type === 'shield') { this.color = '#aa00ff'; this.glow = '#ff00ff'; }
+                else if (this.type === 'float') { this.color = '#ffffff'; this.glow = '#aaffff'; }
             }
             draw() {
                 if (!this.active) return;
@@ -843,11 +799,22 @@
                 if (this.type === 'blast') {
                     ctx.moveTo(this.x - camera.x, this.y - camera.y - r); ctx.lineTo(this.x - camera.x + r, this.y - camera.y);
                     ctx.lineTo(this.x - camera.x, this.y - camera.y + r); ctx.lineTo(this.x - camera.x - r, this.y - camera.y); ctx.closePath();
+                } else if (this.type === 'shield') {
+                     // 쉴드 모양 (육각형)
+                    for (let i = 0; i < 6; i++) {
+                        const angle = i * Math.PI / 3;
+                        const bx = this.x - camera.x + Math.cos(angle) * r;
+                        const by = this.y - camera.y + Math.sin(angle) * r;
+                        if (i === 0) ctx.moveTo(bx, by); else ctx.lineTo(bx, by);
+                    }
+                    ctx.closePath();
                 } else { ctx.arc(this.x - camera.x, this.y - camera.y, r, 0, Math.PI * 2); }
                 ctx.stroke();
                 ctx.fillStyle = this.color; ctx.globalAlpha = 0.2; ctx.fill(); ctx.globalAlpha = 1.0; ctx.shadowBlur = 0;
                 ctx.fillStyle = '#fff'; ctx.font = `bold ${16 * scaleFactor}px Arial`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                let icon = '>>'; if (this.type === 'jump') icon = 'UP'; if (this.type === 'blast') icon = '★';
+                let icon = '>>'; 
+                if (this.type === 'jump') icon = 'UP'; if (this.type === 'blast') icon = '★';
+                if (this.type === 'shield') icon = 'SHD'; if (this.type === 'float') icon = 'FLT';
                 ctx.fillText(icon, this.x - camera.x, this.y - camera.y);
             }
             checkCollision(p) {
@@ -868,7 +835,6 @@
                     this.armAngle += this.swingSpeed * dt; this.swingSpeed += 0.05 * dt;
                     if (this.armAngle > Math.PI * 0.2) { this.swinging = false; this.armAngle = Math.PI * 0.2; if (gameState === STATE.DROPPING) endGame("MISS"); }
                 } else if (gameState === STATE.READY || gameState === STATE.DROPPING) {
-                     // [추가] 아이들 애니메이션 (호흡)
                      this.idleTime += dt * 0.05;
                      const breath = Math.sin(this.idleTime) * 0.05;
                      const targetAngle = -Math.PI * 0.65 + breath;
@@ -878,18 +844,14 @@
             draw() {
                 const drawX = this.x - camera.x; const drawY = this.y - camera.y; const s = scaleFactor * CHAR_SCALE;
                 if (drawX < -100 || drawX > width + 100) return;
-                
-                // [추가] 숨쉬기 효과 (Y축 미세 이동)
                 const breathY = Math.sin(this.idleTime) * 2 * s;
-
                 ctx.save(); ctx.translate(drawX, drawY);
                 ctx.strokeStyle = '#0ff'; ctx.fillStyle = '#000'; ctx.lineWidth = 3 * s;
                 ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.shadowBlur = 10; ctx.shadowColor = '#0ff';
-                // Legs (고정)
+                // Legs
                 ctx.beginPath(); ctx.moveTo(-5*s, -55*s); ctx.lineTo(-20*s, -25*s); ctx.lineTo(-35*s, 0); ctx.stroke();
                 ctx.beginPath(); ctx.moveTo(5*s, -55*s); ctx.lineTo(25*s, -25*s); ctx.lineTo(30*s, 0); ctx.stroke();
-                
-                // Body (움직임)
+                // Body
                 ctx.save(); ctx.translate(0, breathY);
                 ctx.fillStyle = '#051515'; ctx.beginPath(); ctx.moveTo(-12*s, -100*s); ctx.lineTo(12*s, -100*s); ctx.lineTo(6*s, -55*s); ctx.lineTo(-6*s, -55*s); ctx.closePath(); ctx.fill(); ctx.stroke();
                 ctx.fillStyle = '#0ff'; ctx.beginPath(); ctx.arc(0, -80*s, 5*s, 0, Math.PI * 2); ctx.fill();
@@ -913,10 +875,15 @@
 
         class Ball {
             constructor() { this.radius = 15; this.reset(); }
-            reset() { this.x = 200 * scaleFactor; this.y = -50 * scaleFactor; this.vx = 0; this.vy = 0; this.rotation = 0; this.trail = []; this.isStopped = false; this.radius = 15 * scaleFactor; }
+            reset() { 
+                this.x = 200 * scaleFactor; this.y = -50 * scaleFactor; this.vx = 0; this.vy = 0; 
+                this.rotation = 0; this.trail = []; this.isStopped = false; this.radius = 15 * scaleFactor; 
+                // [추가] 상태 변수
+                this.hasShield = false;
+                this.floatTimer = 0;
+            }
             drop() { this.x = 200 * scaleFactor; this.y = -180 * scaleFactor; this.vx = 0; this.vy = 0; }
             hit(speed, angleDeg) {
-                // Sound.playHit(); // attemptHit에서 제어
                 const rad = angleDeg * Math.PI / 180;
                 this.vx = Math.cos(rad) * speed * scaleFactor;
                 this.vy = Math.sin(rad) * speed * scaleFactor;
@@ -932,11 +899,19 @@
                     return;
                 }
                 if (gameState === STATE.FLYING) {
-                    this.x += this.vx * dt; this.y += this.vy * dt; this.vy += GRAVITY * dt; 
+                    this.x += this.vx * dt; this.y += this.vy * dt; 
+                    
+                    // [추가] 플로트 상태일 때 중력 무시
+                    if (this.floatTimer > 0) {
+                        this.floatTimer -= dt;
+                        this.vy *= 0.9; // 수직 속도 감소 (안정화)
+                    } else {
+                        this.vy += GRAVITY * dt; 
+                    }
+
                     this.vx *= Math.pow(FRICTION_AIR, dt); this.vy *= Math.pow(FRICTION_AIR, dt);
                     this.rotation += this.vx * 0.1 * dt;
                     if (frameId % 3 === 0) { 
-                        // [수정] 잔상 효과를 위해 현재 상태 저장
                         this.trail.push({x: this.x, y: this.y, alpha: 1.0}); 
                         if (this.trail.length > 25) this.trail.shift(); 
                     }
@@ -956,22 +931,34 @@
                             if (b.type === 'speed') { Sound.playBoost(); this.vx += boostPower; this.vy = -12 * scaleFactor; showFeedback("SPEED!", "#ff0"); camera.shake = 5; shockwaves.push(new Shockwave(this.x, this.y, '#ff0')); for(let i=0; i<15; i++) particles.push(new Particle(this.x, this.y, '#ff0', 8)); } 
                             else if (b.type === 'jump') { Sound.playJump(); this.vx += 5 * scaleFactor; this.vy = -jumpPower; showFeedback("HIGH JUMP!", "#0ff"); camera.shake = 8; shockwaves.push(new Shockwave(this.x, this.y, '#0ff')); for(let i=0; i<20; i++) particles.push(new Particle(this.x, this.y, '#0ff', 10)); }
                             else if (b.type === 'blast') { Sound.playBlast(); this.vx += blastPower; this.vy = -20 * scaleFactor; showFeedback("EXPLOSION!", "#f05"); camera.shake = 15; shockwaves.push(new Shockwave(this.x, this.y, '#f05')); for(let i=0; i<30; i++) particles.push(new Particle(this.x, this.y, '#f05', 12)); }
+                            else if (b.type === 'shield') { // [추가] 쉴드
+                                Sound.playShield();
+                                this.hasShield = true;
+                                showFeedback("SHIELD UP!", "#a0f");
+                                shockwaves.push(new Shockwave(this.x, this.y, '#a0f'));
+                            }
+                            else if (b.type === 'float') { // [추가] 플로트
+                                Sound.playFloat();
+                                this.floatTimer = 120; // 약 2초
+                                this.vx += 5 * scaleFactor; // 약간 가속
+                                showFeedback("FLOAT!", "#fff");
+                                shockwaves.push(new Shockwave(this.x, this.y, '#fff'));
+                            }
                         }
                     });
                     
-                    // [추가] 장애물 충돌 체크
                     obstacles.forEach(o => {
                         if(o.checkCollision(this)) {
-                            // 충돌 시 속도 반감
-                            this.vx *= 0.5;
-                            this.vy *= 0.5;
-                            camera.shake = 15;
-                            showFeedback("CRASH!", "#f00");
-                            Sound.playCrash();
-                            shockwaves.push(new Shockwave(this.x, this.y, '#f00'));
-                            // 콤보 초기화
-                            combo = 0;
-                            uiCombo.style.opacity = 0;
+                            // [추가] 쉴드 있으면 방어
+                            if (this.hasShield) {
+                                this.hasShield = false;
+                                showFeedback("BLOCKED!", "#a0f");
+                                Sound.playShield(); // 방어음
+                                shockwaves.push(new Shockwave(this.x, this.y, '#a0f'));
+                                return; 
+                            }
+                            
+                            this.vx *= 0.5; this.vy *= 0.5; camera.shake = 15; showFeedback("CRASH!", "#f00"); Sound.playCrash(); shockwaves.push(new Shockwave(this.x, this.y, '#f00')); combo = 0; uiCombo.style.opacity = 0;
                         }
                     });
                 }
@@ -1002,18 +989,13 @@
                 if (gameState === STATE.READY && this.y < 0) return;
                 const drawX = this.x - camera.x; const drawY = this.y - camera.y;
                 if (gameState === STATE.FLYING && this.trail.length > 1) {
-                    // [수정] 잔상 그리기 (Ghost Effect)
                     if (Math.abs(this.vx) > 15) {
                         this.trail.forEach(t => {
                             ctx.fillStyle = `rgba(0, 255, 255, ${t.alpha * 0.2})`;
-                            ctx.beginPath();
-                            ctx.arc(t.x - camera.x, t.y - camera.y, this.radius * 0.8, 0, Math.PI*2);
-                            ctx.fill();
+                            ctx.beginPath(); ctx.arc(t.x - camera.x, t.y - camera.y, this.radius * 0.8, 0, Math.PI*2); ctx.fill();
                             t.alpha -= 0.05;
                         });
                     }
-                    
-                    // 기존 라인 꼬리
                     ctx.beginPath(); ctx.moveTo(this.trail[0].x - camera.x, this.trail[0].y - camera.y);
                     for (let i = 1; i < this.trail.length; i++) ctx.lineTo(this.trail[i].x - camera.x, this.trail[i].y - camera.y);
                     if (combo >= 5) {
@@ -1023,10 +1005,29 @@
                     } else { ctx.strokeStyle = '#0ff'; ctx.lineWidth = 2; }
                     ctx.shadowBlur = 10; ctx.shadowColor = '#0ff'; ctx.stroke(); ctx.shadowBlur = 0;
                 }
+                
+                // 공 그리기
                 ctx.save(); ctx.translate(drawX, drawY); ctx.rotate(this.rotation);
+                
+                // [추가] 쉴드 이펙트
+                if (this.hasShield) {
+                    ctx.shadowBlur = 20; ctx.shadowColor = '#a0f';
+                    ctx.strokeStyle = '#a0f'; ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.arc(0, 0, this.radius + 5, 0, Math.PI*2); ctx.stroke();
+                }
+
                 ctx.shadowBlur = 15; ctx.shadowColor = '#0ff'; ctx.fillStyle = '#0ff';
                 ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
                 ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, this.radius * 0.5, 0, Math.PI * 2); ctx.fill();
+                
+                // [추가] 플로트 상태 날개 이펙트
+                if (this.floatTimer > 0) {
+                     ctx.shadowBlur = 10; ctx.shadowColor = '#fff';
+                     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+                     ctx.beginPath(); ctx.moveTo(-this.radius, 0); ctx.lineTo(-this.radius - 15, -10); ctx.stroke();
+                     ctx.beginPath(); ctx.moveTo(this.radius, 0); ctx.lineTo(this.radius + 15, -10); ctx.stroke();
+                }
+
                 ctx.restore();
             }
         }
@@ -1044,17 +1045,13 @@
                  Sound.init(); handleInput();
             }, {passive: false});
 
+            skyManager = new SkyManager();
             batter = new Batter(); ball = new Ball();
             for(let i=0; i<80; i++) stars.push(new Star());
-            // [추가] 네온 시티 빌딩 생성
             for(let i=0; i<20; i++) {
-                let bw = 60 + Math.random() * 80;
-                let bh = 100 + Math.random() * 300;
-                let bx = i * 200 - 500; 
-                let bz = 1 + Math.random() * 2; // 원근감
+                let bw = 60 + Math.random() * 80; let bh = 100 + Math.random() * 300; let bx = i * 200 - 500; let bz = 1 + Math.random() * 2; 
                 cityBuildings.push(new Building(bx, bw, bh, bz));
             }
-            
             for(let i=0; i<20; i++) speedLines.push(new SpeedLine());
             initBoosters();
             requestAnimationFrame(loop);
@@ -1062,7 +1059,7 @@
 
         function initBoosters() {
             boosters = [];
-            obstacles = []; // 초기화
+            obstacles = [];
             lastBoosterX = 600 * scaleFactor; 
             addBoosters(25); 
         }
@@ -1073,13 +1070,17 @@
                 lastBoosterX += gap;
                 let by = height - 100 - (Math.random() * 2000 * scaleFactor); 
                 
-                // 장애물 생성 (10% 확률)
                 if (Math.random() > 0.9) {
                     obstacles.push(new Obstacle(lastBoosterX, by));
                 } else {
                     let rand = Math.random();
                     let type = 'speed'; 
-                    if (rand > 0.85) type = 'blast'; else if (rand > 0.5) type = 'jump'; 
+                    // [추가] 신규 부스터 확률 추가
+                    if (rand > 0.90) type = 'blast'; 
+                    else if (rand > 0.75) type = 'shield'; 
+                    else if (rand > 0.60) type = 'float';
+                    else if (rand > 0.35) type = 'jump'; 
+                    
                     boosters.push(new Booster(lastBoosterX, by, type));
                 }
             }
@@ -1110,7 +1111,7 @@
                 let isPerfect = false;
                 if (Math.abs(distY) < 20 * scaleFactor) {
                     isPerfect = true;
-                    hitFreeze = 45; // 히트 스탑
+                    hitFreeze = 45; 
                     specialEffects.push(new BreathEffect());
                     Sound.playBreath();
                 }
@@ -1120,8 +1121,7 @@
                 
                 if (isPerfect) {
                     power = 40 * scaleFactor; angle = -45; 
-                    //showFeedback("PERFECT!", "#0ff"); 
-                    Sound.playHit(true);
+                    showFeedback("PERFECT!", "#0ff"); Sound.playHit(true);
                 } else {
                     power = (28 * scaleFactor) - (Math.abs(distY) * 0.15); 
                     if (distY < 0) { angle = -45 + (distY * 0.5); showFeedback("TOO EARLY", "#ff8"); } 
@@ -1195,9 +1195,10 @@
         }
 
         function update(dt) {
+            skyManager.update(dt);
             batter.update(dt); ball.update(dt);
-            stars.forEach(s => s.update(dt)); // 유성 업데이트
-            obstacles.forEach(o => o.update(dt)); // 장애물 회전 업데이트
+            stars.forEach(s => s.update(dt)); 
+            obstacles.forEach(o => o.update(dt));
             
             specialEffects.forEach((e, i) => {
                 if(!e.active) specialEffects.splice(i, 1);
@@ -1211,7 +1212,6 @@
                 camera.y += (targetCamY - camera.y) * 0.1 * dt;
                 if (ball.x > lastBoosterX - width * 2) addBoosters(10); 
                 
-                // 최적화: 지나간 객체 제거
                 if (boosters.length > 50) { while(boosters.length > 0 && boosters[0].x < ball.x - width * 2) boosters.shift(); }
                 if (obstacles.length > 20) { while(obstacles.length > 0 && obstacles[0].x < ball.x - width * 2) obstacles.shift(); }
             } else { camera.y += (0 - camera.y) * 0.1 * dt; }
@@ -1228,36 +1228,19 @@
             const shakeX = (Math.random() - 0.5) * camera.shake; const shakeY = (Math.random() - 0.5) * camera.shake;
             ctx.save(); ctx.translate(shakeX, shakeY);
             
-            // [수정] 다이내믹 배경 색상 변경 (Hue Shift)
-            let skyFactor = Math.min(1, Math.abs(camera.y) / (height * 2)); 
-            const hueShift = (ball.x / (1000 * scaleFactor)) % 360; // 거리에 따른 색상 변화
-            
-            const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-            if (skyFactor < 0.5) { 
-                bgGrad.addColorStop(0, `hsl(${260 + hueShift}, 50%, 20%)`); 
-                bgGrad.addColorStop(1, `hsl(${280 + hueShift}, 60%, 40%)`); 
-            } 
-            else { 
-                bgGrad.addColorStop(0, '#000000'); 
-                bgGrad.addColorStop(1, `hsl(${260 + hueShift}, 50%, 10%)`); 
-            }
-            ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, width, height);
-
-            ctx.fillStyle = '#ff9'; ctx.shadowBlur = 50; ctx.shadowColor = '#ff9'; ctx.beginPath(); ctx.arc(width - 100, 100, 60, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
-            stars.forEach(s => s.draw()); 
-            // [수정] 네온 시티 빌딩 그리기
+            skyManager.draw(ctx);
             cityBuildings.forEach(b => b.draw()); 
-            
             speedLines.forEach(l => l.draw());
-            
-            obstacles.forEach(o => o.draw()); // 장애물 그리기
+            obstacles.forEach(o => o.draw()); 
             boosters.forEach(b => b.draw());
 
             const groundY = height - 50 - camera.y;
-            ctx.strokeStyle = `hsl(${300 + hueShift}, 100%, 50%)`; // 바닥 색도 변화
+            const hueShift = (ball.x / (1000 * scaleFactor)) % 360;
+            ctx.strokeStyle = `hsl(${300 + hueShift}, 100%, 50%)`; 
             ctx.lineWidth = 2; ctx.shadowBlur = 10; ctx.shadowColor = ctx.strokeStyle; ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(width, groundY); ctx.stroke();
             const gridSize = 100 * scaleFactor; const offsetX = camera.x % gridSize; ctx.lineWidth = 1; ctx.globalAlpha = 0.3;
             ctx.beginPath(); for (let i = -gridSize; i < width + gridSize; i += gridSize) { let x = i - offsetX; ctx.moveTo(x, groundY); ctx.lineTo(x - (width/2 - x)*2, height); } ctx.stroke(); ctx.shadowBlur = 0; ctx.globalAlpha = 1.0;
+            
             if (gameState === STATE.DROPPING) {
                 const hitZoneY = batter.y - (85 * scaleFactor * CHAR_SCALE); 
                 ctx.fillStyle = 'rgba(0, 255, 0, 0.15)'; ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)'; ctx.setLineDash([5, 5]);
