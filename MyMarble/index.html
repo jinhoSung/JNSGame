@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>브루마블 그랜드 - 퍼펙트 에디션</title>
+    <title>브루마블 그랜드 - 파이널 에디션</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;700&display=swap');
@@ -162,7 +162,7 @@
     <div id="lobby" class="fixed inset-0 bg-slate-900 z-[100] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-8 md:p-12 max-w-md w-full shadow-2xl text-center border-t-8 border-indigo-600">
             <h1 class="text-4xl md:text-5xl game-font text-indigo-600 mb-4 tracking-tighter text-nowrap uppercase">Blue Marble</h1>
-            <p class="text-slate-400 mb-8 font-medium tracking-widest uppercase text-xs">Perfect Edition (Auto-Sell & Assets)</p>
+            <p class="text-slate-400 mb-8 font-medium tracking-widest uppercase text-xs">Standard Real-Balance Edition</p>
             <div class="grid grid-cols-3 gap-3 mb-8">
                 <button onclick="startGame(2)" class="p-4 border-2 border-slate-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition font-bold text-xl shadow-sm">2명</button>
                 <button onclick="startGame(3)" class="p-4 border-2 border-slate-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition font-bold text-xl shadow-sm">3명</button>
@@ -191,14 +191,17 @@
                 </div>
 
                 <div class="flex items-center justify-between border-b pb-2">
-                    <h2 id="top-title" class="text-xs md:text-xl game-font text-slate-300">WORLD TOUR</h2>
+                    <div class="flex flex-col">
+                        <h2 id="top-title" class="text-xs md:text-xl game-font text-slate-300">WORLD TOUR</h2>
+                        <div id="social-fund-display" class="text-[9px] md:text-[10px] text-green-600 font-bold">사회복지기금: ₩0</div>
+                    </div>
                     <button id="roll-btn" onclick="game.rollDice()" class="px-5 py-1.5 md:px-8 md:py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-lg active:scale-95 disabled:opacity-50 text-[11px] md:text-base">주사위 굴리기</button>
                 </div>
 
-                <!-- 플레이어 목록 -->
+                <!-- 플레이어 목록 (비율 6) -->
                 <div id="player-list" class="grid grid-cols-2 gap-2 flex-[6] overflow-hidden content-start"></div>
 
-                <!-- 히스토리 -->
+                <!-- 히스토리 (비율 4) -->
                 <div class="bg-slate-900 text-white p-3 rounded-xl shadow-2xl flex flex-col flex-[4] overflow-hidden border border-slate-700">
                     <div class="text-[9px] md:text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-widest border-b border-slate-800 pb-1 flex justify-between items-center">
                         <span>History</span>
@@ -212,16 +215,28 @@
         </div>
     </div>
 
-    <!-- 구매/건설 모달 -->
+    <!-- 구매/건설 모달 (대지 구매용) -->
     <div id="modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-[110] hidden backdrop-blur-md">
         <div class="bg-white p-8 md:p-10 rounded-3xl max-w-sm w-full shadow-2xl text-center border-b-8 border-indigo-600 mx-4">
             <div id="modal-flag-container" class="mb-4 transform scale-110"></div>
-            <h2 id="modal-title" class="text-2xl md:text-3xl font-bold mb-2">구매/건설</h2>
+            <h2 id="modal-title" class="text-2xl md:text-3xl font-bold mb-2">구매</h2>
             <p id="modal-desc" class="text-sm md:text-base text-gray-500 mb-8 whitespace-pre-line leading-relaxed"></p>
             <div class="flex gap-3">
                 <button onclick="game.cancelAction()" class="flex-1 py-3 md:py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl">취소</button>
                 <button id="confirm-btn" onclick="game.confirmAction()" class="flex-1 py-3 md:py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl">확인</button>
             </div>
+        </div>
+    </div>
+
+    <!-- 건설 선택 모달 (내 땅 도착 시) -->
+    <div id="build-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-[110] hidden backdrop-blur-md">
+        <div class="bg-white p-6 md:p-8 rounded-3xl w-full max-w-sm shadow-2xl border-b-8 border-indigo-600 mx-4">
+            <h2 class="text-2xl font-bold mb-1 text-center text-slate-800">건물 건설</h2>
+            <p class="text-xs text-gray-500 mb-6 text-center">건물을 지어 통행료를 높이세요!</p>
+            <div class="flex flex-col gap-3" id="build-options">
+                <!-- 옵션 버튼들이 동적으로 생성됨 -->
+            </div>
+            <button onclick="game.closeBuildModal()" class="w-full mt-4 py-3 bg-slate-100 text-slate-500 font-bold rounded-xl hover:bg-slate-200">건설 취소</button>
         </div>
     </div>
 
@@ -344,6 +359,7 @@
                     isSpaceTravelReady: false
                 }));
                 this.currentPlayerIndex = 0; this.isRolling = false; this.lastWasDouble = false;
+                this.socialFund = 0; // 사회복지기금 전역 변수
                 this.properties = Array(boardData.length).fill(null);
                 this.propertyLevels = Array(boardData.length).fill(0); 
                 
@@ -352,59 +368,45 @@
                 window.addEventListener('resize', () => this.updatePiecePositions());
             }
 
-            // --- 경제 로직 (요청 공식 적용) ---
             getConstructionCost(landPrice, targetLevel) {
-                // targetLevel: 2(별장), 3(빌딩), 4(호텔)
-                // 별장 60%, 빌딩 100%, 호텔 140%
-                const costs = [0, 0, 0.6, 1.0, 1.4];
+                const costs = [0, 0, 0.6, 1.0, 1.4]; 
                 return landPrice * costs[targetLevel];
             }
 
             getRentPrice(landPrice, baseRent, level, isSpecial) {
                 if (isSpecial) return baseRent;
                 if (level === 0) return 0;
-                if (level === 1) return baseRent; // 대지 전용
-
-                // 공식: (대지비 + 해당 건물 건설비) * 요율
-                // 요율: 별장 60%, 빌딩 100%, 호텔 140%
+                if (level === 1) return baseRent; 
                 const rentRates = [0, 0, 0.6, 1.0, 1.4]; 
                 const costRates = [0, 0, 0.6, 1.0, 1.4]; 
-                
                 const currentBuildingCost = landPrice * costRates[level];
                 const totalBase = landPrice + currentBuildingCost;
-                
                 return Math.floor(totalBase * rentRates[level]);
             }
             
-            // --- 자산 계산 및 매각 시스템 ---
             calculateTotalAssets(player) {
                 let assets = player.money;
                 this.properties.forEach((ownerId, index) => {
                     if (ownerId === player.id) {
                         const s = boardData[index];
                         const level = this.propertyLevels[index];
-                        let propValue = s.price; // 대지 가격
-                        // 건설된 건물 가치 합산
+                        let propValue = s.price; 
                         if (level >= 2) propValue += this.getConstructionCost(s.price, 2);
                         if (level >= 3) propValue += this.getConstructionCost(s.price, 3);
                         if (level >= 4) propValue += this.getConstructionCost(s.price, 4);
-                        
-                        assets += propValue * 0.5; // 매각가 기준 (반값)
+                        assets += propValue * 0.5; 
                     }
                 });
                 return Math.floor(assets);
             }
 
-            // 자산 매각 로직 (현금 부족 시 자동 실행)
+            // 자산 매각 로직
             solveInsolvency(player, amount) {
                 if (player.money >= amount) return true;
-                
-                // 보유 부동산 찾기 (가격 낮은 순으로 정렬하여 매각)
                 let ownedProps = [];
                 this.properties.forEach((ownerId, idx) => {
                     if (ownerId === player.id) {
                         const s = boardData[idx];
-                        // 현재 가치 계산 (매각가)
                         let value = s.price;
                         const level = this.propertyLevels[idx];
                         if (level >= 2) value += this.getConstructionCost(s.price, 2);
@@ -413,22 +415,16 @@
                         ownedProps.push({ idx: idx, name: s.name, value: value * 0.5 });
                     }
                 });
-
-                ownedProps.sort((a, b) => a.value - b.value); // 싼 것부터 매각
-
+                ownedProps.sort((a, b) => a.value - b.value); 
                 while (player.money < amount && ownedProps.length > 0) {
                     const prop = ownedProps.shift();
                     player.money += prop.value;
-                    
-                    // 소유권 박탈 및 초기화
                     this.properties[prop.idx] = null;
                     this.propertyLevels[prop.idx] = 0;
                     document.getElementById(`owner-${prop.idx}`).innerText = '';
-                    
                     this.log(`💸 자금 부족! <b>${prop.name}</b> 처분 (+₩${prop.value.toLocaleString()})`, "text-red-400 font-bold");
                 }
-
-                this.updateStatus(); // UI 갱신
+                this.updateStatus(); 
                 return player.money >= amount;
             }
 
@@ -547,14 +543,15 @@
             }
 
             updateStatus() {
+                // 사회복지기금 UI 업데이트
+                const fundEl = document.getElementById('social-fund-display');
+                if (fundEl) fundEl.innerText = `사회복지기금: ₩${this.socialFund.toLocaleString()}`;
+
                 this.players.forEach(p => {
                     const mEl = document.getElementById(`money-p${p.id}`); if(mEl) mEl.innerText = p.money.toLocaleString();
-                    
-                    // 총 자산 표시
-                    const aEl = document.getElementById(`asset-p${p.id}`); 
-                    if(aEl) aEl.innerText = this.calculateTotalAssets(p).toLocaleString();
-
+                    const aEl = document.getElementById(`asset-p${p.id}`); if(aEl) aEl.innerText = this.calculateTotalAssets(p).toLocaleString();
                     const card = document.getElementById(`card-p${p.id}`); if (!card) return;
+
                     if (this.currentPlayerIndex === p.id - 1) {
                         card.classList.add('turn-anim'); 
                         const actTag = document.getElementById(`turn-p${p.id}`);
@@ -569,12 +566,9 @@
                     
                     const islandTag = document.getElementById(`island-p${p.id}`);
                     if (islandTag) p.isIslandIn ? islandTag.classList.remove('hidden') : islandTag.classList.add('hidden');
-                    
                     const spaceTag = document.getElementById(`space-p${p.id}`);
                     if (spaceTag) p.isSpaceTravelReady ? spaceTag.classList.remove('hidden') : spaceTag.classList.add('hidden');
-                    
                     if (p.isBankrupt) card.classList.add('grayscale', 'opacity-40');
-                    
                     const ownedContainer = document.getElementById(`owned-p${p.id}`);
                     if (ownedContainer) {
                         const owned = boardData.filter((_, idx) => this.properties[idx] === p.id);
@@ -663,38 +657,42 @@
                     const ownerId = this.properties[pos];
                     if (ownerId === null) { this.showModal(s, 'buy'); return; }
                     else if (ownerId === p.id) { 
-                        if (!s.isSpecial && this.propertyLevels[pos] < 4) { this.showModal(s, 'upgrade'); return; }
+                        if (!s.isSpecial && this.propertyLevels[pos] < 4) { this.showConstructionModal(s); return; }
                     }
                     else { this.payRent(p, this.players[ownerId - 1], pos); }
                 } 
                 else if (s.type === 'tax') { 
-                    // 세금도 자산 매각으로 낼 수 있게 수정
-                    if (this.solveInsolvency(p, 200000)) {
-                        p.money -= 200000; 
+                    if (this.solveInsolvency(p, 150000)) {
+                        p.money -= 150000; this.socialFund += 150000;
                         this.sound.playAlert(); 
-                        this.log(`💸 세금 ₩20만 납부`, "text-red-400");
-                    } else {
-                        this.bankrupt(p);
-                    }
+                        this.log(`💸 세금 ₩15만 납부 (기금 적립)`, "text-red-400");
+                    } else { this.bankrupt(p); }
                 }
                 else if (s.type === 'chance') this.handleGoldenKey();
                 else if (s.name === "무인도") { this.handleIslandArrive(); return; }
                 else if (s.name === "우주여행") { 
                     this.sound.playSpecial(); 
                     const colOwner = this.properties[35];
-                    // 컬럼비아호 탑승료 지불 (자산 매각 포함)
                     if (colOwner && colOwner !== p.id) {
                          if(this.solveInsolvency(p, 200000)) {
                             p.money -= 200000; this.players[colOwner-1].money += 200000; 
                             this.log(`🚀 셔틀비 ₩20만 지불!`, "text-orange-300");
-                         } else {
-                             this.bankrupt(p);
-                             return;
-                         }
+                         } else { this.bankrupt(p); return; }
                     }
                     p.isSpaceTravelReady = true; this.showEventOverlay("🚀", "우주여행", "다음 턴 어디든 클릭하여 이동!");
                 }
-                else if (s.name === "사회복지") { p.money += 150000; this.sound.playMoney(); this.showEventOverlay("🏦", "사회복지", "₩15만 수령!"); }
+                else if (s.name === "사회복지") { 
+                    this.sound.playMoney(); 
+                    if (this.socialFund > 0) {
+                        p.money += this.socialFund; 
+                        this.showEventOverlay("🏦", "사회복지기금", `적립금 ₩${this.socialFund.toLocaleString()} 수령!`);
+                        this.log(`🏦 복지기금 ₩${this.socialFund.toLocaleString()} 전액 수령!`, "text-green-400 font-bold");
+                        this.socialFund = 0;
+                    } else {
+                        this.showEventOverlay("🏦", "사회복지기금", "적립된 기금이 없습니다.");
+                        this.log(`🏦 적립된 복지기금이 없습니다.`, "text-slate-400");
+                    }
+                }
                 this.checkPostAction();
             }
 
@@ -718,36 +716,94 @@
                 else this.endTurn();
             }
 
+            // 대지 구매 모달
             showModal(s, mode) {
                 const modal = document.getElementById('modal'); const flag = document.getElementById('modal-flag-container');
                 const title = document.getElementById('modal-title'); const desc = document.getElementById('modal-desc');
+                const confirmBtn = document.getElementById('confirm-btn');
+                
                 if(s.code) flag.innerHTML = `<img src="https://flagcdn.com/w160/${s.code}.png" class="mx-auto rounded-xl shadow-lg border-4 border-white max-w-[100px]">`;
                 else flag.innerHTML = `<span class="text-7xl">${s.emoji}</span>`;
-                if (mode === 'buy') {
-                    title.innerText = `${s.name} 구매`; desc.innerHTML = `대지 매입비: <b>₩${s.price.toLocaleString()}</b>\n구매하시겠습니까?`;
+                
+                title.innerText = `${s.name} 구매`; 
+                desc.innerHTML = `대지 매입비: <b>₩${s.price.toLocaleString()}</b>\n구매하시겠습니까?`;
+                
+                // 자금 부족 체크
+                if (this.players[this.currentPlayerIndex].money < s.price) {
+                    confirmBtn.disabled = true;
+                    confirmBtn.innerText = "자금 부족";
+                    confirmBtn.classList.add('bg-gray-400');
+                    confirmBtn.classList.remove('bg-indigo-600');
                 } else {
-                    const level = this.propertyLevels[boardData.indexOf(s)]; const nextNames = ["", "별장", "빌딩", "호텔"];
-                    const nextPrice = this.getConstructionCost(s.price, level + 1);
-                    title.innerText = `${s.name} ${nextNames[level]} 건설`;
-                    desc.innerHTML = `건설 비용: <b>₩${nextPrice.toLocaleString()}</b>\n건물을 올리시겠습니까?`;
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerText = "확인";
+                    confirmBtn.classList.remove('bg-gray-400');
+                    confirmBtn.classList.add('bg-indigo-600');
+                    confirmBtn.onclick = () => this.confirmAction();
                 }
+
                 modal.classList.remove('hidden');
             }
 
+            // 건물 건설 선택 모달 (신규 추가)
+            showConstructionModal(s) {
+                const modal = document.getElementById('build-modal');
+                const optionsContainer = document.getElementById('build-options');
+                optionsContainer.innerHTML = '';
+                
+                const p = this.players[this.currentPlayerIndex];
+                const currentLevel = this.propertyLevels[boardData.indexOf(s)];
+                
+                // 건물 레벨: 2(별장), 3(빌딩), 4(호텔)
+                const buildings = [
+                    { level: 2, name: "🏡 별장", cost: this.getConstructionCost(s.price, 2) },
+                    { level: 3, name: "🏢 빌딩", cost: this.getConstructionCost(s.price, 3) },
+                    { level: 4, name: "🏨 호텔", cost: this.getConstructionCost(s.price, 4) }
+                ];
+
+                buildings.forEach(b => {
+                    // 현재 레벨보다 높은 건물만 건설 가능
+                    if (b.level > currentLevel) {
+                        const btn = document.createElement('button');
+                        btn.className = `w-full py-3 px-4 rounded-xl flex justify-between items-center transition shadow-sm ${p.money >= b.cost ? 'bg-white border-2 border-indigo-100 hover:border-indigo-500 text-slate-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`;
+                        btn.innerHTML = `<span class="font-bold">${b.name}</span> <span class="text-sm">₩${b.cost.toLocaleString()}</span>`;
+                        
+                        if (p.money >= b.cost) {
+                            btn.onclick = () => this.confirmConstruction(s, b.level, b.cost);
+                        } else {
+                            btn.innerHTML += ` <span class="text-[10px] text-red-500 font-bold">(부족)</span>`;
+                        }
+                        optionsContainer.appendChild(btn);
+                    }
+                });
+
+                modal.classList.remove('hidden');
+            }
+
+            closeBuildModal() {
+                document.getElementById('build-modal').classList.add('hidden');
+                this.checkPostAction();
+            }
+
+            // 대지 구매 확정
             confirmAction() {
                 const p = this.players[this.currentPlayerIndex]; const pos = p.pos; const s = boardData[pos];
-                const currentLevel = this.propertyLevels[pos];
-                if (this.properties[pos] === null) {
-                    if (p.money >= s.price) {
-                        p.money -= s.price; this.sound.playMoney(); this.properties[pos] = p.id; this.propertyLevels[pos] = 1;
-                        this.updateBoardOwnerDisplay(pos); this.log(`🏠 대지 매입!`, "text-indigo-300 font-bold"); this.closeModal(); this.checkPostAction();
-                    } else { alert("잔액 부족!"); this.cancelAction(); }
-                } else {
-                    const upgradePrice = this.getConstructionCost(s.price, currentLevel + 1);
-                    if (p.money >= upgradePrice) {
-                        p.money -= upgradePrice; this.sound.playMoney(); this.propertyLevels[pos]++;
-                        this.updateBoardOwnerDisplay(pos); this.log(`🏢 업그레이드!`, "text-green-300 font-bold"); this.closeModal(); this.checkPostAction();
-                    } else { alert("건설 비용 부족!"); this.cancelAction(); }
+                if (p.money >= s.price) {
+                    p.money -= s.price; this.sound.playMoney(); this.properties[pos] = p.id; this.propertyLevels[pos] = 1;
+                    this.updateBoardOwnerDisplay(pos); this.log(`🏠 대지 매입!`, "text-indigo-300 font-bold"); this.closeModal(); this.checkPostAction();
+                } 
+            }
+
+            // 건물 건설 확정
+            confirmConstruction(s, level, cost) {
+                const p = this.players[this.currentPlayerIndex]; const pos = p.pos;
+                if (p.money >= cost) {
+                    p.money -= cost; this.sound.playMoney(); this.propertyLevels[pos] = level;
+                    this.updateBoardOwnerDisplay(pos); 
+                    const names = ["", "", "별장", "빌딩", "호텔"];
+                    this.log(`🏗️ ${s.name}에 ${names[level]} 건설!`, "text-green-400 font-bold");
+                    document.getElementById('build-modal').classList.add('hidden');
+                    this.checkPostAction();
                 }
             }
 
@@ -763,7 +819,6 @@
                 if (owner.isBankrupt) return;
                 const s = boardData[pos]; const finalRent = this.getRentPrice(s.price, s.rent, this.propertyLevels[pos], s.isSpecial);
                 
-                // 자산 매각 시스템 적용
                 if (this.solveInsolvency(p, finalRent)) {
                     p.money -= finalRent; owner.money += finalRent;
                     this.sound.playAlert(); document.getElementById('game-board').classList.add('shake-effect');
