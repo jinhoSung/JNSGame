@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>브루마블 그랜드 - 국기 에디션</title>
+    <title>브루마블 그랜드 - 무인도 & 이벤트 에디션</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;700&display=swap');
@@ -55,7 +55,6 @@
         .square.corner { background-color: #fef3c7; font-weight: bold; font-size: 0.65rem; }
         .square.city { border-top: 6px solid #ddd; }
         
-        /* 국기 이미지 스타일 */
         .flag-img {
             width: 26px;
             height: auto;
@@ -64,7 +63,6 @@
             margin: 2px 0;
         }
 
-        /* 중앙 패널 영역 */
         .center-panel {
             grid-area: 2 / 2 / 11 / 11;
             background-color: #f1f5f9;
@@ -86,15 +84,26 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.4rem;
+            font-size: 1.6rem;
             position: absolute;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             z-index: 50;
             box-shadow: 0 6px 12px rgba(0,0,0,0.4);
             border: 3px solid white;
         }
 
-        /* 현재 턴 플레이어 강조 효과 */
+        .piece.moving {
+            transform: scale(1.4) translateY(-10px);
+            z-index: 60;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translate(0, 0); }
+            20%, 60% { transform: translate(-5px, 5px); }
+            40%, 80% { transform: translate(5px, -5px); }
+        }
+        .shake-anim { animation: shake 0.4s ease-in-out; }
+
         .active-player-card {
             border-width: 4px !important;
             transform: scale(1.02);
@@ -109,24 +118,22 @@
         }
         .turn-anim { animation: turn-glow 1.5s infinite; }
 
-        /* 주사위 애니메이션 */
-        @keyframes dice-roll {
-            0% { transform: translate(-50%, -50%) rotate(0deg) scale(0.5); opacity: 0; }
-            20% { opacity: 1; transform: translate(-50%, -60%) rotate(90deg) scale(1.2); }
-            40% { transform: translate(-50%, -40%) rotate(180deg) scale(1); }
-            60% { transform: translate(-50%, -55%) rotate(270deg) scale(1.1); }
-            80% { transform: translate(-50%, -45%) rotate(360deg) scale(1); }
-            100% { transform: translate(-50%, -50%) rotate(720deg) scale(1); opacity: 1; }
-        }
-
+        /* 주사위 및 이벤트 오버레이 */
         .dice-overlay {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             display: none; 
+            flex-direction: column;
+            align-items: center;
             gap: 20px;
             z-index: 100;
+        }
+
+        .dice-box-container {
+            display: flex;
+            gap: 20px;
         }
 
         .dice-box {
@@ -145,10 +152,23 @@
             animation: dice-roll 0.8s ease-out forwards;
         }
 
+        .event-info-box {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+            border: 3px solid #6366f1;
+        }
+
+        @keyframes dice-roll {
+            0% { transform: rotate(0deg) scale(0.5); opacity: 0; }
+            100% { transform: rotate(720deg) scale(1); opacity: 1; }
+        }
+
         .log-container::-webkit-scrollbar { width: 6px; }
         .log-container::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 10px; }
 
-        /* 플레이어 색상 */
         .p-bg-1 { background-color: #ff0000; }
         .p-bg-2 { background-color: #0066ff; }
         .p-bg-3 { background-color: #00cc44; }
@@ -163,7 +183,7 @@
     <div id="lobby" class="fixed inset-0 bg-slate-900 z-[100] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-10 max-w-md w-full shadow-2xl text-center border-t-8 border-indigo-600">
             <h1 class="text-5xl game-font text-indigo-600 mb-2">BLUE MARBLE</h1>
-            <p class="text-slate-400 mb-8 font-medium tracking-widest uppercase text-xs">Grand National Edition</p>
+            <p class="text-slate-400 mb-8 font-medium tracking-widest uppercase text-xs">Audio & Visual Edition</p>
             <div class="grid grid-cols-3 gap-4 mb-8">
                 <button onclick="startGame(2)" class="p-4 border-2 border-slate-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition font-bold text-xl shadow-sm">2명</button>
                 <button onclick="startGame(3)" class="p-4 border-2 border-slate-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition font-bold text-xl shadow-sm">3명</button>
@@ -171,41 +191,46 @@
                 <button onclick="startGame(5)" class="p-4 border-2 border-slate-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition font-bold text-xl shadow-sm">5명</button>
                 <button onclick="startGame(6)" class="p-4 border-2 border-slate-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition font-bold text-xl shadow-sm">6명</button>
             </div>
+            <p class="text-[10px] text-slate-400">사운드가 활성화되어 있습니다.</p>
         </div>
     </div>
 
     <!-- 게임 보드 -->
-    <div id="game-board" class="board-grid opacity-0 transition-opacity duration-500">
-        
-        <!-- 중앙 패널 -->
-        <div class="center-panel shadow-inner">
-            <!-- 주사위 애니메이션 오버레이 -->
-            <div id="dice-overlay" class="dice-overlay">
-                <div id="dice-1" class="dice-box">?</div>
-                <div id="dice-2" class="dice-box">?</div>
-            </div>
-
-            <div class="flex items-center justify-between border-b pb-2 mb-1">
-                <h2 class="text-2xl game-font text-slate-300 tracking-tighter">WORLD TOUR</h2>
-                <div class="flex items-center gap-4">
-                    <div id="dice-summary" class="text-sm font-bold text-indigo-600 bg-white px-3 py-1 rounded-full shadow-sm border border-indigo-100 italic">DOUBLE CHANCE!</div>
-                    <button id="roll-btn" onclick="game.rollDice()" class="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-lg active:scale-95 disabled:opacity-50">주사위 굴리기</button>
+    <div id="game-board-container">
+        <div id="game-board" class="board-grid opacity-0 transition-opacity duration-500">
+            
+            <div class="center-panel shadow-inner">
+                <!-- 통합 이벤트/주사위 오버레이 -->
+                <div id="dice-overlay" class="dice-overlay">
+                    <div id="event-emoji" class="text-8xl mb-2 drop-shadow-xl"></div>
+                    <div id="event-msg" class="event-info-box hidden">
+                        <div class="text-xl font-black text-indigo-600 mb-1" id="event-title"></div>
+                        <div class="text-sm font-medium text-slate-600" id="event-desc"></div>
+                    </div>
+                    <div class="dice-box-container" id="dice-container">
+                        <div id="dice-1" class="dice-box">?</div>
+                        <div id="dice-2" class="dice-box">?</div>
+                    </div>
                 </div>
-            </div>
 
-            <!-- 플레이어 목록 (비율 6, 스크롤 제거) -->
-            <div id="player-list" class="grid grid-cols-2 gap-2 overflow-hidden flex-[6]">
-                <!-- 플레이어 카드가 생성됨 -->
-            </div>
-
-            <!-- 라이브 로그 (비율 4) -->
-            <div class="bg-slate-900 text-white p-3 rounded-xl shadow-2xl flex flex-col flex-[4] overflow-hidden border border-slate-700">
-                <div class="text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-widest border-b border-slate-800 pb-1 flex justify-between items-center">
-                    <span>Game History</span>
-                    <span id="turn-display" class="text-indigo-400 font-black animate-pulse">P1 Turn</span>
+                <div class="flex items-center justify-between border-b pb-2 mb-1">
+                    <h2 class="text-2xl game-font text-slate-300 tracking-tighter">WORLD TOUR</h2>
+                    <div class="flex items-center gap-4">
+                        <div id="dice-summary" class="text-sm font-bold text-indigo-600 bg-white px-3 py-1 rounded-full shadow-sm border border-indigo-100 italic">DOUBLES ALLOWED!</div>
+                        <button id="roll-btn" onclick="game.rollDice()" class="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-lg active:scale-95 disabled:opacity-50">주사위 굴리기</button>
+                    </div>
                 </div>
-                <div id="game-log" class="log-container overflow-y-auto flex-1 text-[11px] space-y-2 flex flex-col-reverse mt-1 pr-2">
-                    <div class="text-indigo-400 font-bold">환영합니다! 주사위 2개를 던져 이동하세요.</div>
+
+                <div id="player-list" class="grid grid-cols-2 gap-2 overflow-hidden flex-[6]"></div>
+
+                <div class="bg-slate-900 text-white p-3 rounded-xl shadow-2xl flex flex-col flex-[4] overflow-hidden border border-slate-700">
+                    <div class="text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-widest border-b border-slate-800 pb-1 flex justify-between items-center">
+                        <span>Game History</span>
+                        <span id="turn-display" class="text-indigo-400 font-black animate-pulse">P1 Turn</span>
+                    </div>
+                    <div id="game-log" class="log-container overflow-y-auto flex-1 text-[11px] space-y-2 flex flex-col-reverse mt-1 pr-2">
+                        <div class="text-indigo-400 font-bold">주사위를 굴려 세계 일주를 시작하세요!</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -225,6 +250,47 @@
     </div>
 
     <script>
+        class SoundManager {
+            constructor() {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            play(freq, type, duration, vol = 0.1) {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            }
+            playDice() { this.play(150, 'triangle', 0.2, 0.2); }
+            playMove() { this.play(600, 'sine', 0.1, 0.1); }
+            playMoney() { 
+                this.play(880, 'sine', 0.1, 0.1);
+                setTimeout(() => this.play(1320, 'sine', 0.2, 0.1), 50);
+            }
+            playAlert() { 
+                this.play(200, 'square', 0.3, 0.05);
+                setTimeout(() => this.play(150, 'square', 0.3, 0.05), 100);
+            }
+            playSpecial() {
+                let now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.5);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.5);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(now + 0.5);
+            }
+        }
+
         const boardData = [
             { id: 0, name: "START", type: "corner", emoji: "🏁", color: "#fef3c7" },
             { id: 1, name: "타이베이", type: "city", price: 50000, rent: 20000, color: "#f87171", code: "tw" },
@@ -280,6 +346,7 @@
 
         class GrandBlueMarble {
             constructor(playerCount) {
+                this.sound = new SoundManager();
                 const icons = ['🚗', '✈️', '🚢', '🚁', '🚲', '🚀'];
                 const names = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
                 
@@ -290,7 +357,10 @@
                     name: names[i],
                     icon: icons[i],
                     isBankrupt: false,
-                    doubleCount: 0 
+                    doubleCount: 0,
+                    islandTurns: 0,       // 무인도 갇힌 턴 수
+                    isIslandIn: false,    // 무인도 여부
+                    hasEscapeCard: false  // 탈출권 보유 여부
                 }));
 
                 this.currentPlayerIndex = 0;
@@ -313,15 +383,18 @@
                     card.innerHTML = `
                         <div class="flex items-center justify-between">
                             <span class="text-xs font-black flex items-center gap-2">
-                                <span class="text-3xl">${p.icon}</span> ${p.name}
+                                <span class="text-4xl drop-shadow-md">${p.icon}</span> ${p.name}
                             </span>
-                            <span id="turn-p${p.id}" class="text-[7px] font-black px-1.5 py-0.5 rounded-full bg-indigo-600 text-white hidden">TURN NOW</span>
+                            <div class="flex flex-col items-end gap-1">
+                                <span id="turn-p${p.id}" class="text-[7px] font-black px-1.5 py-0.5 rounded-full bg-indigo-600 text-white hidden tracking-tighter uppercase">ACT</span>
+                                <span id="island-p${p.id}" class="text-[6px] font-black px-1 py-0.5 rounded-full bg-orange-500 text-white hidden tracking-tighter uppercase">ISLAND</span>
+                                <span id="escape-p${p.id}" class="text-[6px] font-black px-1 py-0.5 rounded-full bg-green-500 text-white hidden tracking-tighter uppercase">FREE PASS</span>
+                            </div>
                         </div>
-                        <div class="text-[11px] font-bold text-slate-800">₩ <span id="money-p${p.id}">${p.money.toLocaleString()}</span></div>
+                        <div class="text-[11px] font-bold text-slate-800 leading-tight">₩ <span id="money-p${p.id}">${p.money.toLocaleString()}</span></div>
                         <div id="owned-p${p.id}" class="flex flex-wrap gap-1 mt-0.5 min-h-[12px]"></div>
                     `;
                     pList.appendChild(card);
-
                     const piece = document.createElement('div');
                     piece.id = `p${p.id}`;
                     piece.className = `piece p-bg-${p.id}`;
@@ -337,21 +410,17 @@
                     const div = document.createElement('div');
                     div.className = `square ${data.type}`;
                     div.id = `square-${index}`;
-                    
                     const pos = gridPositions[index];
                     div.style.gridRow = pos[0];
                     div.style.gridColumn = pos[1];
-
                     if (data.type === 'city') {
                         div.style.borderTopColor = data.color;
                         let innerHTML = `<div class="text-[0.45rem] text-gray-400 font-bold">₩${data.price.toLocaleString()}</div>`;
-                        
                         if (data.code) {
                             innerHTML += `<img src="https://flagcdn.com/w40/${data.code}.png" class="flag-img" onerror="this.style.display='none'">`;
                         } else if (data.emoji) {
                             innerHTML += `<div class="text-xl my-0.5">${data.emoji}</div>`;
                         }
-                        
                         innerHTML += `
                             <div class="font-bold text-[0.58rem] text-slate-700">${data.name}</div>
                             <div id="owner-${index}" class="mt-auto flex flex-col items-center gap-0.5"></div>
@@ -369,17 +438,14 @@
                 this.updatePiecePositions();
             }
 
-            getPlayerColor(id) {
-                return ['#ff0000', '#0066ff', '#00cc44', '#ffcc00', '#aa00ff', '#ff0099'][id - 1];
-            }
+            getPlayerColor(id) { return ['#ff0000', '#0066ff', '#00cc44', '#ffcc00', '#aa00ff', '#ff0099'][id - 1]; }
 
-            updatePiecePositions() {
+            updatePiecePositions(isSpecial = false) {
                 const posGroups = {};
                 this.players.forEach(p => {
                     if(!posGroups[p.pos]) posGroups[p.pos] = [];
                     posGroups[p.pos].push(p);
                 });
-
                 Object.keys(posGroups).forEach(pos => {
                     const playersAtPos = posGroups[pos];
                     const square = document.getElementById(`square-${pos}`);
@@ -388,6 +454,7 @@
                         if (p.isBankrupt) { piece.style.display = 'none'; return; }
                         const offsetMap = [[0, 0], [10, 10], [-10, -10], [10, -10], [-10, 10], [0, -14]];
                         const offset = offsetMap[i] || [0, 0];
+                        piece.style.transition = isSpecial ? "all 0.6s ease-in-out" : "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
                         piece.style.top = `${square.offsetTop + square.offsetHeight/2 - 16 + offset[1]}px`;
                         piece.style.left = `${square.offsetLeft + square.offsetWidth/2 - 16 + offset[0]}px`;
                     });
@@ -396,12 +463,12 @@
 
             updateStatus() {
                 this.players.forEach(p => {
-                    const moneyEl = document.getElementById(`money-p${p.id}`);
+                    document.getElementById(`money-p${p.id}`).innerText = p.money.toLocaleString();
                     const card = document.getElementById(`card-p${p.id}`);
                     const turnTag = document.getElementById(`turn-p${p.id}`);
+                    const islandTag = document.getElementById(`island-p${p.id}`);
+                    const escapeTag = document.getElementById(`escape-p${p.id}`);
                     const ownedContainer = document.getElementById(`owned-p${p.id}`);
-                    
-                    if (moneyEl) moneyEl.innerText = p.money.toLocaleString();
                     
                     if (this.currentPlayerIndex === p.id - 1) {
                         card.classList.add('active-player-card', 'turn-anim');
@@ -412,6 +479,8 @@
                         turnTag.classList.add('hidden');
                     }
 
+                    p.isIslandIn ? islandTag.classList.remove('hidden') : islandTag.classList.add('hidden');
+                    p.hasEscapeCard ? escapeTag.classList.remove('hidden') : escapeTag.classList.add('hidden');
                     if (p.isBankrupt) card.classList.add('grayscale', 'opacity-40');
 
                     const ownedCities = boardData.filter((_, idx) => this.properties[idx] === p.id);
@@ -420,10 +489,6 @@
                             ${city.name}
                         </span>
                     `).join('');
-                    
-                    if(ownedCities.length === 0) {
-                        ownedContainer.innerHTML = `<span class="text-[7px] text-slate-300 italic px-1">소유 지역 없음</span>`;
-                    }
                 });
             }
 
@@ -435,6 +500,28 @@
                 logBox.prepend(div);
             }
 
+            // 특수 이벤트 중앙 연출
+            showEventOverlay(emoji, title, desc, duration = 2000) {
+                const overlay = document.getElementById('dice-overlay');
+                const emojiEl = document.getElementById('event-emoji');
+                const msgEl = document.getElementById('event-msg');
+                const diceContainer = document.getElementById('dice-container');
+                
+                emojiEl.innerText = emoji;
+                document.getElementById('event-title').innerText = title;
+                document.getElementById('event-desc').innerText = desc;
+                
+                diceContainer.style.display = 'none';
+                msgEl.classList.remove('hidden');
+                overlay.style.display = 'flex';
+
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                    msgEl.classList.add('hidden');
+                    diceContainer.style.display = 'flex';
+                }, duration);
+            }
+
             rollDice() {
                 if (this.isRolling) return;
                 this.isRolling = true;
@@ -443,6 +530,7 @@
                 const overlay = document.getElementById('dice-overlay');
                 const d1El = document.getElementById('dice-1');
                 const d2El = document.getElementById('dice-2');
+                const player = this.players[this.currentPlayerIndex];
                 
                 btn.disabled = true;
                 overlay.style.display = 'flex';
@@ -450,6 +538,7 @@
                 const interval = setInterval(() => {
                     d1El.innerText = Math.floor(Math.random() * 6) + 1;
                     d2El.innerText = Math.floor(Math.random() * 6) + 1;
+                    this.sound.playDice();
                 }, 100);
 
                 setTimeout(() => {
@@ -458,24 +547,44 @@
                     const d2 = Math.floor(Math.random() * 6) + 1;
                     const total = d1 + d2;
                     const isDouble = (d1 === d2);
-                    
                     d1El.innerText = d1;
                     d2El.innerText = d2;
                     
-                    const player = this.players[this.currentPlayerIndex];
-
                     setTimeout(async () => {
                         overlay.style.display = 'none';
-                        this.log(`🎲 결과: <b>${d1} + ${d2} = ${total}</b> ${isDouble ? '<span class="text-indigo-400">[더블!]</span>' : ''}`, "text-white font-bold");
+                        this.log(`🎲 결과: <b>${d1}, ${d2} 합 ${total}</b>`, "text-white");
                         
-                        if (isDouble) {
+                        // 무인도 탈출 로직
+                        if (player.isIslandIn) {
+                            if (isDouble) {
+                                this.log(`✨ <b>더블!</b> 무인도를 탈출합니다.`, "text-green-400 font-bold");
+                                player.isIslandIn = false;
+                                player.islandTurns = 0;
+                            } else if (player.hasEscapeCard) {
+                                this.log(`🎫 <b>탈출권 사용!</b> 무인도를 탈출합니다.`, "text-green-400 font-bold");
+                                player.hasEscapeCard = false;
+                                player.isIslandIn = false;
+                                player.islandTurns = 0;
+                            } else {
+                                player.islandTurns++;
+                                if (player.islandTurns >= 3) {
+                                    this.log(`⌛ <b>3턴 경과!</b> 무인도에서 풀려납니다.`, "text-indigo-300");
+                                    player.isIslandIn = false;
+                                    player.islandTurns = 0;
+                                } else {
+                                    this.log(`🔒 무인도 대기 중... (${player.islandTurns}/3턴)`, "text-orange-400");
+                                    this.endTurn();
+                                    return;
+                                }
+                            }
+                        }
+
+                        // 일반 더블 로직
+                        if (isDouble && !player.isIslandIn) {
                             player.doubleCount++;
                             if (player.doubleCount === 3) {
-                                this.log(`⚠️ <b>3연속 더블!</b> 과속으로 무인도에 갇힙니다.`, "text-red-500 font-black");
-                                player.pos = 10; 
-                                player.doubleCount = 0;
-                                this.updatePiecePositions();
-                                this.endTurn(true); 
+                                this.log(`⚠️ <b>3회 더블 과속!</b> 무인도로 압송됩니다.`, "text-red-500 font-bold");
+                                this.handleIslandArrive();
                                 return;
                             }
                             this.lastWasDouble = true;
@@ -485,20 +594,37 @@
                         }
 
                         await this.movePlayer(total);
-                    }, 1000);
-                }, 1500);
+                    }, 800);
+                }, 1200);
+            }
+
+            handleIslandArrive() {
+                const player = this.players[this.currentPlayerIndex];
+                this.sound.playAlert();
+                player.pos = 10;
+                player.isIslandIn = true;
+                player.islandTurns = 0;
+                player.doubleCount = 0;
+                this.updatePiecePositions(true);
+                this.showEventOverlay("🌴", "무인도 수감", "더블이 나오거나 3턴을 기다려야 합니다.");
+                this.endTurn(true);
             }
 
             async movePlayer(steps) {
                 const player = this.players[this.currentPlayerIndex];
+                const piece = document.getElementById(`p${player.id}`);
                 for(let i = 0; i < steps; i++) {
                     player.pos = (player.pos + 1) % boardData.length;
+                    this.sound.playMove();
+                    piece.classList.add('moving');
+                    this.updatePiecePositions();
                     if (player.pos === 0) {
                         player.money += 200000;
-                        this.log(`💰 <b>${player.name}</b>님이 출발지를 통과하여 <b>₩200,000</b>을 받았습니다.`, "text-yellow-400");
+                        this.sound.playMoney();
+                        this.log(`💰 출발지 통과! ₩20만 수령`, "text-yellow-400 font-bold");
                     }
-                    this.updatePiecePositions();
-                    await new Promise(r => setTimeout(r, 120));
+                    await new Promise(r => setTimeout(r, 250));
+                    piece.classList.remove('moving');
                 }
                 this.handleSquare(player.pos);
             }
@@ -506,32 +632,63 @@
             handleSquare(pos) {
                 const square = boardData[pos];
                 const player = this.players[this.currentPlayerIndex];
-                this.log(`🏃 <b>${player.name}</b> → <b>${square.name}</b>`, "text-slate-300");
+                this.log(`📍 <b>${player.name}</b> → <b>${square.name}</b>`, "text-slate-300");
 
                 if (square.type === 'city') {
                     const ownerId = this.properties[pos];
                     if (ownerId === null) {
-                        this.showModal(square);
-                        return;
+                        this.showModal(square); return;
                     } else if (ownerId !== player.id) {
                         this.payRent(player, this.players[ownerId - 1], square);
                     }
                 } else if (square.type === 'tax') {
                     const tax = 200000;
                     player.money -= tax;
-                    this.log(`💸 세금 ₩${tax.toLocaleString()} 납부`, "text-red-400 font-bold");
+                    this.sound.playAlert();
+                    this.log(`💸 세금 ₩${tax.toLocaleString()} 납부`, "text-red-400");
                 } else if (square.type === 'chance') {
+                    this.handleGoldenKey();
+                } else if (square.name === "무인도") {
+                    this.handleIslandArrive();
+                    return; // 연출 후 이미 턴 종료됨
+                } else if (square.name === "우주여행") {
+                    this.sound.playSpecial();
+                    this.showEventOverlay("🚀", "우주여행", "다음 턴에 원하는 도시로 이동 가능!");
+                    this.log("🚀 우주여행! 다음 턴에 이동합니다.", "text-blue-400");
+                } else if (square.name === "사회복지") {
+                    const fund = 150000;
+                    player.money += fund;
+                    this.sound.playMoney();
+                    this.showEventOverlay("🏦", "사회복지기금", `장학금 ₩${fund.toLocaleString()} 수령!`);
+                    this.log(`🏦 복지기금 ₩${fund.toLocaleString()} 수령`, "text-green-300");
+                }
+                this.checkPostAction();
+            }
+
+            handleGoldenKey() {
+                const player = this.players[this.currentPlayerIndex];
+                const rand = Math.random();
+                if (rand < 0.2) {
+                    player.hasEscapeCard = true;
+                    this.showEventOverlay("🎫", "무인도 탈출권", "무인도에 갇혔을 때 즉시 사용 가능!");
+                    this.log("🎫 황금열쇠: 무인도 탈출권을 획득했습니다.", "text-green-400 font-bold");
+                } else if (rand < 0.5) {
                     const bonus = 100000;
                     player.money += bonus;
-                    this.log(`🎁 황금열쇠 보너스 ₩${bonus.toLocaleString()}`, "text-green-400 font-bold");
+                    this.showEventOverlay("💎", "우승 축하금", `₩${bonus.toLocaleString()} 보너스!`);
+                    this.log(`💎 보너스 ₩${bonus.toLocaleString()} 획득`, "text-green-400");
+                } else {
+                    const fine = 50000;
+                    player.money -= fine;
+                    this.showEventOverlay("💩", "벌금 납부", "교통 위반 벌금 ₩5만 납부");
+                    this.log(`💩 벌금 ₩${fine.toLocaleString()} 납부`, "text-red-300");
                 }
-                
-                this.checkPostAction();
             }
 
             checkPostAction() {
                 if (this.lastWasDouble) {
-                    this.log(`✨ <b>더블!</b> 한 번 더 던질 수 있습니다. (현재 ${this.players[this.currentPlayerIndex].doubleCount}회 연속)`, "text-indigo-300 font-bold");
+                    this.sound.playSpecial();
+                    this.log(`✨ <b>더블 찬스!</b> 한 번 더 던지세요.`, "text-indigo-300 font-bold");
                     this.isRolling = false;
                     document.getElementById('roll-btn').disabled = false;
                     this.updateStatus();
@@ -543,15 +700,13 @@
             showModal(square) {
                 const modal = document.getElementById('modal');
                 const flagContainer = document.getElementById('modal-flag-container');
-                
                 if(square.code) {
                     flagContainer.innerHTML = `<img src="https://flagcdn.com/w160/${square.code}.png" class="mx-auto rounded-xl shadow-2xl border-4 border-white max-w-[140px]">`;
                 } else if (square.emoji) {
                     flagContainer.innerHTML = `<span class="text-7xl drop-shadow-lg">${square.emoji}</span>`;
                 }
-                
                 document.getElementById('modal-title').innerText = `${square.name} 매입`;
-                document.getElementById('modal-desc').innerHTML = `이 지역의 매매가는 <b>₩${square.price.toLocaleString()}</b>원입니다.\n구매하시겠습니까?`;
+                document.getElementById('modal-desc').innerHTML = `매매가 <b>₩${square.price.toLocaleString()}</b>원\n구매하시겠습니까?`;
                 modal.classList.remove('hidden');
             }
 
@@ -560,41 +715,35 @@
                 const square = boardData[player.pos];
                 if (player.money >= square.price) {
                     player.money -= square.price;
+                    this.sound.playMoney();
                     this.properties[player.pos] = player.id;
                     const ownerTag = document.getElementById(`owner-${player.pos}`);
-                    
-                    // 보드 위 소유주 표시 강화 (이모지 추가)
-                    ownerTag.innerHTML = `
-                        <span class="text-lg">${player.icon}</span>
-                        <span class="text-[0.4rem] font-black uppercase tracking-tighter" style="color: ${this.getPlayerColor(player.id)}">OWNER: ${player.name}</span>
-                    `;
-                    
-                    this.log(`🏠 <b>${player.name}</b>님이 <b>${square.name}</b>을 매입했습니다.`, "text-indigo-300 font-bold");
+                    ownerTag.innerHTML = `<span class="text-xl">${player.icon}</span><span class="text-[0.4rem] font-black" style="color:${this.getPlayerColor(player.id)}">OWNER:${player.name}</span>`;
+                    this.log(`🏠 ${square.name} 매입 성공!`, "text-indigo-300 font-bold");
                     this.closeModal();
                     this.checkPostAction(); 
                 } else {
-                    alert("잔액 부족!");
-                    this.cancelAction();
+                    alert("잔액 부족!"); this.cancelAction();
                 }
             }
 
-            cancelAction() { 
-                this.closeModal(); 
-                this.checkPostAction(); 
-            }
-
+            cancelAction() { this.closeModal(); this.checkPostAction(); }
             closeModal() { document.getElementById('modal').classList.add('hidden'); }
 
             payRent(player, owner, square) {
                 if (owner.isBankrupt) return;
                 player.money -= square.rent;
                 owner.money += square.rent;
+                this.sound.playAlert();
+                document.getElementById('game-board').classList.add('shake-anim');
+                setTimeout(() => document.getElementById('game-board').classList.remove('shake-anim'), 400);
                 this.log(`🔔 <b>${player.name}</b> → <b>${owner.name}</b> 통행료 ₩${square.rent.toLocaleString()}`, "text-orange-400 font-bold");
                 if (player.money < 0) this.bankrupt(player);
             }
 
             bankrupt(player) {
                 player.isBankrupt = true;
+                this.sound.playAlert();
                 this.log(`🚫 <b>${player.name}</b> 파산!`, "text-red-500 font-black");
                 this.properties.forEach((id, idx) => {
                     if (id === player.id) {
@@ -607,24 +756,17 @@
 
             endTurn(forceNext = false) {
                 this.updateStatus();
-                
                 if (!this.lastWasDouble || forceNext) {
                     let next = (this.currentPlayerIndex + 1) % this.players.length;
-                    
                     if (this.players.filter(p => !p.isBankrupt).length <= 1) {
                         const winner = this.players.find(p => !p.isBankrupt);
                         alert(`🏆 최종 우승자는 ${winner.name}님입니다!`);
-                        location.reload();
-                        return;
+                        location.reload(); return;
                     }
-
-                    while (this.players[next].isBankrupt) {
-                        next = (next + 1) % this.players.length;
-                    }
+                    while (this.players[next].isBankrupt) next = (next + 1) % this.players.length;
                     this.currentPlayerIndex = next;
                     this.players[this.currentPlayerIndex].doubleCount = 0; 
                 }
-
                 this.isRolling = false;
                 this.lastWasDouble = false;
                 document.getElementById('roll-btn').disabled = false;
