@@ -116,4 +116,422 @@
         .rolling { animation: roll 0.4s infinite linear; }
 
         .log-container::-webkit-scrollbar { width: 6px; }
-        .log-container::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 1
+        .log-container::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 10px; }
+
+        /* 선명한 플레이어 색상 */
+        .p-bg-1 { background-color: #ff0000; }
+        .p-bg-2 { background-color: #0066ff; }
+        .p-bg-3 { background-color: #00cc44; }
+        .p-bg-4 { background-color: #ffcc00; }
+        .p-bg-5 { background-color: #aa00ff; }
+        .p-bg-6 { background-color: #ff0099; }
+    </style>
+</head>
+<body>
+
+    <!-- 초기 설정 화면 -->
+    <div id="lobby" class="fixed inset-0 bg-slate-900 z-[100] flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-10 max-w-md w-full shadow-2xl text-center border-t-8 border-indigo-600">
+            <h1 class="text-5xl game-font text-indigo-600 mb-2">BLUE MARBLE</h1>
+            <p class="text-slate-400 mb-8 font-medium tracking-widest uppercase text-xs">Grand National Edition</p>
+            <div class="grid grid-cols-3 gap-4 mb-8">
+                <button onclick="startGame(2)" class="p-4 border-2 border-slate-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition font-bold text-xl shadow-sm">2명</button>
+                <button onclick="startGame(3)" class="p-4 border-2 border-slate-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition font-bold text-xl shadow-sm">3명</button>
+                <button onclick="startGame(4)" class="p-4 border-2 border-slate-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition font-bold text-xl shadow-sm">4명</button>
+                <button onclick="startGame(5)" class="p-4 border-2 border-slate-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition font-bold text-xl shadow-sm">5명</button>
+                <button onclick="startGame(6)" class="p-4 border-2 border-slate-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition font-bold text-xl shadow-sm">6명</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 게임 보드 -->
+    <div id="game-board" class="board-grid opacity-0 transition-opacity duration-500">
+        
+        <!-- 중앙 패널 -->
+        <div class="center-panel shadow-inner">
+            <div class="flex items-center justify-between border-b pb-3 mb-1">
+                <h2 class="text-2xl game-font text-slate-300 tracking-tighter">WORLD TOUR</h2>
+                <div class="flex items-center gap-4">
+                    <div id="dice-visual" class="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-3xl font-bold text-slate-700 shadow-md border-2 border-slate-100">?</div>
+                    <button id="roll-btn" onclick="game.rollDice()" class="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-lg active:scale-95 disabled:opacity-50">주사위 굴리기</button>
+                </div>
+            </div>
+
+            <!-- 플레이어 목록 (비율 6) -->
+            <div id="player-list" class="grid grid-cols-2 gap-3 overflow-y-auto pr-1 flex-[6]">
+                <!-- 플레이어 카드가 생성됨 -->
+            </div>
+
+            <!-- 라이브 로그 (비율 4) -->
+            <div class="bg-slate-900 text-white p-4 rounded-xl shadow-2xl flex flex-col flex-[4] overflow-hidden border border-slate-700">
+                <div class="text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-widest border-b border-slate-800 pb-1 flex justify-between items-center">
+                    <span>Game History</span>
+                    <span id="turn-display" class="text-indigo-400 font-black animate-pulse">P1 Turn</span>
+                </div>
+                <div id="game-log" class="log-container overflow-y-auto flex-1 text-[12px] space-y-2 flex flex-col-reverse mt-1 pr-2">
+                    <div class="text-indigo-400 font-bold">환영합니다! 게임을 시작합니다.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 모달 -->
+    <div id="modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-[110] hidden backdrop-blur-md">
+        <div class="bg-white p-10 rounded-3xl max-w-sm w-full shadow-2xl text-center border-b-8 border-indigo-600">
+            <div id="modal-flag-container" class="mb-6 transform scale-125"></div>
+            <h2 id="modal-title" class="text-3xl font-bold mb-2">도시 구매</h2>
+            <p id="modal-desc" class="text-base text-gray-500 mb-8 whitespace-pre-line leading-relaxed"></p>
+            <div class="flex gap-4">
+                <button onclick="game.cancelAction()" class="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition">취소</button>
+                <button id="confirm-btn" onclick="game.confirmAction()" class="flex-1 py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl hover:bg-indigo-700 transition">구매하기</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const boardData = [
+            { id: 0, name: "START", type: "corner", emoji: "🏁", color: "#fef3c7" },
+            { id: 1, name: "타이베이", type: "city", price: 50000, rent: 20000, color: "#f87171", code: "tw" },
+            { id: 2, name: "황금열쇠", type: "chance", emoji: "🔑", color: "#fef3c7" },
+            { id: 3, name: "베이징", type: "city", price: 80000, rent: 40000, color: "#f87171", code: "cn" },
+            { id: 4, name: "마닐라", type: "city", price: 80000, rent: 40000, color: "#f87171", code: "ph" },
+            { id: 5, name: "제주도", type: "city", price: 200000, rent: 150000, color: "#ec4899", code: "kr" },
+            { id: 6, name: "싱가포르", type: "city", price: 100000, rent: 60000, color: "#f87171", code: "sg" },
+            { id: 7, name: "황금열쇠", type: "chance", emoji: "🔑", color: "#fef3c7" },
+            { id: 8, name: "카이로", type: "city", price: 120000, rent: 80000, color: "#f87171", code: "eg" },
+            { id: 9, name: "이스탄불", type: "city", price: 120000, rent: 80000, color: "#f87171", code: "tr" },
+            { id: 10, name: "무인도", type: "corner", emoji: "🌴", color: "#fef3c7" },
+            { id: 11, name: "아테네", type: "city", price: 140000, rent: 100000, color: "#fbbf24", code: "gr" },
+            { id: 12, name: "황금열쇠", type: "chance", emoji: "🔑", color: "#fef3c7" },
+            { id: 13, name: "코펜하겐", type: "city", price: 160000, rent: 120000, color: "#fbbf24", code: "dk" },
+            { id: 14, name: "스톡홀름", type: "city", price: 160000, rent: 120000, color: "#fbbf24", code: "se" },
+            { id: 15, name: "콩코드", type: "city", price: 250000, rent: 200000, color: "#ec4899", emoji: "✈️" },
+            { id: 16, name: "취리히", type: "city", price: 180000, rent: 140000, color: "#fbbf24", code: "ch" },
+            { id: 17, name: "황금열쇠", type: "chance", emoji: "🔑", color: "#fef3c7" },
+            { id: 18, name: "베를린", type: "city", price: 200000, rent: 160000, color: "#fbbf24", code: "de" },
+            { id: 19, name: "오타와", type: "city", price: 200000, rent: 160000, color: "#fbbf24", code: "ca" },
+            { id: 20, name: "사회복지", type: "corner", emoji: "🏦", color: "#fef3c7" },
+            { id: 21, name: "부에노스", type: "city", price: 220000, rent: 180000, color: "#4ade80", code: "ar" },
+            { id: 22, name: "황금열쇠", type: "chance", emoji: "🔑", color: "#fef3c7" },
+            { id: 23, name: "상파울루", type: "city", price: 240000, rent: 200000, color: "#4ade80", code: "br" },
+            { id: 24, name: "시드니", type: "city", price: 240000, rent: 200000, color: "#4ade80", code: "au" },
+            { id: 25, name: "부산", type: "city", price: 300000, rent: 250000, color: "#ec4899", code: "kr" },
+            { id: 26, name: "하와이", type: "city", price: 260000, rent: 220000, color: "#4ade80", code: "us" },
+            { id: 27, name: "리스본", type: "city", price: 260000, rent: 220000, color: "#4ade80", code: "pt" },
+            { id: 28, name: "퀸즈호", type: "city", price: 300000, rent: 250000, color: "#ec4899", emoji: "🚢" },
+            { id: 29, name: "마드리드", type: "city", price: 280000, rent: 240000, color: "#4ade80", code: "es" },
+            { id: 30, name: "우주여행", type: "corner", emoji: "🚀", color: "#fef3c7" },
+            { id: 31, name: "도쿄", type: "city", price: 300000, rent: 260000, color: "#60a5fa", code: "jp" },
+            { id: 32, name: "파리", type: "city", price: 320000, rent: 280000, color: "#60a5fa", code: "fr" },
+            { id: 33, name: "황금열쇠", type: "chance", emoji: "🔑", color: "#fef3c7" },
+            { id: 34, name: "로마", type: "city", price: 320000, rent: 280000, color: "#60a5fa", code: "it" },
+            { id: 35, name: "컬럼비아", type: "city", price: 450000, rent: 350000, color: "#ec4899", emoji: "🚀" },
+            { id: 36, name: "런던", type: "city", price: 350000, rent: 300000, color: "#60a5fa", code: "gb" },
+            { id: 37, name: "뉴욕", type: "city", price: 350000, rent: 300000, color: "#60a5fa", code: "us" },
+            { id: 38, name: "세금", type: "tax", emoji: "💸", color: "#fef3c7" },
+            { id: 39, name: "서울", type: "city", price: 500000, rent: 450000, color: "#60a5fa", code: "kr" }
+        ];
+
+        function generateGridPositions() {
+            let pos = [];
+            for(let i=11; i>=1; i--) pos.push([11, i]); 
+            for(let i=10; i>=1; i--) pos.push([i, 1]);  
+            for(let i=2; i<=11; i++) pos.push([1, i]);  
+            for(let i=2; i<=10; i++) pos.push([i, 11]); 
+            return pos;
+        }
+        const gridPositions = generateGridPositions();
+
+        class GrandBlueMarble {
+            constructor(playerCount) {
+                const icons = ['🚗', '✈️', '🚢', '🚁', '🚲', '🚀'];
+                const names = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
+                
+                this.players = Array.from({length: playerCount}, (_, i) => ({
+                    id: i + 1,
+                    pos: 0,
+                    money: 2000000,
+                    name: names[i],
+                    icon: icons[i],
+                    isBankrupt: false
+                }));
+
+                this.currentPlayerIndex = 0;
+                this.isRolling = false;
+                this.properties = Array(boardData.length).fill(null);
+                
+                this.initUI();
+                this.initBoard();
+            }
+
+            initUI() {
+                const pList = document.getElementById('player-list');
+                pList.innerHTML = '';
+                this.players.forEach(p => {
+                    const card = document.createElement('div');
+                    card.id = `card-p${p.id}`;
+                    card.className = `bg-white p-3 rounded-2xl shadow-sm border-l-8 border-slate-200 flex flex-col gap-1 transition-all duration-300 relative`;
+                    card.style.borderLeftColor = this.getPlayerColor(p.id);
+                    card.innerHTML = `
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-black flex items-center gap-2">
+                                <span class="text-xl">${p.icon}</span> ${p.name}
+                            </span>
+                            <span id="turn-p${p.id}" class="text-[8px] font-black px-2 py-1 rounded-full bg-indigo-600 text-white hidden">TURN NOW</span>
+                        </div>
+                        <div class="text-[12px] font-bold text-slate-800">₩ <span id="money-p${p.id}">${p.money.toLocaleString()}</span></div>
+                        <div id="owned-p${p.id}" class="flex flex-wrap gap-1 mt-1 min-h-[14px]"></div>
+                    `;
+                    pList.appendChild(card);
+
+                    const piece = document.createElement('div');
+                    piece.id = `p${p.id}`;
+                    piece.className = `piece p-bg-${p.id}`;
+                    piece.innerText = p.icon;
+                    document.getElementById('game-board').appendChild(piece);
+                });
+                this.updateStatus();
+            }
+
+            initBoard() {
+                const board = document.getElementById('game-board');
+                boardData.forEach((data, index) => {
+                    const div = document.createElement('div');
+                    div.className = `square ${data.type}`;
+                    div.id = `square-${index}`;
+                    
+                    const pos = gridPositions[index];
+                    div.style.gridRow = pos[0];
+                    div.style.gridColumn = pos[1];
+
+                    if (data.type === 'city') {
+                        div.style.borderTopColor = data.color;
+                        let innerHTML = `<div class="text-[0.45rem] text-gray-400 font-bold">₩${data.price.toLocaleString()}</div>`;
+                        
+                        if (data.code) {
+                            innerHTML += `<img src="https://flagcdn.com/w40/${data.code}.png" class="flag-img" onerror="this.style.display='none'">`;
+                        } else if (data.emoji) {
+                            innerHTML += `<div class="text-xl my-0.5">${data.emoji}</div>`;
+                        }
+                        
+                        innerHTML += `
+                            <div class="font-bold text-[0.58rem] text-slate-700">${data.name}</div>
+                            <div id="owner-${index}" class="mt-auto text-[0.45rem] font-black uppercase tracking-tighter"></div>
+                        `;
+                        div.innerHTML = innerHTML;
+                    } else {
+                        div.style.backgroundColor = data.color;
+                        div.innerHTML = `
+                            <div class="text-2xl mb-1">${data.emoji || ''}</div>
+                            <div class="font-bold text-[0.7rem] text-slate-800">${data.name}</div>
+                        `;
+                    }
+                    board.appendChild(div);
+                });
+                this.updatePiecePositions();
+            }
+
+            getPlayerColor(id) {
+                return ['#ff0000', '#0066ff', '#00cc44', '#ffcc00', '#aa00ff', '#ff0099'][id - 1];
+            }
+
+            updatePiecePositions() {
+                const posGroups = {};
+                this.players.forEach(p => {
+                    if(!posGroups[p.pos]) posGroups[p.pos] = [];
+                    posGroups[p.pos].push(p);
+                });
+
+                Object.keys(posGroups).forEach(pos => {
+                    const playersAtPos = posGroups[pos];
+                    const square = document.getElementById(`square-${pos}`);
+                    playersAtPos.forEach((p, i) => {
+                        const piece = document.getElementById(`p${p.id}`);
+                        if (p.isBankrupt) { piece.style.display = 'none'; return; }
+                        // 말 크기 증가에 따른 오프셋 조정
+                        const offsetMap = [[0, 0], [10, 10], [-10, -10], [10, -10], [-10, 10], [0, -14]];
+                        const offset = offsetMap[i] || [0, 0];
+                        piece.style.top = `${square.offsetTop + square.offsetHeight/2 - 16 + offset[1]}px`;
+                        piece.style.left = `${square.offsetLeft + square.offsetWidth/2 - 16 + offset[0]}px`;
+                    });
+                });
+            }
+
+            updateStatus() {
+                this.players.forEach(p => {
+                    const moneyEl = document.getElementById(`money-p${p.id}`);
+                    const card = document.getElementById(`card-p${p.id}`);
+                    const turnTag = document.getElementById(`turn-p${p.id}`);
+                    const ownedContainer = document.getElementById(`owned-p${p.id}`);
+                    
+                    if (moneyEl) moneyEl.innerText = p.money.toLocaleString();
+                    
+                    // 현재 턴 플레이어 강조 (Glow 및 Animation 추가)
+                    if (this.currentPlayerIndex === p.id - 1) {
+                        card.classList.add('active-player-card', 'turn-anim');
+                        turnTag.classList.remove('hidden');
+                        document.getElementById('turn-display').innerText = `${p.name} TURN`;
+                    } else {
+                        card.classList.remove('active-player-card', 'turn-anim');
+                        turnTag.classList.add('hidden');
+                    }
+
+                    if (p.isBankrupt) card.classList.add('grayscale', 'opacity-40');
+
+                    const ownedCities = boardData.filter((_, idx) => this.properties[idx] === p.id);
+                    ownedContainer.innerHTML = ownedCities.map(city => `
+                        <span class="text-[8px] px-2 py-0.5 rounded-full text-white font-black shadow-sm" style="background-color: ${city.color}">
+                            ${city.name}
+                        </span>
+                    `).join('');
+                    
+                    if(ownedCities.length === 0) {
+                        ownedContainer.innerHTML = `<span class="text-[8px] text-slate-300 italic px-1">소유 지역 없음</span>`;
+                    }
+                });
+            }
+
+            log(msg, colorClass = "text-slate-400") {
+                const logBox = document.getElementById('game-log');
+                const div = document.createElement('div');
+                div.className = `leading-relaxed border-l-2 pl-2 border-slate-700 ${colorClass}`;
+                div.innerHTML = msg;
+                logBox.prepend(div);
+            }
+
+            rollDice() {
+                if (this.isRolling) return;
+                this.isRolling = true;
+                const btn = document.getElementById('roll-btn');
+                const visual = document.getElementById('dice-visual');
+                btn.disabled = true;
+                visual.classList.add('rolling');
+
+                setTimeout(() => {
+                    const roll = Math.floor(Math.random() * 6) + 1;
+                    visual.classList.remove('rolling');
+                    visual.innerText = roll;
+                    this.movePlayer(roll);
+                }, 600);
+            }
+
+            async movePlayer(steps) {
+                const player = this.players[this.currentPlayerIndex];
+                for(let i = 0; i < steps; i++) {
+                    player.pos = (player.pos + 1) % boardData.length;
+                    if (player.pos === 0) {
+                        player.money += 200000;
+                        this.log(`💰 <b>${player.name}</b>님이 출발지를 통과하여 <b>₩200,000</b>을 받았습니다.`, "text-yellow-400");
+                    }
+                    this.updatePiecePositions();
+                    await new Promise(r => setTimeout(r, 120));
+                }
+                this.handleSquare(player.pos);
+            }
+
+            handleSquare(pos) {
+                const square = boardData[pos];
+                const player = this.players[this.currentPlayerIndex];
+                this.log(`🏃 <b>${player.name}</b>님이 <b>${square.name}</b>에 도착했습니다.`, "text-white");
+
+                if (square.type === 'city') {
+                    const ownerId = this.properties[pos];
+                    if (ownerId === null) {
+                        this.showModal(square);
+                        return;
+                    } else if (ownerId !== player.id) {
+                        this.payRent(player, this.players[ownerId - 1], square);
+                    }
+                } else if (square.type === 'tax') {
+                    const tax = 200000;
+                    player.money -= tax;
+                    this.log(`💸 세금 징수: <b>₩${tax.toLocaleString()}</b>원을 납부했습니다.`, "text-red-400 font-bold");
+                } else if (square.type === 'chance') {
+                    const bonus = 100000;
+                    player.money += bonus;
+                    this.log(`🎁 황금열쇠: 행운의 보너스 <b>₩${bonus.toLocaleString()}</b>원 획득!`, "text-green-400 font-bold");
+                }
+                this.endTurn();
+            }
+
+            showModal(square) {
+                const modal = document.getElementById('modal');
+                const flagContainer = document.getElementById('modal-flag-container');
+                
+                if(square.code) {
+                    flagContainer.innerHTML = `<img src="https://flagcdn.com/w160/${square.code}.png" class="mx-auto rounded-xl shadow-2xl border-4 border-white max-w-[140px]">`;
+                } else if (square.emoji) {
+                    flagContainer.innerHTML = `<span class="text-7xl drop-shadow-lg">${square.emoji}</span>`;
+                }
+                
+                document.getElementById('modal-title').innerText = `${square.name} 매입`;
+                document.getElementById('modal-desc').innerHTML = `이 지역의 매매가는 <b>₩${square.price.toLocaleString()}</b>원입니다.\n지금 바로 구매하시겠습니까?`;
+                modal.classList.remove('hidden');
+            }
+
+            confirmAction() {
+                const player = this.players[this.currentPlayerIndex];
+                const square = boardData[player.pos];
+                if (player.money >= square.price) {
+                    player.money -= square.price;
+                    this.properties[player.pos] = player.id;
+                    const ownerTag = document.getElementById(`owner-${player.pos}`);
+                    ownerTag.innerText = `OWNER: ${player.name}`;
+                    ownerTag.style.color = this.getPlayerColor(player.id);
+                    this.log(`🏠 <b>${player.name}</b>님이 <b>${square.name}</b>을 성공적으로 매입했습니다.`, "text-indigo-300 font-bold");
+                    this.closeModal();
+                    this.endTurn();
+                } else {
+                    alert("잔액이 부족하여 이 지역을 구매할 수 없습니다.");
+                    this.cancelAction();
+                }
+            }
+
+            cancelAction() { this.closeModal(); this.endTurn(); }
+            closeModal() { document.getElementById('modal').classList.add('hidden'); }
+
+            payRent(player, owner, square) {
+                if (owner.isBankrupt) return;
+                player.money -= square.rent;
+                owner.money += square.rent;
+                this.log(`🔔 <b>${player.name}</b>님이 <b>${owner.name}</b>님에게 통행료 <b>₩${square.rent.toLocaleString()}</b>원을 지불했습니다.`, "text-orange-400 font-bold");
+                if (player.money < 0) this.bankrupt(player);
+            }
+
+            bankrupt(player) {
+                player.isBankrupt = true;
+                this.log(`🚫 <b>${player.name}</b>님이 결국 파산했습니다!`, "text-red-500 font-black text-sm");
+                this.properties.forEach((id, idx) => {
+                    if (id === player.id) {
+                        this.properties[idx] = null;
+                        document.getElementById(`owner-${idx}`).innerText = '';
+                    }
+                });
+                this.updatePiecePositions();
+            }
+
+            endTurn() {
+                this.updateStatus();
+                let next = (this.currentPlayerIndex + 1) % this.players.length;
+                if (this.players.filter(p => !p.isBankrupt).length <= 1) {
+                    const winner = this.players.find(p => !p.isBankrupt);
+                    alert(`🏆 축하합니다! 최종 우승자는 ${winner.name}님입니다!`);
+                    location.reload();
+                    return;
+                }
+                while (this.players[next].isBankrupt) next = (next + 1) % this.players.length;
+                this.currentPlayerIndex = next;
+                this.isRolling = false;
+                document.getElementById('roll-btn').disabled = false;
+                this.updateStatus();
+            }
+        }
+
+        function startGame(count) {
+            document.getElementById('lobby').classList.add('hidden');
+            document.getElementById('game-board').classList.remove('opacity-0');
+            window.game = new GrandBlueMarble(count);
+        }
+    </script>
+</body>
+</html>
