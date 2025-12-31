@@ -129,6 +129,7 @@
             align-items: center;
             gap: 20px;
             z-index: 100;
+            pointer-events: none;
         }
 
         .dice-box-container {
@@ -358,9 +359,9 @@
                     icon: icons[i],
                     isBankrupt: false,
                     doubleCount: 0,
-                    islandTurns: 0,       // 무인도 갇힌 턴 수
-                    isIslandIn: false,    // 무인도 여부
-                    hasEscapeCard: false  // 탈출권 보유 여부
+                    islandTurns: 0,       
+                    isIslandIn: false,    
+                    hasEscapeCard: false  
                 }));
 
                 this.currentPlayerIndex = 0;
@@ -517,6 +518,7 @@
 
                 setTimeout(() => {
                     overlay.style.display = 'none';
+                    emojiEl.innerText = ''; // 이모지 비우기
                     msgEl.classList.add('hidden');
                     diceContainer.style.display = 'flex';
                 }, duration);
@@ -528,11 +530,19 @@
                 
                 const btn = document.getElementById('roll-btn');
                 const overlay = document.getElementById('dice-overlay');
+                const emojiEl = document.getElementById('event-emoji');
+                const msgEl = document.getElementById('event-msg');
                 const d1El = document.getElementById('dice-1');
                 const d2El = document.getElementById('dice-2');
+                const diceContainer = document.getElementById('dice-container');
                 const player = this.players[this.currentPlayerIndex];
                 
                 btn.disabled = true;
+                
+                // 주사위를 굴리기 전 이벤트 이모지 및 메시지 초기화
+                emojiEl.innerText = '';
+                msgEl.classList.add('hidden');
+                diceContainer.style.display = 'flex';
                 overlay.style.display = 'flex';
                 
                 const interval = setInterval(() => {
@@ -621,7 +631,7 @@
                     if (player.pos === 0) {
                         player.money += 200000;
                         this.sound.playMoney();
-                        this.log(`💰 출발지 통과! ₩20만 수령`, "text-yellow-400 font-bold");
+                        this.log(`💰 출발지 통과! 월급 ₩20만 수령`, "text-yellow-400 font-bold");
                     }
                     await new Promise(r => setTimeout(r, 250));
                     piece.classList.remove('moving');
@@ -650,7 +660,7 @@
                     this.handleGoldenKey();
                 } else if (square.name === "무인도") {
                     this.handleIslandArrive();
-                    return; // 연출 후 이미 턴 종료됨
+                    return; 
                 } else if (square.name === "우주여행") {
                     this.sound.playSpecial();
                     this.showEventOverlay("🚀", "우주여행", "다음 턴에 원하는 도시로 이동 가능!");
@@ -675,11 +685,13 @@
                 } else if (rand < 0.5) {
                     const bonus = 100000;
                     player.money += bonus;
+                    this.sound.playMoney();
                     this.showEventOverlay("💎", "우승 축하금", `₩${bonus.toLocaleString()} 보너스!`);
                     this.log(`💎 보너스 ₩${bonus.toLocaleString()} 획득`, "text-green-400");
                 } else {
                     const fine = 50000;
                     player.money -= fine;
+                    this.sound.playAlert();
                     this.showEventOverlay("💩", "벌금 납부", "교통 위반 벌금 ₩5만 납부");
                     this.log(`💩 벌금 ₩${fine.toLocaleString()} 납부`, "text-red-300");
                 }
@@ -706,7 +718,7 @@
                     flagContainer.innerHTML = `<span class="text-7xl drop-shadow-lg">${square.emoji}</span>`;
                 }
                 document.getElementById('modal-title').innerText = `${square.name} 매입`;
-                document.getElementById('modal-desc').innerHTML = `매매가 <b>₩${square.price.toLocaleString()}</b>원\n구매하시겠습니까?`;
+                document.getElementById('modal-desc').innerHTML = `이 지역의 매매가는 <b>₩${square.price.toLocaleString()}</b>원입니다.\n구매하시겠습니까?`;
                 modal.classList.remove('hidden');
             }
 
