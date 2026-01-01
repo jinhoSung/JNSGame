@@ -1053,123 +1053,138 @@
                 this.checkPostAction();
             }
 
+            teleportPlayer(targetPos) {
+                const p = this.players[this.currentPlayerIndex];
+                
+                // 출발지 경유 체크 (현재 위치보다 목표 인덱스가 작으면 한 바퀴 돈 것으로 간주)
+                // 예: 30에서 5로 이동 -> 통과. 
+                // 예외: 0으로 가는 경우(출발지 도착)도 포함됨 (0 < 30).
+                if (targetPos < p.pos) {
+                    p.money += 200000;
+                    this.sound.playMoney();
+                    this.log(`💰 출발지 경유 월급 수령`, "text-yellow-400 font-bold");
+                }
+                
+                p.pos = targetPos;
+                this.updatePiecePositions();
+                this.handleSquare(targetPos);
+            }
+
             handleGoldenKey() {
                 const p = this.players[this.currentPlayerIndex]; 
                 
                 const cards = [
                     // 2.2.1 정기종합소득세 (15만/10만/3만)
-                    { emoji: "🧾", title: "종합소득세", desc: "건물별 세금 납부", action: () => this.applyBuildingFee("종합소득세", 30000, 100000, 150000) },
+                    { emoji: "🧾", title: "종합소득세", desc: "건물별 세금 납부", action: () => this.applyBuildingFee("종합소득세", 30000, 100000, 150000), manualTurnEnd: true },
                     // 2.2.2 건물수리비 (10만/6만/3만)
-                    { emoji: "🛠️", title: "건물수리비", desc: "건물별 수리비 납부", action: () => this.applyBuildingFee("건물수리비", 30000, 60000, 100000) },
+                    { emoji: "🛠️", title: "건물수리비", desc: "건물별 수리비 납부", action: () => this.applyBuildingFee("건물수리비", 30000, 60000, 100000), manualTurnEnd: true },
                     // 2.2.3 방범비 (5만/3만/1만)
-                    { emoji: "👮", title: "방범비", desc: "건물별 방범비 납부", action: () => this.applyBuildingFee("방범비", 10000, 30000, 50000) },
+                    { emoji: "👮", title: "방범비", desc: "건물별 방범비 납부", action: () => this.applyBuildingFee("방범비", 10000, 30000, 50000), manualTurnEnd: true },
                     
                     // 2.3 무인도 탈출권
-                    { emoji: "📻", title: "무인도 탈출권", desc: "무인도 탈출용 (보관)", action: () => { p.hasEscapeCard = true; this.log("📻 무인도 탈출권 획득!", "text-green-400"); this.checkPostAction(); } },
+                    { emoji: "📻", title: "무인도 탈출권", desc: "무인도 탈출용 (보관)", action: () => { p.hasEscapeCard = true; this.log("📻 무인도 탈출권 획득!", "text-green-400"); }, manualTurnEnd: false },
                     
                     // 2.4 우대권 (통행료 1회 면제)
-                    { emoji: "🎫", title: "우대권", desc: "통행료 1회 면제 (보관)", action: () => { p.freePassCount++; this.log("🎫 우대권 획득! 통행료 1회 면제", "text-green-400"); this.checkPostAction(); } },
+                    { emoji: "🎫", title: "우대권", desc: "통행료 1회 면제 (보관)", action: () => { p.freePassCount++; this.log("🎫 우대권 획득! 통행료 1회 면제", "text-green-400"); }, manualTurnEnd: false },
                     
                     // 2.5 뒤로 이동
-                    { emoji: "🔙", title: "뒤로 2칸", desc: "뒤로 2칸 이동", action: async () => { p.pos = (p.pos - 2 + 40) % 40; this.updatePiecePositions(); this.handleSquare(p.pos); } },
-                    { emoji: "🔙", title: "뒤로 3칸", desc: "뒤로 3칸 이동", action: async () => { p.pos = (p.pos - 3 + 40) % 40; this.updatePiecePositions(); this.handleSquare(p.pos); } },
+                    { emoji: "🔙", title: "뒤로 2칸", desc: "뒤로 2칸 이동", action: async () => { p.pos = (p.pos - 2 + 40) % 40; this.updatePiecePositions(); this.handleSquare(p.pos); }, manualTurnEnd: true },
+                    { emoji: "🔙", title: "뒤로 3칸", desc: "뒤로 3칸 이동", action: async () => { p.pos = (p.pos - 3 + 40) % 40; this.updatePiecePositions(); this.handleSquare(p.pos); }, manualTurnEnd: true },
                     
                     // 2.6.1 관광여행 (제주, 부산, 서울)
-                    { emoji: "✈️", title: "제주도 여행", desc: "제주도로 이동", action: () => { p.pos = 5; this.updatePiecePositions(); this.handleSquare(5); } },
-                    { emoji: "🚆", title: "부산 여행", desc: "부산으로 이동", action: () => { p.pos = 25; this.updatePiecePositions(); this.handleSquare(25); } },
-                    { emoji: "🚌", title: "서울 여행", desc: "서울로 이동", action: () => { p.pos = 39; this.updatePiecePositions(); this.handleSquare(39); } },
+                    { emoji: "✈️", title: "제주도 여행", desc: "제주도로 이동", action: () => this.teleportPlayer(5), manualTurnEnd: true },
+                    { emoji: "🚆", title: "부산 여행", desc: "부산으로 이동", action: () => this.teleportPlayer(25), manualTurnEnd: true },
+                    { emoji: "🚌", title: "서울 여행", desc: "서울로 이동", action: () => this.teleportPlayer(39), manualTurnEnd: true },
                     
                     // 2.6.2 무인도
-                    { emoji: "🌴", title: "폭풍우", desc: "무인도로 조난", action: () => { this.handleIslandArrive(); } },
+                    { emoji: "🌴", title: "폭풍우", desc: "무인도로 조난", action: () => { this.handleIslandArrive(); }, manualTurnEnd: true },
                     
                     // 2.6.3 사회복지기금 배당
-                    { emoji: "🏦", title: "사회복지기금", desc: "접수처로 이동", action: () => { p.pos = 20; this.updatePiecePositions(); this.handleSquare(20); } },
+                    { emoji: "🏦", title: "사회복지기금", desc: "접수처로 이동", action: () => this.teleportPlayer(20), manualTurnEnd: true },
                     
-                    // 2.6.4 세계일주 초대권 (출발지로 이동)
-                    { emoji: "🌏", title: "세계일주", desc: "출발지로 이동 (월급 수령)", action: () => { p.pos = 0; p.money += 200000; if(this.socialFund>0){ p.money+=this.socialFund; this.socialFund=0; } this.updatePiecePositions(); this.sound.playMoney(); this.checkPostAction(); } },
+                    // 2.6.4 세계일주
+                    { emoji: "🌏", title: "세계일주", desc: "출발지로 이동 (월급+기금)", action: () => { 
+                        if(this.socialFund > 0) { 
+                            p.money += this.socialFund; 
+                            this.log(`🏦 복지기금 ₩${this.socialFund.toLocaleString()} 추가 수령!`, "text-green-400");
+                            this.socialFund = 0; 
+                        }
+                        this.teleportPlayer(0); 
+                    }, manualTurnEnd: true },
                     
-                    // 2.6.5 우주여행 초대권 (우주여행 칸으로, 요금 면제)
-                    { emoji: "🚀", title: "우주여행 초대", desc: "우주여행 칸으로 이동", action: () => { p.pos = 30; this.updatePiecePositions(); p.isSpaceTravelReady = true; this.showEventOverlay("🚀", "우주여행", "다음 턴 무료 이동!"); this.checkPostAction(); } },
+                    // 2.6.5 Space
+                    { emoji: "🚀", title: "우주여행 초대", desc: "우주여행 칸으로 이동", action: () => {
+                        this.teleportPlayer(30); 
+                    }, manualTurnEnd: true },
                     
-                    // 2.6.6 유람선 여행 (베이징) - 퀸즈호 소유자에게 요금 지불 로직 필요
+                    // 2.6.6 Cruise
                     { emoji: "🚢", title: "유람선 여행", desc: "퀸즈호 타고 베이징으로", action: () => { 
-                        // 퀸즈호(28) 이용료 체크
                         const qOwner = this.properties[28];
                         if(qOwner && qOwner !== p.id) {
-                            // 단순화: 20만원 이용료 가정
                             if(this.solveInsolvency(p, 200000)) { p.money -= 200000; this.players[qOwner-1].money += 200000; this.log("🚢 퀸즈호 이용료 20만 지불", "text-orange-300"); }
-                            else { this.bankrupt(p); return; }
+                            else { this.bankrupt(p); this.checkPostAction(); return; } 
                         }
-                        p.pos = 3; this.updatePiecePositions(); this.handleSquare(3); 
-                    }},
+                        this.teleportPlayer(3);
+                    }, manualTurnEnd: true },
                     
-                    // 2.6.7 항공 여행 (타이베이) - 콩코드 소유자에게 요금 지불
+                    // 2.6.7 Air
                     { emoji: "🛫", title: "항공 여행", desc: "콩코드 타고 타이베이로", action: () => { 
                         const cOwner = this.properties[15];
                         if(cOwner && cOwner !== p.id) {
                              if(this.solveInsolvency(p, 200000)) { p.money -= 200000; this.players[cOwner-1].money += 200000; this.log("🛫 콩코드 이용료 20만 지불", "text-orange-300"); }
-                             else { this.bankrupt(p); return; }
+                             else { this.bankrupt(p); this.checkPostAction(); return; }
                         }
-                        p.pos = 1; this.updatePiecePositions(); this.handleSquare(1); 
-                    }},
+                        this.teleportPlayer(1);
+                    }, manualTurnEnd: true },
                     
-                    // 2.6.8 고속도로 (출발지)
-                    { emoji: "🛣️", title: "고속도로", desc: "출발지로 이동", action: () => { p.pos = 0; p.money += 200000; this.updatePiecePositions(); this.sound.playMoney(); this.checkPostAction(); } },
+                    // 2.6.8 Highway
+                    { emoji: "🛣️", title: "고속도로", desc: "출발지로 이동", action: () => this.teleportPlayer(0), manualTurnEnd: true },
                     
                     // 2.7 상금
-                    { emoji: "🕊️", title: "노벨평화상", desc: "상금 30만 수령", action: () => { p.money += 300000; this.sound.playMoney(); this.checkPostAction(); } },
-                    { emoji: "💰", title: "복권 당첨", desc: "당첨금 20만 수령", action: () => { p.money += 200000; this.sound.playMoney(); this.checkPostAction(); } },
-                    { emoji: "🏎️", title: "자동차 경주", desc: "우승 상금 10만 수령", action: () => { p.money += 100000; this.sound.playMoney(); this.checkPostAction(); } },
-                    { emoji: "🎓", title: "장학금", desc: "10만 수령", action: () => { p.money += 100000; this.sound.playMoney(); this.checkPostAction(); } },
-                    { emoji: "👴", title: "연금", desc: "5만 수령", action: () => { p.money += 50000; this.sound.playMoney(); this.checkPostAction(); } },
+                    { emoji: "🕊️", title: "노벨평화상", desc: "상금 30만 수령", action: () => { p.money += 300000; this.sound.playMoney(); }, manualTurnEnd: false },
+                    { emoji: "💰", title: "복권 당첨", desc: "당첨금 20만 수령", action: () => { p.money += 200000; this.sound.playMoney(); }, manualTurnEnd: false },
+                    { emoji: "🏎️", title: "자동차 경주", desc: "우승 상금 10만 수령", action: () => { p.money += 100000; this.sound.playMoney(); }, manualTurnEnd: false },
+                    { emoji: "🎓", title: "장학금", desc: "10만 수령", action: () => { p.money += 100000; this.sound.playMoney(); }, manualTurnEnd: false },
+                    { emoji: "👴", title: "연금", desc: "5만 수령", action: () => { p.money += 50000; this.sound.playMoney(); }, manualTurnEnd: false },
                     
                     // 2.8 벌금
-                    { emoji: "✈️", title: "해외 유학", desc: "학비 10만 지불", action: () => { if(this.solveInsolvency(p, 100000)) p.money -= 100000; else this.bankrupt(p); this.checkPostAction(); } },
-                    { emoji: "🏥", title: "병원비", desc: "치료비 5만 지불", action: () => { if(this.solveInsolvency(p, 50000)) p.money -= 50000; else this.bankrupt(p); this.checkPostAction(); } },
-                    { emoji: "🚨", title: "과속 운전", desc: "벌금 5만 지불", action: () => { if(this.solveInsolvency(p, 50000)) p.money -= 50000; else this.bankrupt(p); this.checkPostAction(); } },
+                    { emoji: "✈️", title: "해외 유학", desc: "학비 10만 지불", action: () => { if(this.solveInsolvency(p, 100000)) p.money -= 100000; else this.bankrupt(p); }, manualTurnEnd: false },
+                    { emoji: "🏥", title: "병원비", desc: "치료비 5만 지불", action: () => { if(this.solveInsolvency(p, 50000)) p.money -= 50000; else this.bankrupt(p); }, manualTurnEnd: false },
+                    { emoji: "🚨", title: "과속 운전", desc: "벌금 5만 지불", action: () => { if(this.solveInsolvency(p, 50000)) p.money -= 50000; else this.bankrupt(p); }, manualTurnEnd: false },
                     
                     // 2.12 생일
-                    { emoji: "🎂", title: "생일 축하", desc: "전원에게 1만원씩 받기", action: () => this.handleBirthday() },
+                    { emoji: "🎂", title: "생일 축하", desc: "전원에게 1만원씩 받기", action: () => this.handleBirthday(), manualTurnEnd: true },
 
-                     // 반액 대매출 (기존 반액 대출 대체)
+                     // 반액 대매출
                     {
                         emoji: "📉",
                         title: "반액 대매출",
                         desc: "가장 비싼 땅 반값 처분",
                         action: () => {
-                            // 1. 보유 부동산 목록 및 가치 계산
                             let ownedProps = [];
                             this.properties.forEach((ownerId, idx) => {
                                 if (ownerId === p.id) {
                                     const s = boardData[idx];
                                     let value = s.price;
                                     const level = this.propertyLevels[idx];
-                                    if (level > 1) {
-                                        value += this.getConstructionCost(s.price, level);
-                                    }
+                                    if (level > 1) { value += this.getConstructionCost(s.price, level); }
                                     ownedProps.push({ idx: idx, name: s.name, value: value });
                                 }
                             });
 
-                            // 2. 가장 비싼 땅 찾기
                             if (ownedProps.length > 0) {
-                                // 가치 내림차순 정렬
                                 ownedProps.sort((a, b) => b.value - a.value);
                                 const target = ownedProps[0];
                                 const sellPrice = Math.floor(target.value * 0.5);
-
-                                // 3. 매각 처리
                                 p.money += sellPrice;
                                 this.properties[target.idx] = null;
                                 this.propertyLevels[target.idx] = 0;
                                 this.updateBoardOwnerDisplay(target.idx);
-                                
                                 this.log(`📉 ${target.name} 반값 처분 (+₩${sellPrice.toLocaleString()})`, "text-red-400 font-bold");
                             } else {
                                 this.log(`📉 매각할 부동산이 없습니다.`, "text-slate-400");
                             }
-                            this.checkPostAction();
-                        }
+                        }, manualTurnEnd: false 
                     }
                 ];
 
@@ -1177,6 +1192,10 @@
                 this.showEventOverlay(card.emoji, card.title, card.desc); 
                 card.action();
                 this.log(`🔑 황금열쇠: ${card.title}`, "text-yellow-300");
+                
+                if (!card.manualTurnEnd) {
+                    this.checkPostAction();
+                }
             }
 
             checkPostAction() {
