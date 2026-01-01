@@ -45,35 +45,39 @@
             background-color: white;
             border-radius: 2px;
             display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: space-between;
+            flex-direction: column; /* 세로 배치 */
             font-size: var(--square-font);
             position: relative;
-            padding: 2px 1px;
+            padding: 0; /* 내부 패딩 제거 (Flex 비율 사용 위해) */
             text-align: center;
             word-break: keep-all;
             box-shadow: inset 0 0 2px rgba(0,0,0,0.1);
             min-width: 0; min-height: 0;
             overflow: hidden;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: transform 0.2s, z-index 0.2s;
         }
-        .square:hover { background-color: #f1f5f9; transform: scale(1.02); z-index: 10; }
+        .square:hover { transform: scale(1.05); z-index: 20; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
         .square.can-move-to { border: 2px solid #ef4444 !important; background-color: #fef2f2 !important; animation: pulse 1s infinite; }
+
+        /* 내부 레이아웃 비율 클래스 */
+        .cell-header { flex: 2; width: 100%; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid rgba(0,0,0,0.05); position: relative; font-weight: bold; color: #334155; }
+        .cell-buildings { flex: 1.5; width: 100%; display: flex; align-items: center; justify-content: center; gap: 1px; background-color: rgba(255,255,255,0.5); }
+        .cell-owner { flex: 1.5; width: 100%; display: flex; align-items: center; justify-content: center; z-index: 5; }
+        .cell-users { flex: 6; width: 100%; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: center; padding: 2px; gap: 2px; background-color: rgba(248,250,252,0.3); align-content: flex-end; }
 
         @keyframes pulse {
             0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
             100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
         }
 
-        .square.corner { background-color: #fef3c7; font-weight: bold; }
-        .square.city { border-top: clamp(2px, 0.6vw, 6px) solid #ddd; }
-        .square.special-city { border-top: clamp(2px, 0.6vw, 6px) solid #000; background-color: #f8fafc; }
+        .square.corner { background-color: #fef3c7; }
+        .square.city .cell-header { color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.3); } 
         
-        .flag-img { width: clamp(14px, 3vw, 24px); height: auto; border-radius: 1px; }
-
+        /* 플래그 및 아이콘 스타일 */
+        .flag-img { width: clamp(12px, 2.5vw, 20px); height: auto; border-radius: 1px; margin-right: 2px; display: inline-block; vertical-align: middle; }
+        
         .center-panel {
             grid-area: 2 / 2 / 11 / 11;
             background-color: #f1f5f9;
@@ -87,23 +91,23 @@
             position: relative;
         }
 
+        /* 유저 말 스타일 재정의 (In-Cell) */
         .piece {
-            width: clamp(20px, 4.5vw, 32px);
-            height: clamp(20px, 4.5vw, 32px);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: clamp(1rem, 2.5vw, 1.8rem);
-            position: absolute;
+            font-size: clamp(0.6rem, 1.5vw, 1rem); /* 폰트 사이즈 조정 */
             transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            z-index: 50;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
-            border: 2px solid white;
-            pointer-events: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            border: 1.5px solid white;
+            color: white; /* 이모지 가독성 */
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            aspect-ratio: 1 / 1; /* 항상 정원 유지 */
+            /* position: absolute 제거 -> flex 자식으로 동작 */
         }
-
-        .piece.moving { transform: scale(1.4) translateY(-20%); z-index: 60; }
+        
+        .piece.moving { transform: scale(1.2) translateY(-10%); z-index: 60; }
 
         @keyframes turn-glow {
             0%, 100% { border-color: #6366f1; box-shadow: 0 0 5px rgba(99, 102, 241, 0.5); }
@@ -353,7 +357,10 @@
                 const names = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
                 this.players = Array.from({length: playerCount}, (_, i) => ({
                     id: i + 1, pos: 0, money: 3000000, name: names[i], icon: icons[i],
-                    isBankrupt: false, doubleCount: 0, islandTurns: 0, isIslandIn: false, hasEscapeCard: false,
+                    isBankrupt: false, doubleCount: 0, islandTurns: 0, 
+                    isIslandIn: false, 
+                    hasEscapeCard: false, // 무인도 탈출권
+                    freePassCount: 0,     // 우대권 (통행료 면제)
                     isSpaceTravelReady: false
                 }));
                 this.currentPlayerIndex = 0; this.isRolling = false; this.lastWasDouble = false;
@@ -453,12 +460,15 @@
                             <div class="text-[13px] md:text-[15px] font-black text-slate-800">₩ <span id="money-p${p.id}">${p.money.toLocaleString()}</span></div>
                             <div class="text-[9px] text-slate-400 font-bold">자산: <span id="asset-p${p.id}">0</span></div>
                         </div>
+                        <div class="flex gap-1 mt-1 px-1">
+                           <span id="badge-escape-${p.id}" class="hidden text-[8px] bg-slate-600 text-white px-1 rounded">🔑탈출</span>
+                           <span id="badge-freepass-${p.id}" class="hidden text-[8px] bg-purple-600 text-white px-1 rounded">🎫우대(<span id="count-freepass-${p.id}">0</span>)</span>
+                        </div>
                         <div id="owned-p${p.id}" class="flex flex-wrap gap-0.5 mt-1 px-1 min-h-[12px]"></div>
                     `;
                     pList.appendChild(card);
-                    const piece = document.createElement('div');
-                    piece.id = `p${p.id}`; piece.className = `piece p-bg-${p.id}`; piece.innerText = p.icon;
-                    document.getElementById('game-board').appendChild(piece);
+                    
+                    // Note: Pieces are now created in updatePiecePositions to ensure containers exist.
                 });
                 this.updateStatus();
             }
@@ -474,16 +484,67 @@
                         if (this.players[this.currentPlayerIndex].isSpaceTravelReady) this.chooseSpaceDestination(index);
                         else this.showPropertyCard(index);
                     };
+
                     if (data.type === 'city') {
-                        div.style.borderTopColor = data.color;
-                        let content = `<div class="text-[0.4rem] text-gray-400 font-bold">₩${(data.price/10000)}만</div>`;
-                        if (data.code) content += `<img src="https://flagcdn.com/w40/${data.code}.png" class="flag-img" onerror="this.style.display='none'">`;
-                        else if (data.emoji) content += `<div class="text-xl my-0.5">${data.emoji}</div>`;
-                        content += `<div class="font-bold text-[0.55rem] text-slate-700 leading-none">${data.name}</div><div id="owner-${index}" class="mt-auto min-h-[14px] flex items-center justify-center"></div>`;
-                        div.innerHTML = content;
+                        // Flex Layout Construction: Header(2) -> Buildings(1.5) -> Owner(1.5) -> Users(6)
+                        
+                        // 1. Header (City Name + Color)
+                        const header = document.createElement('div');
+                        header.className = 'cell-header';
+                        header.style.backgroundColor = data.color;
+                        if(data.color === '#ec4899') header.style.color = 'white'; // Special Color adjust
+                        
+                        let nameHtml = `<span>${data.name}</span>`;
+                        if (data.code) nameHtml = `<img src="https://flagcdn.com/w40/${data.code}.png" class="flag-img" onerror="this.style.display='none'"> ` + nameHtml;
+                        else if (data.emoji) nameHtml = `<span style="margin-right:2px">${data.emoji}</span> ` + nameHtml;
+                        
+                        // Price tag inside header (small)
+                        nameHtml += `<div class="absolute top-[1px] right-[1px] text-[0.35rem] opacity-70">₩${data.price/10000}만</div>`;
+                        
+                        header.innerHTML = nameHtml;
+
+                        // 2. Buildings (below name)
+                        const buildings = document.createElement('div');
+                        buildings.id = `build-${index}`;
+                        buildings.className = 'cell-buildings';
+
+                        // 3. Owner (between buildings and users) - BIGGER
+                        const owner = document.createElement('div');
+                        owner.id = `owner-${index}`;
+                        owner.className = 'cell-owner';
+
+                        // 4. Users (Bottom area) - Dynamic Ratio 6
+                        const users = document.createElement('div');
+                        users.id = `users-${index}`;
+                        users.className = 'cell-users';
+
+                        div.appendChild(header);
+                        div.appendChild(buildings);
+                        div.appendChild(owner);
+                        div.appendChild(users);
+
                     } else {
+                        // Non-city cells (Start, Chance, etc.) - Simplified Flex Layout
                         div.style.backgroundColor = data.color;
-                        div.innerHTML = `<div class="text-2xl mb-1">${data.emoji || ''}</div><div class="font-bold text-[0.65rem] text-slate-800">${data.name}</div>`;
+                        div.style.justifyContent = 'space-between'; // override for non-city
+
+                        // Header-like area
+                        const topContent = document.createElement('div');
+                        topContent.style.flex = '4';
+                        topContent.style.display = 'flex';
+                        topContent.style.flexDirection = 'column';
+                        topContent.style.alignItems = 'center';
+                        topContent.style.justifyContent = 'center';
+                        topContent.innerHTML = `<div class="text-2xl mb-1">${data.emoji || ''}</div><div class="font-bold text-[0.65rem] text-slate-800">${data.name}</div>`;
+                        
+                        // User area
+                        const users = document.createElement('div');
+                        users.id = `users-${index}`;
+                        users.className = 'cell-users';
+                        users.style.background = 'none'; // clean look for non-city
+
+                        div.appendChild(topContent);
+                        div.appendChild(users);
                     }
                     board.appendChild(div);
                 });
@@ -533,17 +594,44 @@
             getPlayerColor(id) { return ['#ff0000', '#0066ff', '#00cc44', '#ffcc00', '#aa00ff', '#ff0099'][id - 1]; }
 
             updatePiecePositions(isSpecial = false) {
-                const groups = {}; this.players.forEach(p => { if(!groups[p.pos]) groups[p.pos] = []; groups[p.pos].push(p); });
-                Object.keys(groups).forEach(pos => {
-                    const players = groups[pos]; const square = document.getElementById(`square-${pos}`); if(!square) return;
-                    players.forEach((p, i) => {
-                        const piece = document.getElementById(`p${p.id}`); if (p.isBankrupt) { piece.style.display = 'none'; return; }
-                        const offsetMap = [[0, 0], [10, 10], [-10, -10], [10, -10], [-10, 10], [0, -15]];
-                        const offset = offsetMap[i] || [0, 0];
-                        piece.style.transition = isSpecial ? "all 0.6s ease-in-out" : "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
-                        piece.style.top = `${square.offsetTop + square.offsetHeight/2 - piece.offsetHeight/2 + offset[1]}px`;
-                        piece.style.left = `${square.offsetLeft + square.offsetWidth/2 - piece.offsetWidth/2 + offset[0]}px`;
-                    });
+                // Clear previous positions is not needed as we move DOM elements
+                // Group players by position
+                const groups = {}; 
+                this.players.forEach(p => { 
+                    if(!groups[p.pos]) groups[p.pos] = []; 
+                    groups[p.pos].push(p); 
+                });
+
+                // Iterate and Append
+                this.players.forEach(p => {
+                    let piece = document.getElementById(`p${p.id}`);
+                    
+                    // Create if not exists (Fix for missing pieces)
+                    if (!piece) {
+                        piece = document.createElement('div');
+                        piece.id = `p${p.id}`; 
+                        piece.className = `piece p-bg-${p.id}`; 
+                        piece.innerText = p.icon;
+                    }
+
+                    if (p.isBankrupt) { 
+                        if(piece) piece.style.display = 'none'; 
+                        return; 
+                    }
+                    
+                    const userContainer = document.getElementById(`users-${p.pos}`);
+                    if (userContainer) {
+                        // Append to the specific cell container
+                        userContainer.appendChild(piece);
+                        
+                        // Dynamic Sizing Logic based on count in this container
+                        const count = userContainer.childElementCount;
+                        Array.from(userContainer.children).forEach(child => {
+                            child.style.width = count > 4 ? '30%' : (count > 1 ? '45%' : '80%');
+                            // Height will be handled by aspect-ratio: 1/1 in CSS
+                            child.style.fontSize = count > 4 ? '0.5rem' : (count > 1 ? '0.8rem' : '1.2rem');
+                        });
+                    }
                 });
             }
 
@@ -556,6 +644,20 @@
                     const mEl = document.getElementById(`money-p${p.id}`); if(mEl) mEl.innerText = p.money.toLocaleString();
                     const aEl = document.getElementById(`asset-p${p.id}`); if(aEl) aEl.innerText = this.calculateTotalAssets(p).toLocaleString();
                     const card = document.getElementById(`card-p${p.id}`); if (!card) return;
+
+                    // 우대권 & 탈출권 배지
+                    const escapeBadge = document.getElementById(`badge-escape-${p.id}`);
+                    if(escapeBadge) p.hasEscapeCard ? escapeBadge.classList.remove('hidden') : escapeBadge.classList.add('hidden');
+                    const freeBadge = document.getElementById(`badge-freepass-${p.id}`);
+                    const freeCount = document.getElementById(`count-freepass-${p.id}`);
+                    if(freeBadge && freeCount) {
+                        if(p.freePassCount > 0) {
+                            freeBadge.classList.remove('hidden');
+                            freeCount.innerText = p.freePassCount;
+                        } else {
+                            freeBadge.classList.add('hidden');
+                        }
+                    }
 
                     if (this.currentPlayerIndex === p.id - 1) {
                         card.classList.add('turn-anim'); 
@@ -614,14 +716,21 @@
                     d1El.innerText = d1; d2El.innerText = d2;
                     setTimeout(async () => {
                         overlay.style.display = 'none'; this.log(`🎲 결과: <b>${d1} + ${d2} = ${total}</b>`, "text-white");
+                        
                         if (player.isIslandIn) {
-                            if (isDouble) { this.log(`✨ 더블로 무인도 탈출!`, "text-green-400 font-bold"); player.isIslandIn = false; player.islandTurns = 0; }
+                            if (player.hasEscapeCard) {
+                                this.log(`🎫 무인도 탈출권 사용!`, "text-green-400 font-bold");
+                                player.hasEscapeCard = false;
+                                player.isIslandIn = false; player.islandTurns = 0;
+                            }
+                            else if (isDouble) { this.log(`✨ 더블로 무인도 탈출!`, "text-green-400 font-bold"); player.isIslandIn = false; player.islandTurns = 0; }
                             else {
                                 player.islandTurns++;
                                 if (player.islandTurns >= 3) { this.log(`⌛ 3턴 경과 석방`, "text-indigo-300"); player.isIslandIn = false; player.islandTurns = 0; }
                                 else { this.log(`🔒 무인도 대기 (${player.islandTurns}/3)`, "text-orange-400"); this.endTurn(); return; }
                             }
                         }
+
                         if (isDouble && !player.isIslandIn) {
                             player.doubleCount++;
                             if (player.doubleCount === 3) { this.log(`⚠️ 3연속 더블! 무인도 압송`, "text-red-500 font-bold"); this.handleIslandArrive(); return; }
@@ -646,11 +755,16 @@
             }
 
             async movePlayer(steps) {
-                const p = this.players[this.currentPlayerIndex]; const piece = document.getElementById(`p${p.id}`);
+                const p = this.players[this.currentPlayerIndex]; 
+                const piece = document.getElementById(`p${p.id}`);
                 for(let i = 0; i < steps; i++) {
-                    p.pos = (p.pos + 1) % boardData.length; this.sound.playMove(); piece.classList.add('moving');
-                    this.updatePiecePositions(); if (p.pos === 0) { p.money += 200000; this.sound.playMoney(); this.log(`💰 월급 수령`, "text-yellow-400 font-bold"); }
-                    await new Promise(r => setTimeout(r, 250)); piece.classList.remove('moving');
+                    p.pos = (p.pos + 1) % boardData.length; 
+                    this.sound.playMove(); 
+                    if(piece) piece.classList.add('moving');
+                    this.updatePiecePositions(); 
+                    if (p.pos === 0) { p.money += 200000; this.sound.playMoney(); this.log(`💰 월급 수령`, "text-yellow-400 font-bold"); }
+                    await new Promise(r => setTimeout(r, 250)); 
+                    if(piece) piece.classList.remove('moving');
                 }
                 this.handleSquare(p.pos);
             }
@@ -677,7 +791,7 @@
                 else if (s.name === "무인도") { this.handleIslandArrive(); return; }
                 else if (s.name === "우주여행") { 
                     this.sound.playSpecial(); 
-                    const colOwner = this.properties[35];
+                    const colOwner = this.properties[35]; // 컬럼비아호 주인
                     if (colOwner && colOwner !== p.id) {
                          if(this.solveInsolvency(p, 200000)) {
                             p.money -= 200000; this.players[colOwner-1].money += 200000; 
@@ -701,19 +815,170 @@
                 this.checkPostAction();
             }
 
+            // 건물별 세금 부과 헬퍼 함수
+            applyBuildingFee(name, costVilla, costBuild, costHotel) {
+                const p = this.players[this.currentPlayerIndex];
+                let totalFee = 0;
+                let details = [];
+
+                this.properties.forEach((ownerId, idx) => {
+                    if(ownerId === p.id) {
+                        const lvl = this.propertyLevels[idx];
+                        if(lvl === 2) { totalFee += costVilla; details.push("별장"); }
+                        else if(lvl === 3) { totalFee += costBuild; details.push("빌딩"); }
+                        else if(lvl === 4) { totalFee += costHotel; details.push("호텔"); }
+                    }
+                });
+
+                if(totalFee > 0) {
+                    if(this.solveInsolvency(p, totalFee)) {
+                        p.money -= totalFee;
+                        this.log(`💸 ${name}: ₩${totalFee.toLocaleString()} 납부`, "text-red-400");
+                    } else { this.bankrupt(p); }
+                } else {
+                    this.log(`💸 ${name}: 납부할 건물이 없습니다.`, "text-slate-400");
+                }
+            }
+
+            // 생일: 모든 유저에게 받기
+            handleBirthday() {
+                const p = this.players[this.currentPlayerIndex];
+                let totalGift = 0;
+                this.players.forEach(target => {
+                    if(target.id !== p.id && !target.isBankrupt) {
+                        if(this.solveInsolvency(target, 10000)) {
+                            target.money -= 10000;
+                            totalGift += 10000;
+                        } else { this.bankrupt(target); }
+                    }
+                });
+                p.money += totalGift;
+                this.log(`🎂 생일 축하! 총 ₩${totalGift.toLocaleString()} 수령`, "text-green-400 font-bold");
+            }
+
             handleGoldenKey() {
                 const p = this.players[this.currentPlayerIndex]; 
+                
                 const cards = [
-                    { emoji: "🎫", title: "무인도 탈출권", desc: "나중에 무인도에서 사용", action: () => p.hasEscapeCard = true },
-                    { emoji: "💎", title: "복권 당첨", desc: "은행에서 ₩20만 받기", action: () => p.money += 200000 },
-                    { emoji: "🚑", title: "병원비 지출", desc: "치료비 ₩5만 지불", action: () => { if(this.solveInsolvency(p, 50000)) p.money -= 50000; else this.bankrupt(p); } },
-                    { emoji: "🔙", title: "뒤로 3칸", desc: "이동 후 칸 효과 적용", action: async () => { p.pos = (p.pos - 3 + 40) % 40; this.updatePiecePositions(); this.handleSquare(p.pos); } },
-                    { emoji: "🚀", title: "우주여행권", desc: "즉시 우주여행 칸으로", action: () => { p.pos = 30; this.updatePiecePositions(); this.handleSquare(30); } },
-                    { emoji: "💸", title: "반액 대출", desc: "자금의 50% 은행 반납", action: () => p.money = Math.floor(p.money * 0.5) }
+                    // 2.2.1 정기종합소득세 (15만/10만/3만)
+                    { emoji: "🧾", title: "종합소득세", desc: "건물별 세금 납부", action: () => this.applyBuildingFee("종합소득세", 30000, 100000, 150000) },
+                    // 2.2.2 건물수리비 (10만/6만/3만)
+                    { emoji: "🛠️", title: "건물수리비", desc: "건물별 수리비 납부", action: () => this.applyBuildingFee("건물수리비", 30000, 60000, 100000) },
+                    // 2.2.3 방범비 (5만/3만/1만)
+                    { emoji: "👮", title: "방범비", desc: "건물별 방범비 납부", action: () => this.applyBuildingFee("방범비", 10000, 30000, 50000) },
+                    
+                    // 2.3 무인도 탈출권
+                    { emoji: "📻", title: "무인도 탈출권", desc: "무인도 탈출용 (보관)", action: () => { p.hasEscapeCard = true; this.log("📻 무인도 탈출권 획득!", "text-green-400"); } },
+                    
+                    // 2.4 우대권 (통행료 1회 면제)
+                    { emoji: "🎫", title: "우대권", desc: "통행료 1회 면제 (보관)", action: () => { p.freePassCount++; this.log("🎫 우대권 획득! 통행료 1회 면제", "text-green-400"); } },
+                    
+                    // 2.5 뒤로 이동
+                    { emoji: "🔙", title: "뒤로 2칸", desc: "뒤로 2칸 이동", action: async () => { p.pos = (p.pos - 2 + 40) % 40; this.updatePiecePositions(); this.handleSquare(p.pos); } },
+                    { emoji: "🔙", title: "뒤로 3칸", desc: "뒤로 3칸 이동", action: async () => { p.pos = (p.pos - 3 + 40) % 40; this.updatePiecePositions(); this.handleSquare(p.pos); } },
+                    
+                    // 2.6.1 관광여행 (제주, 부산, 서울)
+                    { emoji: "✈️", title: "제주도 여행", desc: "제주도로 이동", action: () => { p.pos = 5; this.updatePiecePositions(); this.handleSquare(5); } },
+                    { emoji: "🚆", title: "부산 여행", desc: "부산으로 이동", action: () => { p.pos = 25; this.updatePiecePositions(); this.handleSquare(25); } },
+                    { emoji: "🚌", title: "서울 여행", desc: "서울로 이동", action: () => { p.pos = 39; this.updatePiecePositions(); this.handleSquare(39); } },
+                    
+                    // 2.6.2 무인도
+                    { emoji: "🌴", title: "폭풍우", desc: "무인도로 조난", action: () => { this.handleIslandArrive(); } },
+                    
+                    // 2.6.3 사회복지기금 배당
+                    { emoji: "🏦", title: "사회복지기금", desc: "접수처로 이동", action: () => { p.pos = 20; this.updatePiecePositions(); this.handleSquare(20); } },
+                    
+                    // 2.6.4 세계일주 초대권 (출발지로 이동)
+                    { emoji: "🌏", title: "세계일주", desc: "출발지로 이동 (월급 수령)", action: () => { p.pos = 0; p.money += 200000; if(this.socialFund>0){ p.money+=this.socialFund; this.socialFund=0; } this.updatePiecePositions(); this.sound.playMoney(); } },
+                    
+                    // 2.6.5 우주여행 초대권 (우주여행 칸으로, 요금 면제)
+                    { emoji: "🚀", title: "우주여행 초대", desc: "우주여행 칸으로 이동", action: () => { p.pos = 30; this.updatePiecePositions(); p.isSpaceTravelReady = true; this.showEventOverlay("🚀", "우주여행", "다음 턴 무료 이동!"); } },
+                    
+                    // 2.6.6 유람선 여행 (베이징) - 퀸즈호 소유자에게 요금 지불 로직 필요
+                    { emoji: "🚢", title: "유람선 여행", desc: "퀸즈호 타고 베이징으로", action: () => { 
+                        // 퀸즈호(28) 이용료 체크
+                        const qOwner = this.properties[28];
+                        if(qOwner && qOwner !== p.id) {
+                            // 단순화: 20만원 이용료 가정
+                            if(this.solveInsolvency(p, 200000)) { p.money -= 200000; this.players[qOwner-1].money += 200000; this.log("🚢 퀸즈호 이용료 20만 지불", "text-orange-300"); }
+                            else { this.bankrupt(p); return; }
+                        }
+                        p.pos = 3; this.updatePiecePositions(); this.handleSquare(3); 
+                    }},
+                    
+                    // 2.6.7 항공 여행 (타이베이) - 콩코드 소유자에게 요금 지불
+                    { emoji: "🛫", title: "항공 여행", desc: "콩코드 타고 타이베이로", action: () => { 
+                        const cOwner = this.properties[15];
+                        if(cOwner && cOwner !== p.id) {
+                             if(this.solveInsolvency(p, 200000)) { p.money -= 200000; this.players[cOwner-1].money += 200000; this.log("🛫 콩코드 이용료 20만 지불", "text-orange-300"); }
+                             else { this.bankrupt(p); return; }
+                        }
+                        p.pos = 1; this.updatePiecePositions(); this.handleSquare(1); 
+                    }},
+                    
+                    // 2.6.8 고속도로 (출발지)
+                    { emoji: "🛣️", title: "고속도로", desc: "출발지로 이동", action: () => { p.pos = 0; p.money += 200000; this.updatePiecePositions(); this.sound.playMoney(); } },
+                    
+                    // 2.7 상금
+                    { emoji: "🕊️", title: "노벨평화상", desc: "상금 30만 수령", action: () => { p.money += 300000; this.sound.playMoney(); } },
+                    { emoji: "💰", title: "복권 당첨", desc: "당첨금 20만 수령", action: () => { p.money += 200000; this.sound.playMoney(); } },
+                    { emoji: "🏎️", title: "자동차 경주", desc: "우승 상금 10만 수령", action: () => { p.money += 100000; this.sound.playMoney(); } },
+                    { emoji: "🎓", title: "장학금", desc: "10만 수령", action: () => { p.money += 100000; this.sound.playMoney(); } },
+                    { emoji: "👴", title: "연금", desc: "5만 수령", action: () => { p.money += 50000; this.sound.playMoney(); } },
+                    
+                    // 2.8 벌금
+                    { emoji: "✈️", title: "해외 유학", desc: "학비 10만 지불", action: () => { if(this.solveInsolvency(p, 100000)) p.money -= 100000; else this.bankrupt(p); } },
+                    { emoji: "🏥", title: "병원비", desc: "치료비 5만 지불", action: () => { if(this.solveInsolvency(p, 50000)) p.money -= 50000; else this.bankrupt(p); } },
+                    { emoji: "🚨", title: "과속 운전", desc: "벌금 5만 지불", action: () => { if(this.solveInsolvency(p, 50000)) p.money -= 50000; else this.bankrupt(p); } },
+                    
+                    // 2.12 생일
+                    { emoji: "🎂", title: "생일 축하", desc: "전원에게 1만원씩 받기", action: () => this.handleBirthday() },
+
+                     // 반액 대매출 (기존 반액 대출 대체)
+                    {
+                        emoji: "📉",
+                        title: "반액 대매출",
+                        desc: "가장 비싼 땅 반값 처분",
+                        action: () => {
+                            // 1. 보유 부동산 목록 및 가치 계산
+                            let ownedProps = [];
+                            this.properties.forEach((ownerId, idx) => {
+                                if (ownerId === p.id) {
+                                    const s = boardData[idx];
+                                    let value = s.price;
+                                    const level = this.propertyLevels[idx];
+                                    if (level > 1) {
+                                        value += this.getConstructionCost(s.price, level);
+                                    }
+                                    ownedProps.push({ idx: idx, name: s.name, value: value });
+                                }
+                            });
+
+                            // 2. 가장 비싼 땅 찾기
+                            if (ownedProps.length > 0) {
+                                // 가치 내림차순 정렬
+                                ownedProps.sort((a, b) => b.value - a.value);
+                                const target = ownedProps[0];
+                                const sellPrice = Math.floor(target.value * 0.5);
+
+                                // 3. 매각 처리
+                                p.money += sellPrice;
+                                this.properties[target.idx] = null;
+                                this.propertyLevels[target.idx] = 0;
+                                this.updateBoardOwnerDisplay(target.idx);
+                                
+                                this.log(`📉 ${target.name} 반값 처분 (+₩${sellPrice.toLocaleString()})`, "text-red-400 font-bold");
+                            } else {
+                                this.log(`📉 매각할 부동산이 없습니다.`, "text-slate-400");
+                            }
+                        }
+                    }
                 ];
+
                 const card = cards[Math.floor(Math.random() * cards.length)];
-                this.showEventOverlay(card.emoji, card.title, card.desc); card.action();
-                this.log(`🔑 황금열쇠: ${card.title}`, "text-green-300");
+                this.showEventOverlay(card.emoji, card.title, card.desc); 
+                card.action();
+                this.log(`🔑 황금열쇠: ${card.title}`, "text-yellow-300");
             }
 
             checkPostAction() {
@@ -807,8 +1072,27 @@
             }
 
             updateBoardOwnerDisplay(pos) {
-                const p = this.players[this.properties[pos] - 1]; const level = this.propertyLevels[pos]; const emojis = ["", "", "🏡", "🏢", "🏨"];
-                document.getElementById(`owner-${pos}`).innerHTML = `<span class="text-[0.45rem] md:text-[0.52rem] font-black whitespace-nowrap" style="color:${this.getPlayerColor(p.id)}">${p.name} ${p.icon} ${emojis[level]}</span>`;
+                const p = this.players[this.properties[pos] - 1]; 
+                const level = this.propertyLevels[pos]; 
+                const buildingContainer = document.getElementById(`build-${pos}`);
+                const ownerContainer = document.getElementById(`owner-${pos}`);
+                
+                if (buildingContainer && level > 1) {
+                    // level: 2(별장), 3(빌딩), 4(호텔)
+                    let icon = level === 2 ? '🏡' : (level === 3 ? '🏢' : '🏨');
+                    let html = '';
+                    // 반복해서 보여줄지, 하나만 보여줄지 결정. 요청사항 "건물"이므로 하나로 충분하거나 레벨만큼 표시.
+                    // 공간이 좁으므로 레벨에 해당하는 아이콘 1~2개 표시
+                    html = `<span class="text-xs">${icon}</span>`;
+                    buildingContainer.innerHTML = html;
+                } else if (buildingContainer) {
+                    buildingContainer.innerHTML = '';
+                }
+
+                if (ownerContainer) {
+                     // 소유자 표식 크게 (요청사항)
+                    ownerContainer.innerHTML = `<span class="text-[0.6rem] font-black transform scale-125 drop-shadow-md" style="color:${this.getPlayerColor(p.id)}">♛ ${p.name.slice(-1)}</span>`;
+                }
             }
 
             cancelAction() { this.closeModal(); this.checkPostAction(); }
@@ -816,7 +1100,15 @@
 
             payRent(p, owner, pos) {
                 if (owner.isBankrupt) return;
-                const s = boardData[pos]; const finalRent = this.getRentPrice(s.price, s.rent, this.propertyLevels[pos], s.isSpecial);
+                const s = boardData[pos]; 
+                const finalRent = this.getRentPrice(s.price, s.rent, this.propertyLevels[pos], s.isSpecial);
+                
+                // 우대권 사용 로직
+                if(p.freePassCount > 0) {
+                    p.freePassCount--;
+                    this.log(`🎫 우대권 사용! 통행료 면제`, "text-green-400 font-bold");
+                    return;
+                }
                 
                 if (this.solveInsolvency(p, finalRent)) {
                     p.money -= finalRent; owner.money += finalRent;
@@ -831,7 +1123,7 @@
             bankrupt(p) {
                 p.isBankrupt = true; this.sound.playAlert();
                 this.log(`🚫 <b>${p.name}</b> 파산!`, "text-red-500 font-black");
-                this.properties.forEach((id, idx) => { if (id === p.id) { this.properties[idx] = null; this.propertyLevels[idx] = 0; document.getElementById(`owner-${idx}`).innerText = ''; } });
+                this.properties.forEach((id, idx) => { if (id === p.id) { this.properties[idx] = null; this.propertyLevels[idx] = 0; this.updateBoardOwnerDisplay(idx); } });
                 this.updatePiecePositions();
             }
 
