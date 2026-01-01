@@ -158,6 +158,9 @@
         .top-controls {
             position: absolute; top: 10px; right: 10px; display: flex; gap: 8px; z-index: 200;
         }
+        .top-controls-left {
+            position: absolute; top: 10px; left: 10px; display: flex; gap: 8px; z-index: 200;
+        }
         .control-btn {
             background: rgba(255, 255, 255, 0.9); border: 1px solid #cbd5e1; padding: 6px 10px;
             border-radius: 8px; font-size: 0.8rem; font-weight: bold; cursor: pointer;
@@ -167,6 +170,11 @@
     </style>
 </head>
 <body>
+
+    <!-- 좌측 상단 컨트롤 (새 게임) -->
+    <div class="top-controls-left">
+        <button id="quit-btn" class="control-btn bg-red-50 text-red-600 border-red-200" onclick="game.quitGame()">🏠 로비로</button>
+    </div>
 
     <!-- 우측 상단 컨트롤 -->
     <div class="top-controls">
@@ -180,6 +188,10 @@
             <h1 class="text-4xl md:text-5xl game-font text-indigo-600 mb-4 tracking-tighter text-nowrap uppercase">Blue Marble</h1>
             <p class="text-slate-400 mb-8 font-medium tracking-widest uppercase text-xs">CPU Battle Edition</p>
             
+            <button id="resume-btn" onclick="resumeGame()" class="hidden w-full py-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-2xl text-xl shadow-xl transition transform active:scale-95 mb-4 flex items-center justify-center gap-2">
+                <span>💾</span> 이어하기
+            </button>
+
             <div class="flex flex-col gap-6 mb-8 w-full max-w-xs mx-auto">
                 <div class="space-y-2 text-left">
                     <label class="text-sm font-bold text-slate-600">🙋‍♂️ 사람 플레이어</label>
@@ -203,7 +215,7 @@
                 </div>
             </div>
 
-            <button onclick="checkAndStart()" class="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-xl shadow-xl transition transform active:scale-95">게임 시작</button>
+            <button onclick="checkAndStart()" class="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-xl shadow-xl transition transform active:scale-95">새 게임 시작</button>
             <p id="lobby-msg" class="text-red-500 text-sm mt-4 min-h-[20px]"></p>
         </div>
     </div>
@@ -281,7 +293,7 @@
             <h2 class="text-3xl font-black text-slate-800 mb-2">GAME OVER</h2>
             <p id="winner-name" class="text-xl font-bold text-indigo-600 mb-6"></p>
             <div id="ranking-list" class="text-left space-y-2 mb-8 bg-slate-50 p-4 rounded-xl text-sm"></div>
-            <button onclick="location.reload()" class="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl hover:bg-indigo-700">로비로 이동</button>
+            <button onclick="game.quitGame()" class="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl hover:bg-indigo-700">로비로 이동</button>
         </div>
     </div>
 
@@ -394,54 +406,98 @@
         const gridPositions = generateGridPositions();
 
         class GrandBlueMarble {
-            constructor(humanCount, cpuCount) {
+            constructor(humanCount, cpuCount, savedData = null) {
                 this.sound = new SoundManager();
                 const icons = ['🚗', '✈️', '🚢', '🚁', '🚲', '🚀'];
                 const names = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
                 
-                this.players = [];
-                let pId = 1;
+                if (savedData) {
+                    // Load Saved Game
+                    this.players = savedData.players;
+                    this.currentPlayerIndex = savedData.currentPlayerIndex;
+                    this.socialFund = savedData.socialFund;
+                    this.properties = savedData.properties;
+                    this.buildings = savedData.buildings;
+                    this.round = savedData.round;
+                    this.gameSpeed = savedData.gameSpeed || 1;
+                } else {
+                    // New Game
+                    this.players = [];
+                    let pId = 1;
+                    
+                    for(let i=0; i<humanCount; i++) {
+                        this.players.push({
+                            id: pId, isCpu: false, pos: 0, money: 3000000, name: names[i], icon: icons[i],
+                            isBankrupt: false, doubleCount: 0, islandTurns: 0, isIslandIn: false, 
+                            hasEscapeCard: false, freePassCount: 0, isSpaceTravelReady: false
+                        });
+                        pId++;
+                    }
+
+                    for(let i=0; i<cpuCount; i++) {
+                        let iconIdx = (humanCount + i) % icons.length;
+                        this.players.push({
+                            id: pId, isCpu: true, pos: 0, money: 3000000, name: `CPU${i+1}`, icon: icons[iconIdx],
+                            isBankrupt: false, doubleCount: 0, islandTurns: 0, isIslandIn: false, 
+                            hasEscapeCard: false, freePassCount: 0, isSpaceTravelReady: false
+                        });
+                        pId++;
+                    }
+
+                    this.currentPlayerIndex = 0;
+                    this.socialFund = 0; 
+                    this.properties = Array(boardData.length).fill(null);
+                    this.buildings = Array(boardData.length).fill(null).map(() => ({ villa: false, building: false, hotel: false }));
+                    this.gameSpeed = 1; 
+                    this.round = 1; 
+                }
                 
-                for(let i=0; i<humanCount; i++) {
-                    this.players.push({
-                        id: pId, isCpu: false, pos: 0, money: 3000000, name: names[i], icon: icons[i],
-                        isBankrupt: false, doubleCount: 0, islandTurns: 0, isIslandIn: false, 
-                        hasEscapeCard: false, freePassCount: 0, isSpaceTravelReady: false
-                    });
-                    pId++;
-                }
-
-                for(let i=0; i<cpuCount; i++) {
-                    let iconIdx = (humanCount + i) % icons.length;
-                    this.players.push({
-                        id: pId, isCpu: true, pos: 0, money: 3000000, name: `CPU${i+1}`, icon: icons[iconIdx],
-                        isBankrupt: false, doubleCount: 0, islandTurns: 0, isIslandIn: false, 
-                        hasEscapeCard: false, freePassCount: 0, isSpaceTravelReady: false
-                    });
-                    pId++;
-                }
-
-                this.currentPlayerIndex = 0; this.isRolling = false; this.lastWasDouble = false;
-                this.socialFund = 0; 
-                this.properties = Array(boardData.length).fill(null);
-                this.buildings = Array(boardData.length).fill(null).map(() => ({ villa: false, building: false, hotel: false }));
-                this.gameSpeed = 1; 
-                this.round = 1; // Round 기능 추가
-                this.maxRounds = 30; // 30라운드 제한
+                this.maxRounds = 30;
+                this.isRolling = false; 
+                this.lastWasDouble = false;
 
                 this.initUI();
                 this.initBoard();
                 window.addEventListener('resize', () => this.updatePiecePositions());
                 
+                // 복원된 소유지 UI 갱신
+                if (savedData) {
+                    this.properties.forEach((ownerId, idx) => {
+                        if (ownerId !== null) this.updateBoardOwnerDisplay(idx);
+                    });
+                }
+
                 setTimeout(() => {
                     this.updateStatus();
                     this.startTurn();
                 }, 200);
             }
 
+            save() {
+                const data = {
+                    players: this.players,
+                    currentPlayerIndex: this.currentPlayerIndex,
+                    socialFund: this.socialFund,
+                    properties: this.properties,
+                    buildings: this.buildings,
+                    round: this.round,
+                    gameSpeed: this.gameSpeed
+                };
+                localStorage.setItem('gbm_save', JSON.stringify(data));
+                console.log("Game Saved");
+            }
+
+            quitGame() {
+                if(confirm("정말 종료하시겠습니까? 저장된 게임이 삭제됩니다.")) {
+                    localStorage.removeItem('gbm_save');
+                    location.reload();
+                }
+            }
+
             toggleSpeed() {
                 this.gameSpeed = this.gameSpeed >= 3 ? 1 : this.gameSpeed + 1;
                 document.getElementById('speed-btn').innerText = `⏩ x${this.gameSpeed}`;
+                this.save();
             }
 
             getConstructionCost(landPrice, type) {
@@ -499,6 +555,7 @@
                     this.updateBoardOwnerDisplay(prop.idx); 
                     this.log(`💸 자금 부족! <b>${prop.name}</b> 처분 (+₩${prop.value.toLocaleString()})`, "text-red-400 font-bold");
                 }
+                this.save();
                 return player.money >= amount;
             }
 
@@ -1297,6 +1354,8 @@
                         <span>₩${this.calculateTotalAssets(p).toLocaleString()}</span>
                     </div>
                 `).join('');
+                
+                localStorage.removeItem('gbm_save');
             }
         }
 
@@ -1314,6 +1373,23 @@
             document.getElementById('game-board').classList.remove('opacity-0');
             window.game = new GrandBlueMarble(human, cpu);
         }
+
+        function resumeGame() {
+            const savedData = JSON.parse(localStorage.getItem('gbm_save'));
+            if(savedData) {
+                document.getElementById('lobby').classList.add('hidden'); 
+                document.getElementById('game-board').classList.remove('opacity-0');
+                window.game = new GrandBlueMarble(0, 0, savedData);
+            }
+        }
+
+        // Check for save on load
+        window.onload = function() {
+            if(localStorage.getItem('gbm_save')) {
+                document.getElementById('resume-btn').classList.remove('hidden');
+                document.getElementById('resume-btn').classList.add('flex');
+            }
+        };
 
         function toggleFullScreen() {
             try {
