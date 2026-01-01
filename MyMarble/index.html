@@ -9,7 +9,8 @@
         @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;700&display=swap');
 
         :root {
-            --board-size: min(96vw, 92vh);
+            /* 배경 크기 약간 축소 요청 반영 */
+            --board-size: min(90vw, 85vh);
             --square-font: clamp(0.38rem, 1vw, 0.6rem);
         }
 
@@ -64,7 +65,24 @@
         .cell-header { flex: 2; width: 100%; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid rgba(0,0,0,0.05); position: relative; font-weight: bold; color: #334155; }
         .cell-buildings { flex: 1.5; width: 100%; display: flex; align-items: center; justify-content: center; gap: 1px; background-color: rgba(255,255,255,0.5); }
         .cell-owner { flex: 1.5; width: 100%; display: flex; align-items: center; justify-content: center; z-index: 5; }
-        .cell-users { flex: 6; width: 100%; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: center; padding: 2px; gap: 2px; background-color: rgba(248,250,252,0.3); align-content: flex-end; }
+        .cell-spacer { flex: 6; width: 100%; } /* 유저 공간 확보용 빈 공간 */
+        
+        /* 유저 컨테이너: 전체 칸 오버레이 & 중앙 정렬 */
+        .cell-users { 
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            padding: 4px;
+            gap: 2px;
+            z-index: 10;
+            pointer-events: none; /* 클릭 통과 */
+        }
 
         @keyframes pulse {
             0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
@@ -486,7 +504,7 @@
                     };
 
                     if (data.type === 'city') {
-                        // Flex Layout Construction: Header(2) -> Buildings(1.5) -> Owner(1.5) -> Users(6)
+                        // Flex Layout Construction: Header(2) -> Buildings(1.5) -> Owner(1.5) -> Spacer(6) + Overlay Users
                         
                         // 1. Header (City Name + Color)
                         const header = document.createElement('div');
@@ -508,12 +526,16 @@
                         buildings.id = `build-${index}`;
                         buildings.className = 'cell-buildings';
 
-                        // 3. Owner (between buildings and users) - BIGGER
+                        // 3. Owner (between buildings and spacer)
                         const owner = document.createElement('div');
                         owner.id = `owner-${index}`;
                         owner.className = 'cell-owner';
 
-                        // 4. Users (Bottom area) - Dynamic Ratio 6
+                        // 4. Spacer (Bottom area to ensure layout height)
+                        const spacer = document.createElement('div');
+                        spacer.className = 'cell-spacer';
+
+                        // 5. Users Overlay (Absolute over entire cell)
                         const users = document.createElement('div');
                         users.id = `users-${index}`;
                         users.className = 'cell-users';
@@ -521,10 +543,11 @@
                         div.appendChild(header);
                         div.appendChild(buildings);
                         div.appendChild(owner);
+                        div.appendChild(spacer);
                         div.appendChild(users);
 
                     } else {
-                        // Non-city cells (Start, Chance, etc.) - Simplified Flex Layout
+                        // Non-city cells (Start, Chance, etc.)
                         div.style.backgroundColor = data.color;
                         div.style.justifyContent = 'space-between'; // override for non-city
 
@@ -537,11 +560,11 @@
                         topContent.style.justifyContent = 'center';
                         topContent.innerHTML = `<div class="text-2xl mb-1">${data.emoji || ''}</div><div class="font-bold text-[0.65rem] text-slate-800">${data.name}</div>`;
                         
-                        // User area
+                        // User Overlay
                         const users = document.createElement('div');
                         users.id = `users-${index}`;
                         users.className = 'cell-users';
-                        users.style.background = 'none'; // clean look for non-city
+                        users.style.background = 'none'; 
 
                         div.appendChild(topContent);
                         div.appendChild(users);
@@ -1072,18 +1095,24 @@
             }
 
             updateBoardOwnerDisplay(pos) {
-                const p = this.players[this.properties[pos] - 1]; 
-                const level = this.propertyLevels[pos]; 
+                const ownerId = this.properties[pos];
                 const buildingContainer = document.getElementById(`build-${pos}`);
                 const ownerContainer = document.getElementById(`owner-${pos}`);
+
+                // Handle case where property is cleared (sold/bankrupt)
+                if (ownerId === null) {
+                    if (buildingContainer) buildingContainer.innerHTML = '';
+                    if (ownerContainer) ownerContainer.innerHTML = '';
+                    return;
+                }
+
+                const p = this.players[ownerId - 1]; 
+                const level = this.propertyLevels[pos]; 
                 
                 if (buildingContainer && level > 1) {
                     // level: 2(별장), 3(빌딩), 4(호텔)
                     let icon = level === 2 ? '🏡' : (level === 3 ? '🏢' : '🏨');
-                    let html = '';
-                    // 반복해서 보여줄지, 하나만 보여줄지 결정. 요청사항 "건물"이므로 하나로 충분하거나 레벨만큼 표시.
-                    // 공간이 좁으므로 레벨에 해당하는 아이콘 1~2개 표시
-                    html = `<span class="text-xs">${icon}</span>`;
+                    let html = `<span class="text-xs">${icon}</span>`;
                     buildingContainer.innerHTML = html;
                 } else if (buildingContainer) {
                     buildingContainer.innerHTML = '';
