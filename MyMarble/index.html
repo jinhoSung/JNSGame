@@ -45,7 +45,7 @@
             background-color: white;
             border-radius: 2px;
             display: flex;
-            flex-direction: column; /* 세로 배치 */
+            flex-direction: column; 
             font-size: var(--square-font);
             position: relative;
             padding: 0; 
@@ -60,13 +60,12 @@
         .square:hover { transform: scale(1.05); z-index: 20; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
         .square.can-move-to { border: 2px solid #ef4444 !important; background-color: #fef2f2 !important; animation: pulse 1s infinite; }
 
-        /* 내부 레이아웃 비율 클래스 */
+        /* 내부 레이아웃 비율 수정: 건물/소유주 공간 확대 */
         .cell-header { flex: 2; width: 100%; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid rgba(0,0,0,0.05); position: relative; font-weight: bold; color: #334155; }
-        .cell-buildings { flex: 2; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5px; background-color: rgba(255,255,255,0.5); flex-wrap: wrap; align-content: center; }
-        .cell-owner { flex: 1.5; width: 100%; display: flex; align-items: center; justify-content: center; z-index: 5; }
-        .cell-spacer { flex: 5.5; width: 100%; } 
+        .cell-buildings { flex: 2.5; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5px; background-color: rgba(255,255,255,0.5); flex-wrap: wrap; align-content: center; transform: scale(1.1); transform-origin: center; } /* 크기 확대 */
+        .cell-owner { flex: 2; width: 100%; display: flex; align-items: center; justify-content: center; z-index: 5; }
+        .cell-spacer { flex: 3.5; width: 100%; } /* 빈 공간 축소 */
         
-        /* 유저 컨테이너: 전체 칸 오버레이 & 중앙 정렬 */
         .cell-users { 
             position: absolute;
             top: 0;
@@ -80,7 +79,7 @@
             padding: 4px;
             gap: 2px;
             z-index: 10;
-            pointer-events: none; /* 클릭 통과 */
+            pointer-events: none; 
         }
 
         @keyframes pulse {
@@ -188,9 +187,37 @@
         .p-bg-4 { background-color: #ffcc00; }
         .p-bg-5 { background-color: #aa00ff; }
         .p-bg-6 { background-color: #ff0099; }
+
+        /* 우측 상단 컨트롤 버튼 */
+        .top-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 8px;
+            z-index: 200;
+        }
+        .control-btn {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #cbd5e1;
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+        }
+        .control-btn:hover { background: white; transform: scale(1.05); }
     </style>
 </head>
 <body>
+
+    <!-- 우측 상단 컨트롤 -->
+    <div class="top-controls">
+        <button id="speed-btn" class="control-btn" onclick="game.toggleSpeed()">⏩ x1</button>
+        <button id="fullscreen-btn" class="control-btn" onclick="toggleFullScreen()">🖥️</button>
+    </div>
 
     <!-- 로비 -->
     <div id="lobby" class="fixed inset-0 bg-slate-900 z-[100] flex items-center justify-center p-4">
@@ -408,7 +435,6 @@
                 this.players = [];
                 let pId = 1;
                 
-                // Human players
                 for(let i=0; i<humanCount; i++) {
                     this.players.push({
                         id: pId, 
@@ -422,7 +448,6 @@
                     pId++;
                 }
 
-                // CPU players
                 for(let i=0; i<cpuCount; i++) {
                     let iconIdx = (humanCount + i) % icons.length;
                     
@@ -441,9 +466,8 @@
                 this.currentPlayerIndex = 0; this.isRolling = false; this.lastWasDouble = false;
                 this.socialFund = 0; 
                 this.properties = Array(boardData.length).fill(null);
-                
-                // 건물 상태 관리 (별장/빌딩/호텔 독립적)
                 this.buildings = Array(boardData.length).fill(null).map(() => ({ villa: false, building: false, hotel: false }));
+                this.gameSpeed = 1; // 1, 2, 3
                 
                 this.initUI();
                 this.initBoard();
@@ -455,8 +479,12 @@
                 }, 200);
             }
 
+            toggleSpeed() {
+                this.gameSpeed = this.gameSpeed >= 3 ? 1 : this.gameSpeed + 1;
+                document.getElementById('speed-btn').innerText = `⏩ x${this.gameSpeed}`;
+            }
+
             // --- 경제 밸런스 공식 ---
-            // 건설 비용 (단순화: 0.5배, 1배, 1.5배)
             getConstructionCost(landPrice, type) {
                 if (type === 'villa') return Math.floor(landPrice * 0.5);
                 if (type === 'building') return Math.floor(landPrice * 1.0);
@@ -464,19 +492,17 @@
                 return 0;
             }
 
-            // 렌트 계산 (누적)
             getRentPrice(landPrice, baseRent, buildings, isSpecial) {
-                if (isSpecial) return baseRent; // 특수 지역은 건물 없음 (현재 로직상)
+                if (isSpecial) return baseRent; 
                 
-                let rent = baseRent; // 대지료
-                if (buildings.villa) rent += baseRent; // 별장 (+1배)
-                if (buildings.building) rent += baseRent * 2; // 빌딩 (+2배)
-                if (buildings.hotel) rent += baseRent * 3; // 호텔 (+3배)
+                let rent = baseRent; 
+                if (buildings.villa) rent += baseRent; 
+                if (buildings.building) rent += baseRent * 2; 
+                if (buildings.hotel) rent += baseRent * 3; 
                 
                 return Math.floor(rent);
             }
             
-            // 자산 가치 계산 (건설비 포함)
             calculateTotalAssets(player) {
                 let assets = player.money;
                 this.properties.forEach((ownerId, index) => {
@@ -487,14 +513,12 @@
                         if (b.villa) value += this.getConstructionCost(s.price, 'villa');
                         if (b.building) value += this.getConstructionCost(s.price, 'building');
                         if (b.hotel) value += this.getConstructionCost(s.price, 'hotel');
-                        assets += Math.floor(value * 0.5); // 매각가(50%) 기준 자산
+                        assets += Math.floor(value * 0.5); 
                     }
                 });
                 return Math.floor(assets);
             }
 
-            // 자산 매각 및 지불 능력 확보 (최대 확보 가능 금액 반환하지 않고, 실제 확보 실행)
-            // 성공 시 true, 파산 시 false 반환 (하지만 남은 돈은 모두 털어넣음)
             solveInsolvency(player, amount) {
                 if (player.money >= amount) return true;
                 
@@ -511,7 +535,6 @@
                     }
                 });
                 
-                // 가치 낮은 순으로 매각
                 ownedProps.sort((a, b) => a.value - b.value); 
                 
                 while (player.money < amount && ownedProps.length > 0) {
@@ -666,9 +689,9 @@
                     
                     const rent = s.rent;
                     document.getElementById('rent-1').innerText = `₩${rent.toLocaleString()}`;
-                    document.getElementById('rent-2').innerText = `+ ₩${rent.toLocaleString()}`; // 빌라 추가금
-                    document.getElementById('rent-3').innerText = `+ ₩${(rent*2).toLocaleString()}`; // 빌딩 추가금
-                    document.getElementById('rent-4').innerText = `+ ₩${(rent*3).toLocaleString()}`; // 호텔 추가금
+                    document.getElementById('rent-2').innerText = `+ ₩${rent.toLocaleString()}`; 
+                    document.getElementById('rent-3').innerText = `+ ₩${(rent*2).toLocaleString()}`; 
+                    document.getElementById('rent-4').innerText = `+ ₩${(rent*3).toLocaleString()}`; 
                 }
                 cardModal.classList.remove('hidden');
             }
@@ -784,7 +807,10 @@
                 this.resetOverlayUI(); const overlay = document.getElementById('dice-overlay');
                 document.getElementById('event-emoji').innerText = emoji; document.getElementById('event-title').innerText = title; document.getElementById('event-desc').innerText = desc;
                 document.getElementById('dice-container').style.display = 'none'; document.getElementById('event-msg').classList.remove('hidden'); overlay.style.display = 'flex';
-                setTimeout(() => { overlay.style.display = 'none'; this.resetOverlayUI(); }, duration);
+                
+                // 배속 적용: 오버레이 지속 시간 단축
+                const adjustedDuration = duration / this.gameSpeed;
+                setTimeout(() => { overlay.style.display = 'none'; this.resetOverlayUI(); }, adjustedDuration);
             }
 
             startTurn() {
@@ -794,7 +820,7 @@
                 if (p.isCpu) {
                     btn.disabled = true;
                     btn.innerText = `${p.name} (CPU) 진행 중...`;
-                    setTimeout(() => { this.rollDice(); }, 1000);
+                    setTimeout(() => { this.rollDice(); }, 1000 / this.gameSpeed);
                 } else {
                     btn.disabled = false;
                     btn.innerText = "주사위 굴리기";
@@ -814,7 +840,7 @@
                         if (Math.random() < 0.5) dest = Math.floor(Math.random() * 40);
                         
                         this.showEventOverlay("🛸", "우주 이동 (CPU)", `${player.name} 이동 중...`);
-                        setTimeout(() => this.chooseSpaceDestination(dest), 1000);
+                        setTimeout(() => this.chooseSpaceDestination(dest), 1000 / this.gameSpeed);
                     } else {
                         this.showEventOverlay("🛸", "우주 이동 모드", "보드판에서 이동할 목적지를 클릭하세요!"); 
                     }
@@ -825,6 +851,8 @@
                 document.getElementById('roll-btn').disabled = true; this.resetOverlayUI(); overlay.style.display = 'flex';
                 
                 const interval = setInterval(() => { d1El.innerText = Math.floor(Math.random() * 6) + 1; d2El.innerText = Math.floor(Math.random() * 6) + 1; this.sound.playDice(); }, 100);
+                
+                // 배속 적용: 주사위 굴리는 시간 단축
                 setTimeout(() => {
                     clearInterval(interval);
                     const d1 = Math.floor(Math.random() * 6) + 1; const d2 = Math.floor(Math.random() * 6) + 1;
@@ -853,15 +881,15 @@
                             this.lastWasDouble = true;
                         } else { player.doubleCount = 0; this.lastWasDouble = false; }
                         await this.movePlayer(total);
-                    }, 800);
-                }, 1200);
+                    }, 800 / this.gameSpeed);
+                }, 1200 / this.gameSpeed);
             }
 
             async chooseSpaceDestination(index) {
                 const p = this.players[this.currentPlayerIndex]; p.isSpaceTravelReady = false; const oldPos = p.pos; p.pos = index;
                 this.sound.playSpecial(); this.log(`🚀 목적지로 우주 이동!`, "text-blue-400 font-bold");
                 if (index < oldPos) { p.money += 200000; this.log("💰 출발지 통과 월급 수령", "text-yellow-400"); }
-                this.updatePiecePositions(true); setTimeout(() => this.handleSquare(index), 700);
+                this.updatePiecePositions(true); setTimeout(() => this.handleSquare(index), 700 / this.gameSpeed);
             }
 
             handleIslandArrive() {
@@ -879,7 +907,10 @@
                     if(piece) piece.classList.add('moving');
                     this.updatePiecePositions(); 
                     if (p.pos === 0) { p.money += 200000; this.sound.playMoney(); this.log(`💰 월급 수령`, "text-yellow-400 font-bold"); }
-                    await new Promise(r => setTimeout(r, 250)); 
+                    
+                    // 배속 적용: 이동 딜레이 단축
+                    await new Promise(r => setTimeout(r, 250 / this.gameSpeed)); 
+                    
                     if(piece) piece.classList.remove('moving');
                 }
                 this.handleSquare(p.pos);
@@ -966,7 +997,7 @@
             cpuDecideBuy(s) {
                 const p = this.players[this.currentPlayerIndex];
                 if (p.money >= s.price) {
-                    setTimeout(() => { this.confirmAction(); }, 800);
+                    setTimeout(() => { this.confirmAction(); }, 800 / this.gameSpeed);
                 } else {
                     this.log(`💸 (CPU) 자금 부족으로 포기`, "text-gray-400");
                     this.checkPostAction();
@@ -984,7 +1015,7 @@
                 else if (!b.villa && p.money >= this.getConstructionCost(s.price, 'villa')) type = 'villa';
 
                 if (type) {
-                    setTimeout(() => { this.confirmConstruction(s, type, this.getConstructionCost(s.price, type)); }, 800);
+                    setTimeout(() => { this.confirmConstruction(s, type, this.getConstructionCost(s.price, type)); }, 800 / this.gameSpeed);
                 } else {
                     this.log(`🏗️ (CPU) 건설 비용 부족/완료`, "text-gray-400");
                     this.checkPostAction();
@@ -1054,9 +1085,6 @@
 
             handleGoldenKey() {
                 const p = this.players[this.currentPlayerIndex]; 
-                // ... (카드 목록 생략: 이전과 동일하나 ManualTurnEnd 로직 유지) ...
-                // 카드 목록이 너무 길어 생략하였으나 실제 코드엔 포함됨
-                // 여기서는 핵심 로직만 변경
                 
                 const cards = [
                     { emoji: "🧾", title: "종합소득세", desc: "건물별 세금 납부", action: () => this.applyBuildingFee("종합소득세", 30000, 100000, 150000), manualTurnEnd: true },
@@ -1323,6 +1351,16 @@
             document.getElementById('lobby').classList.add('hidden'); 
             document.getElementById('game-board').classList.remove('opacity-0');
             window.game = new GrandBlueMarble(human, cpu);
+        }
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
         }
     </script>
 </body>
