@@ -8,13 +8,12 @@
     
     <!-- Firebase SDK -->
     <script type="module">
-        // Import the functions you need from the SDKs you need
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-analytics.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, getDoc, arrayUnion, arrayRemove, setDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-        // Your web app's Firebase configuration
+        // Firebase 설정
         const firebaseConfig = {
             apiKey: "AIzaSyDP7mDxvaSOJOthbLD22AzVq5SsgSRQE44",
             authDomain: "mymarble-2afb1.firebaseapp.com",
@@ -25,43 +24,41 @@
             measurementId: "G-G65TCE21PM"
         };
 
-        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app); // Analytics 초기화
+        const analytics = getAnalytics(app);
         const auth = getAuth(app);
         const db = getFirestore(app);
         
-        // Firestore 데이터 저장 경로용 네임스페이스 (이전 코드의 appId 역할)
         const GAME_NAMESPACE = 'blue-marble-online-v1';
 
         let currentUser = null;
         let currentRoomId = null;
         let unsubscribeRoom = null;
 
-        // --- 인증 ---
-        // 1. 먼저 익명 로그인을 시도합니다.
         signInAnonymously(auth).catch((error) => console.error("Auth Error:", error));
 
-        // 2. 인증 상태 변화를 감지하여 로비를 초기화합니다.
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
                 console.log("Logged in as:", user.uid);
-                // 인증 성공 시에만 로비 리스너 연결
                 initLobby(); 
+                
+                // 닉네임 기본값 설정 (저장된 게 없으면)
+                const savedNick = localStorage.getItem('gbm_nickname');
+                const nickInput = document.getElementById('my-nickname');
+                if (nickInput) {
+                    nickInput.value = savedNick || `Player ${user.uid.slice(0,4)}`;
+                }
             } else {
                 currentUser = null;
-                console.log("Logged out");
             }
         });
 
-        // --- 로비 로직 ---
         function initLobby() {
-            if (!currentUser) return; // 안전장치
+            if (!currentUser) return;
 
             const roomsRef = collection(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms');
             
-            // 방 목록 실시간 리스너
             onSnapshot(query(roomsRef, orderBy('createdAt', 'desc')), (snapshot) => {
                 const list = document.getElementById('room-list');
                 if(!list) return;
@@ -105,14 +102,15 @@
             });
         }
 
-        // 방 만들기
         window.createRoom = async () => {
             if (!currentUser) return alert("로그인 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
 
             const name = document.getElementById('new-room-name').value;
             const password = document.getElementById('new-room-pw').value;
             const max = parseInt(document.getElementById('new-room-max').value);
-            const hostName = "Player " + currentUser.uid.slice(0, 4); 
+            
+            const myNick = document.getElementById('my-nickname').value || "Guest";
+            localStorage.setItem('gbm_nickname', myNick);
 
             if (!name) return alert("방 제목을 입력해주세요.");
 
@@ -122,8 +120,8 @@
                     password,
                     maxPlayers: max,
                     hostId: currentUser.uid,
-                    hostName: hostName,
-                    players: [{ uid: currentUser.uid, name: hostName, ready: true }], // 방장은 자동 레디
+                    hostName: myNick,
+                    players: [{ uid: currentUser.uid, name: myNick, ready: true }],
                     status: 'waiting',
                     createdAt: Date.now()
                 };
@@ -137,7 +135,6 @@
             }
         };
 
-        // 방 입장 시도 (비밀번호 체크)
         window.tryJoinRoom = (roomId, room) => {
             if (!currentUser) return alert("로그인 정보를 불러오는 중입니다.");
             
@@ -148,15 +145,17 @@
             joinRoom(roomId);
         };
 
-        // 방 입장 로직
         async function joinRoom(roomId) {
             if (!currentUser) return;
+            
+            const myNick = document.getElementById('my-nickname').value || "Guest";
+            localStorage.setItem('gbm_nickname', myNick);
+
             const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
-            const myName = "Player " + currentUser.uid.slice(0, 4);
 
             try {
                 await updateDoc(roomRef, {
-                    players: arrayUnion({ uid: currentUser.uid, name: myName, ready: false })
+                    players: arrayUnion({ uid: currentUser.uid, name: myNick, ready: false })
                 });
                 enterWaitingRoom(roomId);
             } catch (e) {
@@ -165,7 +164,6 @@
             }
         }
 
-        // 대기실 진입 및 리스너 설정
         function enterWaitingRoom(roomId) {
             currentRoomId = roomId;
             document.getElementById('network-lobby').classList.add('hidden');
@@ -183,7 +181,6 @@
                 const room = docSnap.data();
                 renderWaitingRoom(room);
 
-                // 게임 시작 감지
                 if (room.status === 'playing') {
                     startGameFromLobby(room);
                 }
@@ -192,7 +189,6 @@
             });
         }
 
-        // 대기실 UI 렌더링
         function renderWaitingRoom(room) {
             document.getElementById('room-title-display').innerText = room.name;
             const userList = document.getElementById('waiting-user-list');
@@ -219,7 +215,6 @@
 
             if (isHost) {
                 startBtn.classList.remove('hidden');
-                // 혼자 테스트 가능하도록 1명 이상이면 활성화
                 startBtn.disabled = readyCount < 1; 
                 startBtn.innerText = readyCount < 1 ? "준비 대기중" : "게임 시작";
                 if(readyCount >= 1) startBtn.disabled = false;
@@ -228,7 +223,6 @@
             }
         }
 
-        // 방 나가기
         window.leaveRoom = async (forced = false) => {
             if (!currentRoomId || !currentUser) return;
             
@@ -243,7 +237,7 @@
                     const myPlayer = room.players.find(p => p.uid === currentUser.uid);
                     
                     if (room.hostId === currentUser.uid) {
-                        await deleteDoc(roomRef); // 방장이 나가면 폭파
+                        await deleteDoc(roomRef); 
                     } else {
                         await updateDoc(roomRef, {
                             players: arrayRemove(myPlayer)
@@ -257,14 +251,12 @@
             document.getElementById('network-lobby').classList.remove('hidden');
         };
 
-        // (방장) 게임 시작
         window.hostStartGame = async () => {
             if (!currentRoomId || !currentUser) return;
             const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId);
             await updateDoc(roomRef, { status: 'playing' });
         };
 
-        // 게임 화면으로 전환 (공통)
         function startGameFromLobby(roomData) {
             document.getElementById('room-waiting').classList.add('hidden');
             document.getElementById('lobby-container').classList.add('hidden'); 
@@ -274,8 +266,15 @@
             document.querySelector('.top-controls').style.display = 'flex'; 
             document.querySelector('.top-controls-left').style.display = 'flex';
 
-            // 네트워크 플레이어로 초기화
-            window.game = new GrandBlueMarble(roomData.players.length, 0, null, roomData.players);
+            // 플레이어 데이터 변환 (name 필드 사용)
+            const playerConfig = roomData.players.map(p => ({
+                name: p.name,
+                isCpu: false,
+                uid: p.uid
+            }));
+
+            // 게임 시작 (생성자 호출 통합)
+            window.game = new GrandBlueMarble(playerConfig);
         }
 
         window.openModal = (id) => document.getElementById(id).classList.remove('hidden');
@@ -438,10 +437,16 @@
             <div class="flex justify-between items-center mb-6">
                 <h1 class="text-2xl md:text-3xl font-black text-indigo-600 tracking-tighter uppercase">Blue Marble</h1>
                 <div class="flex gap-2">
-                    <button onclick="openModal('local-setup-modal')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg font-bold text-xs shadow transition">🎮 싱글/로컬</button>
+                    <button onclick="openModal('local-setup-modal'); updateLocalPlayerInputs();" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg font-bold text-xs shadow transition">🎮 싱글/로컬</button>
                     <button onclick="openModal('create-room-modal')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg font-bold text-xs shadow transition">+ 방 만들기</button>
                 </div>
             </div>
+            
+            <div class="mb-4">
+                <label class="text-xs font-bold text-slate-500 mb-1 block">내 닉네임</label>
+                <input type="text" id="my-nickname" class="w-full p-2.5 rounded-xl border-2 border-slate-200 text-sm font-bold focus:border-indigo-500 outline-none placeholder-gray-300" placeholder="닉네임 입력">
+            </div>
+
             <div class="flex-1 overflow-y-auto space-y-3 p-1" id="room-list">
                 <div class="text-center text-gray-400 py-10">로딩중...</div>
             </div>
@@ -462,12 +467,12 @@
 
     <!-- 로컬 게임 설정 모달 -->
     <div id="local-setup-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-[150] hidden backdrop-blur-sm px-4">
-        <div class="bg-white p-6 rounded-2xl w-full max-w-xs shadow-2xl">
+        <div class="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl max-h-[90vh] overflow-y-auto">
             <h3 class="text-xl font-bold mb-4 text-slate-800">싱글/로컬 게임 설정</h3>
             <div class="space-y-4">
                 <div>
                     <label class="text-xs font-bold text-slate-600">🙋‍♂️ 사람 플레이어</label>
-                    <select id="human-count" onchange="updateCpuOptions()" class="w-full p-2.5 rounded-xl border-2 border-slate-200 font-bold outline-none">
+                    <select id="human-count" onchange="updateCpuOptions(); updateLocalPlayerInputs();" class="w-full p-2.5 rounded-xl border-2 border-slate-200 font-bold outline-none">
                         <option value="1">1명 (솔로)</option>
                         <option value="2" selected>2명</option>
                         <option value="3">3명</option>
@@ -476,6 +481,10 @@
                         <option value="6">6명</option>
                     </select>
                 </div>
+                
+                <!-- 동적 이름 입력칸 -->
+                <div id="local-player-names" class="space-y-2 max-h-[200px] overflow-y-auto"></div>
+
                 <div>
                     <label class="text-xs font-bold text-slate-600">🤖 컴퓨터(CPU)</label>
                     <select id="cpu-count" class="w-full p-2.5 rounded-xl border-2 border-slate-200 font-bold outline-none"></select>
@@ -535,7 +544,7 @@
                     </div>
                     <div class="flex flex-col items-end">
                         <div id="round-display" class="text-[0.5rem] font-bold text-slate-500 mb-0.5">R 1/30</div>
-                        <button id="roll-btn" onclick="game.rollDice()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition shadow-lg active:scale-95 disabled:opacity-50 text-[0.6rem] md:text-base disabled:cursor-not-allowed whitespace-nowrap">주사위</button>
+                        <button id="roll-btn" onclick="game && game.rollDice()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition shadow-lg active:scale-95 disabled:opacity-50 text-[0.6rem] md:text-base disabled:cursor-not-allowed whitespace-nowrap">주사위</button>
                     </div>
                 </div>
                 <div id="player-list" class="grid grid-cols-2 gap-1.5 flex-[6] overflow-y-auto content-start pr-0.5"></div>
@@ -653,8 +662,29 @@
 
     <!-- Javascript -->
     <script>
+        // 전역에서 사용할 수 있도록 SoundManager를 가장 먼저 선언
+        class SoundManager {
+            constructor() { try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} }
+            play(freq, type, duration, vol = 0.1) {
+                if(!this.ctx) return;
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + duration);
+            }
+            playDice() { this.play(150, 'triangle', 0.2, 0.2); }
+            playMove() { this.play(600, 'sine', 0.1, 0.08); }
+            playMoney() { this.play(880, 'sine', 0.1, 0.1); setTimeout(() => this.play(1320, 'sine', 0.2, 0.1), 50); }
+            playAlert() { this.play(200, 'square', 0.3, 0.05); setTimeout(() => this.play(150, 'square', 0.3, 0.05), 100); }
+            playSpecial() { if(!this.ctx) return; let now = this.ctx.currentTime; const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain(); osc.frequency.setValueAtTime(400, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.5); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.5); osc.connect(gain); gain.connect(this.ctx.destination); osc.start(); osc.stop(now + 0.5); }
+        }
+
         const getPlayerColor = (id) => ['#ff0000', '#0066ff', '#00cc44', '#ffcc00', '#aa00ff', '#ff0099'][id - 1];
         var game = null;
+        
+        // 전역 함수 정의
         function showGameInfo() { document.getElementById('game-info-modal').classList.remove('hidden'); }
         function closeGameInfo() { document.getElementById('game-info-modal').classList.add('hidden'); }
         function quitGame() {
@@ -726,13 +756,15 @@
         const gridPositions = generateGridPositions();
 
         class GrandBlueMarble {
-            constructor(humanCount, cpuCount, savedData = null, networkPlayers = null) {
+            // 통합 생성자: 설정 배열, CPU 수(Legacy), 저장 데이터, 네트워크 유저(Legacy) 모두 처리
+            constructor(config, cpuCount = 0, savedData = null, networkPlayers = null) {
                 this.sound = new SoundManager();
                 const icons = ['🚗', '✈️', '🚢', '🚁', '🚲', '🚀'];
                 const names = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
                 
                 this.players = [];
-                
+
+                // 1. 저장된 게임 로드
                 if (savedData) {
                     this.players = savedData.players;
                     this.currentPlayerIndex = savedData.currentPlayerIndex;
@@ -741,27 +773,28 @@
                     this.buildings = savedData.buildings;
                     this.round = savedData.round;
                     this.gameSpeed = savedData.gameSpeed || 1;
-                } else if (networkPlayers) {
-                    networkPlayers.forEach((p, i) => {
+                } 
+                // 2. 새 게임 시작 (config가 배열인 경우 - 추천 방식)
+                else if (Array.isArray(config)) {
+                    config.forEach((cfg, i) => {
                         this.players.push({
                             id: i + 1,
-                            isCpu: false,
-                            uid: p.uid,
+                            isCpu: cfg.isCpu,
+                            uid: cfg.uid || null,
                             pos: 0, money: 3000000,
-                            name: p.name,
+                            name: cfg.name,
                             icon: icons[i % icons.length],
                             isBankrupt: false, doubleCount: 0, islandTurns: 0, isIslandIn: false, 
                             hasEscapeCard: false, freePassCount: 0, isSpaceTravelReady: false, isFreeSpaceTravel: false
                         });
                     });
-                    this.currentPlayerIndex = 0;
-                    this.socialFund = 0; 
-                    this.properties = Array(boardData.length).fill(null);
-                    this.buildings = Array(boardData.length).fill(null).map(() => ({ villa: false, building: false, hotel: false }));
-                    this.gameSpeed = 1; 
-                    this.round = 1; 
-                } else {
+                    this._initNewGame();
+                }
+                // 3. 레거시 지원 (숫자로 인원 수 전달)
+                else {
+                    let humanCount = config || 2; // Default 2
                     let pId = 1;
+                    
                     for(let i=0; i<humanCount; i++) {
                         this.players.push({
                             id: pId, isCpu: false, pos: 0, money: 3000000, name: names[i], icon: icons[i],
@@ -779,14 +812,9 @@
                         });
                         pId++;
                     }
-                    this.currentPlayerIndex = 0;
-                    this.socialFund = 0; 
-                    this.properties = Array(boardData.length).fill(null);
-                    this.buildings = Array(boardData.length).fill(null).map(() => ({ villa: false, building: false, hotel: false }));
-                    this.gameSpeed = 1; 
-                    this.round = 1; 
+                    this._initNewGame();
                 }
-                
+
                 this.maxRounds = 30;
                 this.isRolling = false; 
                 this.lastWasDouble = false;
@@ -795,6 +823,7 @@
                 this.initBoard();
                 window.addEventListener('resize', () => this.updatePiecePositions());
                 
+                // 저장된 게임일 경우 소유지 표시 복구
                 if (savedData) {
                     this.properties.forEach((ownerId, idx) => {
                         if (ownerId !== null) this.updateBoardOwnerDisplay(idx);
@@ -807,6 +836,16 @@
                 }, 200);
             }
 
+            _initNewGame() {
+                this.currentPlayerIndex = 0;
+                this.socialFund = 0; 
+                this.properties = Array(boardData.length).fill(null);
+                this.buildings = Array(boardData.length).fill(null).map(() => ({ villa: false, building: false, hotel: false }));
+                this.gameSpeed = 1; 
+                this.round = 1; 
+            }
+            // ... (이후 메서드들은 기존과 동일, 생략 없이 전체 포함) ...
+            
             save() {
                 const data = {
                     players: this.players,
@@ -1818,23 +1857,61 @@
             }
         }
 
+        // 로컬 플레이어 이름 입력 필드 업데이트
+        function updateLocalPlayerInputs() {
+            const humanCount = parseInt(document.getElementById('human-count').value);
+            const container = document.getElementById('local-player-names');
+            container.innerHTML = '';
+
+            for (let i = 1; i <= humanCount; i++) {
+                const div = document.createElement('div');
+                div.className = "flex items-center gap-2";
+                div.innerHTML = `
+                    <span class="text-xs font-bold text-slate-500 w-16">Player ${i}</span>
+                    <input type="text" id="human-name-${i}" value="Player ${i}" class="flex-1 p-2 rounded-lg border border-slate-300 text-sm font-bold">
+                `;
+                container.appendChild(div);
+            }
+        }
+
         function checkAndStart() {
-            const human = parseInt(document.getElementById('human-count').value);
-            const cpu = parseInt(document.getElementById('cpu-count').value);
+            const humanSelect = document.getElementById('human-count');
+            const cpuSelect = document.getElementById('cpu-count');
+            const human = parseInt(humanSelect.value);
+            const cpu = parseInt(cpuSelect.value);
             
-            document.getElementById('lobby').classList.add('hidden'); 
+            // 플레이어 설정 생성
+            const playerConfig = [];
+            
+            // 사람 플레이어 이름 가져오기
+            for (let i = 1; i <= human; i++) {
+                const nameInput = document.getElementById(`human-name-${i}`);
+                const name = nameInput ? nameInput.value : `Player ${i}`;
+                playerConfig.push({ name: name, isCpu: false });
+            }
+
+            // CPU 추가 (이름 자동)
+            for (let i = 1; i <= cpu; i++) {
+                playerConfig.push({ name: `CPU ${i}`, isCpu: true });
+            }
+
+            document.getElementById('local-setup-modal').classList.add('hidden');
+            document.getElementById('lobby-container').classList.add('hidden'); 
+            document.getElementById('game-board-container').classList.remove('hidden');
             document.getElementById('game-board').classList.remove('opacity-0');
             
             document.querySelector('.top-controls').style.display = 'flex'; 
             document.querySelector('.top-controls-left').style.display = 'flex';
             
-            window.game = new GrandBlueMarble(human, cpu);
+            // 수정된 생성자 호출
+            window.game = new GrandBlueMarble(playerConfig);
         }
 
         function resumeGame() {
             const savedData = JSON.parse(localStorage.getItem('gbm_save'));
             if(savedData) {
-                document.getElementById('lobby').classList.add('hidden'); 
+                document.getElementById('lobby-container').classList.add('hidden'); 
+                document.getElementById('game-board-container').classList.remove('hidden');
                 document.getElementById('game-board').classList.remove('opacity-0');
                 
                 document.querySelector('.top-controls').style.display = 'flex'; 
@@ -1846,7 +1923,8 @@
 
         // Check for save on load
         window.onload = function() {
-            updateCpuOptions(); // 초기화
+            updateCpuOptions(); 
+            updateLocalPlayerInputs(); // 초기 이름 입력칸 생성
             if(localStorage.getItem('gbm_save')) {
                 document.getElementById('resume-btn').classList.remove('hidden');
                 document.getElementById('resume-btn').classList.add('flex');
