@@ -43,7 +43,6 @@
                 console.log("Logged in as:", user.uid);
                 initLobby(); 
                 
-                // 닉네임 기본값 설정 (저장된 게 없으면)
                 const savedNick = localStorage.getItem('gbm_nickname');
                 const nickInput = document.getElementById('my-nickname');
                 if (nickInput) {
@@ -173,8 +172,10 @@
             
             unsubscribeRoom = onSnapshot(roomRef, (docSnap) => {
                 if (!docSnap.exists()) {
-                    alert("방장이 방을 나갔거나 방이 삭제되었습니다.");
-                    leaveRoom(true); 
+                    if(currentRoomId) { 
+                         alert("방이 종료되었습니다.");
+                         leaveRoom(true); 
+                    }
                     return;
                 }
 
@@ -224,31 +225,44 @@
         }
 
         window.leaveRoom = async (forced = false) => {
-            if (!currentRoomId || !currentUser) return;
+            if (!currentRoomId || !currentUser) {
+                 resetToLobbyUI();
+                 return;
+            }
             
-            if (unsubscribeRoom) unsubscribeRoom();
+            if (unsubscribeRoom) {
+                unsubscribeRoom();
+                unsubscribeRoom = null;
+            }
+
+            const roomIdToLeave = currentRoomId;
+            currentRoomId = null; 
 
             if (!forced) {
-                const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId);
-                const docSnap = await getDoc(roomRef);
-                
-                if (docSnap.exists()) {
-                    const room = docSnap.data();
-                    const myPlayer = room.players.find(p => p.uid === currentUser.uid);
+                try {
+                    const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomIdToLeave);
+                    const docSnap = await getDoc(roomRef);
                     
-                    if (room.hostId === currentUser.uid) {
-                        await deleteDoc(roomRef); 
-                    } else {
-                        await updateDoc(roomRef, {
-                            players: arrayRemove(myPlayer)
-                        });
+                    if (docSnap.exists()) {
+                        const room = docSnap.data();
+                        
+                        if (room.hostId === currentUser.uid) {
+                            await deleteDoc(roomRef); 
+                        } else {
+                            const myPlayer = room.players.find(p => p.uid === currentUser.uid);
+                            if (myPlayer) {
+                                await updateDoc(roomRef, {
+                                    players: arrayRemove(myPlayer)
+                                });
+                            }
+                        }
                     }
+                } catch (e) {
+                    console.error("Error leaving room:", e);
                 }
             }
 
-            currentRoomId = null;
-            document.getElementById('room-waiting').classList.add('hidden');
-            document.getElementById('network-lobby').classList.remove('hidden');
+            resetToLobbyUI();
         };
 
         window.hostStartGame = async () => {
@@ -266,15 +280,28 @@
             document.querySelector('.top-controls').style.display = 'flex'; 
             document.querySelector('.top-controls-left').style.display = 'flex';
 
-            // 플레이어 데이터 변환 (name 필드 사용)
             const playerConfig = roomData.players.map(p => ({
                 name: p.name,
                 isCpu: false,
                 uid: p.uid
             }));
 
-            // 게임 시작 (생성자 호출 통합)
             window.game = new GrandBlueMarble(playerConfig);
+        }
+        
+        function resetToLobbyUI() {
+            document.getElementById('room-waiting').classList.add('hidden');
+            document.getElementById('game-board-container').classList.add('hidden');
+            document.getElementById('game-over-modal').classList.add('hidden');
+            document.querySelector('.top-controls').style.display = 'none';
+            document.querySelector('.top-controls-left').style.display = 'none';
+            
+            document.getElementById('lobby-container').classList.remove('hidden');
+            document.getElementById('network-lobby').classList.remove('hidden');
+            
+            if(window.game) {
+                window.game = null;
+            }
         }
 
         window.openModal = (id) => document.getElementById(id).classList.remove('hidden');
@@ -756,15 +783,12 @@
         const gridPositions = generateGridPositions();
 
         class GrandBlueMarble {
-            // 통합 생성자: 설정 배열, CPU 수(Legacy), 저장 데이터, 네트워크 유저(Legacy) 모두 처리
-            constructor(config, cpuCount = 0, savedData = null, networkPlayers = null) {
+            constructor(playerConfig, dummy = null, savedData = null, networkPlayers = null) {
                 this.sound = new SoundManager();
                 const icons = ['🚗', '✈️', '🚢', '🚁', '🚲', '🚀'];
-                const names = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
                 
                 this.players = [];
-
-                // 1. 저장된 게임 로드
+                
                 if (savedData) {
                     this.players = savedData.players;
                     this.currentPlayerIndex = savedData.currentPlayerIndex;
@@ -773,10 +797,19 @@
                     this.buildings = savedData.buildings;
                     this.round = savedData.round;
                     this.gameSpeed = savedData.gameSpeed || 1;
-                } 
-                // 2. 새 게임 시작 (config가 배열인 경우 - 추천 방식)
-                else if (Array.isArray(config)) {
-                    config.forEach((cfg, i) => {
+                } else if (networkPlayers) {
+                     // Legacy fallback if needed, but startGameFromLobby now passes playerConfig array
+                     networkPlayers.forEach((p, i) => {
+                        this.players.push({
+                            id: i + 1, isCpu: false, uid: p.uid, pos: 0, money: 3000000, name: p.name,
+                            icon: icons[i % icons.length], isBankrupt: false, doubleCount: 0, islandTurns: 0, 
+                            isIslandIn: false, hasEscapeCard: false, freePassCount: 0, isSpaceTravelReady: false, isFreeSpaceTravel: false
+                        });
+                    });
+                    this._initNewGame();
+                } else if (Array.isArray(playerConfig)) {
+                    // Standard initialization
+                    playerConfig.forEach((cfg, i) => {
                         this.players.push({
                             id: i + 1,
                             isCpu: cfg.isCpu,
@@ -789,32 +822,11 @@
                         });
                     });
                     this._initNewGame();
+                } else {
+                     // Fallback for old calls
+                     this._initNewGame();
                 }
-                // 3. 레거시 지원 (숫자로 인원 수 전달)
-                else {
-                    let humanCount = config || 2; // Default 2
-                    let pId = 1;
-                    
-                    for(let i=0; i<humanCount; i++) {
-                        this.players.push({
-                            id: pId, isCpu: false, pos: 0, money: 3000000, name: names[i], icon: icons[i],
-                            isBankrupt: false, doubleCount: 0, islandTurns: 0, isIslandIn: false, 
-                            hasEscapeCard: false, freePassCount: 0, isSpaceTravelReady: false, isFreeSpaceTravel: false
-                        });
-                        pId++;
-                    }
-                    for(let i=0; i<cpuCount; i++) {
-                        let iconIdx = (humanCount + i) % icons.length;
-                        this.players.push({
-                            id: pId, isCpu: true, pos: 0, money: 3000000, name: `CPU${i+1}`, icon: icons[iconIdx],
-                            isBankrupt: false, doubleCount: 0, islandTurns: 0, isIslandIn: false, 
-                            hasEscapeCard: false, freePassCount: 0, isSpaceTravelReady: false, isFreeSpaceTravel: false
-                        });
-                        pId++;
-                    }
-                    this._initNewGame();
-                }
-
+                
                 this.maxRounds = 30;
                 this.isRolling = false; 
                 this.lastWasDouble = false;
@@ -823,7 +835,6 @@
                 this.initBoard();
                 window.addEventListener('resize', () => this.updatePiecePositions());
                 
-                // 저장된 게임일 경우 소유지 표시 복구
                 if (savedData) {
                     this.properties.forEach((ownerId, idx) => {
                         if (ownerId !== null) this.updateBoardOwnerDisplay(idx);
@@ -844,8 +855,8 @@
                 this.gameSpeed = 1; 
                 this.round = 1; 
             }
-            // ... (이후 메서드들은 기존과 동일, 생략 없이 전체 포함) ...
-            
+
+            // ... (나머지 게임 로직 메서드들 포함) ...
             save() {
                 const data = {
                     players: this.players,
@@ -858,10 +869,6 @@
                 };
                 localStorage.setItem('gbm_save', JSON.stringify(data));
             }
-
-            quitGame() { quitGame(); }
-            showGameInfo() { showGameInfo(); }
-            closeGameInfo() { closeGameInfo(); }
 
             toggleSpeed() {
                 this.gameSpeed = this.gameSpeed >= 3 ? 1 : this.gameSpeed + 1;
