@@ -3,15 +3,292 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>브루마블 그랜드 - 자유 건설 에디션</title>
+    <title>브루마블 그랜드 - 멀티플레이어 & 싱글</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-analytics.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, getDoc, arrayUnion, arrayRemove, setDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDP7mDxvaSOJOthbLD22AzVq5SsgSRQE44",
+            authDomain: "mymarble-2afb1.firebaseapp.com",
+            projectId: "mymarble-2afb1",
+            storageBucket: "mymarble-2afb1.firebasestorage.app",
+            messagingSenderId: "373463759566",
+            appId: "1:373463759566:web:9d9fa31a1404f9bd3f6e9f",
+            measurementId: "G-G65TCE21PM"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app); // Analytics 초기화
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        // Firestore 데이터 저장 경로용 네임스페이스 (이전 코드의 appId 역할)
+        const GAME_NAMESPACE = 'blue-marble-online-v1';
+
+        let currentUser = null;
+        let currentRoomId = null;
+        let unsubscribeRoom = null;
+
+        // --- 인증 ---
+        // 1. 먼저 익명 로그인을 시도합니다.
+        signInAnonymously(auth).catch((error) => console.error("Auth Error:", error));
+
+        // 2. 인증 상태 변화를 감지하여 로비를 초기화합니다.
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                console.log("Logged in as:", user.uid);
+                // 인증 성공 시에만 로비 리스너 연결
+                initLobby(); 
+            } else {
+                currentUser = null;
+                console.log("Logged out");
+            }
+        });
+
+        // --- 로비 로직 ---
+        function initLobby() {
+            if (!currentUser) return; // 안전장치
+
+            const roomsRef = collection(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms');
+            
+            // 방 목록 실시간 리스너
+            onSnapshot(query(roomsRef, orderBy('createdAt', 'desc')), (snapshot) => {
+                const list = document.getElementById('room-list');
+                if(!list) return;
+                list.innerHTML = '';
+                
+                snapshot.forEach(doc => {
+                    const room = doc.data();
+                    const isPrivate = room.password && room.password.length > 0;
+                    const playerCount = room.players ? room.players.length : 0;
+                    
+                    const item = document.createElement('div');
+                    item.className = "bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center hover:border-indigo-400 transition cursor-pointer";
+                    item.innerHTML = `
+                        <div>
+                            <div class="flex items-center gap-2">
+                                ${isPrivate ? '<span class="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">🔒 비공개</span>' : '<span class="text-xs bg-green-100 text-green-600 px-1.5 py-0.5 rounded font-bold">📢 공개</span>'}
+                                <h3 class="font-bold text-slate-800">${room.name}</h3>
+                            </div>
+                            <div class="text-xs text-slate-500 mt-1">방장: ${room.hostName}</div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="text-sm font-bold ${playerCount >= room.maxPlayers ? 'text-red-500' : 'text-indigo-600'}">${playerCount}/${room.maxPlayers}명</span>
+                            <button class="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50" 
+                                ${playerCount >= room.maxPlayers || room.status === 'playing' ? 'disabled' : ''}>
+                                ${room.status === 'playing' ? '게임중' : '입장'}
+                            </button>
+                        </div>
+                    `;
+                    
+                    if (playerCount < room.maxPlayers && room.status !== 'playing') {
+                        item.onclick = () => tryJoinRoom(doc.id, room);
+                    }
+                    list.appendChild(item);
+                });
+
+                if (snapshot.empty) {
+                    list.innerHTML = `<div class="text-center text-gray-400 py-10">개설된 방이 없습니다.<br>새로운 방을 만들어보세요!</div>`;
+                }
+            }, (error) => {
+                console.error("Lobby Listener Error:", error);
+            });
+        }
+
+        // 방 만들기
+        window.createRoom = async () => {
+            if (!currentUser) return alert("로그인 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
+
+            const name = document.getElementById('new-room-name').value;
+            const password = document.getElementById('new-room-pw').value;
+            const max = parseInt(document.getElementById('new-room-max').value);
+            const hostName = "Player " + currentUser.uid.slice(0, 4); 
+
+            if (!name) return alert("방 제목을 입력해주세요.");
+
+            try {
+                const roomData = {
+                    name,
+                    password,
+                    maxPlayers: max,
+                    hostId: currentUser.uid,
+                    hostName: hostName,
+                    players: [{ uid: currentUser.uid, name: hostName, ready: true }], // 방장은 자동 레디
+                    status: 'waiting',
+                    createdAt: Date.now()
+                };
+                
+                const docRef = await addDoc(collection(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms'), roomData);
+                enterWaitingRoom(docRef.id);
+                closeModal('create-room-modal');
+            } catch (e) {
+                console.error("Error creating room:", e);
+                alert("방 생성 실패: 권한 문제 또는 네트워크 오류");
+            }
+        };
+
+        // 방 입장 시도 (비밀번호 체크)
+        window.tryJoinRoom = (roomId, room) => {
+            if (!currentUser) return alert("로그인 정보를 불러오는 중입니다.");
+            
+            if (room.password) {
+                const input = prompt("비밀번호를 입력하세요:");
+                if (input !== room.password) return alert("비밀번호가 일치하지 않습니다.");
+            }
+            joinRoom(roomId);
+        };
+
+        // 방 입장 로직
+        async function joinRoom(roomId) {
+            if (!currentUser) return;
+            const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
+            const myName = "Player " + currentUser.uid.slice(0, 4);
+
+            try {
+                await updateDoc(roomRef, {
+                    players: arrayUnion({ uid: currentUser.uid, name: myName, ready: false })
+                });
+                enterWaitingRoom(roomId);
+            } catch (e) {
+                console.error(e);
+                alert("입장 실패 (이미 가득 찼거나 삭제된 방일 수 있습니다)");
+            }
+        }
+
+        // 대기실 진입 및 리스너 설정
+        function enterWaitingRoom(roomId) {
+            currentRoomId = roomId;
+            document.getElementById('network-lobby').classList.add('hidden');
+            document.getElementById('room-waiting').classList.remove('hidden');
+
+            const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
+            
+            unsubscribeRoom = onSnapshot(roomRef, (docSnap) => {
+                if (!docSnap.exists()) {
+                    alert("방장이 방을 나갔거나 방이 삭제되었습니다.");
+                    leaveRoom(true); 
+                    return;
+                }
+
+                const room = docSnap.data();
+                renderWaitingRoom(room);
+
+                // 게임 시작 감지
+                if (room.status === 'playing') {
+                    startGameFromLobby(room);
+                }
+            }, (error) => {
+                console.error("Room Listener Error:", error);
+            });
+        }
+
+        // 대기실 UI 렌더링
+        function renderWaitingRoom(room) {
+            document.getElementById('room-title-display').innerText = room.name;
+            const userList = document.getElementById('waiting-user-list');
+            userList.innerHTML = '';
+
+            const isHost = room.hostId === currentUser.uid;
+            const startBtn = document.getElementById('host-start-btn');
+            
+            let readyCount = 0;
+            room.players.forEach(p => {
+                const el = document.createElement('div');
+                el.className = "flex justify-between items-center bg-slate-50 p-3 rounded-lg";
+                el.innerHTML = `
+                    <div class="font-bold flex items-center gap-2">
+                        ${p.uid === room.hostId ? '👑' : '👤'} ${p.name} ${p.uid === currentUser.uid ? '(나)' : ''}
+                    </div>
+                    <div class="${p.ready ? 'text-green-600' : 'text-gray-400'} font-bold text-sm">
+                        ${p.ready ? '준비완료' : '대기중'}
+                    </div>
+                `;
+                userList.appendChild(el);
+                if (p.ready) readyCount++;
+            });
+
+            if (isHost) {
+                startBtn.classList.remove('hidden');
+                // 혼자 테스트 가능하도록 1명 이상이면 활성화
+                startBtn.disabled = readyCount < 1; 
+                startBtn.innerText = readyCount < 1 ? "준비 대기중" : "게임 시작";
+                if(readyCount >= 1) startBtn.disabled = false;
+            } else {
+                startBtn.classList.add('hidden');
+            }
+        }
+
+        // 방 나가기
+        window.leaveRoom = async (forced = false) => {
+            if (!currentRoomId || !currentUser) return;
+            
+            if (unsubscribeRoom) unsubscribeRoom();
+
+            if (!forced) {
+                const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId);
+                const docSnap = await getDoc(roomRef);
+                
+                if (docSnap.exists()) {
+                    const room = docSnap.data();
+                    const myPlayer = room.players.find(p => p.uid === currentUser.uid);
+                    
+                    if (room.hostId === currentUser.uid) {
+                        await deleteDoc(roomRef); // 방장이 나가면 폭파
+                    } else {
+                        await updateDoc(roomRef, {
+                            players: arrayRemove(myPlayer)
+                        });
+                    }
+                }
+            }
+
+            currentRoomId = null;
+            document.getElementById('room-waiting').classList.add('hidden');
+            document.getElementById('network-lobby').classList.remove('hidden');
+        };
+
+        // (방장) 게임 시작
+        window.hostStartGame = async () => {
+            if (!currentRoomId || !currentUser) return;
+            const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId);
+            await updateDoc(roomRef, { status: 'playing' });
+        };
+
+        // 게임 화면으로 전환 (공통)
+        function startGameFromLobby(roomData) {
+            document.getElementById('room-waiting').classList.add('hidden');
+            document.getElementById('lobby-container').classList.add('hidden'); 
+            
+            document.getElementById('game-board-container').classList.remove('hidden');
+            document.getElementById('game-board').classList.remove('opacity-0');
+            document.querySelector('.top-controls').style.display = 'flex'; 
+            document.querySelector('.top-controls-left').style.display = 'flex';
+
+            // 네트워크 플레이어로 초기화
+            window.game = new GrandBlueMarble(roomData.players.length, 0, null, roomData.players);
+        }
+
+        window.openModal = (id) => document.getElementById(id).classList.remove('hidden');
+        window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
+
+    </script>
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;700&display=swap');
 
         :root {
             --board-size: min(96vw, 85vh);
-            /* 기본 폰트 사이즈를 조금 더 키움 */
-            --square-font: clamp(0.4rem, 1.1vw, 0.75rem);
+            --square-font: clamp(0.35rem, 0.9vw, 0.6rem);
         }
 
         body {
@@ -61,41 +338,15 @@
         .square:hover { transform: scale(1.05); z-index: 20; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
         .square.can-move-to { border: 2px solid #ef4444 !important; background-color: #fef2f2 !important; animation: pulse 1s infinite; }
 
-        /* 내부 레이아웃 비율 수정: 헤더(이름+가격) 공간 확보 */
-        /* flex 비율을 조정하여 헤더가 조금 더 공간을 차지하도록 함 */
-        .cell-header { 
-            flex: 2.8; 
-            width: 100%; 
-            display: flex; 
-            flex-direction: column; /* 세로 배치 */
-            align-items: center; 
-            justify-content: center; 
-            border-bottom: 1px solid rgba(0,0,0,0.05); 
-            position: relative; 
-            font-weight: bold; 
-            color: #334155; 
-            line-height: 1.1; 
-            overflow: hidden; 
-            padding: 1px 0; 
-        }
+        .cell-header { flex: 2.8; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; border-bottom: 1px solid rgba(0,0,0,0.05); position: relative; font-weight: bold; color: #334155; line-height: 1.1; overflow: hidden; padding: 1px 0; }
         .cell-buildings { flex: 2.2; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5px; background-color: rgba(255,255,255,0.5); flex-wrap: wrap; align-content: center; transform: scale(1.1); transform-origin: center; overflow: hidden; }
         .cell-owner { flex: 2; width: 100%; display: flex; align-items: center; justify-content: center; z-index: 5; overflow: hidden; }
         .cell-spacer { flex: 3; width: 100%; } 
         
         .cell-users { 
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: center;
-            padding: 2px;
-            gap: 1px;
-            z-index: 10;
-            pointer-events: none; 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+            padding: 2px; gap: 1px; z-index: 10; pointer-events: none; 
         }
 
         @keyframes pulse {
@@ -129,6 +380,7 @@
 
         .top-controls { position: absolute; top: 10px; right: 10px; display: flex; gap: 8px; z-index: 200; }
         .top-controls-left { position: absolute; top: 10px; left: 10px; display: flex; gap: 8px; z-index: 200; }
+        
         .control-btn {
             background: rgba(255, 255, 255, 0.95); border: 1px solid #cbd5e1; padding: 6px 12px;
             border-radius: 8px; font-size: 0.75rem; font-weight: bold; cursor: pointer;
@@ -150,6 +402,7 @@
             border: 4px solid #6366f1; animation: dice-pop 0.3s ease-out forwards;
         }
         @keyframes dice-pop { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        
         .event-info-box {
             background: rgba(255, 255, 255, 0.98); padding: 20px 30px; border-radius: 20px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: center;
@@ -169,32 +422,52 @@
 </head>
 <body>
 
-    <!-- 좌측 상단 컨트롤 (새 게임) -->
-    <div class="top-controls-left">
+    <div class="top-controls-left" style="display: none;">
         <button id="info-btn" class="control-btn bg-blue-50 text-blue-600 border-blue-200" onclick="showGameInfo()">ℹ️ 게임설명</button>
         <button id="quit-btn" class="control-btn bg-red-50 text-red-600 border-red-200" onclick="quitGame()">🏠 로비</button>
     </div>
 
-    <!-- 우측 상단 컨트롤 -->
-    <div class="top-controls">
+    <div class="top-controls" style="display: none;">
         <button id="speed-btn" class="control-btn" onclick="toggleGlobalSpeed()">⏩ x1</button>
         <button id="fullscreen-btn" class="control-btn" onclick="toggleFullScreen()">🖥️</button>
     </div>
 
     <!-- 로비 -->
-    <div id="lobby" class="fixed inset-0 bg-slate-900 z-[100] flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl p-6 md:p-12 max-w-sm w-full shadow-2xl text-center border-t-8 border-indigo-600 overflow-y-auto max-h-[90vh]">
-            <h1 class="text-3xl md:text-5xl game-font text-indigo-600 mb-2 tracking-tighter text-nowrap uppercase">Blue Marble</h1>
-            <p class="text-slate-400 mb-6 font-medium tracking-widest uppercase text-xs">CPU Battle Edition</p>
-            
-            <button id="resume-btn" onclick="resumeGame()" class="hidden w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-lg shadow-xl transition transform active:scale-95 mb-4 flex items-center justify-center gap-2">
-                <span>💾</span> 이어하기
-            </button>
+    <div id="lobby-container" class="fixed inset-0 bg-slate-900 z-[100] flex items-center justify-center p-4">
+        <div id="network-lobby" class="bg-white rounded-3xl p-6 w-full max-w-lg shadow-2xl h-[80vh] flex flex-col">
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-2xl md:text-3xl font-black text-indigo-600 tracking-tighter uppercase">Blue Marble</h1>
+                <div class="flex gap-2">
+                    <button onclick="openModal('local-setup-modal')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg font-bold text-xs shadow transition">🎮 싱글/로컬</button>
+                    <button onclick="openModal('create-room-modal')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg font-bold text-xs shadow transition">+ 방 만들기</button>
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto space-y-3 p-1" id="room-list">
+                <div class="text-center text-gray-400 py-10">로딩중...</div>
+            </div>
+            <div class="mt-4 pt-4 border-t text-center text-xs text-gray-400">Lobby System Powered by Firebase</div>
+        </div>
 
-            <div class="flex flex-col gap-4 mb-6 w-full mx-auto">
-                <div class="space-y-1 text-left">
+        <!-- 대기실 -->
+        <div id="room-waiting" class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl text-center hidden">
+            <h2 id="room-title-display" class="text-2xl font-black text-slate-800 mb-2">Room Title</h2>
+            <div class="text-sm text-gray-500 mb-6">게임 시작을 대기중입니다...</div>
+            <div id="waiting-user-list" class="space-y-2 mb-8 text-left max-h-[40vh] overflow-y-auto"></div>
+            <div class="flex gap-3">
+                <button onclick="leaveRoom()" class="flex-1 py-3 bg-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-300">나가기</button>
+                <button id="host-start-btn" onclick="hostStartGame()" class="flex-[2] py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-xl hover:bg-indigo-700 hidden">게임 시작</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 로컬 게임 설정 모달 -->
+    <div id="local-setup-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-[150] hidden backdrop-blur-sm px-4">
+        <div class="bg-white p-6 rounded-2xl w-full max-w-xs shadow-2xl">
+            <h3 class="text-xl font-bold mb-4 text-slate-800">싱글/로컬 게임 설정</h3>
+            <div class="space-y-4">
+                <div>
                     <label class="text-xs font-bold text-slate-600">🙋‍♂️ 사람 플레이어</label>
-                    <select id="human-count" onchange="updateCpuOptions()" class="w-full p-2.5 rounded-xl border-2 border-slate-200 text-base font-bold outline-none focus:border-indigo-500">
+                    <select id="human-count" onchange="updateCpuOptions()" class="w-full p-2.5 rounded-xl border-2 border-slate-200 font-bold outline-none">
                         <option value="1">1명 (솔로)</option>
                         <option value="2" selected>2명</option>
                         <option value="3">3명</option>
@@ -203,29 +476,47 @@
                         <option value="6">6명</option>
                     </select>
                 </div>
-                <div class="space-y-1 text-left">
+                <div>
                     <label class="text-xs font-bold text-slate-600">🤖 컴퓨터(CPU)</label>
-                    <select id="cpu-count" class="w-full p-2.5 rounded-xl border-2 border-slate-200 text-base font-bold outline-none focus:border-indigo-500">
-                        <!-- JS로 동적 생성 -->
-                        <option value="0">없음</option>
-                        <option value="1">1대</option>
-                        <option value="2" selected>2대</option>
-                        <option value="3">3대</option>
-                        <option value="4">4대</option>
+                    <select id="cpu-count" class="w-full p-2.5 rounded-xl border-2 border-slate-200 font-bold outline-none"></select>
+                </div>
+            </div>
+            <div class="flex gap-2 mt-6">
+                <button onclick="closeModal('local-setup-modal')" class="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl">취소</button>
+                <button onclick="checkAndStart()" class="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg">시작</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 방 만들기 모달 -->
+    <div id="create-room-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-[150] hidden backdrop-blur-sm px-4">
+        <div class="bg-white p-6 rounded-2xl w-full max-w-xs shadow-2xl">
+            <h3 class="text-xl font-bold mb-4 text-slate-800">새로운 방 만들기</h3>
+            <div class="space-y-3">
+                <input id="new-room-name" type="text" placeholder="방 제목" class="w-full p-3 border-2 border-slate-200 rounded-xl font-bold focus:border-indigo-500 outline-none">
+                <input id="new-room-pw" type="password" placeholder="비밀번호 (선택)" class="w-full p-3 border-2 border-slate-200 rounded-xl font-bold focus:border-indigo-500 outline-none">
+                <div class="flex items-center justify-between px-1">
+                    <span class="text-sm font-bold text-slate-600">최대 인원</span>
+                    <select id="new-room-max" class="p-2 border-2 border-slate-200 rounded-lg font-bold">
+                        <option value="2">2명</option>
+                        <option value="3">3명</option>
+                        <option value="4" selected>4명</option>
+                        <option value="5">5명</option>
+                        <option value="6">6명</option>
                     </select>
                 </div>
             </div>
-
-            <button onclick="checkAndStart()" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-lg shadow-xl transition transform active:scale-95">새 게임 시작</button>
-            <p id="lobby-msg" class="text-red-500 text-xs mt-2 min-h-[16px]"></p>
+            <div class="flex gap-2 mt-6">
+                <button onclick="closeModal('create-room-modal')" class="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl">취소</button>
+                <button onclick="createRoom()" class="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg">생성</button>
+            </div>
         </div>
     </div>
 
     <!-- 게임 판 -->
-    <div id="game-board-container">
+    <div id="game-board-container" class="hidden">
         <div id="game-board" class="board-grid opacity-0 transition-opacity duration-500">
-            <div class="center-panel shadow-inner">
-                
+             <div class="center-panel shadow-inner">
                 <div id="dice-overlay" class="dice-overlay">
                     <div id="event-emoji" class="text-7xl md:text-9xl drop-shadow-2xl"></div>
                     <div id="event-msg" class="event-info-box hidden">
@@ -237,7 +528,6 @@
                         <div id="dice-2" class="dice-box">?</div>
                     </div>
                 </div>
-
                 <div class="flex items-center justify-between border-b pb-1 mb-1">
                     <div class="flex flex-col">
                         <h2 id="top-title" class="text-[0.6rem] md:text-xl game-font text-slate-300">WORLD TOUR</h2>
@@ -248,15 +538,13 @@
                         <button id="roll-btn" onclick="game.rollDice()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition shadow-lg active:scale-95 disabled:opacity-50 text-[0.6rem] md:text-base disabled:cursor-not-allowed whitespace-nowrap">주사위</button>
                     </div>
                 </div>
-
                 <div id="player-list" class="grid grid-cols-2 gap-1.5 flex-[6] overflow-y-auto content-start pr-0.5"></div>
-
                 <div class="bg-slate-900 text-white p-2 rounded-lg shadow-2xl flex flex-col flex-[3] overflow-hidden border border-slate-700 min-h-0">
                     <div class="text-[8px] font-bold text-slate-500 mb-0.5 uppercase tracking-widest border-b border-slate-800 pb-0.5 flex justify-between items-center">
                         <span>Log</span>
                         <span id="turn-display" class="text-indigo-400 font-bold animate-pulse uppercase">P1</span>
                     </div>
-                    <div id="game-log" class="log-container overflow-y-auto flex-1 text-[10px] md:text-xs space-y-1 flex flex-col-reverse mt-0.5 pr-0.5 font-medium">
+                    <div id="game-log" class="log-container overflow-y-auto flex-1 text-[8px] space-y-1 flex flex-col-reverse mt-0.5 pr-0.5 font-medium">
                         <div class="text-indigo-300 italic">게임을 시작합니다.</div>
                     </div>
                 </div>
@@ -264,7 +552,7 @@
         </div>
     </div>
 
-    <!-- 구매 모달 (대지 구매) -->
+    <!-- 모달 등 게임 관련 UI 요소들 -->
     <div id="modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-[110] hidden backdrop-blur-md px-4">
         <div class="bg-white p-6 rounded-2xl max-w-xs w-full shadow-2xl text-center border-b-8 border-indigo-600">
             <div id="modal-flag-container" class="mb-3 transform scale-100"></div>
@@ -277,7 +565,6 @@
         </div>
     </div>
 
-    <!-- 건설 선택 모달 -->
     <div id="build-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-[110] hidden backdrop-blur-md px-4">
         <div class="bg-white p-5 rounded-2xl w-full max-w-xs shadow-2xl border-b-8 border-indigo-600">
             <h2 class="text-xl font-bold mb-1 text-center text-slate-800">건물 건설</h2>
@@ -287,7 +574,6 @@
         </div>
     </div>
 
-    <!-- 모달: 카드 사용 선택 (Yes/No) -->
     <div id="choice-modal" class="fixed inset-0 bg-black/85 flex items-center justify-center z-[150] hidden backdrop-blur-md px-4">
         <div class="bg-white p-6 rounded-3xl max-w-xs w-full shadow-2xl text-center border-t-8 border-green-500">
             <div id="choice-emoji" class="text-5xl mb-2">🎫</div>
@@ -300,7 +586,6 @@
         </div>
     </div>
 
-    <!-- 모달: 게임 정보 -->
     <div id="game-info-modal" class="fixed inset-0 bg-black/90 flex items-center justify-center z-[200] hidden backdrop-blur-sm p-4" onclick="closeGameInfo()">
         <div class="bg-white rounded-3xl w-full max-w-md h-[80vh] flex flex-col shadow-2xl border-t-8 border-indigo-500 overflow-hidden" onclick="event.stopPropagation()">
             <div class="p-6 border-b flex justify-between items-center bg-slate-50">
@@ -308,43 +593,19 @@
                 <button onclick="closeGameInfo()" class="text-2xl text-slate-400 hover:text-slate-600">×</button>
             </div>
             <div class="p-6 overflow-y-auto text-sm text-slate-600 leading-relaxed space-y-4">
-                <div>
-                    <h3 class="font-bold text-indigo-600 text-lg mb-1">🚩 승리 조건</h3>
-                    <p>상대를 모두 파산시키거나, 30라운드 종료 시 자산이 가장 많은 플레이어가 승리합니다.</p>
-                </div>
-                <div>
-                    <h3 class="font-bold text-indigo-600 text-lg mb-1">🎲 게임 진행</h3>
-                    <ul class="list-disc pl-5 space-y-1">
-                        <li>주사위를 굴려 이동합니다. 더블이 나오면 한 번 더 굴릴 수 있습니다.</li>
-                        <li>단, <strong>우주여행, 무인도 탈출, 황금열쇠 이동</strong> 시에는 더블이어도 턴이 종료됩니다.</li>
-                        <li>3회 연속 더블 시 무인도로 즉시 이동합니다.</li>
-                    </ul>
-                </div>
-                <div>
-                    <h3 class="font-bold text-indigo-600 text-lg mb-1">🏗️ 건설 및 통행료</h3>
-                    <p>빈 땅에 도착하면 땅을 구매하고 건물을 지을 수 있습니다. (별장, 빌딩, 호텔)</p>
-                    <p>건물을 많이 지을수록 통행료가 비싸집니다. 한 땅에 모든 건물을 중복해서 지을 수 있습니다.</p>
-                </div>
-                <div>
-                    <h3 class="font-bold text-indigo-600 text-lg mb-1">🚀 특수 규칙</h3>
-                    <ul class="list-disc pl-5 space-y-1">
-                        <li><strong>우주여행:</strong> 도착 시 20만원을 지불하고 다음 턴에 원하는 곳으로 이동합니다.</li>
-                        <li><strong>무인도:</strong> 3턴간 갇힙니다. 더블이 나오거나 탈출권을 쓰면 즉시 나갈 수 있습니다.</li>
-                        <li><strong>사회복지기금:</strong> 세금이나 벌금이 모이는 곳입니다. 도착 시 적립금을 모두 가져갑니다.</li>
-                    </ul>
-                </div>
-                 <div>
-                    <h3 class="font-bold text-indigo-600 text-lg mb-1">🃏 카드 사용</h3>
-                    <p>우대권(통행료 면제)과 무인도 탈출권은 자동으로 사용되지 않고, <strong>필요한 순간에 사용 여부를 선택</strong>할 수 있습니다.</p>
-                </div>
+               <div><h3 class="font-bold text-indigo-600 text-lg mb-1">🚩 승리 조건</h3><p>상대 파산 또는 30라운드 종료 후 자산 1위.</p></div>
+               <div><h3 class="font-bold text-indigo-600 text-lg mb-1">🎲 진행</h3><p>주사위 이동. 더블 시 재행동(특수 이동 시 턴 종료).</p></div>
+               <div><h3 class="font-bold text-indigo-600 text-lg mb-1">🚀 특수 규칙</h3>
+                   <ul class="list-disc pl-5">
+                       <li>우주여행: 요금 지불 후 턴 종료, 다음 턴 원하는 곳 이동.</li>
+                       <li>무인도: 3턴 대기. 탈출권/더블로 탈출.</li>
+                   </ul>
+               </div>
             </div>
-            <div class="p-4 border-t bg-slate-50">
-                <button onclick="closeGameInfo()" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl">닫기</button>
-            </div>
+            <div class="p-4 border-t bg-slate-50"><button onclick="closeGameInfo()" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl">닫기</button></div>
         </div>
     </div>
 
-    <!-- 모달: 게임 종료 -->
     <div id="game-over-modal" class="fixed inset-0 bg-black/90 flex items-center justify-center z-[200] hidden backdrop-blur-xl px-4">
         <div class="bg-white p-6 rounded-2xl max-w-xs w-full shadow-2xl text-center border-t-8 border-yellow-400">
             <div class="text-5xl mb-3">🏆</div>
@@ -355,7 +616,6 @@
         </div>
     </div>
 
-    <!-- 부동산 상세 정보 카드 -->
     <div id="property-card" class="fixed inset-0 bg-black/40 flex items-center justify-center z-[120] hidden backdrop-blur-sm px-4" onclick="closePropertyCardGlobal()">
         <div class="bg-white rounded-2xl w-full max-w-xs overflow-hidden shadow-2xl border-t-8" id="prop-card-border" onclick="event.stopPropagation()">
             <div class="bg-slate-50 p-4 text-center border-b">
@@ -391,53 +651,25 @@
         </div>
     </div>
 
+    <!-- Javascript -->
     <script>
         const getPlayerColor = (id) => ['#ff0000', '#0066ff', '#00cc44', '#ffcc00', '#aa00ff', '#ff0099'][id - 1];
-
-        // 전역 변수 선언
         var game = null;
-
-        // 전역 UI 제어 함수 (인스턴스 무관)
         function showGameInfo() { document.getElementById('game-info-modal').classList.remove('hidden'); }
         function closeGameInfo() { document.getElementById('game-info-modal').classList.add('hidden'); }
-        
         function quitGame() {
             if(confirm("정말 종료하시겠습니까? 저장된 게임이 삭제됩니다.")) {
                 localStorage.removeItem('gbm_save');
                 location.reload();
             }
         }
-
-        function toggleGlobalSpeed() {
-            if (typeof game !== 'undefined' && game) {
-                game.toggleSpeed();
-            }
-        }
-
-        function closePropertyCardGlobal() {
-            if (typeof game !== 'undefined' && game) {
-                game.closePropertyCard();
-            } else {
-                 document.getElementById('property-card').classList.add('hidden');
-            }
-        }
-
-        class SoundManager {
-            constructor() { try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} }
-            play(freq, type, duration, vol = 0.1) {
-                if(!this.ctx) return;
-                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
-                osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
-                osc.connect(gain); gain.connect(this.ctx.destination);
-                osc.start(); osc.stop(this.ctx.currentTime + duration);
-            }
-            playDice() { this.play(150, 'triangle', 0.2, 0.2); }
-            playMove() { this.play(600, 'sine', 0.1, 0.08); }
-            playMoney() { this.play(880, 'sine', 0.1, 0.1); setTimeout(() => this.play(1320, 'sine', 0.2, 0.1), 50); }
-            playAlert() { this.play(200, 'square', 0.3, 0.05); setTimeout(() => this.play(150, 'square', 0.3, 0.05), 100); }
-            playSpecial() { if(!this.ctx) return; let now = this.ctx.currentTime; const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain(); osc.frequency.setValueAtTime(400, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.5); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.5); osc.connect(gain); gain.connect(this.ctx.destination); osc.start(); osc.stop(now + 0.5); }
+        function toggleGlobalSpeed() { if (game) game.toggleSpeed(); }
+        function closePropertyCardGlobal() { if (game) game.closePropertyCard(); }
+        function toggleFullScreen() {
+            try {
+                if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); }
+                else { if (document.exitFullscreen) { document.exitFullscreen(); } }
+            } catch (e) { console.log("Fullscreen not supported"); }
         }
 
         const boardData = [
@@ -494,10 +726,12 @@
         const gridPositions = generateGridPositions();
 
         class GrandBlueMarble {
-            constructor(humanCount, cpuCount, savedData = null) {
+            constructor(humanCount, cpuCount, savedData = null, networkPlayers = null) {
                 this.sound = new SoundManager();
                 const icons = ['🚗', '✈️', '🚢', '🚁', '🚲', '🚀'];
                 const names = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
+                
+                this.players = [];
                 
                 if (savedData) {
                     this.players = savedData.players;
@@ -507,10 +741,27 @@
                     this.buildings = savedData.buildings;
                     this.round = savedData.round;
                     this.gameSpeed = savedData.gameSpeed || 1;
+                } else if (networkPlayers) {
+                    networkPlayers.forEach((p, i) => {
+                        this.players.push({
+                            id: i + 1,
+                            isCpu: false,
+                            uid: p.uid,
+                            pos: 0, money: 3000000,
+                            name: p.name,
+                            icon: icons[i % icons.length],
+                            isBankrupt: false, doubleCount: 0, islandTurns: 0, isIslandIn: false, 
+                            hasEscapeCard: false, freePassCount: 0, isSpaceTravelReady: false, isFreeSpaceTravel: false
+                        });
+                    });
+                    this.currentPlayerIndex = 0;
+                    this.socialFund = 0; 
+                    this.properties = Array(boardData.length).fill(null);
+                    this.buildings = Array(boardData.length).fill(null).map(() => ({ villa: false, building: false, hotel: false }));
+                    this.gameSpeed = 1; 
+                    this.round = 1; 
                 } else {
-                    this.players = [];
                     let pId = 1;
-                    
                     for(let i=0; i<humanCount; i++) {
                         this.players.push({
                             id: pId, isCpu: false, pos: 0, money: 3000000, name: names[i], icon: icons[i],
@@ -519,7 +770,6 @@
                         });
                         pId++;
                     }
-
                     for(let i=0; i<cpuCount; i++) {
                         let iconIdx = (humanCount + i) % icons.length;
                         this.players.push({
@@ -529,7 +779,6 @@
                         });
                         pId++;
                     }
-
                     this.currentPlayerIndex = 0;
                     this.socialFund = 0; 
                     this.properties = Array(boardData.length).fill(null);
@@ -571,11 +820,7 @@
                 localStorage.setItem('gbm_save', JSON.stringify(data));
             }
 
-            quitGame() {
-                // Moved to global, this method kept for internal calls if any
-                quitGame();
-            }
-            
+            quitGame() { quitGame(); }
             showGameInfo() { showGameInfo(); }
             closeGameInfo() { closeGameInfo(); }
 
@@ -698,7 +943,6 @@
                         header.className = 'cell-header';
                         header.style.backgroundColor = data.color;
                         if(data.color === '#ec4899') header.style.color = 'white'; 
-                        
                         let nameHtml = `<div class="flex flex-col items-center justify-center w-full leading-none">`;
                         nameHtml += `<div class="flex items-center justify-center gap-0.5">`;
                         if (data.code) nameHtml += `<img src="https://flagcdn.com/w40/${data.code}.png" class="flag-img" onerror="this.style.display='none'"> `;
@@ -706,7 +950,6 @@
                         nameHtml += `<span>${data.name}</span></div>`;
                         nameHtml += `<div class="text-[0.65em] font-medium mt-0.5 opacity-80">₩${data.price/10000}만</div>`;
                         nameHtml += `</div>`;
-                        
                         header.innerHTML = nameHtml;
 
                         const buildings = document.createElement('div');
@@ -924,11 +1167,26 @@
                 }
 
                 const btn = document.getElementById('roll-btn');
+                
+                // 우주여행 상태인지 체크
+                if (p.isSpaceTravelReady) {
+                     btn.disabled = false;
+                     btn.innerText = "목적지 선택";
+                     if (p.isCpu) {
+                         btn.disabled = true;
+                         btn.innerText = `${p.name} (CPU)`;
+                         setTimeout(() => { this.rollDice(); }, 1000 / this.gameSpeed);
+                     }
+                     return;
+                }
+
                 if (p.isCpu) {
-                    btn.disabled = true; btn.innerText = `${p.name} (CPU)`;
+                    btn.disabled = true;
+                    btn.innerText = `${p.name} (CPU)`;
                     setTimeout(() => { this.rollDice(); }, 1000 / this.gameSpeed);
                 } else {
-                    btn.disabled = false; btn.innerText = "주사위";
+                    btn.disabled = false;
+                    btn.innerText = "주사위";
                 }
                 this.save();
             }
@@ -1119,7 +1377,7 @@
                         if (colOwner && colOwner !== p.id) { this.players[colOwner-1].money += payment; }
                         this.bankrupt(p);
                     }
-                    this.checkPostAction();
+                    this.endTurn(true); // 우주여행 후 턴 강제 종료
                 }
                 else if (s.name === "사회복지") { 
                     this.sound.playMoney(); 
@@ -1566,6 +1824,10 @@
             
             document.getElementById('lobby').classList.add('hidden'); 
             document.getElementById('game-board').classList.remove('opacity-0');
+            
+            document.querySelector('.top-controls').style.display = 'flex'; 
+            document.querySelector('.top-controls-left').style.display = 'flex';
+            
             window.game = new GrandBlueMarble(human, cpu);
         }
 
@@ -1574,6 +1836,10 @@
             if(savedData) {
                 document.getElementById('lobby').classList.add('hidden'); 
                 document.getElementById('game-board').classList.remove('opacity-0');
+                
+                document.querySelector('.top-controls').style.display = 'flex'; 
+                document.querySelector('.top-controls-left').style.display = 'flex';
+            
                 window.game = new GrandBlueMarble(0, 0, savedData);
             }
         }
