@@ -6,424 +6,6 @@
     <title>브루마블 그랜드 - 멀티플레이어 & 싱글</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-analytics.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, getDoc, arrayUnion, arrayRemove, setDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-        // Presence 시스템을 위한 Realtime Database 추가
-        import { getDatabase, ref, onDisconnect, set, remove, onValue } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
-
-        // Firebase 설정
-        const firebaseConfig = {
-            apiKey: "AIzaSyDP7mDxvaSOJOthbLD22AzVq5SsgSRQE44",
-            authDomain: "mymarble-2afb1.firebaseapp.com",
-            projectId: "mymarble-2afb1",
-            storageBucket: "mymarble-2afb1.firebasestorage.app",
-            messagingSenderId: "373463759566",
-            appId: "1:373463759566:web:9d9fa31a1404f9bd3f6e9f",
-            measurementId: "G-G65TCE21PM",
-            // RTDB URL 추론 (프로젝트 ID 기반)
-            databaseURL: "https://mymarble-2afb1-default-rtdb.firebaseio.com"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const rtdb = getDatabase(app);
-        
-        const GAME_NAMESPACE = 'blue-marble-online-v4'; // 버전 업
-
-        let currentUser = null;
-        let currentRoomId = null;
-        let unsubscribeRoom = null;
-        let isLocalGame = false;
-        let presenceRef = null;
-
-        signInAnonymously(auth).catch((error) => console.error("Auth Error:", error));
-
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                currentUser = user;
-                console.log("Logged in as:", user.uid);
-                
-                // 닉네임 로드
-                const savedNick = localStorage.getItem('gbm_nickname');
-                const nickInput = document.getElementById('my-nickname');
-                if (nickInput) {
-                    nickInput.value = savedNick || `Player ${user.uid.slice(0,4)}`;
-                }
-
-                // RTDB 연결 상태 모니터링
-                const connectedRef = ref(rtdb, ".info/connected");
-                onValue(connectedRef, (snap) => {
-                    if (snap.val() === true) {
-                        // 연결됨
-                    }
-                });
-
-                // 재접속 로직
-                const savedRoomId = localStorage.getItem('gbm_current_room_id');
-                if (savedRoomId) {
-                    await attemptReconnect(savedRoomId);
-                } else {
-                    initLobby(); 
-                }
-            } else {
-                currentUser = null;
-            }
-        });
-
-        // 재접속 시도
-        async function attemptReconnect(roomId) {
-            const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
-            try {
-                const docSnap = await getDoc(roomRef);
-                if (docSnap.exists()) {
-                    const room = docSnap.data();
-                    const amIIn = room.players.some(p => p.uid === currentUser.uid);
-                    
-                    if (amIIn) {
-                        console.log("Reconnecting to room:", roomId);
-                        enterWaitingRoom(roomId); 
-                    } else {
-                        localStorage.removeItem('gbm_current_room_id');
-                        initLobby();
-                    }
-                } else {
-                    localStorage.removeItem('gbm_current_room_id');
-                    initLobby();
-                }
-            } catch (e) {
-                console.error("Reconnect failed:", e);
-                initLobby();
-            }
-        }
-
-        function initLobby() {
-            if (!currentUser || currentRoomId) return;
-
-            const roomsRef = collection(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms');
-            
-            onSnapshot(query(roomsRef, orderBy('createdAt', 'desc')), (snapshot) => {
-                if (currentRoomId) return; // 게임 중이면 무시
-
-                const list = document.getElementById('room-list');
-                if(!list) return;
-                list.innerHTML = '';
-                
-                snapshot.forEach(doc => {
-                    const room = doc.data();
-                    const isPrivate = room.password && room.password.length > 0;
-                    const playerCount = room.players ? room.players.length : 0;
-                    
-                    const item = document.createElement('div');
-                    item.className = "bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center hover:border-indigo-400 transition cursor-pointer";
-                    item.innerHTML = `
-                        <div>
-                            <div class="flex items-center gap-2">
-                                ${isPrivate ? '<span class="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">🔒 비공개</span>' : '<span class="text-xs bg-green-100 text-green-600 px-1.5 py-0.5 rounded font-bold">📢 공개</span>'}
-                                <h3 class="font-bold text-slate-800">${room.name}</h3>
-                            </div>
-                            <div class="text-xs text-slate-500 mt-1">방장: ${room.hostName}</div>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <span class="text-sm font-bold ${playerCount >= room.maxPlayers ? 'text-red-500' : 'text-indigo-600'}">${playerCount}/${room.maxPlayers}명</span>
-                            <button class="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50" 
-                                ${playerCount >= room.maxPlayers || room.status === 'playing' ? 'disabled' : ''}>
-                                ${room.status === 'playing' ? '게임중' : '입장'}
-                            </button>
-                        </div>
-                    `;
-                    
-                    if (playerCount < room.maxPlayers && room.status !== 'playing') {
-                        item.onclick = () => tryJoinRoom(doc.id, room);
-                    }
-                    list.appendChild(item);
-                });
-
-                if (snapshot.empty) {
-                    list.innerHTML = `<div class="text-center text-gray-400 py-10">개설된 방이 없습니다.<br>새로운 방을 만들어보세요!</div>`;
-                }
-            }, (error) => {
-                // 권한 오류 등 무시
-            });
-        }
-
-        window.createRoom = async () => {
-            if (!currentUser) return alert("로그인 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
-
-            const name = document.getElementById('new-room-name').value;
-            const password = document.getElementById('new-room-pw').value;
-            const max = parseInt(document.getElementById('new-room-max').value);
-            const myNick = document.getElementById('my-nickname').value || "Guest";
-            localStorage.setItem('gbm_nickname', myNick);
-
-            if (!name) return alert("방 제목을 입력해주세요.");
-
-            try {
-                const roomData = {
-                    name,
-                    password,
-                    maxPlayers: max,
-                    hostId: currentUser.uid,
-                    hostName: myNick,
-                    players: [{ uid: currentUser.uid, name: myNick, ready: true }],
-                    status: 'waiting',
-                    createdAt: Date.now(),
-                    gameState: null
-                };
-                
-                const docRef = await addDoc(collection(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms'), roomData);
-                enterWaitingRoom(docRef.id);
-                closeModal('create-room-modal');
-            } catch (e) {
-                console.error("Error creating room:", e);
-                alert("방 생성 실패: " + e.message);
-            }
-        };
-
-        window.tryJoinRoom = (roomId, room) => {
-            if (!currentUser) return alert("로그인 정보를 불러오는 중입니다.");
-            
-            if (room.password) {
-                const input = prompt("비밀번호를 입력하세요:");
-                if (input !== room.password) return alert("비밀번호가 일치하지 않습니다.");
-            }
-            joinRoom(roomId);
-        };
-
-        async function joinRoom(roomId) {
-            if (!currentUser) return;
-            const myNick = document.getElementById('my-nickname').value || "Guest";
-            localStorage.setItem('gbm_nickname', myNick);
-
-            const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
-
-            try {
-                const snap = await getDoc(roomRef);
-                if(snap.exists()) {
-                    const data = snap.data();
-                    if (!data.players.some(p => p.uid === currentUser.uid)) {
-                        await updateDoc(roomRef, {
-                            players: arrayUnion({ uid: currentUser.uid, name: myNick, ready: false })
-                        });
-                    }
-                }
-                enterWaitingRoom(roomId);
-            } catch (e) {
-                console.error(e);
-                alert("입장 실패");
-            }
-        }
-
-        function enterWaitingRoom(roomId) {
-            currentRoomId = roomId;
-            isLocalGame = false;
-            
-            // 로컬 스토리지 저장
-            localStorage.setItem('gbm_current_room_id', roomId);
-
-            document.getElementById('network-lobby').classList.add('hidden');
-            document.getElementById('room-waiting').classList.remove('hidden');
-
-            const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
-            
-            // --- Presence System Setup (연결 끊김 감지) ---
-            // RTDB에 현재 유저가 이 방에 있다는 표시를 남김
-            // 연결 끊기면 RTDB에서 제거 -> 하지만 Firestore 업데이트는 안됨 (Cloud Functions 필요)
-            // 여기서는 클라이언트 측에서 가능한 최선: onDisconnect로 '나감' 상태 표시 시도
-            // *주의*: Firestore에는 onDisconnect가 없으므로 완벽한 해결은 아님.
-            // 대안: 방장이 주기적으로 핑을 확인하거나, 여기서 beforeunload 사용.
-            
-            // UI 업데이트 리스너
-            unsubscribeRoom = onSnapshot(roomRef, (docSnap) => {
-                if (!docSnap.exists()) {
-                    alert("방이 종료되었습니다.");
-                    leaveRoom(true); 
-                    return;
-                }
-
-                const room = docSnap.data();
-                
-                // 내가 추방되었는지 확인
-                if (!room.players.some(p => p.uid === currentUser.uid)) {
-                    alert("방에서 나갔습니다.");
-                    leaveRoom(true);
-                    return;
-                }
-
-                renderWaitingRoom(room);
-
-                if (room.status === 'playing') {
-                    if (!window.game) {
-                        startGameFromLobby(room);
-                    } else {
-                        // 게임 상태 동기화
-                        if (room.gameState && room.gameState.lastActionId !== window.game.lastActionId) {
-                            window.game.syncState(room.gameState);
-                        }
-                    }
-                } else if (room.status === 'waiting') {
-                    // 게임 종료 후 대기실 복귀
-                    if (window.game) {
-                         resetToLobbyUI();
-                         // 다시 대기실 UI 보이기
-                         document.getElementById('network-lobby').classList.add('hidden');
-                         document.getElementById('room-waiting').classList.remove('hidden');
-                    }
-                }
-            });
-        }
-
-        function renderWaitingRoom(room) {
-            document.getElementById('room-title-display').innerText = room.name;
-            const userList = document.getElementById('waiting-user-list');
-            userList.innerHTML = '';
-
-            const isHost = room.hostId === currentUser.uid;
-            const startBtn = document.getElementById('host-start-btn');
-            
-            let readyCount = 0;
-            room.players.forEach(p => {
-                const el = document.createElement('div');
-                el.className = "flex justify-between items-center bg-slate-50 p-3 rounded-lg";
-                el.innerHTML = `
-                    <div class="font-bold flex items-center gap-2">
-                        ${p.uid === room.hostId ? '👑' : '👤'} ${p.name} ${p.uid === currentUser.uid ? '(나)' : ''}
-                    </div>
-                    <div class="${p.ready ? 'text-green-600' : 'text-gray-400'} font-bold text-sm">
-                        ${p.ready ? '준비완료' : '대기중'}
-                    </div>
-                `;
-                userList.appendChild(el);
-                if (p.ready) readyCount++;
-            });
-
-            if (isHost) {
-                startBtn.classList.remove('hidden');
-                // 최소 2명 이상이어야 시작 가능
-                startBtn.disabled = readyCount < 2; 
-                startBtn.innerText = readyCount < 2 ? "최소 2명 필요" : "게임 시작";
-                // 테스트용으로 1명도 허용하려면 여기 수정: readyCount < 1
-                if(readyCount >= 2) startBtn.disabled = false;
-            } else {
-                startBtn.classList.add('hidden');
-            }
-        }
-
-        // 방 나가기 (중요: 로비로 돌아가기 버튼 등에서 호출)
-        window.leaveRoom = async (forced = false) => {
-            const roomIdToLeave = currentRoomId;
-            
-            // 정리
-            localStorage.removeItem('gbm_current_room_id');
-            localStorage.removeItem('gbm_save'); 
-            currentRoomId = null; 
-
-            if (unsubscribeRoom) {
-                unsubscribeRoom();
-                unsubscribeRoom = null;
-            }
-            
-            // 강제 퇴장이 아니고(자발적), 방ID와 유저가 있고, 로컬게임이 아니면 DB 업데이트
-            if (!forced && roomIdToLeave && currentUser && !isLocalGame) {
-                try {
-                    const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomIdToLeave);
-                    const docSnap = await getDoc(roomRef);
-                    
-                    if (docSnap.exists()) {
-                        const room = docSnap.data();
-                        const myPlayer = room.players.find(p => p.uid === currentUser.uid);
-                        
-                        if (myPlayer) {
-                            const remainingPlayers = room.players.filter(p => p.uid !== currentUser.uid);
-                            
-                            if (remainingPlayers.length === 0) {
-                                // 남은 사람이 0명이면 방 삭제
-                                await deleteDoc(roomRef);
-                            } else {
-                                // 남은 사람이 있으면 나만 제거
-                                let updates = {
-                                    players: arrayRemove(myPlayer)
-                                };
-                                // 방장이 나갔으면 방장 승계
-                                if (room.hostId === currentUser.uid) {
-                                    updates.hostId = remainingPlayers[0].uid;
-                                    updates.hostName = remainingPlayers[0].name;
-                                }
-                                await updateDoc(roomRef, updates);
-                            }
-                        }
-                    }
-                } catch (e) {
-                    console.error("Error leaving room:", e);
-                }
-            }
-            
-            // UI 리셋은 finally 처럼 실행
-            resetToLobbyUI();
-            if(!isLocalGame) initLobby(); 
-        };
-
-        window.hostStartGame = async () => {
-            if (!currentRoomId || !currentUser) return;
-            const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId);
-            
-            // 초기 게임 상태 설정
-            const initialGameState = {
-                players: null, // startGameFromLobby에서 설정
-                currentPlayerIndex: 0,
-                lastActionId: Date.now()
-            };
-            
-            await updateDoc(roomRef, { 
-                status: 'playing',
-                gameState: initialGameState 
-            });
-        };
-
-        function startGameFromLobby(roomData) {
-            document.getElementById('room-waiting').classList.add('hidden');
-            document.getElementById('lobby-container').classList.add('hidden'); 
-            
-            document.getElementById('game-board-container').classList.remove('hidden');
-            document.getElementById('game-board').classList.remove('opacity-0');
-            document.querySelector('.top-controls').style.display = 'flex'; 
-            document.querySelector('.top-controls-left').style.display = 'flex';
-
-            const playerConfig = roomData.players.map(p => ({
-                name: p.name,
-                isCpu: false,
-                uid: p.uid
-            }));
-
-            // 게임 객체 생성
-            if(window.game) window.game = null;
-            window.game = new GrandBlueMarble(playerConfig, 0, null, true); // true = Multiplayer
-        }
-        
-        function resetToLobbyUI() {
-            // 모든 게임 관련 UI 숨김 -> 로비 표시
-            document.getElementById('game-board-container').classList.add('hidden');
-            document.getElementById('game-over-modal').classList.add('hidden');
-            document.getElementById('room-waiting').classList.add('hidden');
-            document.querySelector('.top-controls').style.display = 'none';
-            document.querySelector('.top-controls-left').style.display = 'none';
-            
-            document.getElementById('lobby-container').classList.remove('hidden');
-            document.getElementById('network-lobby').classList.remove('hidden');
-            
-            if(window.game) window.game = null;
-        }
-
-        window.openModal = (id) => document.getElementById(id).classList.remove('hidden');
-        window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
-
-    </script>
-    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;700&display=swap');
 
@@ -559,9 +141,22 @@
         .player-card-content { font-size: clamp(0.6rem, 1.5vw, 0.8rem); }
         .player-money { font-size: clamp(0.65rem, 1.6vw, 0.9rem); }
         .player-badge { font-size: 0.55rem; padding: 1px 3px; }
+
+        #loading-screen {
+            position: fixed; inset: 0; background: #334155; z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; color: white;
+            transition: opacity 0.5s;
+        }
     </style>
 </head>
 <body>
+
+    <!-- 초기 로딩 화면 -->
+    <div id="loading-screen">
+        <div class="text-4xl mb-4">🎲</div>
+        <div class="font-bold text-xl">게임 리소스를 불러오는 중...</div>
+        <div class="text-xs text-slate-400 mt-2">잠시만 기다려주세요</div>
+    </div>
 
     <div class="top-controls-left" style="display: none;">
         <button id="info-btn" class="control-btn bg-blue-50 text-blue-600 border-blue-200" onclick="showGameInfo()">ℹ️ 게임설명</button>
@@ -574,7 +169,7 @@
     </div>
 
     <!-- 로비 -->
-    <div id="lobby-container" class="fixed inset-0 bg-slate-900 z-[100] flex items-center justify-center p-4">
+    <div id="lobby-container" class="fixed inset-0 bg-slate-900 z-[100] flex items-center justify-center p-4 hidden">
         <div id="network-lobby" class="bg-white rounded-3xl p-6 w-full max-w-lg shadow-2xl h-[80vh] flex flex-col">
             <div class="flex justify-between items-center mb-6">
                 <h1 class="text-2xl md:text-3xl font-black text-indigo-600 tracking-tighter uppercase">Blue Marble</h1>
@@ -745,7 +340,7 @@
             </div>
             <div class="p-6 overflow-y-auto text-sm text-slate-600 leading-relaxed space-y-4">
                <div><h3 class="font-bold text-indigo-600 text-lg mb-1">🚩 승리 조건</h3><p>상대 파산 또는 30라운드 종료 후 자산 1위.</p></div>
-               <div><h3 class="font-bold text-indigo-600 text-lg mb-1">🎲 진행</h3><p>주사위 이동. 더블 시 재행동(특수 이동 시 턴 종료).</p></div>
+               <div><h3 class="font-bold text-indigo-600 text-lg mb-1">🎲 진행</h3><p>주사위 이동. 더블 시 재행동(특수 이동 시 턴 종료). <span class="text-red-500">멀티플레이 시 내 턴에만 주사위를 굴릴 수 있습니다.</span></p></div>
                <div><h3 class="font-bold text-indigo-600 text-lg mb-1">🚀 특수 규칙</h3>
                    <ul class="list-disc pl-5">
                        <li>우주여행: 요금 지불 후 턴 종료, 다음 턴 원하는 곳 이동.</li>
@@ -802,33 +397,446 @@
         </div>
     </div>
 
-    <!-- Javascript -->
-    <script>
-        const getPlayerColor = (id) => ['#ff0000', '#0066ff', '#00cc44', '#ffcc00', '#aa00ff', '#ff0099'][id - 1];
-        var game = null;
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, getDoc, arrayUnion, arrayRemove, setDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        // Presence 시스템
+        import { getDatabase, ref, onDisconnect, set, remove, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        // Firebase 설정 (사용자 제공)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDP7mDxvaSOJOthbLD22AzVq5SsgSRQE44",
+            authDomain: "mymarble-2afb1.firebaseapp.com",
+            projectId: "mymarble-2afb1",
+            storageBucket: "mymarble-2afb1.firebasestorage.app",
+            messagingSenderId: "373463759566",
+            appId: "1:373463759566:web:9d9fa31a1404f9bd3f6e9f",
+            measurementId: "G-G65TCE21PM",
+            databaseURL: "https://mymarble-2afb1-default-rtdb.firebaseio.com"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const rtdb = getDatabase(app);
         
-        // 전역 함수 정의
-        function showGameInfo() { document.getElementById('game-info-modal').classList.remove('hidden'); }
-        function closeGameInfo() { document.getElementById('game-info-modal').classList.add('hidden'); }
-        async function quitGame() {
-            if(confirm("정말 종료하시겠습니까? 저장된 게임이 삭제됩니다.")) {
-                localStorage.removeItem('gbm_save');
-                // 멀티플레이어 방 나가기 처리
-                if (typeof leaveRoom === 'function' && currentRoomId) {
-                    await leaveRoom(false);
+        const GAME_NAMESPACE = 'blue-marble-online-v5'; 
+
+        let currentUser = null;
+        let currentRoomId = null;
+        let unsubscribeRoom = null;
+        let isLocalGame = false;
+
+        // Firebase 연결 감지 및 초기화 (로딩 화면 제어)
+        signInAnonymously(auth)
+            .then(() => {
+                document.getElementById('loading-screen').classList.add('opacity-0');
+                setTimeout(() => document.getElementById('loading-screen').style.display = 'none', 500);
+            })
+            .catch((error) => {
+                console.error("Auth Error:", error);
+                alert("로그인 실패. 인터넷 연결을 확인해주세요.");
+            });
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                console.log("Logged in as:", user.uid);
+                
+                const savedNick = localStorage.getItem('gbm_nickname');
+                const nickInput = document.getElementById('my-nickname');
+                if (nickInput) {
+                    nickInput.value = savedNick || `Player ${user.uid.slice(0,4)}`;
                 }
-                resetToLobbyUI();
+                
+                // RTDB Presence
+                const connectedRef = ref(rtdb, ".info/connected");
+                onValue(connectedRef, (snap) => {
+                     // 연결 상태 확인용
+                });
+
+                const savedRoomId = localStorage.getItem('gbm_current_room_id');
+                if (savedRoomId) {
+                    await attemptReconnect(savedRoomId);
+                } else {
+                    initLobby(); 
+                }
+            } else {
+                currentUser = null;
+            }
+        });
+
+        // (이하 로직 코드는 이전 답변과 동일하게 통합됨, 생략 없이 전체 포함)
+        async function attemptReconnect(roomId) {
+            const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
+            try {
+                const docSnap = await getDoc(roomRef);
+                if (docSnap.exists()) {
+                    const room = docSnap.data();
+                    const amIIn = room.players.some(p => p.uid === currentUser.uid);
+                    if (amIIn) {
+                        enterWaitingRoom(roomId); 
+                    } else {
+                        localStorage.removeItem('gbm_current_room_id');
+                        initLobby();
+                    }
+                } else {
+                    localStorage.removeItem('gbm_current_room_id');
+                    initLobby();
+                }
+            } catch (e) {
+                initLobby();
             }
         }
-        function toggleGlobalSpeed() { if (game) game.toggleSpeed(); }
-        function closePropertyCardGlobal() { if (game) game.closePropertyCard(); }
-        function toggleFullScreen() {
-            try {
-                if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); }
-                else { if (document.exitFullscreen) { document.exitFullscreen(); } }
-            } catch (e) { console.log("Fullscreen not supported"); }
+
+        function initLobby() {
+            if (!currentUser) return;
+            if (currentRoomId) return;
+
+            const roomsRef = collection(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms');
+            
+            onSnapshot(query(roomsRef, orderBy('createdAt', 'desc')), (snapshot) => {
+                if (currentRoomId) return;
+                const list = document.getElementById('room-list');
+                if(!list) return;
+                list.innerHTML = '';
+                
+                snapshot.forEach(doc => {
+                    const room = doc.data();
+                    const isPrivate = room.password && room.password.length > 0;
+                    const playerCount = room.players ? room.players.length : 0;
+                    
+                    const item = document.createElement('div');
+                    item.className = "bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center hover:border-indigo-400 transition cursor-pointer";
+                    item.innerHTML = `
+                        <div>
+                            <div class="flex items-center gap-2">
+                                ${isPrivate ? '<span class="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">🔒 비공개</span>' : '<span class="text-xs bg-green-100 text-green-600 px-1.5 py-0.5 rounded font-bold">📢 공개</span>'}
+                                <h3 class="font-bold text-slate-800">${room.name}</h3>
+                            </div>
+                            <div class="text-xs text-slate-500 mt-1">방장: ${room.hostName}</div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="text-sm font-bold ${playerCount >= room.maxPlayers ? 'text-red-500' : 'text-indigo-600'}">${playerCount}/${room.maxPlayers}명</span>
+                            <button class="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50" 
+                                ${playerCount >= room.maxPlayers || room.status === 'playing' ? 'disabled' : ''}>
+                                ${room.status === 'playing' ? '게임중' : '입장'}
+                            </button>
+                        </div>
+                    `;
+                    if (playerCount < room.maxPlayers && room.status !== 'playing') {
+                        item.onclick = () => tryJoinRoom(doc.id, room);
+                    }
+                    list.appendChild(item);
+                });
+                if (snapshot.empty) {
+                    list.innerHTML = `<div class="text-center text-gray-400 py-10">개설된 방이 없습니다.<br>새로운 방을 만들어보세요!</div>`;
+                }
+            });
         }
 
+        window.createRoom = async () => {
+            if (!currentUser) return alert("로그인 중...");
+            const name = document.getElementById('new-room-name').value;
+            const password = document.getElementById('new-room-pw').value;
+            const max = parseInt(document.getElementById('new-room-max').value);
+            const myNick = document.getElementById('my-nickname').value || "Guest";
+            localStorage.setItem('gbm_nickname', myNick);
+
+            if (!name) return alert("방 제목을 입력해주세요.");
+
+            try {
+                const roomData = {
+                    name, password, maxPlayers: max,
+                    hostId: currentUser.uid, hostName: myNick,
+                    players: [{ uid: currentUser.uid, name: myNick, ready: true }],
+                    status: 'waiting', createdAt: Date.now(), gameState: null
+                };
+                const docRef = await addDoc(collection(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms'), roomData);
+                localStorage.setItem('gbm_current_room_id', docRef.id);
+                enterWaitingRoom(docRef.id);
+                closeModal('create-room-modal');
+            } catch (e) {
+                console.error("Error creating room:", e);
+                alert("방 생성 실패");
+            }
+        };
+
+        window.tryJoinRoom = (roomId, room) => {
+            if (!currentUser) return alert("로그인 중...");
+            if (room.password) {
+                const input = prompt("비밀번호를 입력하세요:");
+                if (input !== room.password) return alert("비밀번호 불일치");
+            }
+            joinRoom(roomId);
+        };
+
+        async function joinRoom(roomId) {
+            if (!currentUser) return;
+            const myNick = document.getElementById('my-nickname').value || "Guest";
+            localStorage.setItem('gbm_nickname', myNick);
+            const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
+
+            try {
+                const snap = await getDoc(roomRef);
+                if(snap.exists()) {
+                    const data = snap.data();
+                    if (!data.players.some(p => p.uid === currentUser.uid)) {
+                        await updateDoc(roomRef, {
+                            players: arrayUnion({ uid: currentUser.uid, name: myNick, ready: false })
+                        });
+                    }
+                }
+                localStorage.setItem('gbm_current_room_id', roomId);
+                enterWaitingRoom(roomId);
+            } catch (e) {
+                alert("입장 실패");
+            }
+        }
+
+        function enterWaitingRoom(roomId) {
+            currentRoomId = roomId;
+            isLocalGame = false;
+            document.getElementById('network-lobby').classList.add('hidden');
+            document.getElementById('room-waiting').classList.remove('hidden');
+            document.getElementById('lobby-container').classList.remove('hidden');
+
+            const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
+            
+            unsubscribeRoom = onSnapshot(roomRef, (docSnap) => {
+                if (!docSnap.exists()) {
+                    if(currentRoomId) { alert("방이 종료되었습니다."); leaveRoom(true); }
+                    return;
+                }
+                const room = docSnap.data();
+                if (!room.players.some(p => p.uid === currentUser.uid)) {
+                    alert("방에서 나갔습니다."); leaveRoom(true); return;
+                }
+
+                renderWaitingRoom(room);
+
+                if (room.status === 'playing') {
+                    if (!window.game) startGameFromLobby(room);
+                    else if (room.gameState && room.gameState.lastActionId !== window.game.lastActionId) {
+                        window.game.syncState(room.gameState);
+                    }
+                } else if (room.status === 'waiting') {
+                    if (window.game) resetToLobbyUI();
+                }
+            });
+        }
+
+        function renderWaitingRoom(room) {
+            document.getElementById('room-title-display').innerText = room.name;
+            const userList = document.getElementById('waiting-user-list');
+            userList.innerHTML = '';
+            const isHost = room.hostId === currentUser.uid;
+            const startBtn = document.getElementById('host-start-btn');
+            
+            let readyCount = 0;
+            room.players.forEach(p => {
+                const el = document.createElement('div');
+                el.className = "flex justify-between items-center bg-slate-50 p-3 rounded-lg border-b border-gray-100";
+                el.innerHTML = `
+                    <div class="font-bold flex items-center gap-2">
+                        ${p.uid === room.hostId ? '👑' : '👤'} ${p.name} ${p.uid === currentUser.uid ? '(나)' : ''}
+                    </div>
+                    <div class="${p.ready ? 'text-green-600' : 'text-gray-400'} font-bold text-sm">
+                        ${p.ready ? '준비완료' : '대기중'}
+                    </div>
+                `;
+                userList.appendChild(el);
+                if (p.ready) readyCount++;
+            });
+
+            if (isHost) {
+                startBtn.classList.remove('hidden');
+                startBtn.disabled = readyCount < 1; 
+                startBtn.innerText = readyCount < 1 ? "준비 대기중" : "게임 시작";
+                if(readyCount >= 1) startBtn.disabled = false;
+            } else {
+                startBtn.classList.add('hidden');
+            }
+        }
+
+        window.leaveRoom = async (forced = false) => {
+            const roomIdToLeave = currentRoomId;
+            localStorage.removeItem('gbm_current_room_id');
+            localStorage.removeItem('gbm_save'); 
+            currentRoomId = null; 
+
+            if (unsubscribeRoom) { unsubscribeRoom(); unsubscribeRoom = null; }
+
+            if (!forced && roomIdToLeave && currentUser && !isLocalGame) {
+                try {
+                    const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomIdToLeave);
+                    const docSnap = await getDoc(roomRef);
+                    if (docSnap.exists()) {
+                        const room = docSnap.data();
+                        const myPlayer = room.players.find(p => p.uid === currentUser.uid);
+                        if (myPlayer) {
+                            const remaining = room.players.filter(p => p.uid !== currentUser.uid);
+                            if (remaining.length === 0) {
+                                await deleteDoc(roomRef);
+                            } else {
+                                let updates = { players: remaining };
+                                if (room.hostId === currentUser.uid) {
+                                    updates.hostId = remaining[0].uid;
+                                    updates.hostName = remaining[0].name;
+                                }
+                                await updateDoc(roomRef, updates);
+                            }
+                        }
+                    }
+                } catch (e) { console.error(e); }
+            }
+            resetToLobbyUI();
+            if(!isLocalGame) initLobby(); 
+        };
+
+        window.hostStartGame = async () => {
+            if (!currentRoomId || !currentUser) return;
+            const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId);
+            await updateDoc(roomRef, { status: 'playing' });
+        };
+
+        function startGameFromLobby(roomData) {
+            document.getElementById('room-waiting').classList.add('hidden');
+            document.getElementById('lobby-container').classList.add('hidden'); 
+            document.getElementById('game-board-container').classList.remove('hidden');
+            document.getElementById('game-board').classList.remove('opacity-0');
+            document.querySelector('.top-controls').style.display = 'flex'; 
+            document.querySelector('.top-controls-left').style.display = 'flex';
+
+            const playerConfig = roomData.players.map(p => ({
+                name: p.name,
+                isCpu: false,
+                uid: p.uid
+            }));
+            
+            if(window.game) window.game = null;
+            window.game = new GrandBlueMarble(playerConfig, 0, null, true, roomData.hostId === currentUser.uid); 
+        }
+
+        window.checkAndStart = () => {
+            const human = parseInt(document.getElementById('human-count').value);
+            const cpu = parseInt(document.getElementById('cpu-count').value);
+            
+            const playerConfig = [];
+            for (let i = 1; i <= human; i++) {
+                const name = document.getElementById(`human-name-${i}`)?.value || `Player ${i}`;
+                playerConfig.push({ name: name, isCpu: false, uid: 'local_human_'+i });
+            }
+            for (let i = 1; i <= cpu; i++) {
+                playerConfig.push({ name: `CPU ${i}`, isCpu: true, uid: 'local_cpu_'+i });
+            }
+
+            document.getElementById('local-setup-modal').classList.add('hidden');
+            document.getElementById('lobby-container').classList.add('hidden'); 
+            document.getElementById('game-board-container').classList.remove('hidden');
+            document.getElementById('game-board').classList.remove('opacity-0');
+            document.querySelector('.top-controls').style.display = 'flex'; 
+            document.querySelector('.top-controls-left').style.display = 'flex';
+            
+            isLocalGame = true;
+            currentRoomId = null; 
+            window.game = new GrandBlueMarble(playerConfig, 0, null, false, true); 
+        };
+        
+        function resetToLobbyUI() {
+            document.getElementById('room-waiting').classList.add('hidden');
+            document.getElementById('game-board-container').classList.add('hidden');
+            document.getElementById('game-over-modal').classList.add('hidden');
+            document.querySelector('.top-controls').style.display = 'none';
+            document.querySelector('.top-controls-left').style.display = 'none';
+            
+            document.getElementById('lobby-container').classList.remove('hidden');
+            document.getElementById('network-lobby').classList.remove('hidden');
+            
+            if(window.game) window.game = null;
+        }
+
+        window.openModal = (id) => document.getElementById(id).classList.remove('hidden');
+        window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
+        window.updateCpuOptions = () => {
+            const humanSelect = document.getElementById('human-count');
+            const cpuSelect = document.getElementById('cpu-count');
+            const humanCount = parseInt(humanSelect.value);
+            const maxCpu = 6 - humanCount;
+            const currentCpu = parseInt(cpuSelect.value);
+            cpuSelect.innerHTML = '';
+            for(let i=0; i<=maxCpu; i++) {
+                const opt = document.createElement('option');
+                opt.value = i;
+                opt.innerText = i === 0 ? '없음' : `${i}대`;
+                if(i === currentCpu || (i===maxCpu && currentCpu > maxCpu)) opt.selected = true;
+                cpuSelect.appendChild(opt);
+            }
+        };
+        window.updateLocalPlayerInputs = () => {
+            const humanCount = parseInt(document.getElementById('human-count').value);
+            const container = document.getElementById('local-player-names');
+            container.innerHTML = '';
+            for (let i = 1; i <= humanCount; i++) {
+                const div = document.createElement('div');
+                div.className = "flex items-center gap-2";
+                div.innerHTML = `<span class="text-xs font-bold text-slate-500 w-16">Player ${i}</span><input type="text" id="human-name-${i}" value="Player ${i}" class="flex-1 p-2 rounded-lg border border-slate-300 text-sm font-bold">`;
+                container.appendChild(div);
+            }
+        };
+
+        window.quitGame = async () => {
+            if(confirm("정말 종료하고 로비로 돌아가시겠습니까?")) {
+                localStorage.removeItem('gbm_save');
+                if (typeof leaveRoom === 'function' && currentRoomId) { await leaveRoom(false); }
+                resetToLobbyUI();
+            }
+        };
+
+        window.resumeGame = () => {
+            const savedData = JSON.parse(localStorage.getItem('gbm_save'));
+            if(savedData) {
+                document.getElementById('lobby-container').classList.add('hidden'); 
+                document.getElementById('game-board-container').classList.remove('hidden');
+                document.getElementById('game-board').classList.remove('opacity-0');
+                document.querySelector('.top-controls').style.display = 'flex'; 
+                document.querySelector('.top-controls-left').style.display = 'flex';
+                window.game = new GrandBlueMarble(0, 0, savedData); 
+            }
+        };
+        window.showGameInfo = () => document.getElementById('game-info-modal').classList.remove('hidden');
+        window.closeGameInfo = () => document.getElementById('game-info-modal').classList.add('hidden');
+        window.toggleGlobalSpeed = () => { if (window.game) window.game.toggleSpeed(); };
+        window.closePropertyCardGlobal = () => { if (window.game) window.game.closePropertyCard(); };
+        window.toggleFullScreen = () => {
+             if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(e=>console.log(e));
+             else if (document.exitFullscreen) document.exitFullscreen();
+        };
+
+        // --- GAME LOGIC ---
+        const getPlayerColor = (id) => ['#ff0000', '#0066ff', '#00cc44', '#ffcc00', '#aa00ff', '#ff0099'][id - 1];
+
+        class SoundManager {
+            constructor() { try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} }
+            play(freq, type, duration, vol = 0.1) {
+                if(!this.ctx) return;
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + duration);
+            }
+            playDice() { this.play(150, 'triangle', 0.2, 0.2); }
+            playMove() { this.play(600, 'sine', 0.1, 0.08); }
+            playMoney() { this.play(880, 'sine', 0.1, 0.1); setTimeout(() => this.play(1320, 'sine', 0.2, 0.1), 50); }
+            playAlert() { this.play(200, 'square', 0.3, 0.05); setTimeout(() => this.play(150, 'square', 0.3, 0.05), 100); }
+            playSpecial() { if(!this.ctx) return; let now = this.ctx.currentTime; const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain(); osc.frequency.setValueAtTime(400, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.5); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.5); osc.connect(gain); gain.connect(this.ctx.destination); osc.start(); osc.stop(now + 0.5); }
+        }
+
+        // Board Data
         const boardData = [
             { id: 0, name: "START", type: "corner", emoji: "🏁", color: "#fef3c7" },
             { id: 1, name: "타이베이", type: "city", price: 50000, rent: 4000, color: "#f87171", code: "tw" },
@@ -883,11 +891,11 @@
         const gridPositions = generateGridPositions();
 
         class GrandBlueMarble {
-            constructor(playerConfig, dummy = null, savedData = null, isMultiplayer = false) {
+            constructor(playerConfig, dummy = null, savedData = null, isMultiplayer = false, isHost = false) {
                 this.sound = new SoundManager();
                 this.isMultiplayer = isMultiplayer;
+                this.isHost = isHost;
                 const icons = ['🚗', '✈️', '🚢', '🚁', '🚲', '🚀'];
-                
                 this.players = [];
                 
                 if (savedData) {
@@ -935,37 +943,44 @@
                         if (ownerId !== null) this.updateBoardOwnerDisplay(idx);
                     });
                 }
-
                 setTimeout(() => {
                     this.updateStatus();
                     this.startTurn();
                 }, 200);
             }
 
-            // ... (게임 로직: startTurn, rollDice, movePlayer 등 - 생략없이 전체 구현) ...
-            
             startTurn() {
                 const p = this.players[this.currentPlayerIndex];
-                
                 const survivors = this.players.filter(pl => !pl.isBankrupt);
                 if (survivors.length <= 1) { this.gameOver(survivors[0]); return; }
-
                 if (this.round > this.maxRounds) {
                     const winner = [...this.players].sort((a,b) => this.calculateTotalAssets(b) - this.calculateTotalAssets(a))[0];
                     this.gameOver(winner, true);
                     return;
                 }
-
                 const btn = document.getElementById('roll-btn');
                 
-                // 멀티플레이어인 경우 턴 체크 강화
-                if (this.isMultiplayer && p.uid !== currentUser.uid) {
-                    btn.disabled = true;
-                    btn.innerText = `${p.name} 님의 턴`;
-                    // 동기화를 기다림
-                    return; 
+                // 멀티플레이 턴 제어
+                if (this.isMultiplayer) {
+                    if (p.isCpu) {
+                         // CPU 턴은 방장(Host)만 실행
+                         if (this.isHost) {
+                             btn.disabled = true;
+                             btn.innerText = `${p.name} (CPU) Thinking...`;
+                             setTimeout(() => { this.rollDice(); }, 1000 / this.gameSpeed);
+                         } else {
+                             btn.disabled = true;
+                             btn.innerText = `${p.name} (CPU) 진행 중...`;
+                         }
+                         return;
+                    } else if (p.uid !== currentUser.uid) {
+                        btn.disabled = true;
+                        btn.innerText = `${p.name} 님의 턴`;
+                        return;
+                    }
                 }
 
+                // 내 턴이거나 로컬 CPU 턴
                 if (p.isCpu) {
                     btn.disabled = true;
                     btn.innerText = `${p.name} (CPU)`;
@@ -979,11 +994,14 @@
                 else this.syncToFirebase(); 
             }
 
-            // 동기화 메서드 (중요)
             async syncToFirebase() {
-                if (!currentRoomId) return;
+                if (!currentRoomId || !this.isMultiplayer) return;
+                const p = this.players[this.currentPlayerIndex];
+                // 업데이트 권한 체크 (내 턴이거나, CPU턴인데 내가 호스트일 때)
+                const canUpdate = (p.uid === currentUser.uid) || (p.isCpu && this.isHost);
+                if (!canUpdate) return;
+
                 const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId);
-                
                 const gameState = {
                     players: this.players,
                     currentPlayerIndex: this.currentPlayerIndex,
@@ -993,15 +1011,12 @@
                     round: this.round,
                     lastActionId: Date.now()
                 };
-                
                 await updateDoc(roomRef, { gameState: gameState });
             }
             
             syncState(newState) {
-                if (this.isRolling) return; // 로컬 애니메이션 중이면 패스
+                if (this.isRolling) return; 
                 this.lastActionId = newState.lastActionId;
-
-                // 상태 업데이트
                 this.players = newState.players;
                 this.currentPlayerIndex = newState.currentPlayerIndex;
                 this.socialFund = newState.socialFund;
@@ -1009,7 +1024,6 @@
                 this.buildings = newState.buildings;
                 this.round = newState.round;
                 
-                // UI 갱신
                 this.initUI();
                 this.properties.forEach((ownerId, idx) => {
                     if (ownerId !== null) this.updateBoardOwnerDisplay(idx);
@@ -1017,29 +1031,39 @@
                 this.updatePiecePositions();
                 this.updateStatus();
                 
-                // 턴 제어 재확인
+                // UI Refresh after sync to enable buttons for current player
                 const p = this.players[this.currentPlayerIndex];
                 const btn = document.getElementById('roll-btn');
-                if (this.isMultiplayer && p.uid !== currentUser.uid) {
-                    btn.disabled = true;
-                    btn.innerText = `${p.name} 님의 턴`;
-                } else if (this.isMultiplayer && p.uid === currentUser.uid) {
-                    btn.disabled = false;
-                    btn.innerText = p.isSpaceTravelReady ? "목적지 선택" : "주사위";
+                
+                if (this.isMultiplayer) {
+                    if (p.isCpu) {
+                         if (this.isHost) {
+                             // Host triggers CPU logic in startTurn
+                             this.startTurn(); 
+                         } else {
+                             btn.disabled = true;
+                             btn.innerText = `${p.name} (CPU) 진행 중...`;
+                         }
+                    } else if (p.uid !== currentUser.uid) {
+                        btn.disabled = true;
+                        btn.innerText = `${p.name} 님의 턴`;
+                    } else if (p.uid === currentUser.uid) {
+                        btn.disabled = false;
+                        btn.innerText = p.isSpaceTravelReady ? "목적지 선택" : "주사위";
+                    }
                 }
             }
 
-            // (이하 게임 로직은 기존과 동일하므로 생략 없이 포함됨. 단, 멀티플레이어 조건 체크 추가)
             rollDice() {
                 if (this.isRolling) return; 
                 this.isRolling = true;
                 const player = this.players[this.currentPlayerIndex];
                 
-                // 멀티플레이어면 내 턴인지 확인
-                if (this.isMultiplayer && player.uid !== currentUser.uid) return;
+                if (this.isMultiplayer) {
+                    if (player.isCpu && !this.isHost) return;
+                    if (!player.isCpu && player.uid !== currentUser.uid) return;
+                }
 
-                // (나머지 rollDice 로직...)
-                // ...
                 if (player.isSpaceTravelReady) { 
                     if (player.isCpu) {
                         const targets = [0, 39, 5, 25, 3]; 
@@ -1053,16 +1077,13 @@
                     return; 
                 }
                 
-                // 무인도 탈출권 사용 여부 (주사위 굴리기 전)
                 if (player.isIslandIn && player.hasEscapeCard) {
                      if (player.isCpu) {
                          this.log(`🎫 CPU 탈출권 사용`, "text-green-400 font-bold");
                          player.hasEscapeCard = false; player.isIslandIn = false; player.islandTurns = 0;
                          this.lastWasDouble = false; 
                      } else {
-                         // 멀티플레이어일 땐 내 턴일 때만
                          if (this.isMultiplayer && player.uid !== currentUser.uid) return;
-
                          this.showChoiceModal("📻", "무인도 탈출", "탈출권을 사용하시겠습니까?", 
                             () => { 
                                 this.log(`🎫 탈출권 사용`, "text-green-400 font-bold");
@@ -1075,7 +1096,6 @@
                          return; 
                      }
                 }
-
                 this._performRoll(player);
             }
 
@@ -1118,7 +1138,7 @@
                     }, 800 / this.gameSpeed);
                 }, 1200 / this.gameSpeed);
             }
-            
+
             async movePlayer(steps) {
                 const p = this.players[this.currentPlayerIndex]; 
                 const piece = document.getElementById(`p${p.id}`);
@@ -1160,7 +1180,7 @@
                     }
                     else { this.payRent(p, this.players[ownerId - 1], pos); }
                 } else {
-                     if (s.type === 'tax') { 
+                    if (s.type === 'tax') { 
                         if (this.solveInsolvency(p, 150000)) {
                             p.money -= 150000; this.socialFund += 150000;
                             this.sound.playAlert(); 
@@ -1180,7 +1200,6 @@
                             this.log(`🚀 우주여행 무료 초대권 사용!`, "text-green-400 font-bold");
                             p.isFreeSpaceTravel = false; 
                         }
-    
                         if (actualFee === 0 || this.solveInsolvency(p, actualFee)) {
                             if (actualFee > 0) {
                                 p.money -= actualFee;
@@ -1218,10 +1237,8 @@
                     }
                 }
             }
-            
-            // ... (나머지 헬퍼 메서드: cpuDecideBuy, cpuDecideBuild, applyBuildingFee, handleBirthday, teleportPlayer, handleGoldenKey 등등 동일) ...
-            
-             cpuDecideBuy(s) {
+
+            cpuDecideBuy(s) {
                 const p = this.players[this.currentPlayerIndex];
                 if (p.money >= s.price) {
                     setTimeout(() => { this.confirmAction(); }, 800 / this.gameSpeed);
@@ -1258,7 +1275,6 @@
                         if(b.hotel) totalFee += costHotel;
                     }
                 });
-
                 if(totalFee > 0) {
                     if(this.solveInsolvency(p, totalFee)) {
                         p.money -= totalFee;
@@ -1296,9 +1312,7 @@
                     this.log(`💰 월급 수령`, "text-yellow-400 font-bold");
                 }
                 p.pos = targetPos;
-                
                 this.lastWasDouble = false; 
-                
                 this.updatePiecePositions();
                 this.handleSquare(targetPos);
             }
@@ -1403,14 +1417,13 @@
 
             showModal(s, mode) {
                 const modal = document.getElementById('modal'); 
-                const confirmBtn = document.getElementById('confirm-btn');
                 
-                // 멀티플레이어면 내 턴인지 확인
                 if (this.isMultiplayer && this.players[this.currentPlayerIndex].uid !== currentUser.uid) return;
 
                 document.getElementById('modal-flag-container').innerHTML = s.code ? `<img src="https://flagcdn.com/w160/${s.code}.png" class="mx-auto rounded-xl shadow-lg border-4 border-white max-w-[100px]">` : `<span class="text-7xl">${s.emoji}</span>`;
                 document.getElementById('modal-title').innerText = `${s.name} 구매`;
                 document.getElementById('modal-desc').innerHTML = `대지 매입비: <b>₩${s.price.toLocaleString()}</b>\n구매하시겠습니까?`;
+                const confirmBtn = document.getElementById('confirm-btn');
                 
                 if (this.players[this.currentPlayerIndex].money < s.price) {
                     confirmBtn.disabled = true; confirmBtn.innerText = "자금 부족";
@@ -1435,7 +1448,6 @@
             closeModal() { document.getElementById('modal').classList.add('hidden'); }
 
             showConstructionModal(s) {
-                // 멀티플레이어면 내 턴인지 확인
                 if (this.isMultiplayer && this.players[this.currentPlayerIndex].uid !== currentUser.uid) return;
 
                 const modal = document.getElementById('build-modal');
@@ -1542,7 +1554,6 @@
                 modal.classList.remove('hidden');
                 title.innerText = isTurnLimit ? `30R 종료! 우승: ${winner.name}` : `최종 우승: ${winner.name}`;
                 
-                // Ranking
                 const rank = [...this.players].sort((a,b) => {
                     if (a.isBankrupt && !b.isBankrupt) return 1;
                     if (!a.isBankrupt && b.isBankrupt) return -1;
