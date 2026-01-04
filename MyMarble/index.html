@@ -37,28 +37,70 @@
 
         signInAnonymously(auth).catch((error) => console.error("Auth Error:", error));
 
-        onAuthStateChanged(auth, (user) => {
+        onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUser = user;
                 console.log("Logged in as:", user.uid);
-                initLobby(); 
                 
+                // 닉네임 로드
                 const savedNick = localStorage.getItem('gbm_nickname');
                 const nickInput = document.getElementById('my-nickname');
                 if (nickInput) {
                     nickInput.value = savedNick || `Player ${user.uid.slice(0,4)}`;
+                }
+
+                // *** 재접속 로직 ***
+                const savedRoomId = localStorage.getItem('gbm_current_room_id');
+                if (savedRoomId) {
+                    await attemptReconnect(savedRoomId);
+                } else {
+                    initLobby(); 
                 }
             } else {
                 currentUser = null;
             }
         });
 
+        // 재접속 시도
+        async function attemptReconnect(roomId) {
+            const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
+            try {
+                const docSnap = await getDoc(roomRef);
+                if (docSnap.exists()) {
+                    const room = docSnap.data();
+                    // 내 UID가 플레이어 목록에 있는지 확인
+                    const amIIn = room.players.some(p => p.uid === currentUser.uid);
+                    
+                    if (amIIn) {
+                        console.log("Reconnecting to room:", roomId);
+                        enterWaitingRoom(roomId); // 바로 대기실/게임 진입
+                    } else {
+                        // 방은 있는데 나는 없다면 (강퇴 등) -> 로비로
+                        localStorage.removeItem('gbm_current_room_id');
+                        initLobby();
+                    }
+                } else {
+                    // 방이 사라짐 -> 로비로
+                    localStorage.removeItem('gbm_current_room_id');
+                    initLobby();
+                }
+            } catch (e) {
+                console.error("Reconnect failed:", e);
+                initLobby();
+            }
+        }
+
         function initLobby() {
             if (!currentUser) return;
+            // 이미 방에 있으면 로비 리스너 안 킴 (중복 방지)
+            if (currentRoomId) return;
 
             const roomsRef = collection(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms');
             
             onSnapshot(query(roomsRef, orderBy('createdAt', 'desc')), (snapshot) => {
+                // 만약 게임 중이거나 대기실에 있다면 로비 업데이트 무시
+                if (currentRoomId) return;
+
                 const list = document.getElementById('room-list');
                 if(!list) return;
                 list.innerHTML = '';
@@ -126,6 +168,8 @@
                 };
                 
                 const docRef = await addDoc(collection(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms'), roomData);
+                // 방 ID 저장 (새로고침 대응)
+                localStorage.setItem('gbm_current_room_id', docRef.id);
                 enterWaitingRoom(docRef.id);
                 closeModal('create-room-modal');
             } catch (e) {
@@ -153,9 +197,22 @@
             const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
 
             try {
-                await updateDoc(roomRef, {
-                    players: arrayUnion({ uid: currentUser.uid, name: myNick, ready: false })
-                });
+                // 동일 유저 중복 방지를 위해 arrayUnion 사용 시 전체 객체가 아닌 uid 체크가 필요하지만,
+                // Firestore arrayUnion은 객체가 완전히 동일해야 중복 제거됨.
+                // 여기서는 간단히: getDoc해서 내 uid가 없으면 추가하는 식으로 처리.
+                const snap = await getDoc(roomRef);
+                if(snap.exists()) {
+                    const data = snap.data();
+                    const existing = data.players.find(p => p.uid === currentUser.uid);
+                    
+                    if (!existing) {
+                        await updateDoc(roomRef, {
+                            players: arrayUnion({ uid: currentUser.uid, name: myNick, ready: false })
+                        });
+                    }
+                }
+
+                localStorage.setItem('gbm_current_room_id', roomId);
                 enterWaitingRoom(roomId);
             } catch (e) {
                 console.error(e);
@@ -180,10 +237,24 @@
                 }
 
                 const room = docSnap.data();
+                
+                // 만약 강퇴당했거나 리스트에 없으면 나가기
+                if (!room.players.find(p => p.uid === currentUser.uid)) {
+                    alert("방에서 나갔습니다.");
+                    leaveRoom(true);
+                    return;
+                }
+
                 renderWaitingRoom(room);
 
                 if (room.status === 'playing') {
                     startGameFromLobby(room);
+                } else if (room.status === 'waiting') {
+                    // 게임 끝났거나 대기중일 때 UI 복구
+                    document.getElementById('game-board-container').classList.add('hidden');
+                    document.querySelector('.top-controls').style.display = 'none';
+                    document.querySelector('.top-controls-left').style.display = 'none';
+                    document.getElementById('room-waiting').classList.remove('hidden');
                 }
             }, (error) => {
                 console.error("Room Listener Error:", error);
@@ -224,21 +295,19 @@
             }
         }
 
+        // 방 나가기 (완전 삭제 로직 포함)
         window.leaveRoom = async (forced = false) => {
-            if (!currentRoomId || !currentUser) {
-                 resetToLobbyUI();
-                 return;
-            }
-            
+            const roomIdToLeave = currentRoomId;
+            // 로컬 스토리지 클리어
+            localStorage.removeItem('gbm_current_room_id');
+            currentRoomId = null; 
+
             if (unsubscribeRoom) {
                 unsubscribeRoom();
                 unsubscribeRoom = null;
             }
 
-            const roomIdToLeave = currentRoomId;
-            currentRoomId = null; 
-
-            if (!forced) {
+            if (!forced && roomIdToLeave && currentUser) {
                 try {
                     const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomIdToLeave);
                     const docSnap = await getDoc(roomRef);
@@ -246,15 +315,33 @@
                     if (docSnap.exists()) {
                         const room = docSnap.data();
                         
-                        if (room.hostId === currentUser.uid) {
-                            await deleteDoc(roomRef); 
+                        // 나를 플레이어 목록에서 제거하기 위해 찾기
+                        // 객체 전체 일치 필요하므로 find 사용
+                        const myPlayer = room.players.find(p => p.uid === currentUser.uid);
+                        
+                        // 1. 방장인 경우: 방 폭파 (또는 방장 위임 로직을 짤 수 있으나 여기선 폭파)
+                        // OR 혼자 남았을 때 삭제
+                        
+                        if (room.players.length <= 1) {
+                             // 나 혼자거나 아무도 없으면 삭제
+                             await deleteDoc(roomRef);
                         } else {
-                            const myPlayer = room.players.find(p => p.uid === currentUser.uid);
-                            if (myPlayer) {
+                             // 남은 사람이 있으면 나만 제거
+                             if (myPlayer) {
                                 await updateDoc(roomRef, {
                                     players: arrayRemove(myPlayer)
                                 });
-                            }
+                                // 만약 내가 방장이었다면? -> 남은 사람 중 첫번째에게 방장 위임 (추가 기능)
+                                if (room.hostId === currentUser.uid) {
+                                    const nextHost = room.players.find(p => p.uid !== currentUser.uid);
+                                    if (nextHost) {
+                                        await updateDoc(roomRef, { 
+                                            hostId: nextHost.uid, 
+                                            hostName: nextHost.name 
+                                        });
+                                    }
+                                }
+                             }
                         }
                     }
                 } catch (e) {
@@ -263,6 +350,7 @@
             }
 
             resetToLobbyUI();
+            initLobby(); // 로비 리스너 재가동
         };
 
         window.hostStartGame = async () => {
@@ -285,8 +373,11 @@
                 isCpu: false,
                 uid: p.uid
             }));
+            
+            // 기존 게임 있으면 정리
+            if(window.game) window.game = null;
 
-            window.game = new GrandBlueMarble(playerConfig);
+            window.game = new GrandBlueMarble(playerConfig, 0, null, roomData.players);
         }
         
         function resetToLobbyUI() {
@@ -299,9 +390,7 @@
             document.getElementById('lobby-container').classList.remove('hidden');
             document.getElementById('network-lobby').classList.remove('hidden');
             
-            if(window.game) {
-                window.game = null;
-            }
+            if(window.game) window.game = null;
         }
 
         window.openModal = (id) => document.getElementById(id).classList.remove('hidden');
@@ -714,10 +803,17 @@
         // 전역 함수 정의
         function showGameInfo() { document.getElementById('game-info-modal').classList.remove('hidden'); }
         function closeGameInfo() { document.getElementById('game-info-modal').classList.add('hidden'); }
-        function quitGame() {
+        async function quitGame() {
             if(confirm("정말 종료하시겠습니까? 저장된 게임이 삭제됩니다.")) {
                 localStorage.removeItem('gbm_save');
-                location.reload();
+                
+                // 멀티플레이어 방 나가기 처리
+                if (typeof leaveRoom === 'function' && currentRoomId) {
+                    await leaveRoom(false); // 정상 퇴장 처리 (호스트면 방 삭제 포함)
+                }
+
+                // UI 초기화 (리로드 대신 상태 복구)
+                resetToLobbyUI();
             }
         }
         function toggleGlobalSpeed() { if (game) game.toggleSpeed(); }
@@ -1594,7 +1690,7 @@
                                 this.properties[target.idx] = null;
                                 this.buildings[target.idx] = { villa: false, building: false, hotel: false };
                                 this.updateBoardOwnerDisplay(target.idx);
-                                this.log(`📉 ${target.name} 처분`, "text-red-400 font-bold");
+                                this.log(`📉 ${target.name} 반값 처분 (+₩${sellPrice.toLocaleString()})`, "text-red-400 font-bold");
                             } else {
                                 this.log(`📉 매각할 부동산 없음`, "text-slate-400");
                             }
