@@ -413,7 +413,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-analytics.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, getDoc, arrayUnion, arrayRemove, setDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, getDoc, arrayUnion, arrayRemove, setDoc, query, orderBy, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
         // Firebase 설정 (RTDB 제거됨)
         const firebaseConfig = {
@@ -436,7 +436,8 @@
         let currentRoomId = null;
         let unsubscribeRoom = null;
         let isLocalGame = false;
-        
+        let heartbeatInterval = null; // 하트비트 인터벌
+
         // 전역변수 window.game 초기화
         window.game = null;
 
@@ -499,7 +500,6 @@
         function initLobby() {
             if (!currentUser) return;
             
-            // 로비 UI 강제 표시 (DOM 안전)
             document.getElementById('lobby-container').classList.remove('hidden');
             document.getElementById('network-lobby').classList.remove('hidden');
             document.getElementById('room-waiting').classList.add('hidden');
@@ -554,6 +554,72 @@
             });
         }
 
+        // --- Heartbeat Logic ---
+        function startHeartbeatLoop() {
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+            heartbeatInterval = setInterval(async () => {
+                if (!currentRoomId || !currentUser) return;
+                
+                const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId);
+                
+                try {
+                    await runTransaction(db, async (transaction) => {
+                        const sfDoc = await transaction.get(roomRef);
+                        if (!sfDoc.exists()) return; // 방이 없음
+
+                        const data = sfDoc.data();
+                        
+                        // 1. 내 lastActive 갱신
+                        let myUpdated = false;
+                        const newPlayers = data.players.map(p => {
+                            if (p.uid === currentUser.uid) {
+                                myUpdated = true;
+                                return { ...p, lastActive: Date.now() };
+                            }
+                            return p;
+                        });
+                        
+                        // 내가 방에 없다면(강퇴됨) 중단
+                        if (!myUpdated) return;
+
+                        // 2. (방장만) 타임아웃된 유령 플레이어 제거
+                        if (data.hostId === currentUser.uid) {
+                            const now = Date.now();
+                            const TIMEOUT = 15000; // 15초
+                            const activePlayers = newPlayers.filter(p => {
+                                if (p.isCpu || !p.lastActive) return true; // CPU나 막 들어온 사람은 예외
+                                return (now - p.lastActive) < TIMEOUT;
+                            });
+
+                            if (activePlayers.length !== newPlayers.length) {
+                                // 유령이 있으면 제거 후 업데이트
+                                if (activePlayers.length === 0) {
+                                    transaction.delete(roomRef); // 모두 나감
+                                } else {
+                                    transaction.update(roomRef, { players: activePlayers });
+                                }
+                            } else {
+                                // 유령 없으면 내 정보만 업데이트
+                                transaction.update(roomRef, { players: newPlayers });
+                            }
+                        } else {
+                            // 방장이 아니면 내 정보만 업데이트
+                            transaction.update(roomRef, { players: newPlayers });
+                        }
+                    });
+                } catch (e) {
+                    console.log("Heartbeat error (ignore):", e);
+                }
+            }, 5000); // 5초마다
+        }
+
+        function stopHeartbeatLoop() {
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+                heartbeatInterval = null;
+            }
+        }
+
         // Attach global functions to window
         window.createRoom = async () => {
             if (!currentUser) return alert("로그인 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
@@ -576,7 +642,7 @@
                     cpuCount: cpu,
                     hostId: currentUser.uid,
                     hostName: myNick,
-                    players: [{ uid: currentUser.uid, name: myNick, ready: true }], 
+                    players: [{ uid: currentUser.uid, name: myNick, ready: true, lastActive: Date.now() }], 
                     status: 'waiting',
                     createdAt: Date.now(),
                     gameState: null
@@ -610,12 +676,13 @@
             const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
 
             try {
+                // arrayUnion 대신 transaction으로 안전하게 추가 권장하지만 여기선 간단히
                 const snap = await getDoc(roomRef);
                 if(snap.exists()) {
                     const data = snap.data();
                     if (!data.players.some(p => p.uid === currentUser.uid)) {
                         await updateDoc(roomRef, {
-                            players: arrayUnion({ uid: currentUser.uid, name: myNick, ready: false })
+                            players: arrayUnion({ uid: currentUser.uid, name: myNick, ready: false, lastActive: Date.now() })
                         });
                     }
                 }
@@ -630,9 +697,15 @@
         function enterWaitingRoom(roomId) {
             currentRoomId = roomId;
             isLocalGame = false;
+            
+            localStorage.setItem('gbm_current_room_id', roomId);
+
             document.getElementById('network-lobby').classList.add('hidden');
             document.getElementById('room-waiting').classList.remove('hidden');
             document.getElementById('lobby-container').classList.remove('hidden');
+
+            // Heartbeat 시작
+            startHeartbeatLoop();
 
             const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
             
@@ -716,7 +789,6 @@
 
             if (isHost) {
                 startBtn.classList.remove('hidden');
-                // 호스트는 자동 ready. 2명 이상부터 시작 가능.
                 const totalPlayers = room.players.length; 
                 const canStart = readyCount >= totalPlayers && (totalPlayers + (room.cpuCount || 0)) >= 2;
                 
@@ -749,6 +821,8 @@
             localStorage.removeItem('gbm_current_room_id');
             localStorage.removeItem('gbm_save'); 
             currentRoomId = null; 
+
+            stopHeartbeatLoop();
 
             if (unsubscribeRoom) { unsubscribeRoom(); unsubscribeRoom = null; }
 
@@ -790,7 +864,6 @@
         function startGameFromLobby(roomData) {
             document.getElementById('room-waiting').classList.add('hidden');
             document.getElementById('lobby-container').classList.add('hidden'); 
-            
             document.getElementById('game-board-container').classList.remove('hidden');
             document.getElementById('game-board').classList.remove('opacity-0');
             document.querySelector('.top-controls').style.display = 'flex'; 
@@ -984,6 +1057,7 @@
                 this.isMultiplayer = isMultiplayer;
                 this.isHost = isHost;
                 const icons = ['🚗', '✈️', '🚢', '🚁', '🚲', '🚀'];
+                
                 this.players = [];
                 
                 if (savedData) {
@@ -1047,7 +1121,6 @@
                 this.round = 1; 
             }
 
-            // [추가된 endTurn 메서드]
             endTurn(force = false) {
                 this.updateStatus();
                 if (!this.lastWasDouble || force) {
