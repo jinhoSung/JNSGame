@@ -156,6 +156,35 @@
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.1); }
         }
+
+        /* 토스트 메시지 */
+        #toast-container {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+        }
+        .toast {
+            background: rgba(0, 0, 0, 0.8); color: white; padding: 10px 20px;
+            border-radius: 20px; font-size: 0.9rem; font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            animation: toast-in 0.3s ease-out, toast-out 0.3s ease-in 2.7s forwards;
+        }
+        @keyframes toast-in { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes toast-out { from { opacity: 1; } to { opacity: 0; } }
+
+        /* 채팅 스타일 */
+        .chat-overlay {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: rgba(255,255,255,0.9); border-top: 1px solid #cbd5e1;
+            padding: 8px; display: flex; gap: 4px; z-index: 100;
+            max-height: 150px; flex-direction: column;
+        }
+        .chat-messages {
+            flex: 1; overflow-y: auto; font-size: 0.7rem; margin-bottom: 4px;
+            display: flex; flex-direction: column; gap: 2px; height: 80px;
+        }
+        .chat-input-row { display: flex; gap: 4px; }
+        .chat-msg { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; word-break: break-all; }
+        .chat-msg.system { background: transparent; color: #64748b; font-style: italic; text-align: center; font-size: 0.65rem;}
     </style>
 </head>
 <body>
@@ -166,6 +195,9 @@
         <div class="font-bold text-xl">게임 리소스를 불러오는 중...</div>
         <div class="text-xs text-slate-400 mt-2">잠시만 기다려주세요</div>
     </div>
+
+    <!-- 토스트 컨테이너 -->
+    <div id="toast-container"></div>
 
     <div class="top-controls-left" style="display: none;">
         <button id="info-btn" class="control-btn bg-blue-50 text-blue-600 border-blue-200" onclick="showGameInfo()">ℹ️ 게임설명</button>
@@ -204,6 +236,7 @@
             <h2 id="room-title-display" class="text-2xl font-black text-slate-800 mb-2">Room Title</h2>
             <div class="text-sm text-gray-500 mb-6">게임 시작을 대기중입니다...</div>
             <div id="waiting-user-list" class="space-y-2 mb-8 text-left max-h-[40vh] overflow-y-auto"></div>
+            
             <div class="flex gap-3">
                 <button onclick="leaveRoom()" class="flex-1 py-3 bg-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-300">나가기</button>
                 <button id="host-start-btn" onclick="hostStartGame()" class="flex-[2] py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-xl hover:bg-indigo-700 hidden">게임 시작</button>
@@ -282,7 +315,7 @@
     <!-- 게임 판 -->
     <div id="game-board-container" class="hidden">
         <div id="game-board" class="board-grid opacity-0 transition-opacity duration-500">
-             <div class="center-panel shadow-inner">
+             <div class="center-panel shadow-inner relative">
                 <div id="dice-overlay" class="dice-overlay">
                     <div id="event-emoji" class="text-7xl md:text-9xl drop-shadow-2xl"></div>
                     <div id="event-msg" class="event-info-box hidden">
@@ -294,6 +327,7 @@
                         <div id="dice-2" class="dice-box">?</div>
                     </div>
                 </div>
+                
                 <div class="flex items-center justify-between border-b pb-1 mb-1">
                     <div class="flex flex-col">
                         <h2 id="top-title" class="text-[0.6rem] md:text-xl game-font text-slate-300">WORLD TOUR</h2>
@@ -317,6 +351,16 @@
                         <div class="text-indigo-300 italic">게임을 시작합니다.</div>
                     </div>
                 </div>
+
+                <!-- 채팅 UI -->
+                <div id="game-chat" class="chat-overlay">
+                    <div id="chat-messages" class="chat-messages"></div>
+                    <div class="chat-input-row">
+                        <input type="text" id="chat-input" class="flex-1 p-1 text-xs border rounded outline-none" placeholder="메시지 입력..." onkeypress="if(event.key==='Enter') window.sendChat()">
+                        <button onclick="window.sendChat()" class="px-2 py-1 bg-indigo-500 text-white text-xs rounded">전송</button>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
@@ -330,6 +374,19 @@
             <div class="flex gap-2">
                 <button onclick="window.game.cancelAction()" class="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl text-sm">취소</button>
                 <button id="confirm-btn" onclick="window.game.confirmAction()" class="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-xl text-sm">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 인수 모달 -->
+    <div id="acquire-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-[115] hidden backdrop-blur-md px-4">
+        <div class="bg-white p-6 rounded-2xl max-w-xs w-full shadow-2xl text-center border-t-8 border-yellow-500">
+            <div class="text-4xl mb-2">🏙️</div>
+            <h2 class="text-xl font-bold mb-1 text-slate-800">도시 인수</h2>
+            <p id="acquire-desc" class="text-xs text-gray-500 mb-6 whitespace-pre-line leading-relaxed"></p>
+            <div class="flex gap-2">
+                <button onclick="window.game.cancelAcquire()" class="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl text-sm">취소</button>
+                <button onclick="window.game.confirmAcquire()" class="flex-1 py-3 bg-yellow-500 text-white font-bold rounded-xl shadow-xl text-sm hover:bg-yellow-600">인수하기</button>
             </div>
         </div>
     </div>
@@ -363,11 +420,12 @@
             </div>
             <div class="p-6 overflow-y-auto text-sm text-slate-600 leading-relaxed space-y-4">
                <div><h3 class="font-bold text-indigo-600 text-lg mb-1">🚩 승리 조건</h3><p>상대 파산 또는 30라운드 종료 후 자산 1위.</p></div>
-               <div><h3 class="font-bold text-indigo-600 text-lg mb-1">🎲 진행</h3><p>주사위 이동. 더블 시 재행동(특수 이동 시 턴 종료). <span class="text-red-500">멀티플레이 시 내 턴에만 주사위를 굴릴 수 있습니다.</span></p></div>
+               <div><h3 class="font-bold text-indigo-600 text-lg mb-1">🎲 진행</h3><p>주사위 이동. 더블 시 재행동(특수 이동 시 턴 종료). <span class="text-red-500">멀티플레이 시 내 턴에만 조작 가능.</span> 제한시간 15초 초과 시 자동 진행.</p></div>
                <div><h3 class="font-bold text-indigo-600 text-lg mb-1">🚀 특수 규칙</h3>
                    <ul class="list-disc pl-5">
                        <li>우주여행: 요금 지불 후 턴 종료, 다음 턴 원하는 곳 이동.</li>
                        <li>무인도: 3턴 대기. 탈출권/더블로 탈출.</li>
+                       <li><strong>인수:</strong> 상대방 땅 도착 시 통행료 지불 후, 건설비용 2배로 인수 가능.</li>
                    </ul>
                </div>
             </div>
@@ -423,11 +481,10 @@
     <!-- Javascript -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-analytics.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, getDoc, arrayUnion, arrayRemove, setDoc, query, orderBy, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-        // Firebase 설정 (RTDB 제거됨)
+        // Firebase 설정
         const firebaseConfig = {
             apiKey: "AIzaSyDP7mDxvaSOJOthbLD22AzVq5SsgSRQE44",
             authDomain: "mymarble-2afb1.firebaseapp.com",
@@ -452,6 +509,19 @@
 
         window.game = null;
 
+        // UI Helpers
+        window.showToast = (msg, type = 'info') => {
+            const container = document.getElementById('toast-container');
+            const el = document.createElement('div');
+            el.className = 'toast';
+            if(type === 'error') el.style.background = 'rgba(239, 68, 68, 0.9)';
+            else if(type === 'success') el.style.background = 'rgba(34, 197, 94, 0.9)';
+            el.innerHTML = msg;
+            container.appendChild(el);
+            setTimeout(() => el.remove(), 3000);
+        };
+
+        // 초기 로딩 제거
         setTimeout(() => {
             const loading = document.getElementById('loading-screen');
             if(loading) loading.style.display = 'none';
@@ -481,6 +551,7 @@
             }
         });
 
+        // ... (Reconnect, Lobby, Room Logic - Same structure as before but with added chat & toast) ...
         async function attemptReconnect(roomId) {
             const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
             try {
@@ -488,9 +559,7 @@
                 if (docSnap.exists()) {
                     const room = docSnap.data();
                     const amIIn = room.players.some(p => p.uid === currentUser.uid);
-                    
                     if (amIIn) {
-                        console.log("Reconnecting to room:", roomId);
                         enterWaitingRoom(roomId); 
                     } else {
                         localStorage.removeItem('gbm_current_room_id');
@@ -501,67 +570,52 @@
                     initLobby();
                 }
             } catch (e) {
-                console.error("Reconnect failed:", e);
                 initLobby();
             }
         }
 
         function initLobby() {
             if (!currentUser) return;
-            
             document.getElementById('lobby-container').classList.remove('hidden');
             document.getElementById('network-lobby').classList.remove('hidden');
             document.getElementById('room-waiting').classList.add('hidden');
             document.getElementById('game-board-container').classList.add('hidden');
-
             if(currentRoomId) return;
 
             const roomsRef = collection(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms');
-            
             onSnapshot(query(roomsRef, orderBy('createdAt', 'desc')), (snapshot) => {
                 if (currentRoomId) return; 
-
                 const list = document.getElementById('room-list');
                 if(!list) return;
                 list.innerHTML = '';
-                
                 snapshot.forEach(doc => {
                     const room = doc.data();
-                    const isPrivate = room.password && room.password.length > 0;
                     const playerCount = room.players ? room.players.length : 0;
-                    
                     const item = document.createElement('div');
                     item.className = "bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center hover:border-indigo-400 transition cursor-pointer";
                     item.innerHTML = `
                         <div>
                             <div class="flex items-center gap-2">
-                                ${isPrivate ? '<span class="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">🔒 비공개</span>' : '<span class="text-xs bg-green-100 text-green-600 px-1.5 py-0.5 rounded font-bold">📢 공개</span>'}
+                                ${room.password ? '<span class="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">🔒 비공개</span>' : '<span class="text-xs bg-green-100 text-green-600 px-1.5 py-0.5 rounded font-bold">📢 공개</span>'}
                                 <h3 class="font-bold text-slate-800">${room.name}</h3>
                             </div>
-                            <div class="text-xs text-slate-500 mt-1">방장: ${room.hostName} | CPU: ${room.cpuCount || 0}명</div>
+                            <div class="text-xs text-slate-500 mt-1">방장: ${room.hostName} | CPU: ${room.cpuCount || 0}</div>
                         </div>
                         <div class="flex items-center gap-3">
-                            <span class="text-sm font-bold ${playerCount >= room.maxPlayers ? 'text-red-500' : 'text-indigo-600'}">${playerCount}/${room.maxPlayers}명</span>
-                            <button class="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50" 
-                                ${playerCount >= room.maxPlayers || room.status === 'playing' ? 'disabled' : ''}>
-                                ${room.status === 'playing' ? '게임중' : '입장'}
-                            </button>
+                            <span class="text-sm font-bold ${playerCount >= room.maxPlayers ? 'text-red-500' : 'text-indigo-600'}">${playerCount}/${room.maxPlayers}</span>
+                            <button class="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50" ${playerCount >= room.maxPlayers || room.status === 'playing' ? 'disabled' : ''}>${room.status === 'playing' ? '게임중' : '입장'}</button>
                         </div>
                     `;
-                    
                     if (playerCount < room.maxPlayers && room.status !== 'playing') {
                         item.onclick = () => window.tryJoinRoom(doc.id, room);
                     }
                     list.appendChild(item);
                 });
-
-                if (snapshot.empty) {
-                    list.innerHTML = `<div class="text-center text-gray-400 py-10">개설된 방이 없습니다.<br>새로운 방을 만들어보세요!</div>`;
-                }
-            }, (error) => { });
+                if (snapshot.empty) list.innerHTML = `<div class="text-center text-gray-400 py-10">개설된 방이 없습니다.</div>`;
+            });
         }
 
-        // --- Heartbeat Logic ---
+        // Heartbeat logic
         function startHeartbeatLoop() {
             if (heartbeatInterval) clearInterval(heartbeatInterval);
             heartbeatInterval = setInterval(async () => {
@@ -571,97 +625,69 @@
                     await runTransaction(db, async (transaction) => {
                         const sfDoc = await transaction.get(roomRef);
                         if (!sfDoc.exists()) return; 
-
                         const data = sfDoc.data();
                         let myUpdated = false;
                         const newPlayers = data.players.map(p => {
-                            if (p.uid === currentUser.uid) {
-                                myUpdated = true;
-                                return { ...p, lastActive: Date.now() };
-                            }
+                            if (p.uid === currentUser.uid) { myUpdated = true; return { ...p, lastActive: Date.now() }; }
                             return p;
                         });
-                        
                         if (!myUpdated) return;
-
-                        // 타임아웃 60초로 변경
                         if (data.hostId === currentUser.uid) {
                             const now = Date.now();
-                            const TIMEOUT = 60000; // 60초
+                            const TIMEOUT = 60000; 
                             const activePlayers = newPlayers.filter(p => {
                                 if (p.isCpu || !p.lastActive) return true; 
                                 return (now - p.lastActive) < TIMEOUT;
                             });
-
                             if (activePlayers.length !== newPlayers.length) {
-                                if (activePlayers.length === 0) {
-                                    transaction.delete(roomRef); 
-                                } else {
-                                    transaction.update(roomRef, { players: activePlayers });
-                                }
-                            } else {
-                                transaction.update(roomRef, { players: newPlayers });
-                            }
-                        } else {
-                            transaction.update(roomRef, { players: newPlayers });
-                        }
+                                if (activePlayers.length === 0) transaction.delete(roomRef); 
+                                else transaction.update(roomRef, { players: activePlayers });
+                            } else transaction.update(roomRef, { players: newPlayers });
+                        } else transaction.update(roomRef, { players: newPlayers });
                     });
-                } catch (e) {
-                    console.log("Heartbeat error (ignore):", e);
-                }
+                } catch (e) {}
             }, 5000); 
         }
 
         function stopHeartbeatLoop() {
-            if (heartbeatInterval) {
-                clearInterval(heartbeatInterval);
-                heartbeatInterval = null;
-            }
+            if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
         }
 
+        // Window functions
         window.createRoom = async () => {
-            if (!currentUser) return alert("로그인 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
-
+            if (!currentUser) return window.showToast("로그인 중입니다...", 'error');
             const name = document.getElementById('new-room-name').value;
             const password = document.getElementById('new-room-pw').value;
             const max = parseInt(document.getElementById('new-room-max').value);
             const cpu = parseInt(document.getElementById('new-room-cpu').value);
-            
             const myNick = document.getElementById('my-nickname').value || "Guest";
             localStorage.setItem('gbm_nickname', myNick);
 
-            if (!name) return alert("방 제목을 입력해주세요.");
+            if (!name) return window.showToast("방 제목을 입력해주세요.", 'error');
 
             try {
                 const roomData = {
-                    name,
-                    password,
-                    maxPlayers: max,
-                    cpuCount: cpu,
-                    hostId: currentUser.uid,
-                    hostName: myNick,
+                    name, password, maxPlayers: max, cpuCount: cpu,
+                    hostId: currentUser.uid, hostName: myNick,
                     players: [{ uid: currentUser.uid, name: myNick, ready: true, lastActive: Date.now() }], 
-                    status: 'waiting',
-                    createdAt: Date.now(),
-                    gameState: null
+                    status: 'waiting', createdAt: Date.now(), gameState: null, messages: []
                 };
-                
                 const docRef = await addDoc(collection(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms'), roomData);
                 localStorage.setItem('gbm_current_room_id', docRef.id);
                 enterWaitingRoom(docRef.id);
                 window.closeModal('create-room-modal');
+                window.showToast("방이 생성되었습니다!", 'success');
             } catch (e) {
-                console.error("Error creating room:", e);
-                alert("방 생성 실패: " + e.message);
+                console.error(e);
+                window.showToast("방 생성 실패", 'error');
             }
         };
 
         window.tryJoinRoom = (roomId, room) => {
-            if (!currentUser) return alert("로그인 정보를 불러오는 중입니다.");
-            
+            if (!currentUser) return window.showToast("로그인 중...", 'error');
             if (room.password) {
                 const input = prompt("비밀번호를 입력하세요:");
-                if (input !== room.password) return alert("비밀번호가 일치하지 않습니다.");
+                if (input !== room.password) return window.showToast("비밀번호 불일치", 'error');
             }
             joinRoom(roomId);
         };
@@ -670,7 +696,6 @@
             if (!currentUser) return;
             const myNick = document.getElementById('my-nickname').value || "Guest";
             localStorage.setItem('gbm_nickname', myNick);
-
             const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
 
             try {
@@ -686,15 +711,13 @@
                 localStorage.setItem('gbm_current_room_id', roomId);
                 enterWaitingRoom(roomId);
             } catch (e) {
-                console.error(e);
-                alert("입장 실패");
+                window.showToast("입장 실패", 'error');
             }
         }
 
         function enterWaitingRoom(roomId) {
             currentRoomId = roomId;
             isLocalGame = false;
-            
             localStorage.setItem('gbm_current_room_id', roomId);
 
             document.getElementById('network-lobby').classList.add('hidden');
@@ -707,40 +730,27 @@
             
             unsubscribeRoom = onSnapshot(roomRef, (docSnap) => {
                 if (!docSnap.exists()) {
-                    if(currentRoomId) { 
-                         alert("방이 종료되었습니다.");
-                         window.leaveRoom(true); 
-                    }
+                    if(currentRoomId) { window.showToast("방이 종료되었습니다."); window.leaveRoom(true); }
                     return;
                 }
-
                 const room = docSnap.data();
-                
                 if (!room.players.some(p => p.uid === currentUser.uid)) {
-                    alert("방에서 나갔습니다.");
+                    window.showToast("방에서 나갔습니다.", 'error');
                     window.leaveRoom(true);
                     return;
                 }
 
                 renderWaitingRoom(room);
+                renderChat(room.messages || []);
 
                 if (room.status === 'playing') {
-                    if (!window.game) {
-                        startGameFromLobby(room);
-                    } else {
-                        if (room.gameState && room.gameState.lastActionId !== window.game.lastActionId) {
-                            window.game.syncState(room.gameState);
-                        }
+                    if (!window.game) startGameFromLobby(room);
+                    else if (room.gameState && room.gameState.lastActionId !== window.game.lastActionId) {
+                        window.game.syncState(room.gameState);
                     }
                 } else if (room.status === 'waiting') {
-                    if (window.game) {
-                         resetToLobbyUI();
-                         document.getElementById('network-lobby').classList.add('hidden');
-                         document.getElementById('room-waiting').classList.remove('hidden');
-                    }
+                    if (window.game) resetToLobbyUI();
                 }
-            }, (error) => {
-                console.error("Room Listener Error:", error);
             });
         }
 
@@ -748,7 +758,6 @@
             document.getElementById('room-title-display').innerText = `${room.name} (${room.cpuCount || 0} CPU)`;
             const userList = document.getElementById('waiting-user-list');
             userList.innerHTML = '';
-
             const isHost = room.hostId === currentUser.uid;
             const startBtn = document.getElementById('host-start-btn');
             
@@ -756,26 +765,19 @@
             room.players.forEach(p => {
                 const el = document.createElement('div');
                 el.className = "flex justify-between items-center bg-slate-50 p-3 rounded-lg border-b border-gray-100";
-                
                 const isMe = p.uid === currentUser.uid;
                 const isP_Host = p.uid === room.hostId;
-
                 let btnHtml = '';
                 if (isMe && !isP_Host) {
                     btnHtml = `<button onclick="window.toggleReady('${room.id}', ${p.ready})" class="ml-2 px-3 py-1 text-xs rounded-lg font-bold ${p.ready ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'} hover:opacity-80 transition">${p.ready ? '준비취소' : '준비하기'}</button>`;
                 }
-
                 el.innerHTML = `
                     <div class="font-bold flex items-center gap-2">
                         <span class="text-xl">${isP_Host ? '👑' : '👤'}</span>
-                        <div class="flex flex-col">
-                            <span class="text-slate-800">${p.name} ${isMe ? '(나)' : ''}</span>
-                        </div>
+                        <div class="flex flex-col"><span class="text-slate-800">${p.name} ${isMe ? '(나)' : ''}</span></div>
                     </div>
                     <div class="flex items-center">
-                        <div class="${p.ready ? 'text-green-600' : 'text-gray-400'} font-bold text-sm bg-white px-2 py-1 rounded border border-gray-100 shadow-sm">
-                            ${p.ready ? 'READY' : 'WAITING'}
-                        </div>
+                        <div class="${p.ready ? 'text-green-600' : 'text-gray-400'} font-bold text-sm bg-white px-2 py-1 rounded border border-gray-100 shadow-sm">${p.ready ? 'READY' : 'WAITING'}</div>
                         ${btnHtml}
                     </div>
                 `;
@@ -787,20 +789,40 @@
                 startBtn.classList.remove('hidden');
                 const totalPlayers = room.players.length; 
                 const canStart = readyCount >= totalPlayers && (totalPlayers + (room.cpuCount || 0)) >= 2;
-                
                 startBtn.disabled = !canStart;
                 startBtn.innerText = canStart ? "게임 시작" : "모두 준비되어야 합니다";
-                if(canStart) startBtn.classList.add('animate-pulse');
-                else startBtn.classList.remove('animate-pulse');
+                if(canStart) startBtn.classList.add('animate-pulse'); else startBtn.classList.remove('animate-pulse');
             } else {
                 startBtn.classList.add('hidden');
             }
         }
 
+        // Chat
+        window.sendChat = async () => {
+            const input = document.getElementById('chat-input');
+            const msg = input.value;
+            if(!msg || !currentRoomId) return;
+            const myNick = document.getElementById('my-nickname').value || "Guest";
+            const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId);
+            await updateDoc(roomRef, {
+                messages: arrayUnion({ sender: myNick, text: msg, time: Date.now() })
+            });
+            input.value = '';
+        }
+
+        function renderChat(messages) {
+            const container = document.getElementById('chat-messages');
+            if(!container) return;
+            container.innerHTML = messages.slice(-20).map(m => { // Last 20
+                if(m.sender === 'System') return `<div class="chat-msg system">${m.text}</div>`;
+                return `<div class="chat-msg"><b>${m.sender}:</b> ${m.text}</div>`;
+            }).join('');
+            container.scrollTop = container.scrollHeight;
+        }
+
         window.toggleReady = async (roomId, currentStatus) => {
             if (!currentRoomId) return;
             const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId);
-            
             const snap = await getDoc(roomRef);
             if (snap.exists()) {
                 const data = snap.data();
@@ -817,9 +839,7 @@
             localStorage.removeItem('gbm_current_room_id');
             localStorage.removeItem('gbm_save'); 
             currentRoomId = null; 
-
             stopHeartbeatLoop();
-
             if (unsubscribeRoom) { unsubscribeRoom(); unsubscribeRoom = null; }
 
             if (!forced && roomIdToLeave && currentUser && !isLocalGame) {
@@ -829,22 +849,17 @@
                     if (docSnap.exists()) {
                         const room = docSnap.data();
                         const myPlayer = room.players.find(p => p.uid === currentUser.uid);
-                        
                         if (myPlayer) {
                             const remaining = room.players.filter(p => p.uid !== currentUser.uid);
-                            if (remaining.length === 0) {
-                                await deleteDoc(roomRef);
-                            } else {
+                            if (remaining.length === 0) { await deleteDoc(roomRef); } 
+                            else {
                                 let updates = { players: remaining };
-                                if (room.hostId === currentUser.uid) {
-                                    updates.hostId = remaining[0].uid;
-                                    updates.hostName = remaining[0].name;
-                                }
+                                if (room.hostId === currentUser.uid) { updates.hostId = remaining[0].uid; updates.hostName = remaining[0].name; }
                                 await updateDoc(roomRef, updates);
                             }
                         }
                     }
-                } catch (e) { console.error(e); }
+                } catch (e) {}
             }
             resetToLobbyUI();
             if(!isLocalGame) initLobby(); 
@@ -865,13 +880,9 @@
             document.querySelector('.top-controls-left').style.display = 'flex';
 
             const playerConfig = [];
-            roomData.players.forEach(p => {
-                playerConfig.push({ name: p.name, isCpu: false, uid: p.uid });
-            });
+            roomData.players.forEach(p => { playerConfig.push({ name: p.name, isCpu: false, uid: p.uid }); });
             const cpuCount = roomData.cpuCount || 0;
-            for(let i=0; i<cpuCount; i++) {
-                playerConfig.push({ name: `CPU ${i+1}`, isCpu: true, uid: `cpu_bot_${i}_${Date.now()}` });
-            }
+            for(let i=0; i<cpuCount; i++) { playerConfig.push({ name: `CPU ${i+1}`, isCpu: true, uid: `cpu_bot_${i}_${Date.now()}` }); }
 
             if(window.game) window.game = null;
             window.game = new GrandBlueMarble(playerConfig, 0, null, true, roomData.hostId === currentUser.uid); 
@@ -880,16 +891,12 @@
         window.checkAndStart = () => {
             const human = parseInt(document.getElementById('human-count').value);
             const cpu = parseInt(document.getElementById('cpu-count').value);
-            
             const playerConfig = [];
             for (let i = 1; i <= human; i++) {
-                const nameInput = document.getElementById(`human-name-${i}`);
-                const name = nameInput ? nameInput.value : `Player ${i}`;
+                const name = document.getElementById(`human-name-${i}`)?.value || `Player ${i}`;
                 playerConfig.push({ name: name, isCpu: false, uid: 'local_human_'+i });
             }
-            for (let i = 1; i <= cpu; i++) {
-                playerConfig.push({ name: `CPU ${i}`, isCpu: true, uid: 'local_cpu_'+i });
-            }
+            for (let i = 1; i <= cpu; i++) { playerConfig.push({ name: `CPU ${i}`, isCpu: true, uid: 'local_cpu_'+i }); }
 
             document.getElementById('local-setup-modal').classList.add('hidden');
             document.getElementById('lobby-container').classList.add('hidden'); 
@@ -909,10 +916,8 @@
             document.getElementById('game-over-modal').classList.add('hidden');
             document.querySelector('.top-controls').style.display = 'none';
             document.querySelector('.top-controls-left').style.display = 'none';
-            
             document.getElementById('lobby-container').classList.remove('hidden');
             document.getElementById('network-lobby').classList.remove('hidden');
-            
             if(window.game) window.game = null;
         }
 
@@ -944,7 +949,6 @@
                 container.appendChild(div);
             }
         };
-
         window.quitGame = async () => {
             if(confirm("정말 종료하고 로비로 돌아가시겠습니까?")) {
                 localStorage.removeItem('gbm_save');
@@ -952,7 +956,6 @@
                 resetToLobbyUI();
             }
         };
-
         window.resumeGame = () => {
             const savedData = JSON.parse(localStorage.getItem('gbm_save'));
             if(savedData) {
@@ -973,6 +976,7 @@
              else if (document.exitFullscreen) document.exitFullscreen();
         };
 
+        // --- GAME LOGIC ---
         const getPlayerColor = (id) => ['#ff0000', '#0066ff', '#00cc44', '#ffcc00', '#aa00ff', '#ff0099'][id - 1];
 
         class SoundManager {
@@ -1036,23 +1040,12 @@
             { id: 39, name: "서울", type: "city", price: 1000000, rent: 2000000, color: "#60a5fa", code: "kr", isSpecial: true }
         ];
 
-        function generateGridPositions() {
-            let pos = [];
-            for(let i=11; i>=1; i--) pos.push([11, i]); 
-            for(let i=10; i>=1; i--) pos.push([i, 1]);  
-            for(let i=2; i<=11; i++) pos.push([1, i]);  
-            for(let i=2; i<=10; i++) pos.push([i, 11]); 
-            return pos;
-        }
-        const gridPositions = generateGridPositions();
-
         class GrandBlueMarble {
             constructor(playerConfig, dummy = null, savedData = null, isMultiplayer = false, isHost = false) {
                 this.sound = new SoundManager();
                 this.isMultiplayer = isMultiplayer;
                 this.isHost = isHost;
                 const icons = ['🚗', '✈️', '🚢', '🚁', '🚲', '🚀'];
-                
                 this.players = [];
                 
                 if (savedData) {
@@ -1110,6 +1103,54 @@
                 }, 200);
             }
 
+            // *** 추가된 인수 기능 관련 메서드 ***
+            showAcquireModal(s, ownerId, cost) {
+                // 멀티플레이어면 내 턴인지 확인
+                if (this.isMultiplayer && this.players[this.currentPlayerIndex].uid !== currentUser.uid) return;
+
+                const modal = document.getElementById('acquire-modal');
+                document.getElementById('acquire-desc').innerHTML = `<b>${s.name}</b>을(를) 인수하시겠습니까?<br>인수 비용: <b class="text-red-500">₩${cost.toLocaleString()}</b>`;
+                
+                // 인수 대상 정보 임시 저장
+                this.pendingAcquire = { s, ownerId, cost };
+                modal.classList.remove('hidden');
+            }
+
+            confirmAcquire() {
+                if (!this.pendingAcquire) return;
+                const { s, ownerId, cost } = this.pendingAcquire;
+                const p = this.players[this.currentPlayerIndex];
+                const owner = this.players[ownerId - 1];
+
+                if (p.money >= cost) {
+                    p.money -= cost;
+                    owner.money += cost; // 주인에게 돈 지불
+                    this.sound.playMoney();
+                    
+                    const pos = boardData.indexOf(s);
+                    this.properties[pos] = p.id; // 소유권 이전
+                    // 건물은 유지됨 (룰에 따라 다를 수 있음, 여기선 유지)
+                    
+                    this.updateBoardOwnerDisplay(pos);
+                    this.log(`🏙️ <b>${s.name}</b> 인수 성공!`, "text-yellow-600 font-bold");
+                    window.showToast(`${p.name}님이 ${s.name}을(를) 인수했습니다!`, 'success');
+                } else {
+                    window.showToast("자금이 부족합니다.", 'error');
+                }
+                
+                document.getElementById('acquire-modal').classList.add('hidden');
+                this.pendingAcquire = null;
+                this.checkPostAction();
+            }
+
+            cancelAcquire() {
+                document.getElementById('acquire-modal').classList.add('hidden');
+                this.pendingAcquire = null;
+                this.checkPostAction();
+            }
+
+            // ... (기존 메서드들 포함) ...
+            
             startTurnTimer() {
                 this.stopTurnTimer();
                 this.timeLeft = 15;
@@ -1145,29 +1186,21 @@
 
             handleTurnTimeout() {
                 const p = this.players[this.currentPlayerIndex];
-                // 내 턴이거나, 멀티플레이 호스트가 CPU 턴을 처리할 때만 실행
                 const isMyControl = (!this.isMultiplayer && !p.isCpu) || (this.isMultiplayer && p.uid === currentUser.uid) || (p.isCpu && (!this.isMultiplayer || this.isHost));
                 
                 if (!isMyControl) return;
 
-                // 1. 주사위 굴리기 전이라면 -> 강제 롤
-                // 이미 굴렸다면(구매창 등) -> 강제 패스/구매는 각 모달에서 처리해야 하나, 여기선 단순화하여 턴 넘김 처리 시도
-                // 하지만 모달이 떠있는 상태라면 모달 닫고 진행
                 if (document.getElementById('modal').classList.contains('hidden') && 
-                    document.getElementById('build-modal').classList.contains('hidden')) {
-                     // 주사위 굴리기
+                    document.getElementById('build-modal').classList.contains('hidden') &&
+                    document.getElementById('acquire-modal').classList.contains('hidden')) {
                      this.rollDice();
                 } else {
-                    // 모달이 떠있으면? -> 자동 구매/패스 처리
-                    // 간단히: 그냥 모달 닫고 턴 넘기기 (패스)
-                    // 조금 더 똑똑하게: 돈 있으면 구매 (CPU 로직 재활용)
-                    
                     if (!document.getElementById('modal').classList.contains('hidden')) {
-                         // 구매 모달인 경우
-                         this.confirmAction(); // 강제 구매 (돈 부족하면 내부에서 체크 후 닫힘)
+                         this.confirmAction(); 
                     } else if (!document.getElementById('build-modal').classList.contains('hidden')) {
-                         // 건설 모달인 경우 -> 건설 안하고 닫기
                          this.closeBuildModal();
+                    } else if (!document.getElementById('acquire-modal').classList.contains('hidden')) {
+                         this.cancelAcquire(); // 인수는 기본적으로 취소
                     }
                 }
             }
@@ -1183,7 +1216,6 @@
                 }
                 const btn = document.getElementById('roll-btn');
                 
-                // 멀티플레이 턴 제어
                 if (this.isMultiplayer) {
                     if (p.isCpu) {
                          if (this.isHost) {
@@ -1209,7 +1241,6 @@
                 } else {
                     btn.disabled = false;
                     btn.innerText = p.isSpaceTravelReady ? "목적지 선택" : "주사위";
-                    // 사람 턴일 때 타이머 시작
                     this.startTurnTimer();
                 }
                 
@@ -1269,14 +1300,13 @@
                     } else if (p.uid === currentUser.uid) {
                         btn.disabled = false;
                         btn.innerText = p.isSpaceTravelReady ? "목적지 선택" : "주사위";
-                        // 내 턴 돌아왔으니 타이머 시작
                         this.startTurnTimer();
                     }
                 }
             }
 
             rollDice() {
-                this.stopTurnTimer(); // 주사위 굴리면 타이머 정지
+                this.stopTurnTimer(); 
                 if (this.isRolling) return; 
                 this.isRolling = true;
                 const player = this.players[this.currentPlayerIndex];
@@ -1382,7 +1412,7 @@
                         else {
                             if (!this.isMultiplayer || p.uid === currentUser.uid) {
                                  this.showModal(s, 'buy');
-                                 this.startTurnTimer(); // 결정 시간 타이머 재개
+                                 this.startTurnTimer(); 
                             } else {
                                  this.checkPostAction();
                             }
@@ -1394,7 +1424,7 @@
                             else {
                                 if (!this.isMultiplayer || p.uid === currentUser.uid) {
                                      this.showConstructionModal(s);
-                                     this.startTurnTimer(); // 결정 시간 타이머 재개
+                                     this.startTurnTimer(); 
                                 } else {
                                      this.checkPostAction();
                                 }
@@ -1802,6 +1832,71 @@
                      // 방장은 방 상태를 waiting으로 돌리거나 삭제할 수 있음. 
                      // 여기선 quitGame 버튼을 통해 나가도록 유도.
                 }
+            }
+
+            // *** 추가된 인수 기능 관련 메서드 ***
+            showAcquireModal(s, ownerId, cost) {
+                // 멀티플레이어면 내 턴인지 확인
+                if (this.isMultiplayer && this.players[this.currentPlayerIndex].uid !== currentUser.uid) return;
+
+                const modal = document.getElementById('acquire-modal');
+                document.getElementById('acquire-desc').innerHTML = `<b>${s.name}</b>을(를) 인수하시겠습니까?<br>인수 비용: <b class="text-red-500">₩${cost.toLocaleString()}</b>`;
+                
+                // 인수 대상 정보 임시 저장
+                this.pendingAcquire = { s, ownerId, cost };
+                modal.classList.remove('hidden');
+                this.startTurnTimer(); // 결정 시간 타이머 재개
+            }
+
+            confirmAcquire() {
+                if (!this.pendingAcquire) return;
+                const { s, ownerId, cost } = this.pendingAcquire;
+                const p = this.players[this.currentPlayerIndex];
+                const owner = this.players[ownerId - 1];
+
+                if (p.money >= cost) {
+                    p.money -= cost;
+                    owner.money += cost; // 주인에게 돈 지불
+                    this.sound.playMoney();
+                    
+                    const pos = boardData.indexOf(s);
+                    this.properties[pos] = p.id; // 소유권 이전
+                    // 건물은 유지됨
+                    
+                    this.updateBoardOwnerDisplay(pos);
+                    this.log(`🏙️ <b>${s.name}</b> 인수 성공!`, "text-yellow-600 font-bold");
+                    window.showToast(`${p.name}님이 ${s.name}을(를) 인수했습니다!`, 'success');
+                } else {
+                    window.showToast("자금이 부족합니다.", 'error');
+                }
+                
+                document.getElementById('acquire-modal').classList.add('hidden');
+                this.pendingAcquire = null;
+                this.checkPostAction();
+            }
+
+            cancelAcquire() {
+                document.getElementById('acquire-modal').classList.add('hidden');
+                this.pendingAcquire = null;
+                this.checkPostAction();
+            }
+
+            endTurn(force = false) {
+                this.updateStatus();
+                if (!this.lastWasDouble || force) {
+                    let next = (this.currentPlayerIndex + 1) % this.players.length;
+                    while (this.players[next].isBankrupt) next = (next + 1) % this.players.length;
+                    if (next < this.currentPlayerIndex) {
+                        this.round++;
+                        this.log(`🔔 Round ${this.round}`, "text-blue-300 font-bold");
+                    }
+                    this.currentPlayerIndex = next;
+                    this.players[this.currentPlayerIndex].doubleCount = 0;
+                }
+                this.isRolling = false; this.lastWasDouble = false; this.updateStatus();
+                this.startTurn();
+                const tt = document.getElementById('top-title'); 
+                if(tt) tt.innerText = this.players[this.currentPlayerIndex].isSpaceTravelReady ? "SPACE TRAVEL MODE" : "WORLD TOUR";
             }
         }
     </script>
