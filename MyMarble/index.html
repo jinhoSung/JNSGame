@@ -238,8 +238,7 @@
     <div id="create-room-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-[150] hidden backdrop-blur-sm px-4">
         <div class="bg-white p-6 rounded-2xl w-full max-w-xs shadow-2xl">
             <h3 class="text-xl font-bold mb-4 text-slate-800">새로운 방 만들기</h3>
-            <!-- Form 태그로 감싸서 패스워드 경고 해결 -->
-            <form onsubmit="event.preventDefault(); createRoom();" class="space-y-3">
+            <form onsubmit="event.preventDefault(); window.createRoom();" class="space-y-3">
                 <input id="new-room-name" type="text" placeholder="방 제목" class="w-full p-3 border-2 border-slate-200 rounded-xl font-bold focus:border-indigo-500 outline-none" required autocomplete="off">
                 <input id="new-room-pw" type="password" placeholder="비밀번호 (선택)" autocomplete="new-password" class="w-full p-3 border-2 border-slate-200 rounded-xl font-bold focus:border-indigo-500 outline-none">
                 <div class="flex items-center justify-between px-1">
@@ -760,15 +759,17 @@
                     if (docSnap.exists()) {
                         const room = docSnap.data();
                         const myPlayer = room.players.find(p => p.uid === currentUser.uid);
+                        
                         if (myPlayer) {
-                            const remaining = room.players.filter(p => p.uid !== currentUser.uid);
-                            if (remaining.length === 0) {
+                            const remainingPlayers = room.players.filter(p => p.uid !== currentUser.uid);
+                            
+                            if (remainingPlayers.length === 0) {
                                 await deleteDoc(roomRef);
                             } else {
-                                let updates = { players: remaining };
+                                let updates = { players: remainingPlayers };
                                 if (room.hostId === currentUser.uid) {
-                                    updates.hostId = remaining[0].uid;
-                                    updates.hostName = remaining[0].name;
+                                    updates.hostId = remainingPlayers[0].uid;
+                                    updates.hostName = remainingPlayers[0].name;
                                 }
                                 await updateDoc(roomRef, updates);
                             }
@@ -789,6 +790,7 @@
         function startGameFromLobby(roomData) {
             document.getElementById('room-waiting').classList.add('hidden');
             document.getElementById('lobby-container').classList.add('hidden'); 
+            
             document.getElementById('game-board-container').classList.remove('hidden');
             document.getElementById('game-board').classList.remove('opacity-0');
             document.querySelector('.top-controls').style.display = 'flex'; 
@@ -923,7 +925,6 @@
             playSpecial() { if(!this.ctx) return; let now = this.ctx.currentTime; const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain(); osc.frequency.setValueAtTime(400, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.5); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.5); osc.connect(gain); gain.connect(this.ctx.destination); osc.start(); osc.stop(now + 0.5); }
         }
 
-        // Board Data
         const boardData = [
             { id: 0, name: "START", type: "corner", emoji: "🏁", color: "#fef3c7" },
             { id: 1, name: "타이베이", type: "city", price: 50000, rent: 4000, color: "#f87171", code: "tw" },
@@ -1044,6 +1045,25 @@
                 this.buildings = Array(boardData.length).fill(null).map(() => ({ villa: false, building: false, hotel: false }));
                 this.gameSpeed = 1; 
                 this.round = 1; 
+            }
+
+            // [추가된 endTurn 메서드]
+            endTurn(force = false) {
+                this.updateStatus();
+                if (!this.lastWasDouble || force) {
+                    let next = (this.currentPlayerIndex + 1) % this.players.length;
+                    while (this.players[next].isBankrupt) next = (next + 1) % this.players.length;
+                    if (next < this.currentPlayerIndex) {
+                        this.round++;
+                        this.log(`🔔 Round ${this.round}`, "text-blue-300 font-bold");
+                    }
+                    this.currentPlayerIndex = next;
+                    this.players[this.currentPlayerIndex].doubleCount = 0;
+                }
+                this.isRolling = false; this.lastWasDouble = false; this.updateStatus();
+                this.startTurn();
+                const tt = document.getElementById('top-title'); 
+                if(tt) tt.innerText = this.players[this.currentPlayerIndex].isSpaceTravelReady ? "SPACE TRAVEL MODE" : "WORLD TOUR";
             }
 
             save() {
