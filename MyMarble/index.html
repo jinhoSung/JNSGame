@@ -238,9 +238,11 @@
     <div id="create-room-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-[150] hidden backdrop-blur-sm px-4">
         <div class="bg-white p-6 rounded-2xl w-full max-w-xs shadow-2xl">
             <h3 class="text-xl font-bold mb-4 text-slate-800">새로운 방 만들기</h3>
-            <div class="space-y-3">
-                <input id="new-room-name" type="text" placeholder="방 제목" class="w-full p-3 border-2 border-slate-200 rounded-xl font-bold focus:border-indigo-500 outline-none">
-                <input id="new-room-pw" type="password" placeholder="비밀번호 (선택)" class="w-full p-3 border-2 border-slate-200 rounded-xl font-bold focus:border-indigo-500 outline-none">
+            <!-- Form 태그로 감싸서 패스워드 경고 해결 -->
+            <form onsubmit="event.preventDefault(); createRoom();" class="space-y-3">
+                <input id="new-room-name" type="text" placeholder="방 제목" class="w-full p-3 border-2 border-slate-200 rounded-xl font-bold focus:border-indigo-500 outline-none" required>
+                <!-- autocomplete 속성 추가로 접근성 향상 -->
+                <input id="new-room-pw" type="password" placeholder="비밀번호 (선택)" autocomplete="new-password" class="w-full p-3 border-2 border-slate-200 rounded-xl font-bold focus:border-indigo-500 outline-none">
                 <div class="flex items-center justify-between px-1">
                     <span class="text-sm font-bold text-slate-600">최대 인원</span>
                     <select id="new-room-max" class="p-2 border-2 border-slate-200 rounded-lg font-bold">
@@ -262,11 +264,11 @@
                         <option value="4">4명</option>
                     </select>
                 </div>
-            </div>
-            <div class="flex gap-2 mt-6">
-                <button onclick="closeModal('create-room-modal')" class="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl">취소</button>
-                <button onclick="createRoom()" class="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg">생성</button>
-            </div>
+                <div class="flex gap-2 mt-6">
+                    <button type="button" onclick="closeModal('create-room-modal')" class="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl">취소</button>
+                    <button type="submit" class="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg">생성</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -292,7 +294,7 @@
                     </div>
                     <div class="flex flex-col items-end">
                         <div id="round-display" class="text-[0.5rem] font-bold text-slate-500 mb-0.5">R 1/30</div>
-                        <button id="roll-btn" onclick="game && game.rollDice()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition shadow-lg active:scale-95 disabled:opacity-50 text-[0.6rem] md:text-base disabled:cursor-not-allowed whitespace-nowrap">주사위</button>
+                        <button id="roll-btn" onclick="window.game && window.game.rollDice()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition shadow-lg active:scale-95 disabled:opacity-50 text-[0.6rem] md:text-base disabled:cursor-not-allowed whitespace-nowrap">주사위</button>
                     </div>
                 </div>
                 <div id="player-list" class="grid grid-cols-2 gap-1.5 flex-[6] overflow-y-auto content-start pr-0.5"></div>
@@ -316,8 +318,8 @@
             <h2 id="modal-title" class="text-xl font-bold mb-1">구매</h2>
             <p id="modal-desc" class="text-xs text-gray-500 mb-6 whitespace-pre-line leading-relaxed"></p>
             <div class="flex gap-2">
-                <button onclick="game.cancelAction()" class="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl text-sm">취소</button>
-                <button id="confirm-btn" onclick="game.confirmAction()" class="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-xl text-sm">확인</button>
+                <button onclick="window.game.cancelAction()" class="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl text-sm">취소</button>
+                <button id="confirm-btn" onclick="window.game.confirmAction()" class="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-xl text-sm">확인</button>
             </div>
         </div>
     </div>
@@ -327,7 +329,7 @@
             <h2 class="text-xl font-bold mb-1 text-center text-slate-800">건물 건설</h2>
             <p class="text-[10px] text-gray-500 mb-4 text-center">건물을 선택하세요 (중복 건설 가능)</p>
             <div class="flex flex-col gap-2" id="build-options"></div>
-            <button onclick="game.closeBuildModal()" class="w-full mt-3 py-3 bg-slate-100 text-slate-500 font-bold rounded-xl hover:bg-slate-200 text-sm">건설 취소</button>
+            <button onclick="window.game.closeBuildModal()" class="w-full mt-3 py-3 bg-slate-100 text-slate-500 font-bold rounded-xl hover:bg-slate-200 text-sm">건설 취소</button>
         </div>
     </div>
 
@@ -430,12 +432,15 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
         
-        const GAME_NAMESPACE = 'blue-marble-online-v5'; 
+        const GAME_NAMESPACE = 'blue-marble-online-v6'; // v6
 
         let currentUser = null;
         let currentRoomId = null;
         let unsubscribeRoom = null;
         let isLocalGame = false;
+        
+        // 전역변수 window.game 초기화
+        window.game = null;
 
         // 초기 로딩 제거
         setTimeout(() => {
@@ -450,14 +455,12 @@
                 currentUser = user;
                 console.log("Logged in as:", user.uid);
                 
-                // 닉네임 로드
                 const savedNick = localStorage.getItem('gbm_nickname');
                 const nickInput = document.getElementById('my-nickname');
                 if (nickInput) {
                     nickInput.value = savedNick || `Player ${user.uid.slice(0,4)}`;
                 }
 
-                // 재접속 로직
                 const savedRoomId = localStorage.getItem('gbm_current_room_id');
                 if (savedRoomId) {
                     await attemptReconnect(savedRoomId);
@@ -496,13 +499,15 @@
         }
 
         function initLobby() {
-            if (!currentUser || currentRoomId) return;
-
-            // [수정] 로비 UI 강제 표시
+            if (!currentUser) return;
+            
+            // 로비 UI 강제 표시 (DOM 안전)
             document.getElementById('lobby-container').classList.remove('hidden');
             document.getElementById('network-lobby').classList.remove('hidden');
             document.getElementById('room-waiting').classList.add('hidden');
             document.getElementById('game-board-container').classList.add('hidden');
+
+            if(currentRoomId) return;
 
             const roomsRef = collection(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms');
             
@@ -538,7 +543,7 @@
                     `;
                     
                     if (playerCount < room.maxPlayers && room.status !== 'playing') {
-                        item.onclick = () => tryJoinRoom(doc.id, room);
+                        item.onclick = () => window.tryJoinRoom(doc.id, room);
                     }
                     list.appendChild(item);
                 });
@@ -546,6 +551,8 @@
                 if (snapshot.empty) {
                     list.innerHTML = `<div class="text-center text-gray-400 py-10">개설된 방이 없습니다.<br>새로운 방을 만들어보세요!</div>`;
                 }
+            }, (error) => {
+                // ...
             });
         }
 
@@ -555,7 +562,7 @@
             const name = document.getElementById('new-room-name').value;
             const password = document.getElementById('new-room-pw').value;
             const max = parseInt(document.getElementById('new-room-max').value);
-            const cpu = parseInt(document.getElementById('new-room-cpu').value); // CPU 인원
+            const cpu = parseInt(document.getElementById('new-room-cpu').value);
             
             const myNick = document.getElementById('my-nickname').value || "Guest";
             localStorage.setItem('gbm_nickname', myNick);
@@ -579,7 +586,7 @@
                 const docRef = await addDoc(collection(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms'), roomData);
                 localStorage.setItem('gbm_current_room_id', docRef.id);
                 enterWaitingRoom(docRef.id);
-                closeModal('create-room-modal');
+                window.closeModal('create-room-modal');
             } catch (e) {
                 console.error("Error creating room:", e);
                 alert("방 생성 실패: " + e.message);
@@ -634,7 +641,7 @@
                 if (!docSnap.exists()) {
                     if(currentRoomId) { 
                          alert("방이 종료되었습니다.");
-                         leaveRoom(true); 
+                         window.leaveRoom(true); 
                     }
                     return;
                 }
@@ -643,7 +650,7 @@
                 
                 if (!room.players.some(p => p.uid === currentUser.uid)) {
                     alert("방에서 나갔습니다.");
-                    leaveRoom(true);
+                    window.leaveRoom(true);
                     return;
                 }
 
@@ -687,7 +694,7 @@
 
                 let btnHtml = '';
                 if (isMe && !isP_Host) {
-                    btnHtml = `<button onclick="toggleReady('${room.id}', ${p.ready})" class="ml-2 px-3 py-1 text-xs rounded-lg font-bold ${p.ready ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'} hover:opacity-80 transition">${p.ready ? '준비취소' : '준비하기'}</button>`;
+                    btnHtml = `<button onclick="window.toggleReady('${room.id}', ${p.ready})" class="ml-2 px-3 py-1 text-xs rounded-lg font-bold ${p.ready ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'} hover:opacity-80 transition">${p.ready ? '준비취소' : '준비하기'}</button>`;
                 }
 
                 el.innerHTML = `
@@ -710,7 +717,6 @@
 
             if (isHost) {
                 startBtn.classList.remove('hidden');
-                // 사람(CPU제외) + CPU 수 >= 2명 조건
                 const totalParticipants = room.players.length + (room.cpuCount || 0);
                 const canStart = readyCount >= room.players.length && totalParticipants >= 2; 
                 
@@ -726,7 +732,6 @@
         window.toggleReady = async (roomId, currentStatus) => {
             if (!currentRoomId) return;
             const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId);
-            
             const snap = await getDoc(roomRef);
             if (snap.exists()) {
                 const data = snap.data();
@@ -788,22 +793,12 @@
             document.querySelector('.top-controls-left').style.display = 'flex';
 
             const playerConfig = [];
-            // 사람 추가
             roomData.players.forEach(p => {
-                playerConfig.push({
-                    name: p.name,
-                    isCpu: false,
-                    uid: p.uid
-                });
+                playerConfig.push({ name: p.name, isCpu: false, uid: p.uid });
             });
-            // CPU 추가
             const cpuCount = roomData.cpuCount || 0;
             for(let i=0; i<cpuCount; i++) {
-                playerConfig.push({
-                    name: `CPU ${i+1}`,
-                    isCpu: true,
-                    uid: `cpu_bot_${i}_${Date.now()}`
-                });
+                playerConfig.push({ name: `CPU ${i+1}`, isCpu: true, uid: `cpu_bot_${i}_${Date.now()}` });
             }
 
             if(window.game) window.game = null;
@@ -925,6 +920,7 @@
             playSpecial() { if(!this.ctx) return; let now = this.ctx.currentTime; const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain(); osc.frequency.setValueAtTime(400, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.5); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.5); osc.connect(gain); gain.connect(this.ctx.destination); osc.start(); osc.stop(now + 0.5); }
         }
 
+        // Board Data
         const boardData = [
             { id: 0, name: "START", type: "corner", emoji: "🏁", color: "#fef3c7" },
             { id: 1, name: "타이베이", type: "city", price: 50000, rent: 4000, color: "#f87171", code: "tw" },
@@ -1039,6 +1035,8 @@
                 }, 200);
             }
 
+            // ... (게임 로직: startTurn, rollDice, movePlayer 등) ...
+            
             startTurn() {
                 const p = this.players[this.currentPlayerIndex];
                 
@@ -1053,7 +1051,7 @@
 
                 const btn = document.getElementById('roll-btn');
                 
-                // 멀티플레이 턴 제어
+                // 멀티플레이어인 경우 턴 체크 강화
                 if (this.isMultiplayer) {
                     if (p.isCpu) {
                          // CPU 턴은 방장(Host)만 실행
@@ -1069,7 +1067,8 @@
                     } else if (p.uid !== currentUser.uid) {
                         btn.disabled = true;
                         btn.innerText = `${p.name} 님의 턴`;
-                        return;
+                        // 동기화를 기다림
+                        return; 
                     }
                 }
 
@@ -1086,13 +1085,16 @@
                 else this.syncToFirebase(); 
             }
 
+            // 동기화 메서드 (중요)
             async syncToFirebase() {
                 if (!currentRoomId || !this.isMultiplayer) return;
                 const p = this.players[this.currentPlayerIndex];
+                // 업데이트 권한 체크 (내 턴이거나, CPU턴인데 내가 호스트일 때)
                 const canUpdate = (p.uid === currentUser.uid) || (p.isCpu && this.isHost);
                 if (!canUpdate) return;
 
                 const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId);
+                
                 const gameState = {
                     players: this.players,
                     currentPlayerIndex: this.currentPlayerIndex,
@@ -1102,12 +1104,15 @@
                     round: this.round,
                     lastActionId: Date.now()
                 };
+                
                 await updateDoc(roomRef, { gameState: gameState });
             }
             
             syncState(newState) {
-                if (this.isRolling) return; 
+                if (this.isRolling) return; // 로컬 애니메이션 중이면 패스
                 this.lastActionId = newState.lastActionId;
+
+                // 상태 업데이트
                 this.players = newState.players;
                 this.currentPlayerIndex = newState.currentPlayerIndex;
                 this.socialFund = newState.socialFund;
@@ -1115,6 +1120,7 @@
                 this.buildings = newState.buildings;
                 this.round = newState.round;
                 
+                // UI 갱신
                 this.initUI();
                 this.properties.forEach((ownerId, idx) => {
                     if (ownerId !== null) this.updateBoardOwnerDisplay(idx);
@@ -1122,36 +1128,32 @@
                 this.updatePiecePositions();
                 this.updateStatus();
                 
+                // 턴 제어 재확인
                 const p = this.players[this.currentPlayerIndex];
                 const btn = document.getElementById('roll-btn');
-                if (this.isMultiplayer) {
-                    if (p.isCpu) {
-                         if (this.isHost) {
-                             this.startTurn(); 
-                         } else {
-                             btn.disabled = true;
-                             btn.innerText = `${p.name} (CPU) 진행 중...`;
-                         }
-                    } else if (p.uid !== currentUser.uid) {
-                        btn.disabled = true;
-                        btn.innerText = `${p.name} 님의 턴`;
-                    } else if (p.uid === currentUser.uid) {
-                        btn.disabled = false;
-                        btn.innerText = p.isSpaceTravelReady ? "목적지 선택" : "주사위";
-                    }
+                if (this.isMultiplayer && p.uid !== currentUser.uid) {
+                    btn.disabled = true;
+                    btn.innerText = `${p.name} 님의 턴`;
+                } else if (this.isMultiplayer && p.uid === currentUser.uid) {
+                    btn.disabled = false;
+                    btn.innerText = p.isSpaceTravelReady ? "목적지 선택" : "주사위";
                 }
             }
 
+            // (이하 게임 로직은 기존과 동일하므로 생략 없이 포함됨. 단, 멀티플레이어 조건 체크 추가)
             rollDice() {
                 if (this.isRolling) return; 
                 this.isRolling = true;
                 const player = this.players[this.currentPlayerIndex];
                 
+                // 멀티플레이어면 내 턴인지 확인
                 if (this.isMultiplayer) {
                     if (player.isCpu && !this.isHost) return;
                     if (!player.isCpu && player.uid !== currentUser.uid) return;
                 }
 
+                // (나머지 rollDice 로직...)
+                // ...
                 if (player.isSpaceTravelReady) { 
                     if (player.isCpu) {
                         const targets = [0, 39, 5, 25, 3]; 
@@ -1165,32 +1167,41 @@
                     return; 
                 }
                 
+                // 무인도 탈출권 사용 여부 (주사위 굴리기 전)
                 if (player.isIslandIn && player.hasEscapeCard) {
                      if (player.isCpu) {
+                         // CPU는 그냥 쓴다고 가정
                          this.log(`🎫 CPU 탈출권 사용`, "text-green-400 font-bold");
                          player.hasEscapeCard = false; player.isIslandIn = false; player.islandTurns = 0;
-                         this.lastWasDouble = false; 
+                         this.lastWasDouble = false; // Force end turn after move
                      } else {
+                         // 멀티플레이어일 땐 내 턴일 때만
                          if (this.isMultiplayer && player.uid !== currentUser.uid) return;
+
                          this.showChoiceModal("📻", "무인도 탈출", "탈출권을 사용하시겠습니까?", 
-                            () => { 
+                            () => { // Yes
                                 this.log(`🎫 탈출권 사용`, "text-green-400 font-bold");
                                 player.hasEscapeCard = false; player.isIslandIn = false; player.islandTurns = 0;
-                                this.lastWasDouble = false; 
+                                this.lastWasDouble = false; // 탈출권 써서 나가면 턴 종료 (더블 안됨)
                                 this._performRoll(player);
                             },
-                            () => { this._performRoll(player); }
+                            () => { // No
+                                this._performRoll(player);
+                            }
                          );
-                         return; 
+                         return; // Wait for user choice
                      }
                 }
+
                 this._performRoll(player);
             }
 
             _performRoll(player) {
                 const overlay = document.getElementById('dice-overlay'); const d1El = document.getElementById('dice-1'); const d2El = document.getElementById('dice-2');
                 document.getElementById('roll-btn').disabled = true; this.resetOverlayUI(); overlay.style.display = 'flex';
+                
                 const interval = setInterval(() => { d1El.innerText = Math.floor(Math.random() * 6) + 1; d2El.innerText = Math.floor(Math.random() * 6) + 1; this.sound.playDice(); }, 100);
+                
                 setTimeout(() => {
                     clearInterval(interval);
                     const d1 = Math.floor(Math.random() * 6) + 1; const d2 = Math.floor(Math.random() * 6) + 1;
@@ -1198,11 +1209,12 @@
                     d1El.innerText = d1; d2El.innerText = d2;
                     setTimeout(async () => {
                         overlay.style.display = 'none'; this.log(`🎲 결과: <b>${d1}+${d2}=${total}</b>`, "text-white");
+                        
                         if (player.isIslandIn) {
                             if (isDouble) { 
                                 this.log(`✨ 더블 탈출!`, "text-green-400 font-bold"); 
                                 player.isIslandIn = false; player.islandTurns = 0; 
-                                this.lastWasDouble = false; 
+                                this.lastWasDouble = false; // 무인도 탈출 시 더블이어도 턴 종료 (요청사항)
                             }
                             else {
                                 player.islandTurns++;
@@ -1210,16 +1222,43 @@
                                 else { this.log(`🔒 대기 (${player.islandTurns}/3)`, "text-orange-400"); this.endTurn(); return; }
                             }
                         }
+                        
                         if (isDouble && !player.isIslandIn) {
                             player.doubleCount++;
                             if (player.doubleCount === 3) { this.log(`⚠️ 3연속 더블!`, "text-red-500 font-bold"); this.handleIslandArrive(); return; }
                             this.lastWasDouble = true;
                         } else { 
-                            if (!player.isIslandIn) this.lastWasDouble = false; 
+                            if (!player.isIslandIn) this.lastWasDouble = false; // Normal roll not double
                         }
+                        
                         await this.movePlayer(total);
                     }, 800 / this.gameSpeed);
                 }, 1200 / this.gameSpeed);
+            }
+
+
+            async chooseSpaceDestination(index) {
+                const p = this.players[this.currentPlayerIndex];
+                
+                // 멀티플레이어 권한 체크
+                if (this.isMultiplayer && p.uid !== currentUser.uid) return;
+
+                p.isSpaceTravelReady = false; const oldPos = p.pos; p.pos = index;
+                this.sound.playSpecial(); this.log(`🚀 우주 이동 완료`, "text-blue-400 font-bold");
+                if (index < oldPos) { p.money += 200000; this.log("💰 월급 수령", "text-yellow-400"); }
+                
+                this.lastWasDouble = false; // 우주여행 후 턴 종료 (요청사항)
+                
+                this.updatePiecePositions(true); setTimeout(() => this.handleSquare(index), 700 / this.gameSpeed);
+            }
+
+            handleIslandArrive() {
+                const p = this.players[this.currentPlayerIndex]; this.sound.playAlert();
+                p.pos = 10; p.isIslandIn = true; p.islandTurns = 0; p.doubleCount = 0;
+                
+                this.lastWasDouble = false; // 무인도 도착 시 턴 종료
+                
+                this.updatePiecePositions(true); this.showEventOverlay("🌴", "무인도", "3턴 대기"); this.endTurn(true);
             }
 
             async movePlayer(steps) {
@@ -1262,63 +1301,70 @@
                         }
                     }
                     else { this.payRent(p, this.players[ownerId - 1], pos); }
-                } else {
-                    if (s.type === 'tax') { 
-                        if (this.solveInsolvency(p, 150000)) {
-                            p.money -= 150000; this.socialFund += 150000;
-                            this.sound.playAlert(); 
-                            this.log(`💸 세금 ₩15만 납부`, "text-red-400");
-                        } else { this.bankrupt(p); }
-                        this.checkPostAction();
+                } 
+                else if (s.type === 'tax') { 
+                    if (this.solveInsolvency(p, 150000)) {
+                        p.money -= 150000; this.socialFund += 150000;
+                        this.sound.playAlert(); 
+                        this.log(`💸 세금 ₩15만 납부`, "text-red-400");
+                    } else { this.bankrupt(p); }
+                    this.checkPostAction();
+                }
+                else if (s.type === 'chance') this.handleGoldenKey();
+                else if (s.name === "무인도") { this.handleIslandArrive(); }
+                else if (s.name === "우주여행") { 
+                    this.sound.playSpecial(); 
+                    const colOwner = this.properties[35]; 
+                    const fee = 200000;
+                    
+                    // 무료 이용권 체크 (황금열쇠 등)
+                    let actualFee = fee;
+                    if (p.isFreeSpaceTravel) {
+                        actualFee = 0;
+                        this.log(`🚀 우주여행 무료 초대권 사용!`, "text-green-400 font-bold");
+                        p.isFreeSpaceTravel = false; // 사용 후 해제
                     }
-                    else if (s.type === 'chance') this.handleGoldenKey();
-                    else if (s.name === "무인도") { this.handleIslandArrive(); }
-                    else if (s.name === "우주여행") { 
-                        this.sound.playSpecial(); 
-                        const colOwner = this.properties[35]; 
-                        const fee = 200000;
-                        let actualFee = fee;
-                        if (p.isFreeSpaceTravel) {
-                            actualFee = 0;
-                            this.log(`🚀 우주여행 무료 초대권 사용!`, "text-green-400 font-bold");
-                            p.isFreeSpaceTravel = false; 
-                        }
-    
-                        if (actualFee === 0 || this.solveInsolvency(p, actualFee)) {
-                            if (actualFee > 0) {
-                                p.money -= actualFee;
-                                if (colOwner && colOwner !== p.id) {
-                                    this.players[colOwner-1].money += actualFee;
-                                    this.log(`🚀 셔틀비 지불`, "text-orange-300");
-                                } else {
-                                    this.log(`🚀 셔틀비 지불`, "text-orange-300");
-                                }
+
+                    if (actualFee === 0 || this.solveInsolvency(p, actualFee)) {
+                        if (actualFee > 0) {
+                            p.money -= actualFee;
+                            if (colOwner && colOwner !== p.id) {
+                                this.players[colOwner-1].money += actualFee;
+                                this.log(`🚀 셔틀비 지불`, "text-orange-300");
+                            } else {
+                                this.log(`🚀 셔틀비 지불`, "text-orange-300");
                             }
-                            p.isSpaceTravelReady = true; 
-                            this.lastWasDouble = false; 
-                            if(p.isCpu) this.showEventOverlay("🚀", "우주여행 (CPU)", "다음 턴 출발");
-                            else this.showEventOverlay("🚀", "우주여행 준비됨", "다음 턴에 출발합니다");
-                        } else {
-                            const payment = p.money; p.money = 0;
-                            if (colOwner && colOwner !== p.id) { this.players[colOwner-1].money += payment; }
-                            this.bankrupt(p);
                         }
-                        this.endTurn(true); 
-                    }
-                    else if (s.name === "사회복지") { 
-                        this.sound.playMoney(); 
-                        if (this.socialFund > 0) {
-                            p.money += this.socialFund; 
-                            this.showEventOverlay("🏦", "사회복지기금", `₩${this.socialFund.toLocaleString()} 수령!`);
-                            this.log(`🏦 복지기금 수령!`, "text-green-400 font-bold");
-                            this.socialFund = 0;
+                        
+                        p.isSpaceTravelReady = true; 
+                        
+                        this.lastWasDouble = false; // 우주여행 탑승 시 턴 종료
+                        
+                        if(p.isCpu) {
+                            this.showEventOverlay("🚀", "우주여행 (CPU)", "다음 턴 출발");
                         } else {
-                            this.showEventOverlay("🏦", "사회복지기금", "적립금 없음");
+                            this.showEventOverlay("🚀", "우주여행 준비됨", "다음 턴에 출발합니다");
                         }
-                        this.checkPostAction();
                     } else {
-                        this.checkPostAction();
+                        const payment = p.money; p.money = 0;
+                        if (colOwner && colOwner !== p.id) { this.players[colOwner-1].money += payment; }
+                        this.bankrupt(p);
                     }
+                    this.endTurn(true); // 우주여행 후 턴 강제 종료
+                }
+                else if (s.name === "사회복지") { 
+                    this.sound.playMoney(); 
+                    if (this.socialFund > 0) {
+                        p.money += this.socialFund; 
+                        this.showEventOverlay("🏦", "사회복지기금", `₩${this.socialFund.toLocaleString()} 수령!`);
+                        this.log(`🏦 복지기금 수령!`, "text-green-400 font-bold");
+                        this.socialFund = 0;
+                    } else {
+                        this.showEventOverlay("🏦", "사회복지기금", "적립금 없음");
+                    }
+                    this.checkPostAction();
+                } else {
+                    this.checkPostAction();
                 }
             }
 
@@ -1397,7 +1443,9 @@
                     this.log(`💰 월급 수령`, "text-yellow-400 font-bold");
                 }
                 p.pos = targetPos;
-                this.lastWasDouble = false; 
+                
+                this.lastWasDouble = false; // 황금열쇠 이동 시 턴 종료
+                
                 this.updatePiecePositions();
                 this.handleSquare(targetPos);
             }
@@ -1481,11 +1529,16 @@
                 ];
 
                 const card = cards[Math.floor(Math.random() * cards.length)];
+                
+                // 황금열쇠 4초(4000ms) 동안 표시
                 this.showEventOverlay(card.emoji, card.title, card.desc, 4000); 
+                
+                // 4초 후 액션 실행
                 const actionDelay = 4000 / this.gameSpeed;
                 setTimeout(() => {
                     card.action();
                     this.log(`🔑 황금열쇠: ${card.title}`, "text-yellow-300");
+                    
                     if (!card.manualTurnEnd) {
                         this.checkPostAction();
                     }
@@ -1534,6 +1587,7 @@
             closeModal() { document.getElementById('modal').classList.add('hidden'); }
 
             showConstructionModal(s) {
+                // 멀티플레이어면 내 턴인지 확인
                 if (this.isMultiplayer && this.players[this.currentPlayerIndex].uid !== currentUser.uid) return;
 
                 const modal = document.getElementById('build-modal');
