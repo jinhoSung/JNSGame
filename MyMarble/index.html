@@ -482,7 +482,6 @@
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-analytics.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, getDoc, arrayUnion, arrayRemove, setDoc, query, orderBy, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-        // Presence 시스템을 위한 Realtime Database 추가
         import { getDatabase, ref, onDisconnect, set, remove, onValue } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
 
         // Firebase 설정
@@ -539,22 +538,12 @@
                 currentUser = user;
                 console.log("Logged in as:", user.uid);
                 
-                // 닉네임 로드
                 const savedNick = localStorage.getItem('gbm_nickname');
                 const nickInput = document.getElementById('my-nickname');
                 if (nickInput) {
                     nickInput.value = savedNick || `Player ${user.uid.slice(0,4)}`;
                 }
 
-                // RTDB 전역 접속 상태 관리
-                const connectedRef = ref(rtdb, ".info/connected");
-                onValue(connectedRef, (snap) => {
-                    if (snap.val() === true) {
-                        // 연결됨
-                    }
-                });
-
-                // 재접속 로직
                 const savedRoomId = localStorage.getItem('gbm_current_room_id');
                 if (savedRoomId) {
                     await attemptReconnect(savedRoomId);
@@ -595,7 +584,6 @@
         function initLobby() {
             if (!currentUser) return;
             
-            // [수정] 로비 UI 강제 표시
             document.getElementById('lobby-container').classList.remove('hidden');
             document.getElementById('network-lobby').classList.remove('hidden');
             document.getElementById('room-waiting').classList.add('hidden');
@@ -686,25 +674,22 @@
                             });
 
                             if (activePlayers.length !== newPlayers.length) {
-                                // 유령이 있으면 제거 후 업데이트
                                 if (activePlayers.length === 0) {
-                                    transaction.delete(roomRef); // 모두 나감
+                                    transaction.delete(roomRef); 
                                 } else {
                                     transaction.update(roomRef, { players: activePlayers });
                                 }
                             } else {
-                                // 유령 없으면 내 정보만 업데이트
                                 transaction.update(roomRef, { players: newPlayers });
                             }
                         } else {
-                            // 방장이 아니면 내 정보만 업데이트
                             transaction.update(roomRef, { players: newPlayers });
                         }
                     });
                 } catch (e) {
                     console.log("Heartbeat error (ignore):", e);
                 }
-            }, 5000); // 5초마다
+            }, 5000); 
         }
 
         function stopHeartbeatLoop() {
@@ -770,7 +755,6 @@
             const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
 
             try {
-                // arrayUnion 대신 transaction으로 안전하게 추가 권장하지만 여기선 간단히
                 const snap = await getDoc(roomRef);
                 if(snap.exists()) {
                     const data = snap.data();
@@ -910,6 +894,29 @@
             } else {
                 startBtn.classList.add('hidden');
             }
+        }
+
+        // Chat
+        window.sendChat = async () => {
+            const input = document.getElementById('chat-input');
+            const msg = input.value;
+            if(!msg || !currentRoomId) return;
+            const myNick = document.getElementById('my-nickname').value || "Guest";
+            const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId);
+            await updateDoc(roomRef, {
+                messages: arrayUnion({ sender: myNick, text: msg, time: Date.now() })
+            });
+            input.value = '';
+        }
+
+        function renderChat(messages) {
+            const container = document.getElementById('chat-messages');
+            if(!container) return;
+            container.innerHTML = messages.slice(-20).map(m => { // Last 20
+                if(m.sender === 'System') return `<div class="chat-msg system">${m.text}</div>`;
+                return `<div class="chat-msg"><b>${m.sender}:</b> ${m.text}</div>`;
+            }).join('');
+            container.scrollTop = container.scrollHeight;
         }
 
         window.toggleReady = async (roomId, currentStatus) => {
@@ -1094,7 +1101,6 @@
              else if (document.exitFullscreen) document.exitFullscreen();
         };
 
-        // --- GAME LOGIC ---
         const getPlayerColor = (id) => ['#ff0000', '#0066ff', '#00cc44', '#ffcc00', '#aa00ff', '#ff0099'][id - 1];
 
         class SoundManager {
@@ -1115,7 +1121,6 @@
             playSpecial() { if(!this.ctx) return; let now = this.ctx.currentTime; const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain(); osc.frequency.setValueAtTime(400, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.5); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.5); osc.connect(gain); gain.connect(this.ctx.destination); osc.start(); osc.stop(now + 0.5); }
         }
 
-        // Board Data
         const boardData = [
             { id: 0, name: "START", type: "corner", emoji: "🏁", color: "#fef3c7" },
             { id: 1, name: "타이베이", type: "city", price: 50000, rent: 4000, color: "#f87171", code: "tw" },
@@ -1175,6 +1180,7 @@
                 this.isMultiplayer = isMultiplayer;
                 this.isHost = isHost;
                 const icons = ['🚗', '✈️', '🚢', '🚁', '🚲', '🚀'];
+                
                 this.players = [];
                 
                 if (savedData) {
