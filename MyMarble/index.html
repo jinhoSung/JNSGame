@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>브루마블 그랜드 - 멀티플레이어 & 싱글</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;700&display=swap');
 
@@ -250,6 +251,17 @@
                         <option value="6">6명</option>
                     </select>
                 </div>
+                <!-- CPU 추가 옵션 -->
+                <div class="flex items-center justify-between px-1">
+                    <span class="text-sm font-bold text-slate-600">CPU 인원</span>
+                    <select id="new-room-cpu" class="p-2 border-2 border-slate-200 rounded-lg font-bold">
+                        <option value="0">없음</option>
+                        <option value="1">1명</option>
+                        <option value="2">2명</option>
+                        <option value="3">3명</option>
+                        <option value="4">4명</option>
+                    </select>
+                </div>
             </div>
             <div class="flex gap-2 mt-6">
                 <button onclick="closeModal('create-room-modal')" class="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl">취소</button>
@@ -396,7 +408,7 @@
         </div>
     </div>
 
-    <!-- Javascript (Merged Scripts) -->
+    <!-- Javascript -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-analytics.js";
@@ -438,12 +450,14 @@
                 currentUser = user;
                 console.log("Logged in as:", user.uid);
                 
+                // 닉네임 로드
                 const savedNick = localStorage.getItem('gbm_nickname');
                 const nickInput = document.getElementById('my-nickname');
                 if (nickInput) {
                     nickInput.value = savedNick || `Player ${user.uid.slice(0,4)}`;
                 }
 
+                // 재접속 로직
                 const savedRoomId = localStorage.getItem('gbm_current_room_id');
                 if (savedRoomId) {
                     await attemptReconnect(savedRoomId);
@@ -512,7 +526,7 @@
                                 ${isPrivate ? '<span class="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">🔒 비공개</span>' : '<span class="text-xs bg-green-100 text-green-600 px-1.5 py-0.5 rounded font-bold">📢 공개</span>'}
                                 <h3 class="font-bold text-slate-800">${room.name}</h3>
                             </div>
-                            <div class="text-xs text-slate-500 mt-1">방장: ${room.hostName}</div>
+                            <div class="text-xs text-slate-500 mt-1">방장: ${room.hostName} | CPU: ${room.cpuCount || 0}명</div>
                         </div>
                         <div class="flex items-center gap-3">
                             <span class="text-sm font-bold ${playerCount >= room.maxPlayers ? 'text-red-500' : 'text-indigo-600'}">${playerCount}/${room.maxPlayers}명</span>
@@ -535,13 +549,14 @@
             });
         }
 
-        // Attach global functions to window
         window.createRoom = async () => {
             if (!currentUser) return alert("로그인 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
 
             const name = document.getElementById('new-room-name').value;
             const password = document.getElementById('new-room-pw').value;
             const max = parseInt(document.getElementById('new-room-max').value);
+            const cpu = parseInt(document.getElementById('new-room-cpu').value); // CPU 인원
+            
             const myNick = document.getElementById('my-nickname').value || "Guest";
             localStorage.setItem('gbm_nickname', myNick);
 
@@ -552,6 +567,7 @@
                     name,
                     password,
                     maxPlayers: max,
+                    cpuCount: cpu,
                     hostId: currentUser.uid,
                     hostName: myNick,
                     players: [{ uid: currentUser.uid, name: myNick, ready: true }], 
@@ -648,11 +664,13 @@
                          document.getElementById('room-waiting').classList.remove('hidden');
                     }
                 }
+            }, (error) => {
+                console.error("Room Listener Error:", error);
             });
         }
 
         function renderWaitingRoom(room) {
-            document.getElementById('room-title-display').innerText = room.name;
+            document.getElementById('room-title-display').innerText = `${room.name} (${room.cpuCount || 0} CPU)`;
             const userList = document.getElementById('waiting-user-list');
             userList.innerHTML = '';
 
@@ -692,8 +710,9 @@
 
             if (isHost) {
                 startBtn.classList.remove('hidden');
-                const totalPlayers = room.players.length; 
-                const canStart = readyCount >= totalPlayers && totalPlayers >= 2; 
+                // 사람(CPU제외) + CPU 수 >= 2명 조건
+                const totalParticipants = room.players.length + (room.cpuCount || 0);
+                const canStart = readyCount >= room.players.length && totalParticipants >= 2; 
                 
                 startBtn.disabled = !canStart;
                 startBtn.innerText = canStart ? "게임 시작" : "모두 준비되어야 합니다";
@@ -768,11 +787,24 @@
             document.querySelector('.top-controls').style.display = 'flex'; 
             document.querySelector('.top-controls-left').style.display = 'flex';
 
-            const playerConfig = roomData.players.map(p => ({
-                name: p.name,
-                isCpu: false,
-                uid: p.uid
-            }));
+            const playerConfig = [];
+            // 사람 추가
+            roomData.players.forEach(p => {
+                playerConfig.push({
+                    name: p.name,
+                    isCpu: false,
+                    uid: p.uid
+                });
+            });
+            // CPU 추가
+            const cpuCount = roomData.cpuCount || 0;
+            for(let i=0; i<cpuCount; i++) {
+                playerConfig.push({
+                    name: `CPU ${i+1}`,
+                    isCpu: true,
+                    uid: `cpu_bot_${i}_${Date.now()}`
+                });
+            }
 
             if(window.game) window.game = null;
             window.game = new GrandBlueMarble(playerConfig, 0, null, true, roomData.hostId === currentUser.uid); 
@@ -784,8 +816,7 @@
             
             const playerConfig = [];
             for (let i = 1; i <= human; i++) {
-                const nameInput = document.getElementById(`human-name-${i}`);
-                const name = nameInput ? nameInput.value : `Player ${i}`;
+                const name = document.getElementById(`human-name-${i}`)?.value || `Player ${i}`;
                 playerConfig.push({ name: name, isCpu: false, uid: 'local_human_'+i });
             }
             for (let i = 1; i <= cpu; i++) {
@@ -865,7 +896,6 @@
                 window.game = new GrandBlueMarble(0, 0, savedData); 
             }
         };
-
         window.showGameInfo = () => document.getElementById('game-info-modal').classList.remove('hidden');
         window.closeGameInfo = () => document.getElementById('game-info-modal').classList.add('hidden');
         window.toggleGlobalSpeed = () => { if (window.game) window.game.toggleSpeed(); };
@@ -954,6 +984,7 @@
                 this.isMultiplayer = isMultiplayer;
                 this.isHost = isHost;
                 const icons = ['🚗', '✈️', '🚢', '🚁', '🚲', '🚀'];
+                
                 this.players = [];
                 
                 if (savedData) {
@@ -1010,13 +1041,16 @@
 
             startTurn() {
                 const p = this.players[this.currentPlayerIndex];
+                
                 const survivors = this.players.filter(pl => !pl.isBankrupt);
                 if (survivors.length <= 1) { this.gameOver(survivors[0]); return; }
+
                 if (this.round > this.maxRounds) {
                     const winner = [...this.players].sort((a,b) => this.calculateTotalAssets(b) - this.calculateTotalAssets(a))[0];
                     this.gameOver(winner, true);
                     return;
                 }
+
                 const btn = document.getElementById('roll-btn');
                 
                 // 멀티플레이 턴 제어
