@@ -147,6 +147,15 @@
             display: flex; flex-direction: column; justify-content: center; align-items: center; color: white;
             transition: opacity 0.5s;
         }
+
+        .timer-warning {
+            color: #ef4444 !important;
+            animation: pulse-red 1s infinite;
+        }
+        @keyframes pulse-red {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
     </style>
 </head>
 <body>
@@ -291,7 +300,10 @@
                         <div id="social-fund-display" class="text-[0.5rem] md:text-[10px] text-green-600 font-bold whitespace-nowrap">사회복지: ₩0</div>
                     </div>
                     <div class="flex flex-col items-end">
-                        <div id="round-display" class="text-[0.5rem] font-bold text-slate-500 mb-0.5">R 1/30</div>
+                        <div class="flex items-center gap-1">
+                            <div id="turn-timer-display" class="text-[0.6rem] font-bold text-indigo-500 bg-white px-1.5 py-0.5 rounded shadow-sm hidden">⏰ 15s</div>
+                            <div id="round-display" class="text-[0.5rem] font-bold text-slate-500 mb-0.5">R 1/30</div>
+                        </div>
                         <button id="roll-btn" onclick="window.game && window.game.rollDice()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition shadow-lg active:scale-95 disabled:opacity-50 text-[0.6rem] md:text-base disabled:cursor-not-allowed whitespace-nowrap">주사위</button>
                     </div>
                 </div>
@@ -436,12 +448,10 @@
         let currentRoomId = null;
         let unsubscribeRoom = null;
         let isLocalGame = false;
-        let heartbeatInterval = null; // 하트비트 인터벌
+        let heartbeatInterval = null; 
 
-        // 전역변수 window.game 초기화
         window.game = null;
 
-        // 초기 로딩 제거
         setTimeout(() => {
             const loading = document.getElementById('loading-screen');
             if(loading) loading.style.display = 'none';
@@ -471,7 +481,6 @@
             }
         });
 
-        // 재접속 시도
         async function attemptReconnect(roomId) {
             const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
             try {
@@ -549,9 +558,7 @@
                 if (snapshot.empty) {
                     list.innerHTML = `<div class="text-center text-gray-400 py-10">개설된 방이 없습니다.<br>새로운 방을 만들어보세요!</div>`;
                 }
-            }, (error) => {
-                // ...
-            });
+            }, (error) => { });
         }
 
         // --- Heartbeat Logic ---
@@ -559,17 +566,13 @@
             if (heartbeatInterval) clearInterval(heartbeatInterval);
             heartbeatInterval = setInterval(async () => {
                 if (!currentRoomId || !currentUser) return;
-                
                 const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId);
-                
                 try {
                     await runTransaction(db, async (transaction) => {
                         const sfDoc = await transaction.get(roomRef);
-                        if (!sfDoc.exists()) return; // 방이 없음
+                        if (!sfDoc.exists()) return; 
 
                         const data = sfDoc.data();
-                        
-                        // 1. 내 lastActive 갱신
                         let myUpdated = false;
                         const newPlayers = data.players.map(p => {
                             if (p.uid === currentUser.uid) {
@@ -579,38 +582,34 @@
                             return p;
                         });
                         
-                        // 내가 방에 없다면(강퇴됨) 중단
                         if (!myUpdated) return;
 
-                        // 2. (방장만) 타임아웃된 유령 플레이어 제거
+                        // 타임아웃 60초로 변경
                         if (data.hostId === currentUser.uid) {
                             const now = Date.now();
-                            const TIMEOUT = 15000; // 15초
+                            const TIMEOUT = 60000; // 60초
                             const activePlayers = newPlayers.filter(p => {
-                                if (p.isCpu || !p.lastActive) return true; // CPU나 막 들어온 사람은 예외
+                                if (p.isCpu || !p.lastActive) return true; 
                                 return (now - p.lastActive) < TIMEOUT;
                             });
 
                             if (activePlayers.length !== newPlayers.length) {
-                                // 유령이 있으면 제거 후 업데이트
                                 if (activePlayers.length === 0) {
-                                    transaction.delete(roomRef); // 모두 나감
+                                    transaction.delete(roomRef); 
                                 } else {
                                     transaction.update(roomRef, { players: activePlayers });
                                 }
                             } else {
-                                // 유령 없으면 내 정보만 업데이트
                                 transaction.update(roomRef, { players: newPlayers });
                             }
                         } else {
-                            // 방장이 아니면 내 정보만 업데이트
                             transaction.update(roomRef, { players: newPlayers });
                         }
                     });
                 } catch (e) {
                     console.log("Heartbeat error (ignore):", e);
                 }
-            }, 5000); // 5초마다
+            }, 5000); 
         }
 
         function stopHeartbeatLoop() {
@@ -620,7 +619,6 @@
             }
         }
 
-        // Attach global functions to window
         window.createRoom = async () => {
             if (!currentUser) return alert("로그인 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
 
@@ -676,7 +674,6 @@
             const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
 
             try {
-                // arrayUnion 대신 transaction으로 안전하게 추가 권장하지만 여기선 간단히
                 const snap = await getDoc(roomRef);
                 if(snap.exists()) {
                     const data = snap.data();
@@ -704,7 +701,6 @@
             document.getElementById('room-waiting').classList.remove('hidden');
             document.getElementById('lobby-container').classList.remove('hidden');
 
-            // Heartbeat 시작
             startHeartbeatLoop();
 
             const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
@@ -835,15 +831,14 @@
                         const myPlayer = room.players.find(p => p.uid === currentUser.uid);
                         
                         if (myPlayer) {
-                            const remainingPlayers = room.players.filter(p => p.uid !== currentUser.uid);
-                            
-                            if (remainingPlayers.length === 0) {
+                            const remaining = room.players.filter(p => p.uid !== currentUser.uid);
+                            if (remaining.length === 0) {
                                 await deleteDoc(roomRef);
                             } else {
-                                let updates = { players: remainingPlayers };
+                                let updates = { players: remaining };
                                 if (room.hostId === currentUser.uid) {
-                                    updates.hostId = remainingPlayers[0].uid;
-                                    updates.hostName = remainingPlayers[0].name;
+                                    updates.hostId = remaining[0].uid;
+                                    updates.hostName = remaining[0].name;
                                 }
                                 await updateDoc(roomRef, updates);
                             }
@@ -1096,6 +1091,9 @@
                 this.lastWasDouble = false;
                 this.lastActionId = 0;
 
+                this.turnTimer = null;
+                this.timeLeft = 15;
+
                 this.initUI();
                 this.initBoard();
                 window.addEventListener('resize', () => this.updatePiecePositions());
@@ -1112,368 +1110,66 @@
                 }, 200);
             }
 
-            _initNewGame() {
-                this.currentPlayerIndex = 0;
-                this.socialFund = 0; 
-                this.properties = Array(boardData.length).fill(null);
-                this.buildings = Array(boardData.length).fill(null).map(() => ({ villa: false, building: false, hotel: false }));
-                this.gameSpeed = 1; 
-                this.round = 1; 
-            }
-
-            endTurn(force = false) {
-                this.updateStatus();
-                if (!this.lastWasDouble || force) {
-                    let next = (this.currentPlayerIndex + 1) % this.players.length;
-                    while (this.players[next].isBankrupt) next = (next + 1) % this.players.length;
-                    if (next < this.currentPlayerIndex) {
-                        this.round++;
-                        this.log(`🔔 Round ${this.round}`, "text-blue-300 font-bold");
-                    }
-                    this.currentPlayerIndex = next;
-                    this.players[this.currentPlayerIndex].doubleCount = 0;
+            startTurnTimer() {
+                this.stopTurnTimer();
+                this.timeLeft = 15;
+                const timerDisplay = document.getElementById('turn-timer-display');
+                if(timerDisplay) {
+                    timerDisplay.classList.remove('hidden');
+                    timerDisplay.innerText = `⏰ ${this.timeLeft}s`;
+                    timerDisplay.classList.remove('timer-warning');
                 }
-                this.isRolling = false; this.lastWasDouble = false; this.updateStatus();
-                this.startTurn();
-                const tt = document.getElementById('top-title'); 
-                if(tt) tt.innerText = this.players[this.currentPlayerIndex].isSpaceTravelReady ? "SPACE TRAVEL MODE" : "WORLD TOUR";
-            }
 
-            save() {
-                const data = {
-                    players: this.players,
-                    currentPlayerIndex: this.currentPlayerIndex,
-                    socialFund: this.socialFund,
-                    properties: this.properties,
-                    buildings: this.buildings,
-                    round: this.round,
-                    gameSpeed: this.gameSpeed
-                };
-                localStorage.setItem('gbm_save', JSON.stringify(data));
-            }
-
-            toggleSpeed() {
-                this.gameSpeed = this.gameSpeed >= 3 ? 1 : this.gameSpeed + 1;
-                document.getElementById('speed-btn').innerText = `⏩ x${this.gameSpeed}`;
-                this.save();
-            }
-
-            getConstructionCost(landPrice, type) {
-                if (type === 'villa') return Math.floor(landPrice * 0.5);
-                if (type === 'building') return Math.floor(landPrice * 1.0);
-                if (type === 'hotel') return Math.floor(landPrice * 1.5);
-                return 0;
-            }
-
-            getRentPrice(landPrice, baseRent, buildings, isSpecial) {
-                if (isSpecial) return baseRent; 
-                let rent = baseRent; 
-                if (buildings.villa) rent += baseRent; 
-                if (buildings.building) rent += baseRent * 2; 
-                if (buildings.hotel) rent += baseRent * 3; 
-                return Math.floor(rent);
-            }
-            
-            calculateTotalAssets(player) {
-                let assets = player.money;
-                this.properties.forEach((ownerId, index) => {
-                    if (ownerId === player.id) {
-                        const s = boardData[index];
-                        let value = s.price; 
-                        const b = this.buildings[index];
-                        if (b.villa) value += this.getConstructionCost(s.price, 'villa');
-                        if (b.building) value += this.getConstructionCost(s.price, 'building');
-                        if (b.hotel) value += this.getConstructionCost(s.price, 'hotel');
-                        assets += Math.floor(value * 0.5); 
+                this.turnTimer = setInterval(() => {
+                    this.timeLeft--;
+                    if(timerDisplay) {
+                        timerDisplay.innerText = `⏰ ${this.timeLeft}s`;
+                        if(this.timeLeft <= 5) timerDisplay.classList.add('timer-warning');
                     }
-                });
-                return Math.floor(assets);
+
+                    if (this.timeLeft <= 0) {
+                        this.stopTurnTimer();
+                        this.handleTurnTimeout();
+                    }
+                }, 1000);
             }
 
-            solveInsolvency(player, amount) {
-                if (player.money >= amount) return true;
-                let ownedProps = [];
-                this.properties.forEach((ownerId, idx) => {
-                    if (ownerId === player.id) {
-                        const s = boardData[idx];
-                        let value = s.price;
-                        const b = this.buildings[idx];
-                        if (b.villa) value += this.getConstructionCost(s.price, 'villa');
-                        if (b.building) value += this.getConstructionCost(s.price, 'building');
-                        if (b.hotel) value += this.getConstructionCost(s.price, 'hotel');
-                        ownedProps.push({ idx: idx, name: s.name, value: Math.floor(value * 0.5) });
-                    }
-                });
-                ownedProps.sort((a, b) => a.value - b.value); 
-                while (player.money < amount && ownedProps.length > 0) {
-                    const prop = ownedProps.shift();
-                    player.money += prop.value;
-                    this.properties[prop.idx] = null;
-                    this.buildings[prop.idx] = { villa: false, building: false, hotel: false };
-                    this.updateBoardOwnerDisplay(prop.idx); 
-                    this.log(`💸 자금 부족! <b>${prop.name}</b> 처분 (+₩${prop.value.toLocaleString()})`, "text-red-400 font-bold");
+            stopTurnTimer() {
+                if (this.turnTimer) {
+                    clearInterval(this.turnTimer);
+                    this.turnTimer = null;
                 }
-                this.save();
-                return player.money >= amount;
+                const timerDisplay = document.getElementById('turn-timer-display');
+                if(timerDisplay) timerDisplay.classList.add('hidden');
             }
 
-            initUI() {
-                const pList = document.getElementById('player-list'); if(!pList) return;
-                pList.innerHTML = '';
-                this.players.forEach(p => {
-                    const card = document.createElement('div');
-                    card.id = `card-p${p.id}`; card.className = `bg-white p-1 rounded-lg shadow-sm border-l-[4px] border-slate-200 flex flex-col transition-all duration-300 relative overflow-hidden`;
-                    card.style.borderLeftColor = getPlayerColor(p.id);
-                    const cpuBadge = p.isCpu ? `<span class="bg-gray-800 text-white text-[7px] px-1 rounded ml-1">CPU</span>` : '';
-                    card.innerHTML = `
-                        <div class="flex items-center justify-between mb-0.5">
-                            <span class="player-card-content font-black flex items-center gap-1"><span class="text-xl">${p.icon}</span> ${p.name}${cpuBadge}</span>
-                            <div class="flex flex-col items-end gap-0.5">
-                                <span id="turn-p${p.id}" class="player-badge font-black rounded-full bg-indigo-600 text-white hidden uppercase">ACT</span>
-                                <span id="island-p${p.id}" class="player-badge font-black rounded-full bg-orange-500 text-white hidden uppercase">ISLE</span>
-                                <span id="space-p${p.id}" class="player-badge font-black rounded-full bg-blue-500 text-white hidden uppercase">SPACE</span>
-                            </div>
-                        </div>
-                        <div class="flex justify-between items-baseline px-0.5 border-t pt-0.5">
-                            <div class="player-money font-black text-slate-800">₩ <span id="money-p${p.id}">${p.money.toLocaleString()}</span></div>
-                            <div class="text-[7px] text-slate-400 font-bold">자산: <span id="asset-p${p.id}">0</span></div>
-                        </div>
-                        <div class="flex gap-0.5 mt-0.5 px-0.5">
-                           <span id="badge-escape-${p.id}" class="hidden player-badge bg-slate-600 text-white rounded">🔑탈출</span>
-                           <span id="badge-freepass-${p.id}" class="hidden player-badge bg-purple-600 text-white rounded">🎫우대(<span id="count-freepass-${p.id}">0</span>)</span>
-                        </div>
-                        <div id="owned-p${p.id}" class="flex flex-wrap gap-0.5 mt-0.5 px-0.5 min-h-[8px]"></div>
-                    `;
-                    pList.appendChild(card);
-                });
-                this.updateStatus();
-            }
-            
-            initBoard() {
-                const board = document.getElementById('game-board');
-                boardData.forEach((data, index) => {
-                    const div = document.createElement('div'); 
-                    div.className = `square ${data.isSpecial ? 'special-city' : data.type}`; 
-                    div.id = `square-${index}`;
-                    const pos = gridPositions[index]; div.style.gridRow = pos[0]; div.style.gridColumn = pos[1];
-                    div.onclick = (e) => {
-                        const p = this.players[this.currentPlayerIndex];
-                        if (p.isCpu) return; 
-                        if (p.isSpaceTravelReady) this.chooseSpaceDestination(index);
-                        else this.showPropertyCard(index);
-                    };
-
-                    if (data.type === 'city') {
-                        const header = document.createElement('div');
-                        header.className = 'cell-header';
-                        header.style.backgroundColor = data.color;
-                        if(data.color === '#ec4899') header.style.color = 'white'; 
-                        let nameHtml = `<div class="flex flex-col items-center justify-center w-full leading-none">`;
-                        nameHtml += `<div class="flex items-center justify-center gap-0.5">`;
-                        if (data.code) nameHtml += `<img src="https://flagcdn.com/w40/${data.code}.png" class="flag-img" onerror="this.style.display='none'"> `;
-                        else if (data.emoji) nameHtml += `<span>${data.emoji}</span> `;
-                        nameHtml += `<span>${data.name}</span></div>`;
-                        nameHtml += `<div class="text-[0.65em] font-medium mt-0.5 opacity-80">₩${data.price/10000}만</div>`;
-                        nameHtml += `</div>`;
-                        header.innerHTML = nameHtml;
-
-                        const buildings = document.createElement('div');
-                        buildings.id = `build-${index}`;
-                        buildings.className = 'cell-buildings';
-
-                        const owner = document.createElement('div');
-                        owner.id = `owner-${index}`;
-                        owner.className = 'cell-owner';
-
-                        const spacer = document.createElement('div');
-                        spacer.className = 'cell-spacer';
-
-                        const users = document.createElement('div');
-                        users.id = `users-${index}`;
-                        users.className = 'cell-users';
-
-                        div.appendChild(header);
-                        div.appendChild(buildings);
-                        div.appendChild(owner);
-                        div.appendChild(spacer);
-                        div.appendChild(users);
-                    } else {
-                        div.style.backgroundColor = data.color;
-                        div.style.justifyContent = 'space-between'; 
-                        const topContent = document.createElement('div');
-                        topContent.style.flex = '4';
-                        topContent.style.display = 'flex';
-                        topContent.style.flexDirection = 'column';
-                        topContent.style.alignItems = 'center';
-                        topContent.style.justifyContent = 'center';
-                        topContent.innerHTML = `<div class="text-2xl mb-1">${data.emoji || ''}</div><div class="font-bold text-[0.65rem] text-slate-800">${data.name}</div>`;
-                        const users = document.createElement('div');
-                        users.id = `users-${index}`;
-                        users.className = 'cell-users';
-                        users.style.background = 'none'; 
-                        div.appendChild(topContent);
-                        div.appendChild(users);
-                    }
-                    board.appendChild(div);
-                });
-                setTimeout(() => this.updatePiecePositions(), 100);
-            }
-
-            showPropertyCard(index) {
-                const s = boardData[index]; if (s.type !== 'city') return;
-                const cardModal = document.getElementById('property-card');
-                const border = document.getElementById('prop-card-border');
-                const flag = document.getElementById('prop-flag');
-                if(!cardModal || !border || !flag) return;
-
-                border.style.borderColor = s.color;
-                if(s.code) flag.innerHTML = `<img src="https://flagcdn.com/w160/${s.code}.png" class="mx-auto rounded-lg shadow-md max-w-[80px]">`;
-                else flag.innerHTML = `<span class="text-6xl">${s.emoji}</span>`;
+            handleTurnTimeout() {
+                const p = this.players[this.currentPlayerIndex];
+                // 내 턴이거나, 멀티플레이 호스트가 CPU 턴을 처리할 때만 실행
+                const isMyControl = (!this.isMultiplayer && !p.isCpu) || (this.isMultiplayer && p.uid === currentUser.uid) || (p.isCpu && (!this.isMultiplayer || this.isHost));
                 
-                document.getElementById('prop-name').innerText = s.name;
-                document.getElementById('prop-tag').innerText = s.isSpecial ? "Special Area" : "Standard City";
+                if (!isMyControl) return;
 
-                const land = s.price;
-                if (s.isSpecial) {
-                    document.getElementById('price-info').classList.add('hidden');
-                    document.getElementById('rent-details-ui').classList.add('hidden');
-                    document.getElementById('cost-land').innerText = `₩${land.toLocaleString()}`;
-                    document.getElementById('rent-1').innerText = `₩${s.rent.toLocaleString()}`;
+                // 1. 주사위 굴리기 전이라면 -> 강제 롤
+                // 이미 굴렸다면(구매창 등) -> 강제 패스/구매는 각 모달에서 처리해야 하나, 여기선 단순화하여 턴 넘김 처리 시도
+                // 하지만 모달이 떠있는 상태라면 모달 닫고 진행
+                if (document.getElementById('modal').classList.contains('hidden') && 
+                    document.getElementById('build-modal').classList.contains('hidden')) {
+                     // 주사위 굴리기
+                     this.rollDice();
                 } else {
-                    document.getElementById('price-info').classList.remove('hidden');
-                    document.getElementById('rent-details-ui').classList.remove('hidden');
-                    document.getElementById('cost-land').innerText = `₩${land.toLocaleString()}`;
-                    document.getElementById('cost-villa').innerText = `₩${this.getConstructionCost(land, 'villa').toLocaleString()}`;
-                    document.getElementById('cost-build').innerText = `₩${this.getConstructionCost(land, 'building').toLocaleString()}`;
-                    document.getElementById('cost-hotel').innerText = `₩${this.getConstructionCost(land, 'hotel').toLocaleString()}`;
+                    // 모달이 떠있으면? -> 자동 구매/패스 처리
+                    // 간단히: 그냥 모달 닫고 턴 넘기기 (패스)
+                    // 조금 더 똑똑하게: 돈 있으면 구매 (CPU 로직 재활용)
                     
-                    const rent = s.rent;
-                    document.getElementById('rent-1').innerText = `₩${rent.toLocaleString()}`;
-                    document.getElementById('rent-2').innerText = `+ ₩${rent.toLocaleString()}`; 
-                    document.getElementById('rent-3').innerText = `+ ₩${(rent*2).toLocaleString()}`; 
-                    document.getElementById('rent-4').innerText = `+ ₩${(rent*3).toLocaleString()}`; 
+                    if (!document.getElementById('modal').classList.contains('hidden')) {
+                         // 구매 모달인 경우
+                         this.confirmAction(); // 강제 구매 (돈 부족하면 내부에서 체크 후 닫힘)
+                    } else if (!document.getElementById('build-modal').classList.contains('hidden')) {
+                         // 건설 모달인 경우 -> 건설 안하고 닫기
+                         this.closeBuildModal();
+                    }
                 }
-                cardModal.classList.remove('hidden');
-            }
-
-            closePropertyCard() { document.getElementById('property-card').classList.add('hidden'); }
-
-            updatePiecePositions(isSpecial = false) {
-                this.players.forEach(p => {
-                    let piece = document.getElementById(`p${p.id}`);
-                    if (!piece) {
-                        piece = document.createElement('div');
-                        piece.id = `p${p.id}`; 
-                        piece.className = `piece p-bg-${p.id}`; 
-                        piece.innerText = p.icon;
-                    }
-                    if (p.isBankrupt) { 
-                        if(piece) piece.style.display = 'none'; 
-                        return; 
-                    }
-                    const userContainer = document.getElementById(`users-${p.pos}`);
-                    if (userContainer) {
-                        userContainer.appendChild(piece);
-                        const count = userContainer.childElementCount;
-                        Array.from(userContainer.children).forEach(child => {
-                            child.style.width = count > 4 ? '30%' : (count > 1 ? '45%' : '80%');
-                            child.style.fontSize = count > 4 ? '0.5rem' : (count > 1 ? '0.8rem' : '1.2rem');
-                        });
-                    }
-                });
-            }
-
-            updateStatus() {
-                const fundEl = document.getElementById('social-fund-display');
-                if (fundEl) fundEl.innerText = `사회복지: ₩${this.socialFund.toLocaleString()}`;
-                const roundEl = document.getElementById('round-display');
-                if(roundEl) roundEl.innerText = `R ${this.round}/30`;
-
-                this.players.forEach(p => {
-                    const mEl = document.getElementById(`money-p${p.id}`); if(mEl) mEl.innerText = p.money.toLocaleString();
-                    const aEl = document.getElementById(`asset-p${p.id}`); if(aEl) aEl.innerText = this.calculateTotalAssets(p).toLocaleString();
-                    const card = document.getElementById(`card-p${p.id}`); if (!card) return;
-
-                    const escapeBadge = document.getElementById(`badge-escape-${p.id}`);
-                    if(escapeBadge) p.hasEscapeCard ? escapeBadge.classList.remove('hidden') : escapeBadge.classList.add('hidden');
-                    const freeBadge = document.getElementById(`badge-freepass-${p.id}`);
-                    const freeCount = document.getElementById(`count-freepass-${p.id}`);
-                    if(freeBadge && freeCount) {
-                        if(p.freePassCount > 0) {
-                            freeBadge.classList.remove('hidden');
-                            freeCount.innerText = p.freePassCount;
-                        } else {
-                            freeBadge.classList.add('hidden');
-                        }
-                    }
-
-                    const piece = document.getElementById(`p${p.id}`);
-                    
-                    if (this.currentPlayerIndex === p.id - 1) {
-                        card.classList.add('turn-anim'); 
-                        const actTag = document.getElementById(`turn-p${p.id}`);
-                        if (actTag) actTag.classList.remove('hidden');
-                        const turnDisplay = document.getElementById('turn-display');
-                        if (turnDisplay) turnDisplay.innerText = `${p.name}`;
-                        if (piece) { piece.classList.remove('inactive-piece'); piece.classList.add('active-piece'); }
-                    } else {
-                        card.classList.remove('turn-anim');
-                        const actTag = document.getElementById(`turn-p${p.id}`);
-                        if (actTag) actTag.classList.add('hidden');
-                        if (piece) { piece.classList.remove('active-piece'); piece.classList.add('inactive-piece'); }
-                    }
-                    
-                    const islandTag = document.getElementById(`island-p${p.id}`);
-                    if (islandTag) p.isIslandIn ? islandTag.classList.remove('hidden') : islandTag.classList.add('hidden');
-                    const spaceTag = document.getElementById(`space-p${p.id}`);
-                    if (spaceTag) p.isSpaceTravelReady ? spaceTag.classList.remove('hidden') : spaceTag.classList.add('hidden');
-                    if (p.isBankrupt) card.classList.add('grayscale', 'opacity-40');
-                    const ownedContainer = document.getElementById(`owned-p${p.id}`);
-                    if (ownedContainer) {
-                        const owned = boardData.filter((_, idx) => this.properties[idx] === p.id);
-                        ownedContainer.innerHTML = owned.map(c => `<span class="text-[7px] px-1 py-0.5 rounded text-white font-black shadow-sm" style="background-color: ${c.color}">${c.name}</span>`).join('');
-                    }
-                });
-            }
-
-            log(msg, colorClass = "text-slate-400") {
-                const logBox = document.getElementById('game-log'); const div = document.createElement('div');
-                div.className = `leading-relaxed border-l-2 pl-2 border-slate-700 ${colorClass}`;
-                div.innerHTML = msg; logBox.prepend(div);
-            }
-
-            resetOverlayUI() {
-                const e = document.getElementById('event-emoji'); const m = document.getElementById('event-msg'); const d = document.getElementById('dice-container');
-                if(e) e.innerText = ''; if(m) m.classList.add('hidden'); if(d) d.style.display = 'flex';
-            }
-
-            showEventOverlay(emoji, title, desc, duration = 2000) {
-                this.resetOverlayUI(); const overlay = document.getElementById('dice-overlay');
-                document.getElementById('event-emoji').innerText = emoji; document.getElementById('event-title').innerText = title; document.getElementById('event-desc').innerText = desc;
-                document.getElementById('dice-container').style.display = 'none'; document.getElementById('event-msg').classList.remove('hidden'); overlay.style.display = 'flex';
-                const adjustedDuration = duration / this.gameSpeed;
-                setTimeout(() => { overlay.style.display = 'none'; this.resetOverlayUI(); }, adjustedDuration);
-            }
-
-            // --- Async UI Choice Helper ---
-            showChoiceModal(emoji, title, desc, onYes, onNo) {
-                const modal = document.getElementById('choice-modal');
-                document.getElementById('choice-emoji').innerText = emoji;
-                document.getElementById('choice-title').innerText = title;
-                document.getElementById('choice-desc').innerText = desc;
-                
-                const yesBtn = document.getElementById('choice-yes-btn');
-                const noBtn = document.getElementById('choice-no-btn');
-                
-                const newYes = yesBtn.cloneNode(true);
-                const newNo = noBtn.cloneNode(true);
-                yesBtn.parentNode.replaceChild(newYes, yesBtn);
-                noBtn.parentNode.replaceChild(newNo, noBtn);
-
-                newYes.onclick = () => { modal.classList.add('hidden'); onYes(); };
-                newNo.onclick = () => { modal.classList.add('hidden'); onNo(); };
-                
-                modal.classList.remove('hidden');
             }
 
             startTurn() {
@@ -1487,6 +1183,7 @@
                 }
                 const btn = document.getElementById('roll-btn');
                 
+                // 멀티플레이 턴 제어
                 if (this.isMultiplayer) {
                     if (p.isCpu) {
                          if (this.isHost) {
@@ -1512,6 +1209,8 @@
                 } else {
                     btn.disabled = false;
                     btn.innerText = p.isSpaceTravelReady ? "목적지 선택" : "주사위";
+                    // 사람 턴일 때 타이머 시작
+                    this.startTurnTimer();
                 }
                 
                 if (!this.isMultiplayer) this.save();
@@ -1570,11 +1269,14 @@
                     } else if (p.uid === currentUser.uid) {
                         btn.disabled = false;
                         btn.innerText = p.isSpaceTravelReady ? "목적지 선택" : "주사위";
+                        // 내 턴 돌아왔으니 타이머 시작
+                        this.startTurnTimer();
                     }
                 }
             }
 
             rollDice() {
+                this.stopTurnTimer(); // 주사위 굴리면 타이머 정지
                 if (this.isRolling) return; 
                 this.isRolling = true;
                 const player = this.players[this.currentPlayerIndex];
@@ -1678,16 +1380,24 @@
                     if (ownerId === null) { 
                         if (p.isCpu) this.cpuDecideBuy(s);
                         else {
-                            if (!this.isMultiplayer || p.uid === currentUser.uid) this.showModal(s, 'buy');
-                            else this.checkPostAction();
+                            if (!this.isMultiplayer || p.uid === currentUser.uid) {
+                                 this.showModal(s, 'buy');
+                                 this.startTurnTimer(); // 결정 시간 타이머 재개
+                            } else {
+                                 this.checkPostAction();
+                            }
                         }
                     }
                     else if (ownerId === p.id) { 
                         if (!s.isSpecial) { 
                             if (p.isCpu) this.cpuDecideBuild(s);
                             else {
-                                if (!this.isMultiplayer || p.uid === currentUser.uid) this.showConstructionModal(s);
-                                else this.checkPostAction();
+                                if (!this.isMultiplayer || p.uid === currentUser.uid) {
+                                     this.showConstructionModal(s);
+                                     this.startTurnTimer(); // 결정 시간 타이머 재개
+                                } else {
+                                     this.checkPostAction();
+                                }
                             }
                         } else {
                             this.checkPostAction();
