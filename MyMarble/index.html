@@ -157,7 +157,6 @@
             50% { transform: scale(1.1); }
         }
 
-        /* 토스트 메시지 */
         #toast-container {
             position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
             z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none;
@@ -171,10 +170,9 @@
         @keyframes toast-in { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes toast-out { from { opacity: 1; } to { opacity: 0; } }
 
-        /* 채팅 스타일 */
         .chat-overlay {
             position: absolute; bottom: 0; left: 0; right: 0;
-            background: rgba(255,255,255,0.9); border-top: 1px solid #cbd5e1;
+            background: rgba(255,255,255,0.95); border-top: 1px solid #cbd5e1;
             padding: 8px; display: flex; gap: 4px; z-index: 100;
             max-height: 150px; flex-direction: column;
         }
@@ -420,7 +418,7 @@
             </div>
             <div class="p-6 overflow-y-auto text-sm text-slate-600 leading-relaxed space-y-4">
                <div><h3 class="font-bold text-indigo-600 text-lg mb-1">🚩 승리 조건</h3><p>상대 파산 또는 30라운드 종료 후 자산 1위.</p></div>
-               <div><h3 class="font-bold text-indigo-600 text-lg mb-1">🎲 진행</h3><p>주사위 이동. 더블 시 재행동(특수 이동 시 턴 종료). <span class="text-red-500">멀티플레이 시 내 턴에만 조작 가능.</span> 제한시간 15초 초과 시 자동 진행.</p></div>
+               <div><h3 class="font-bold text-indigo-600 text-lg mb-1">🎲 진행</h3><p>주사위 이동. 더블 시 재행동(특수 이동 시 턴 종료). <span class="text-red-500">멀티플레이 시 내 턴에만 주사위를 굴릴 수 있습니다.</span> 제한시간 15초 초과 시 자동 진행.</p></div>
                <div><h3 class="font-bold text-indigo-600 text-lg mb-1">🚀 특수 규칙</h3>
                    <ul class="list-disc pl-5">
                        <li>우주여행: 요금 지불 후 턴 종료, 다음 턴 원하는 곳 이동.</li>
@@ -484,8 +482,10 @@
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-analytics.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, getDoc, arrayUnion, arrayRemove, setDoc, query, orderBy, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+        // Presence 시스템을 위한 Realtime Database 추가
+        import { getDatabase, ref, onDisconnect, set, remove, onValue } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
 
-        // Firebase 설정 (RTDB 제거됨)
+        // Firebase 설정
         const firebaseConfig = {
             apiKey: "AIzaSyDP7mDxvaSOJOthbLD22AzVq5SsgSRQE44",
             authDomain: "mymarble-2afb1.firebaseapp.com",
@@ -493,18 +493,22 @@
             storageBucket: "mymarble-2afb1.firebasestorage.app",
             messagingSenderId: "373463759566",
             appId: "1:373463759566:web:9d9fa31a1404f9bd3f6e9f",
-            measurementId: "G-G65TCE21PM"
+            measurementId: "G-G65TCE21PM",
+            databaseURL: "https://mymarble-2afb1-default-rtdb.firebaseio.com/"
         };
 
         const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        const rtdb = getDatabase(app);
         
         const GAME_NAMESPACE = 'blue-marble-online-v5'; 
 
         let currentUser = null;
         let currentRoomId = null;
         let unsubscribeRoom = null;
+        let rtdbPresenceRef = null; 
         let isLocalGame = false;
         let heartbeatInterval = null; 
 
@@ -535,12 +539,22 @@
                 currentUser = user;
                 console.log("Logged in as:", user.uid);
                 
+                // 닉네임 로드
                 const savedNick = localStorage.getItem('gbm_nickname');
                 const nickInput = document.getElementById('my-nickname');
                 if (nickInput) {
                     nickInput.value = savedNick || `Player ${user.uid.slice(0,4)}`;
                 }
 
+                // RTDB 전역 접속 상태 관리
+                const connectedRef = ref(rtdb, ".info/connected");
+                onValue(connectedRef, (snap) => {
+                    if (snap.val() === true) {
+                        // 연결됨
+                    }
+                });
+
+                // 재접속 로직
                 const savedRoomId = localStorage.getItem('gbm_current_room_id');
                 if (savedRoomId) {
                     await attemptReconnect(savedRoomId);
@@ -786,13 +800,25 @@
 
             startHeartbeatLoop();
 
-            const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
-            
-            // 브라우저 닫기/새로고침 시 방 나가기 처리 (Best Effort)
-            window.addEventListener('beforeunload', () => {
-                 // 비동기 처리가 보장되지 않으므로 로컬 정리만 수행
-                 // 실제 나가기 처리는 재접속 시 실패하면 처리됨
+            // RTDB Presence Setup
+            rtdbPresenceRef = ref(rtdb, `room_presence/${roomId}/${currentUser.uid}`);
+            set(rtdbPresenceRef, {
+                name: document.getElementById('my-nickname').value || "Guest",
+                online: true,
+                timestamp: Date.now()
             });
+            onDisconnect(rtdbPresenceRef).remove(); 
+            
+            // RTDB Listener for ghosts
+            const roomPresenceRef = ref(rtdb, `room_presence/${roomId}`);
+            onValue(roomPresenceRef, async (snap) => {
+                if (!currentRoomId) return;
+                const onlineUsers = snap.val() || {};
+                const onlineUids = Object.keys(onlineUsers);
+                // 방장은 여기서 Firestore 플레이어 목록 정리 가능 (생략)
+            });
+
+            const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
 
             unsubscribeRoom = onSnapshot(roomRef, (docSnap) => {
                 if (!docSnap.exists()) {
@@ -909,6 +935,11 @@
 
             stopHeartbeatLoop();
 
+            if (rtdbPresenceRef) {
+                remove(rtdbPresenceRef);
+                rtdbPresenceRef = null;
+            }
+
             if (unsubscribeRoom) { unsubscribeRoom(); unsubscribeRoom = null; }
 
             if (!forced && roomIdToLeave && currentUser && !isLocalGame) {
@@ -973,7 +1004,8 @@
             
             const playerConfig = [];
             for (let i = 1; i <= human; i++) {
-                const name = document.getElementById(`human-name-${i}`)?.value || `Player ${i}`;
+                const nameInput = document.getElementById(`human-name-${i}`);
+                const name = nameInput ? nameInput.value : `Player ${i}`;
                 playerConfig.push({ name: name, isCpu: false, uid: 'local_human_'+i });
             }
             for (let i = 1; i <= cpu; i++) {
@@ -1529,7 +1561,36 @@
                             this.checkPostAction();
                         }
                     }
-                    else { this.payRent(p, this.players[ownerId - 1], pos); }
+                    else { 
+                        // **인수 로직 추가**
+                        // 돈이 충분하고, 내 턴이며, 상대방 땅인 경우
+                        if (!p.isCpu && (!this.isMultiplayer || p.uid === currentUser.uid)) {
+                            // 통행료 계산
+                            const rent = this.getRentPrice(s.price, s.rent, this.buildings[pos], s.isSpecial);
+                            
+                            // 통행료 지불 후 자금 확인 (인수비용 = 건설비용 * 2 라고 가정)
+                            // 여기서는 간단히 땅값 + 건물값의 2배로 설정
+                            // 실제 룰은 다양하지만 여기선 (현재가치 * 2)로 설정
+                            let currentValue = s.price;
+                            const b = this.buildings[pos];
+                            if(b.villa) currentValue += this.getConstructionCost(s.price, 'villa');
+                            if(b.building) currentValue += this.getConstructionCost(s.price, 'building');
+                            if(b.hotel) currentValue += this.getConstructionCost(s.price, 'hotel');
+                            
+                            const acquireCost = currentValue * 2;
+                            
+                            // 일단 통행료 지불
+                            this.payRent(p, this.players[ownerId - 1], pos);
+                            
+                            // 지불 후에도 돈이 있고, 파산 안했고, 특수지역이 아니면 인수 제안
+                            if (!p.isBankrupt && p.money >= acquireCost && !s.isSpecial) {
+                                this.showAcquireModal(s, ownerId, acquireCost);
+                                return; // 모달에서 처리 후 checkPostAction 호출
+                            }
+                        } else {
+                            this.payRent(p, this.players[ownerId - 1], pos);
+                        }
+                    }
                 } else {
                     if (s.type === 'tax') { 
                         if (this.solveInsolvency(p, 150000)) {
