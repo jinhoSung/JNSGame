@@ -181,7 +181,7 @@
             
             <div class="mb-4">
                 <label class="text-xs font-bold text-slate-500 mb-1 block">내 닉네임</label>
-                <input type="text" id="my-nickname" class="w-full p-2.5 rounded-xl border-2 border-slate-200 text-sm font-bold focus:border-indigo-500 outline-none placeholder-gray-300" placeholder="닉네임 입력">
+                <input type="text" id="my-nickname" class="w-full p-2.5 rounded-xl border-2 border-slate-200 text-sm font-bold focus:border-indigo-500 outline-none placeholder-gray-300" placeholder="닉네임 입력" autocomplete="off">
             </div>
 
             <div class="flex-1 overflow-y-auto space-y-3 p-1" id="room-list">
@@ -240,8 +240,7 @@
             <h3 class="text-xl font-bold mb-4 text-slate-800">새로운 방 만들기</h3>
             <!-- Form 태그로 감싸서 패스워드 경고 해결 -->
             <form onsubmit="event.preventDefault(); createRoom();" class="space-y-3">
-                <input id="new-room-name" type="text" placeholder="방 제목" class="w-full p-3 border-2 border-slate-200 rounded-xl font-bold focus:border-indigo-500 outline-none" required>
-                <!-- autocomplete 속성 추가로 접근성 향상 -->
+                <input id="new-room-name" type="text" placeholder="방 제목" class="w-full p-3 border-2 border-slate-200 rounded-xl font-bold focus:border-indigo-500 outline-none" required autocomplete="off">
                 <input id="new-room-pw" type="password" placeholder="비밀번호 (선택)" autocomplete="new-password" class="w-full p-3 border-2 border-slate-200 rounded-xl font-bold focus:border-indigo-500 outline-none">
                 <div class="flex items-center justify-between px-1">
                     <span class="text-sm font-bold text-slate-600">최대 인원</span>
@@ -432,7 +431,7 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
         
-        const GAME_NAMESPACE = 'blue-marble-online-v6'; // v6
+        const GAME_NAMESPACE = 'blue-marble-online-v5'; 
 
         let currentUser = null;
         let currentRoomId = null;
@@ -556,6 +555,7 @@
             });
         }
 
+        // Attach global functions to window
         window.createRoom = async () => {
             if (!currentUser) return alert("로그인 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
 
@@ -717,8 +717,9 @@
 
             if (isHost) {
                 startBtn.classList.remove('hidden');
-                const totalParticipants = room.players.length + (room.cpuCount || 0);
-                const canStart = readyCount >= room.players.length && totalParticipants >= 2; 
+                // 호스트는 자동 ready. 2명 이상부터 시작 가능.
+                const totalPlayers = room.players.length; 
+                const canStart = readyCount >= totalPlayers && (totalPlayers + (room.cpuCount || 0)) >= 2;
                 
                 startBtn.disabled = !canStart;
                 startBtn.innerText = canStart ? "게임 시작" : "모두 준비되어야 합니다";
@@ -732,6 +733,7 @@
         window.toggleReady = async (roomId, currentStatus) => {
             if (!currentRoomId) return;
             const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId);
+            
             const snap = await getDoc(roomRef);
             if (snap.exists()) {
                 const data = snap.data();
@@ -811,7 +813,8 @@
             
             const playerConfig = [];
             for (let i = 1; i <= human; i++) {
-                const name = document.getElementById(`human-name-${i}`)?.value || `Player ${i}`;
+                const nameInput = document.getElementById(`human-name-${i}`);
+                const name = nameInput ? nameInput.value : `Player ${i}`;
                 playerConfig.push({ name: name, isCpu: false, uid: 'local_human_'+i });
             }
             for (let i = 1; i <= cpu; i++) {
@@ -980,7 +983,6 @@
                 this.isMultiplayer = isMultiplayer;
                 this.isHost = isHost;
                 const icons = ['🚗', '✈️', '🚢', '🚁', '🚲', '🚀'];
-                
                 this.players = [];
                 
                 if (savedData) {
@@ -1035,26 +1037,365 @@
                 }, 200);
             }
 
-            // ... (게임 로직: startTurn, rollDice, movePlayer 등) ...
+            _initNewGame() {
+                this.currentPlayerIndex = 0;
+                this.socialFund = 0; 
+                this.properties = Array(boardData.length).fill(null);
+                this.buildings = Array(boardData.length).fill(null).map(() => ({ villa: false, building: false, hotel: false }));
+                this.gameSpeed = 1; 
+                this.round = 1; 
+            }
+
+            save() {
+                const data = {
+                    players: this.players,
+                    currentPlayerIndex: this.currentPlayerIndex,
+                    socialFund: this.socialFund,
+                    properties: this.properties,
+                    buildings: this.buildings,
+                    round: this.round,
+                    gameSpeed: this.gameSpeed
+                };
+                localStorage.setItem('gbm_save', JSON.stringify(data));
+            }
+
+            toggleSpeed() {
+                this.gameSpeed = this.gameSpeed >= 3 ? 1 : this.gameSpeed + 1;
+                document.getElementById('speed-btn').innerText = `⏩ x${this.gameSpeed}`;
+                this.save();
+            }
+
+            getConstructionCost(landPrice, type) {
+                if (type === 'villa') return Math.floor(landPrice * 0.5);
+                if (type === 'building') return Math.floor(landPrice * 1.0);
+                if (type === 'hotel') return Math.floor(landPrice * 1.5);
+                return 0;
+            }
+
+            getRentPrice(landPrice, baseRent, buildings, isSpecial) {
+                if (isSpecial) return baseRent; 
+                let rent = baseRent; 
+                if (buildings.villa) rent += baseRent; 
+                if (buildings.building) rent += baseRent * 2; 
+                if (buildings.hotel) rent += baseRent * 3; 
+                return Math.floor(rent);
+            }
             
+            calculateTotalAssets(player) {
+                let assets = player.money;
+                this.properties.forEach((ownerId, index) => {
+                    if (ownerId === player.id) {
+                        const s = boardData[index];
+                        let value = s.price; 
+                        const b = this.buildings[index];
+                        if (b.villa) value += this.getConstructionCost(s.price, 'villa');
+                        if (b.building) value += this.getConstructionCost(s.price, 'building');
+                        if (b.hotel) value += this.getConstructionCost(s.price, 'hotel');
+                        assets += Math.floor(value * 0.5); 
+                    }
+                });
+                return Math.floor(assets);
+            }
+
+            solveInsolvency(player, amount) {
+                if (player.money >= amount) return true;
+                let ownedProps = [];
+                this.properties.forEach((ownerId, idx) => {
+                    if (ownerId === player.id) {
+                        const s = boardData[idx];
+                        let value = s.price;
+                        const b = this.buildings[idx];
+                        if (b.villa) value += this.getConstructionCost(s.price, 'villa');
+                        if (b.building) value += this.getConstructionCost(s.price, 'building');
+                        if (b.hotel) value += this.getConstructionCost(s.price, 'hotel');
+                        ownedProps.push({ idx: idx, name: s.name, value: Math.floor(value * 0.5) });
+                    }
+                });
+                ownedProps.sort((a, b) => a.value - b.value); 
+                while (player.money < amount && ownedProps.length > 0) {
+                    const prop = ownedProps.shift();
+                    player.money += prop.value;
+                    this.properties[prop.idx] = null;
+                    this.buildings[prop.idx] = { villa: false, building: false, hotel: false };
+                    this.updateBoardOwnerDisplay(prop.idx); 
+                    this.log(`💸 자금 부족! <b>${prop.name}</b> 처분 (+₩${prop.value.toLocaleString()})`, "text-red-400 font-bold");
+                }
+                this.save();
+                return player.money >= amount;
+            }
+
+            initUI() {
+                const pList = document.getElementById('player-list'); if(!pList) return;
+                pList.innerHTML = '';
+                this.players.forEach(p => {
+                    const card = document.createElement('div');
+                    card.id = `card-p${p.id}`; card.className = `bg-white p-1 rounded-lg shadow-sm border-l-[4px] border-slate-200 flex flex-col transition-all duration-300 relative overflow-hidden`;
+                    card.style.borderLeftColor = getPlayerColor(p.id);
+                    const cpuBadge = p.isCpu ? `<span class="bg-gray-800 text-white text-[7px] px-1 rounded ml-1">CPU</span>` : '';
+                    card.innerHTML = `
+                        <div class="flex items-center justify-between mb-0.5">
+                            <span class="player-card-content font-black flex items-center gap-1"><span class="text-xl">${p.icon}</span> ${p.name}${cpuBadge}</span>
+                            <div class="flex flex-col items-end gap-0.5">
+                                <span id="turn-p${p.id}" class="player-badge font-black rounded-full bg-indigo-600 text-white hidden uppercase">ACT</span>
+                                <span id="island-p${p.id}" class="player-badge font-black rounded-full bg-orange-500 text-white hidden uppercase">ISLE</span>
+                                <span id="space-p${p.id}" class="player-badge font-black rounded-full bg-blue-500 text-white hidden uppercase">SPACE</span>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-baseline px-0.5 border-t pt-0.5">
+                            <div class="player-money font-black text-slate-800">₩ <span id="money-p${p.id}">${p.money.toLocaleString()}</span></div>
+                            <div class="text-[7px] text-slate-400 font-bold">자산: <span id="asset-p${p.id}">0</span></div>
+                        </div>
+                        <div class="flex gap-0.5 mt-0.5 px-0.5">
+                           <span id="badge-escape-${p.id}" class="hidden player-badge bg-slate-600 text-white rounded">🔑탈출</span>
+                           <span id="badge-freepass-${p.id}" class="hidden player-badge bg-purple-600 text-white rounded">🎫우대(<span id="count-freepass-${p.id}">0</span>)</span>
+                        </div>
+                        <div id="owned-p${p.id}" class="flex flex-wrap gap-0.5 mt-0.5 px-0.5 min-h-[8px]"></div>
+                    `;
+                    pList.appendChild(card);
+                });
+                this.updateStatus();
+            }
+            
+            initBoard() {
+                const board = document.getElementById('game-board');
+                boardData.forEach((data, index) => {
+                    const div = document.createElement('div'); 
+                    div.className = `square ${data.isSpecial ? 'special-city' : data.type}`; 
+                    div.id = `square-${index}`;
+                    const pos = gridPositions[index]; div.style.gridRow = pos[0]; div.style.gridColumn = pos[1];
+                    div.onclick = (e) => {
+                        const p = this.players[this.currentPlayerIndex];
+                        if (p.isCpu) return; 
+                        if (p.isSpaceTravelReady) this.chooseSpaceDestination(index);
+                        else this.showPropertyCard(index);
+                    };
+
+                    if (data.type === 'city') {
+                        const header = document.createElement('div');
+                        header.className = 'cell-header';
+                        header.style.backgroundColor = data.color;
+                        if(data.color === '#ec4899') header.style.color = 'white'; 
+                        let nameHtml = `<div class="flex flex-col items-center justify-center w-full leading-none">`;
+                        nameHtml += `<div class="flex items-center justify-center gap-0.5">`;
+                        if (data.code) nameHtml += `<img src="https://flagcdn.com/w40/${data.code}.png" class="flag-img" onerror="this.style.display='none'"> `;
+                        else if (data.emoji) nameHtml += `<span>${data.emoji}</span> `;
+                        nameHtml += `<span>${data.name}</span></div>`;
+                        nameHtml += `<div class="text-[0.65em] font-medium mt-0.5 opacity-80">₩${data.price/10000}만</div>`;
+                        nameHtml += `</div>`;
+                        header.innerHTML = nameHtml;
+
+                        const buildings = document.createElement('div');
+                        buildings.id = `build-${index}`;
+                        buildings.className = 'cell-buildings';
+
+                        const owner = document.createElement('div');
+                        owner.id = `owner-${index}`;
+                        owner.className = 'cell-owner';
+
+                        const spacer = document.createElement('div');
+                        spacer.className = 'cell-spacer';
+
+                        const users = document.createElement('div');
+                        users.id = `users-${index}`;
+                        users.className = 'cell-users';
+
+                        div.appendChild(header);
+                        div.appendChild(buildings);
+                        div.appendChild(owner);
+                        div.appendChild(spacer);
+                        div.appendChild(users);
+                    } else {
+                        div.style.backgroundColor = data.color;
+                        div.style.justifyContent = 'space-between'; 
+                        const topContent = document.createElement('div');
+                        topContent.style.flex = '4';
+                        topContent.style.display = 'flex';
+                        topContent.style.flexDirection = 'column';
+                        topContent.style.alignItems = 'center';
+                        topContent.style.justifyContent = 'center';
+                        topContent.innerHTML = `<div class="text-2xl mb-1">${data.emoji || ''}</div><div class="font-bold text-[0.65rem] text-slate-800">${data.name}</div>`;
+                        const users = document.createElement('div');
+                        users.id = `users-${index}`;
+                        users.className = 'cell-users';
+                        users.style.background = 'none'; 
+                        div.appendChild(topContent);
+                        div.appendChild(users);
+                    }
+                    board.appendChild(div);
+                });
+                setTimeout(() => this.updatePiecePositions(), 100);
+            }
+
+            showPropertyCard(index) {
+                const s = boardData[index]; if (s.type !== 'city') return;
+                const cardModal = document.getElementById('property-card');
+                const border = document.getElementById('prop-card-border');
+                const flag = document.getElementById('prop-flag');
+                if(!cardModal || !border || !flag) return;
+
+                border.style.borderColor = s.color;
+                if(s.code) flag.innerHTML = `<img src="https://flagcdn.com/w160/${s.code}.png" class="mx-auto rounded-lg shadow-md max-w-[80px]">`;
+                else flag.innerHTML = `<span class="text-6xl">${s.emoji}</span>`;
+                
+                document.getElementById('prop-name').innerText = s.name;
+                document.getElementById('prop-tag').innerText = s.isSpecial ? "Special Area" : "Standard City";
+
+                const land = s.price;
+                if (s.isSpecial) {
+                    document.getElementById('price-info').classList.add('hidden');
+                    document.getElementById('rent-details-ui').classList.add('hidden');
+                    document.getElementById('cost-land').innerText = `₩${land.toLocaleString()}`;
+                    document.getElementById('rent-1').innerText = `₩${s.rent.toLocaleString()}`;
+                } else {
+                    document.getElementById('price-info').classList.remove('hidden');
+                    document.getElementById('rent-details-ui').classList.remove('hidden');
+                    document.getElementById('cost-land').innerText = `₩${land.toLocaleString()}`;
+                    document.getElementById('cost-villa').innerText = `₩${this.getConstructionCost(land, 'villa').toLocaleString()}`;
+                    document.getElementById('cost-build').innerText = `₩${this.getConstructionCost(land, 'building').toLocaleString()}`;
+                    document.getElementById('cost-hotel').innerText = `₩${this.getConstructionCost(land, 'hotel').toLocaleString()}`;
+                    
+                    const rent = s.rent;
+                    document.getElementById('rent-1').innerText = `₩${rent.toLocaleString()}`;
+                    document.getElementById('rent-2').innerText = `+ ₩${rent.toLocaleString()}`; 
+                    document.getElementById('rent-3').innerText = `+ ₩${(rent*2).toLocaleString()}`; 
+                    document.getElementById('rent-4').innerText = `+ ₩${(rent*3).toLocaleString()}`; 
+                }
+                cardModal.classList.remove('hidden');
+            }
+
+            closePropertyCard() { document.getElementById('property-card').classList.add('hidden'); }
+
+            updatePiecePositions(isSpecial = false) {
+                this.players.forEach(p => {
+                    let piece = document.getElementById(`p${p.id}`);
+                    if (!piece) {
+                        piece = document.createElement('div');
+                        piece.id = `p${p.id}`; 
+                        piece.className = `piece p-bg-${p.id}`; 
+                        piece.innerText = p.icon;
+                    }
+                    if (p.isBankrupt) { 
+                        if(piece) piece.style.display = 'none'; 
+                        return; 
+                    }
+                    const userContainer = document.getElementById(`users-${p.pos}`);
+                    if (userContainer) {
+                        userContainer.appendChild(piece);
+                        const count = userContainer.childElementCount;
+                        Array.from(userContainer.children).forEach(child => {
+                            child.style.width = count > 4 ? '30%' : (count > 1 ? '45%' : '80%');
+                            child.style.fontSize = count > 4 ? '0.5rem' : (count > 1 ? '0.8rem' : '1.2rem');
+                        });
+                    }
+                });
+            }
+
+            updateStatus() {
+                const fundEl = document.getElementById('social-fund-display');
+                if (fundEl) fundEl.innerText = `사회복지: ₩${this.socialFund.toLocaleString()}`;
+                const roundEl = document.getElementById('round-display');
+                if(roundEl) roundEl.innerText = `R ${this.round}/30`;
+
+                this.players.forEach(p => {
+                    const mEl = document.getElementById(`money-p${p.id}`); if(mEl) mEl.innerText = p.money.toLocaleString();
+                    const aEl = document.getElementById(`asset-p${p.id}`); if(aEl) aEl.innerText = this.calculateTotalAssets(p).toLocaleString();
+                    const card = document.getElementById(`card-p${p.id}`); if (!card) return;
+
+                    const escapeBadge = document.getElementById(`badge-escape-${p.id}`);
+                    if(escapeBadge) p.hasEscapeCard ? escapeBadge.classList.remove('hidden') : escapeBadge.classList.add('hidden');
+                    const freeBadge = document.getElementById(`badge-freepass-${p.id}`);
+                    const freeCount = document.getElementById(`count-freepass-${p.id}`);
+                    if(freeBadge && freeCount) {
+                        if(p.freePassCount > 0) {
+                            freeBadge.classList.remove('hidden');
+                            freeCount.innerText = p.freePassCount;
+                        } else {
+                            freeBadge.classList.add('hidden');
+                        }
+                    }
+
+                    const piece = document.getElementById(`p${p.id}`);
+                    
+                    if (this.currentPlayerIndex === p.id - 1) {
+                        card.classList.add('turn-anim'); 
+                        const actTag = document.getElementById(`turn-p${p.id}`);
+                        if (actTag) actTag.classList.remove('hidden');
+                        const turnDisplay = document.getElementById('turn-display');
+                        if (turnDisplay) turnDisplay.innerText = `${p.name}`;
+                        if (piece) { piece.classList.remove('inactive-piece'); piece.classList.add('active-piece'); }
+                    } else {
+                        card.classList.remove('turn-anim');
+                        const actTag = document.getElementById(`turn-p${p.id}`);
+                        if (actTag) actTag.classList.add('hidden');
+                        if (piece) { piece.classList.remove('active-piece'); piece.classList.add('inactive-piece'); }
+                    }
+                    
+                    const islandTag = document.getElementById(`island-p${p.id}`);
+                    if (islandTag) p.isIslandIn ? islandTag.classList.remove('hidden') : islandTag.classList.add('hidden');
+                    const spaceTag = document.getElementById(`space-p${p.id}`);
+                    if (spaceTag) p.isSpaceTravelReady ? spaceTag.classList.remove('hidden') : spaceTag.classList.add('hidden');
+                    if (p.isBankrupt) card.classList.add('grayscale', 'opacity-40');
+                    const ownedContainer = document.getElementById(`owned-p${p.id}`);
+                    if (ownedContainer) {
+                        const owned = boardData.filter((_, idx) => this.properties[idx] === p.id);
+                        ownedContainer.innerHTML = owned.map(c => `<span class="text-[7px] px-1 py-0.5 rounded text-white font-black shadow-sm" style="background-color: ${c.color}">${c.name}</span>`).join('');
+                    }
+                });
+            }
+
+            log(msg, colorClass = "text-slate-400") {
+                const logBox = document.getElementById('game-log'); const div = document.createElement('div');
+                div.className = `leading-relaxed border-l-2 pl-2 border-slate-700 ${colorClass}`;
+                div.innerHTML = msg; logBox.prepend(div);
+            }
+
+            resetOverlayUI() {
+                const e = document.getElementById('event-emoji'); const m = document.getElementById('event-msg'); const d = document.getElementById('dice-container');
+                if(e) e.innerText = ''; if(m) m.classList.add('hidden'); if(d) d.style.display = 'flex';
+            }
+
+            showEventOverlay(emoji, title, desc, duration = 2000) {
+                this.resetOverlayUI(); const overlay = document.getElementById('dice-overlay');
+                document.getElementById('event-emoji').innerText = emoji; document.getElementById('event-title').innerText = title; document.getElementById('event-desc').innerText = desc;
+                document.getElementById('dice-container').style.display = 'none'; document.getElementById('event-msg').classList.remove('hidden'); overlay.style.display = 'flex';
+                const adjustedDuration = duration / this.gameSpeed;
+                setTimeout(() => { overlay.style.display = 'none'; this.resetOverlayUI(); }, adjustedDuration);
+            }
+
+            // --- Async UI Choice Helper ---
+            showChoiceModal(emoji, title, desc, onYes, onNo) {
+                const modal = document.getElementById('choice-modal');
+                document.getElementById('choice-emoji').innerText = emoji;
+                document.getElementById('choice-title').innerText = title;
+                document.getElementById('choice-desc').innerText = desc;
+                
+                const yesBtn = document.getElementById('choice-yes-btn');
+                const noBtn = document.getElementById('choice-no-btn');
+                
+                const newYes = yesBtn.cloneNode(true);
+                const newNo = noBtn.cloneNode(true);
+                yesBtn.parentNode.replaceChild(newYes, yesBtn);
+                noBtn.parentNode.replaceChild(newNo, noBtn);
+
+                newYes.onclick = () => { modal.classList.add('hidden'); onYes(); };
+                newNo.onclick = () => { modal.classList.add('hidden'); onNo(); };
+                
+                modal.classList.remove('hidden');
+            }
+
             startTurn() {
                 const p = this.players[this.currentPlayerIndex];
-                
                 const survivors = this.players.filter(pl => !pl.isBankrupt);
                 if (survivors.length <= 1) { this.gameOver(survivors[0]); return; }
-
                 if (this.round > this.maxRounds) {
                     const winner = [...this.players].sort((a,b) => this.calculateTotalAssets(b) - this.calculateTotalAssets(a))[0];
                     this.gameOver(winner, true);
                     return;
                 }
-
                 const btn = document.getElementById('roll-btn');
                 
-                // 멀티플레이어인 경우 턴 체크 강화
                 if (this.isMultiplayer) {
                     if (p.isCpu) {
-                         // CPU 턴은 방장(Host)만 실행
                          if (this.isHost) {
                              btn.disabled = true;
                              btn.innerText = `${p.name} (CPU) Thinking...`;
@@ -1067,8 +1408,7 @@
                     } else if (p.uid !== currentUser.uid) {
                         btn.disabled = true;
                         btn.innerText = `${p.name} 님의 턴`;
-                        // 동기화를 기다림
-                        return; 
+                        return;
                     }
                 }
 
@@ -1085,16 +1425,13 @@
                 else this.syncToFirebase(); 
             }
 
-            // 동기화 메서드 (중요)
             async syncToFirebase() {
                 if (!currentRoomId || !this.isMultiplayer) return;
                 const p = this.players[this.currentPlayerIndex];
-                // 업데이트 권한 체크 (내 턴이거나, CPU턴인데 내가 호스트일 때)
                 const canUpdate = (p.uid === currentUser.uid) || (p.isCpu && this.isHost);
                 if (!canUpdate) return;
 
                 const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId);
-                
                 const gameState = {
                     players: this.players,
                     currentPlayerIndex: this.currentPlayerIndex,
@@ -1104,15 +1441,12 @@
                     round: this.round,
                     lastActionId: Date.now()
                 };
-                
                 await updateDoc(roomRef, { gameState: gameState });
             }
             
             syncState(newState) {
-                if (this.isRolling) return; // 로컬 애니메이션 중이면 패스
+                if (this.isRolling) return; 
                 this.lastActionId = newState.lastActionId;
-
-                // 상태 업데이트
                 this.players = newState.players;
                 this.currentPlayerIndex = newState.currentPlayerIndex;
                 this.socialFund = newState.socialFund;
@@ -1120,7 +1454,6 @@
                 this.buildings = newState.buildings;
                 this.round = newState.round;
                 
-                // UI 갱신
                 this.initUI();
                 this.properties.forEach((ownerId, idx) => {
                     if (ownerId !== null) this.updateBoardOwnerDisplay(idx);
@@ -1128,32 +1461,36 @@
                 this.updatePiecePositions();
                 this.updateStatus();
                 
-                // 턴 제어 재확인
                 const p = this.players[this.currentPlayerIndex];
                 const btn = document.getElementById('roll-btn');
-                if (this.isMultiplayer && p.uid !== currentUser.uid) {
-                    btn.disabled = true;
-                    btn.innerText = `${p.name} 님의 턴`;
-                } else if (this.isMultiplayer && p.uid === currentUser.uid) {
-                    btn.disabled = false;
-                    btn.innerText = p.isSpaceTravelReady ? "목적지 선택" : "주사위";
+                if (this.isMultiplayer) {
+                    if (p.isCpu) {
+                         if (this.isHost) {
+                             this.startTurn(); 
+                         } else {
+                             btn.disabled = true;
+                             btn.innerText = `${p.name} (CPU) 진행 중...`;
+                         }
+                    } else if (p.uid !== currentUser.uid) {
+                        btn.disabled = true;
+                        btn.innerText = `${p.name} 님의 턴`;
+                    } else if (p.uid === currentUser.uid) {
+                        btn.disabled = false;
+                        btn.innerText = p.isSpaceTravelReady ? "목적지 선택" : "주사위";
+                    }
                 }
             }
 
-            // (이하 게임 로직은 기존과 동일하므로 생략 없이 포함됨. 단, 멀티플레이어 조건 체크 추가)
             rollDice() {
                 if (this.isRolling) return; 
                 this.isRolling = true;
                 const player = this.players[this.currentPlayerIndex];
                 
-                // 멀티플레이어면 내 턴인지 확인
                 if (this.isMultiplayer) {
                     if (player.isCpu && !this.isHost) return;
                     if (!player.isCpu && player.uid !== currentUser.uid) return;
                 }
 
-                // (나머지 rollDice 로직...)
-                // ...
                 if (player.isSpaceTravelReady) { 
                     if (player.isCpu) {
                         const targets = [0, 39, 5, 25, 3]; 
@@ -1167,41 +1504,32 @@
                     return; 
                 }
                 
-                // 무인도 탈출권 사용 여부 (주사위 굴리기 전)
                 if (player.isIslandIn && player.hasEscapeCard) {
                      if (player.isCpu) {
-                         // CPU는 그냥 쓴다고 가정
                          this.log(`🎫 CPU 탈출권 사용`, "text-green-400 font-bold");
                          player.hasEscapeCard = false; player.isIslandIn = false; player.islandTurns = 0;
-                         this.lastWasDouble = false; // Force end turn after move
+                         this.lastWasDouble = false; 
                      } else {
-                         // 멀티플레이어일 땐 내 턴일 때만
                          if (this.isMultiplayer && player.uid !== currentUser.uid) return;
-
                          this.showChoiceModal("📻", "무인도 탈출", "탈출권을 사용하시겠습니까?", 
-                            () => { // Yes
+                            () => { 
                                 this.log(`🎫 탈출권 사용`, "text-green-400 font-bold");
                                 player.hasEscapeCard = false; player.isIslandIn = false; player.islandTurns = 0;
-                                this.lastWasDouble = false; // 탈출권 써서 나가면 턴 종료 (더블 안됨)
+                                this.lastWasDouble = false; 
                                 this._performRoll(player);
                             },
-                            () => { // No
-                                this._performRoll(player);
-                            }
+                            () => { this._performRoll(player); }
                          );
-                         return; // Wait for user choice
+                         return; 
                      }
                 }
-
                 this._performRoll(player);
             }
 
             _performRoll(player) {
                 const overlay = document.getElementById('dice-overlay'); const d1El = document.getElementById('dice-1'); const d2El = document.getElementById('dice-2');
                 document.getElementById('roll-btn').disabled = true; this.resetOverlayUI(); overlay.style.display = 'flex';
-                
                 const interval = setInterval(() => { d1El.innerText = Math.floor(Math.random() * 6) + 1; d2El.innerText = Math.floor(Math.random() * 6) + 1; this.sound.playDice(); }, 100);
-                
                 setTimeout(() => {
                     clearInterval(interval);
                     const d1 = Math.floor(Math.random() * 6) + 1; const d2 = Math.floor(Math.random() * 6) + 1;
@@ -1209,12 +1537,11 @@
                     d1El.innerText = d1; d2El.innerText = d2;
                     setTimeout(async () => {
                         overlay.style.display = 'none'; this.log(`🎲 결과: <b>${d1}+${d2}=${total}</b>`, "text-white");
-                        
                         if (player.isIslandIn) {
                             if (isDouble) { 
                                 this.log(`✨ 더블 탈출!`, "text-green-400 font-bold"); 
                                 player.isIslandIn = false; player.islandTurns = 0; 
-                                this.lastWasDouble = false; // 무인도 탈출 시 더블이어도 턴 종료 (요청사항)
+                                this.lastWasDouble = false; 
                             }
                             else {
                                 player.islandTurns++;
@@ -1222,43 +1549,16 @@
                                 else { this.log(`🔒 대기 (${player.islandTurns}/3)`, "text-orange-400"); this.endTurn(); return; }
                             }
                         }
-                        
                         if (isDouble && !player.isIslandIn) {
                             player.doubleCount++;
                             if (player.doubleCount === 3) { this.log(`⚠️ 3연속 더블!`, "text-red-500 font-bold"); this.handleIslandArrive(); return; }
                             this.lastWasDouble = true;
                         } else { 
-                            if (!player.isIslandIn) this.lastWasDouble = false; // Normal roll not double
+                            if (!player.isIslandIn) this.lastWasDouble = false; 
                         }
-                        
                         await this.movePlayer(total);
                     }, 800 / this.gameSpeed);
                 }, 1200 / this.gameSpeed);
-            }
-
-
-            async chooseSpaceDestination(index) {
-                const p = this.players[this.currentPlayerIndex];
-                
-                // 멀티플레이어 권한 체크
-                if (this.isMultiplayer && p.uid !== currentUser.uid) return;
-
-                p.isSpaceTravelReady = false; const oldPos = p.pos; p.pos = index;
-                this.sound.playSpecial(); this.log(`🚀 우주 이동 완료`, "text-blue-400 font-bold");
-                if (index < oldPos) { p.money += 200000; this.log("💰 월급 수령", "text-yellow-400"); }
-                
-                this.lastWasDouble = false; // 우주여행 후 턴 종료 (요청사항)
-                
-                this.updatePiecePositions(true); setTimeout(() => this.handleSquare(index), 700 / this.gameSpeed);
-            }
-
-            handleIslandArrive() {
-                const p = this.players[this.currentPlayerIndex]; this.sound.playAlert();
-                p.pos = 10; p.isIslandIn = true; p.islandTurns = 0; p.doubleCount = 0;
-                
-                this.lastWasDouble = false; // 무인도 도착 시 턴 종료
-                
-                this.updatePiecePositions(true); this.showEventOverlay("🌴", "무인도", "3턴 대기"); this.endTurn(true);
             }
 
             async movePlayer(steps) {
@@ -1301,70 +1601,63 @@
                         }
                     }
                     else { this.payRent(p, this.players[ownerId - 1], pos); }
-                } 
-                else if (s.type === 'tax') { 
-                    if (this.solveInsolvency(p, 150000)) {
-                        p.money -= 150000; this.socialFund += 150000;
-                        this.sound.playAlert(); 
-                        this.log(`💸 세금 ₩15만 납부`, "text-red-400");
-                    } else { this.bankrupt(p); }
-                    this.checkPostAction();
-                }
-                else if (s.type === 'chance') this.handleGoldenKey();
-                else if (s.name === "무인도") { this.handleIslandArrive(); }
-                else if (s.name === "우주여행") { 
-                    this.sound.playSpecial(); 
-                    const colOwner = this.properties[35]; 
-                    const fee = 200000;
-                    
-                    // 무료 이용권 체크 (황금열쇠 등)
-                    let actualFee = fee;
-                    if (p.isFreeSpaceTravel) {
-                        actualFee = 0;
-                        this.log(`🚀 우주여행 무료 초대권 사용!`, "text-green-400 font-bold");
-                        p.isFreeSpaceTravel = false; // 사용 후 해제
-                    }
-
-                    if (actualFee === 0 || this.solveInsolvency(p, actualFee)) {
-                        if (actualFee > 0) {
-                            p.money -= actualFee;
-                            if (colOwner && colOwner !== p.id) {
-                                this.players[colOwner-1].money += actualFee;
-                                this.log(`🚀 셔틀비 지불`, "text-orange-300");
-                            } else {
-                                this.log(`🚀 셔틀비 지불`, "text-orange-300");
-                            }
-                        }
-                        
-                        p.isSpaceTravelReady = true; 
-                        
-                        this.lastWasDouble = false; // 우주여행 탑승 시 턴 종료
-                        
-                        if(p.isCpu) {
-                            this.showEventOverlay("🚀", "우주여행 (CPU)", "다음 턴 출발");
-                        } else {
-                            this.showEventOverlay("🚀", "우주여행 준비됨", "다음 턴에 출발합니다");
-                        }
-                    } else {
-                        const payment = p.money; p.money = 0;
-                        if (colOwner && colOwner !== p.id) { this.players[colOwner-1].money += payment; }
-                        this.bankrupt(p);
-                    }
-                    this.endTurn(true); // 우주여행 후 턴 강제 종료
-                }
-                else if (s.name === "사회복지") { 
-                    this.sound.playMoney(); 
-                    if (this.socialFund > 0) {
-                        p.money += this.socialFund; 
-                        this.showEventOverlay("🏦", "사회복지기금", `₩${this.socialFund.toLocaleString()} 수령!`);
-                        this.log(`🏦 복지기금 수령!`, "text-green-400 font-bold");
-                        this.socialFund = 0;
-                    } else {
-                        this.showEventOverlay("🏦", "사회복지기금", "적립금 없음");
-                    }
-                    this.checkPostAction();
                 } else {
-                    this.checkPostAction();
+                    if (s.type === 'tax') { 
+                        if (this.solveInsolvency(p, 150000)) {
+                            p.money -= 150000; this.socialFund += 150000;
+                            this.sound.playAlert(); 
+                            this.log(`💸 세금 ₩15만 납부`, "text-red-400");
+                        } else { this.bankrupt(p); }
+                        this.checkPostAction();
+                    }
+                    else if (s.type === 'chance') this.handleGoldenKey();
+                    else if (s.name === "무인도") { this.handleIslandArrive(); }
+                    else if (s.name === "우주여행") { 
+                        this.sound.playSpecial(); 
+                        const colOwner = this.properties[35]; 
+                        const fee = 200000;
+                        let actualFee = fee;
+                        if (p.isFreeSpaceTravel) {
+                            actualFee = 0;
+                            this.log(`🚀 우주여행 무료 초대권 사용!`, "text-green-400 font-bold");
+                            p.isFreeSpaceTravel = false; 
+                        }
+    
+                        if (actualFee === 0 || this.solveInsolvency(p, actualFee)) {
+                            if (actualFee > 0) {
+                                p.money -= actualFee;
+                                if (colOwner && colOwner !== p.id) {
+                                    this.players[colOwner-1].money += actualFee;
+                                    this.log(`🚀 셔틀비 지불`, "text-orange-300");
+                                } else {
+                                    this.log(`🚀 셔틀비 지불`, "text-orange-300");
+                                }
+                            }
+                            p.isSpaceTravelReady = true; 
+                            this.lastWasDouble = false; 
+                            if(p.isCpu) this.showEventOverlay("🚀", "우주여행 (CPU)", "다음 턴 출발");
+                            else this.showEventOverlay("🚀", "우주여행 준비됨", "다음 턴에 출발합니다");
+                        } else {
+                            const payment = p.money; p.money = 0;
+                            if (colOwner && colOwner !== p.id) { this.players[colOwner-1].money += payment; }
+                            this.bankrupt(p);
+                        }
+                        this.endTurn(true); 
+                    }
+                    else if (s.name === "사회복지") { 
+                        this.sound.playMoney(); 
+                        if (this.socialFund > 0) {
+                            p.money += this.socialFund; 
+                            this.showEventOverlay("🏦", "사회복지기금", `₩${this.socialFund.toLocaleString()} 수령!`);
+                            this.log(`🏦 복지기금 수령!`, "text-green-400 font-bold");
+                            this.socialFund = 0;
+                        } else {
+                            this.showEventOverlay("🏦", "사회복지기금", "적립금 없음");
+                        }
+                        this.checkPostAction();
+                    } else {
+                        this.checkPostAction();
+                    }
                 }
             }
 
@@ -1443,9 +1736,7 @@
                     this.log(`💰 월급 수령`, "text-yellow-400 font-bold");
                 }
                 p.pos = targetPos;
-                
-                this.lastWasDouble = false; // 황금열쇠 이동 시 턴 종료
-                
+                this.lastWasDouble = false; 
                 this.updatePiecePositions();
                 this.handleSquare(targetPos);
             }
@@ -1529,16 +1820,11 @@
                 ];
 
                 const card = cards[Math.floor(Math.random() * cards.length)];
-                
-                // 황금열쇠 4초(4000ms) 동안 표시
                 this.showEventOverlay(card.emoji, card.title, card.desc, 4000); 
-                
-                // 4초 후 액션 실행
                 const actionDelay = 4000 / this.gameSpeed;
                 setTimeout(() => {
                     card.action();
                     this.log(`🔑 황금열쇠: ${card.title}`, "text-yellow-300");
-                    
                     if (!card.manualTurnEnd) {
                         this.checkPostAction();
                     }
@@ -1587,7 +1873,6 @@
             closeModal() { document.getElementById('modal').classList.add('hidden'); }
 
             showConstructionModal(s) {
-                // 멀티플레이어면 내 턴인지 확인
                 if (this.isMultiplayer && this.players[this.currentPlayerIndex].uid !== currentUser.uid) return;
 
                 const modal = document.getElementById('build-modal');
