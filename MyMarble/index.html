@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;700;900&display=swap');
 
         :root {
             --board-size: min(96vw, 85vh);
@@ -24,6 +24,7 @@
             min-height: 100vh;
             margin: 0;
             touch-action: manipulation;
+            user-select: none;
         }
 
         .game-font { font-family: 'Black Han Sans', sans-serif; }
@@ -62,7 +63,7 @@
         .square.can-move-to { border: 2px solid #ef4444 !important; background-color: #fef2f2 !important; animation: pulse 1s infinite; }
 
         .cell-header { flex: 2.8; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; border-bottom: 1px solid rgba(0,0,0,0.05); position: relative; font-weight: bold; color: #334155; line-height: 1.1; overflow: hidden; padding: 1px 0; }
-        .cell-buildings { flex: 2.2; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5px; background-color: rgba(255,255,255,0.5); flex-wrap: wrap; align-content: center; transform: scale(1.1); transform-origin: center; overflow: hidden; }
+        .cell-buildings { flex: 2.2; width: 100%; display: flex; align-items: center; justify-content: center; gap: 1px; background-color: rgba(255,255,255,0.5); flex-wrap: wrap; align-content: center; overflow: hidden; }
         .cell-owner { flex: 2; width: 100%; display: flex; align-items: center; justify-content: center; z-index: 5; overflow: hidden; }
         .cell-spacer { flex: 3; width: 100%; } 
         
@@ -71,6 +72,15 @@
             display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
             padding: 2px; gap: 1px; z-index: 10; pointer-events: none; 
         }
+
+        /* 건물 시각화 스타일 개선 */
+        .building-block {
+            width: 6px; height: 6px; border-radius: 1px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+        .b-villa { background-color: #3b82f6; } /* 별장: 파랑 */
+        .b-building { background-color: #22c55e; width: 7px; height: 7px; } /* 빌딩: 초록 */
+        .b-hotel { background-color: #ef4444; width: 8px; height: 8px; border: 1px solid white; } /* 호텔: 빨강 */
 
         @keyframes pulse {
             0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
@@ -116,15 +126,16 @@
             display: none; flex-direction: column; align-items: center; gap: 15px;
             z-index: 100; pointer-events: none; width: 100%;
         }
-        .dice-box-container { display: flex; gap: 15px; }
+        .dice-box-container { display: flex; gap: 15px; perspective: 600px; }
         .dice-box {
             width: clamp(45px, 11vw, 75px); height: clamp(45px, 11vw, 75px);
             background: white; border-radius: 12px; display: flex; align-items: center;
             justify-content: center; font-size: clamp(1.8rem, 5.5vw, 3rem);
             font-weight: 800; color: #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.3);
             border: 4px solid #6366f1; animation: dice-pop 0.3s ease-out forwards;
+            background-image: linear-gradient(135deg, #fff 0%, #f1f5f9 100%);
         }
-        @keyframes dice-pop { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes dice-pop { 0% { transform: scale(0.5) rotateX(90deg); opacity: 0; } 100% { transform: scale(1) rotateX(0); opacity: 1; } }
         
         .event-info-box {
             background: rgba(255, 255, 255, 0.98); padding: 20px 30px; border-radius: 20px;
@@ -141,6 +152,20 @@
         .player-card-content { font-size: clamp(0.6rem, 1.5vw, 0.8rem); }
         .player-money { font-size: clamp(0.65rem, 1.6vw, 0.9rem); }
         .player-badge { font-size: 0.55rem; padding: 1px 3px; }
+
+        /* Floating Money Animation */
+        .floating-text {
+            position: absolute; right: 10px; top: 50%; 
+            transform: translateY(-50%);
+            font-weight: 900; font-size: 0.8rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            pointer-events: none; z-index: 100;
+            animation: float-up 1.5s ease-out forwards;
+        }
+        @keyframes float-up {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-30px) scale(1.2); }
+        }
 
         #loading-screen {
             position: fixed; inset: 0; background: #334155; z-index: 9999;
@@ -181,8 +206,11 @@
             display: flex; flex-direction: column; gap: 2px; height: 80px;
         }
         .chat-input-row { display: flex; gap: 4px; }
-        .chat-msg { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; word-break: break-all; }
-        .chat-msg.system { background: transparent; color: #64748b; font-style: italic; text-align: center; font-size: 0.65rem;}
+        .chat-msg { padding: 3px 8px; border-radius: 8px; word-break: break-all; max-width: 90%; }
+        .chat-msg.self { background: #dbeafe; color: #1e40af; align-self: flex-end; border-bottom-right-radius: 2px; }
+        .chat-msg.other { background: #f1f5f9; color: #334155; align-self: flex-start; border-bottom-left-radius: 2px; }
+        .chat-msg.system { background: transparent; color: #64748b; font-style: italic; text-align: center; font-size: 0.65rem; width: 100%; max-width: 100%; }
+        .chat-sender { font-size: 0.6rem; font-weight: bold; margin-bottom: 1px; opacity: 0.7; }
     </style>
 </head>
 <body>
@@ -203,6 +231,7 @@
     </div>
 
     <div class="top-controls" style="display: none;">
+        <button id="mute-btn" class="control-btn" onclick="toggleMute()">🔊 On</button>
         <button id="speed-btn" class="control-btn" onclick="toggleGlobalSpeed()">⏩ x1</button>
         <button id="fullscreen-btn" class="control-btn" onclick="toggleFullScreen()">🖥️</button>
     </div>
@@ -291,7 +320,6 @@
                         <option value="6">6명</option>
                     </select>
                 </div>
-                <!-- CPU 추가 옵션 -->
                 <div class="flex items-center justify-between px-1">
                     <span class="text-sm font-bold text-slate-600">CPU 인원</span>
                     <select id="new-room-cpu" class="p-2 border-2 border-slate-200 rounded-lg font-bold">
@@ -433,10 +461,9 @@
     <!-- Javascript -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-analytics.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, getDoc, arrayUnion, arrayRemove, setDoc, query, orderBy, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-        import { getDatabase, ref, onDisconnect, set, remove, onValue } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, getDoc, arrayUnion, setDoc, query, orderBy, runTransaction } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+        import { getDatabase, ref, onDisconnect, set, remove } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
 
         // Firebase 설정
         const firebaseConfig = {
@@ -460,7 +487,7 @@
         let currentUser = null;
         let currentRoomId = null;
         let unsubscribeRoom = null;
-        let unsubscribeLobby = null; // 로비 리스너 추적
+        let unsubscribeLobby = null; 
         let rtdbPresenceRef = null; 
         let isLocalGame = false;
         let heartbeatInterval = null; 
@@ -545,7 +572,6 @@
 
             if(currentRoomId) return;
 
-            // 중복 리스너 방지
             if (unsubscribeLobby) {
                 unsubscribeLobby();
                 unsubscribeLobby = null;
@@ -607,11 +633,9 @@
                 try {
                     await runTransaction(db, async (transaction) => {
                         const sfDoc = await transaction.get(roomRef);
-                        if (!sfDoc.exists()) return; // 방이 없음
+                        if (!sfDoc.exists()) return; 
 
                         const data = sfDoc.data();
-                        
-                        // 1. 내 lastActive 갱신
                         let myUpdated = false;
                         const newPlayers = data.players.map(p => {
                             if (p.uid === currentUser.uid) {
@@ -621,24 +645,19 @@
                             return p;
                         });
                         
-                        // 내가 방에 없다면(강퇴됨) 중단
                         if (!myUpdated) return;
 
-                        // 2. (방장만) 타임아웃된 유령 플레이어 제거
                         if (data.hostId === currentUser.uid) {
                             const now = Date.now();
-                            const TIMEOUT = 60000; // 60초
+                            const TIMEOUT = 60000; 
                             const activePlayers = newPlayers.filter(p => {
-                                if (p.isCpu || !p.lastActive) return true; // CPU나 막 들어온 사람은 예외
+                                if (p.isCpu || !p.lastActive) return true; 
                                 return (now - p.lastActive) < TIMEOUT;
                             });
 
                             if (activePlayers.length !== newPlayers.length) {
-                                if (activePlayers.length === 0) {
-                                    transaction.delete(roomRef); 
-                                } else {
-                                    transaction.update(roomRef, { players: activePlayers });
-                                }
+                                if (activePlayers.length === 0) transaction.delete(roomRef); 
+                                else transaction.update(roomRef, { players: activePlayers });
                             } else {
                                 transaction.update(roomRef, { players: newPlayers });
                             }
@@ -659,7 +678,6 @@
             }
         }
 
-        // Attach global functions to window
         window.createRoom = async () => {
             if (!currentUser) return alert("로그인 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
 
@@ -684,7 +702,8 @@
                     players: [{ uid: currentUser.uid, name: myNick, ready: true, lastActive: Date.now() }], 
                     status: 'waiting',
                     createdAt: Date.now(),
-                    gameState: null
+                    gameState: null,
+                    messages: [] // 채팅 메시지 초기화
                 };
                 
                 const docRef = await addDoc(collection(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms'), roomData);
@@ -715,7 +734,6 @@
             const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
 
             try {
-                // arrayUnion 대신 transaction으로 안전하게 추가 권장하지만 여기선 간단히
                 const snap = await getDoc(roomRef);
                 if(snap.exists()) {
                     const data = snap.data();
@@ -774,6 +792,7 @@
                 }
 
                 renderWaitingRoom(room);
+                if (room.messages) updateChatUI(room.messages);
 
                 if (room.status === 'playing') {
                     if (!window.game) {
@@ -794,6 +813,64 @@
                 console.error("Room Listener Error:", error);
             });
         }
+
+        function updateChatUI(messages) {
+            const chatBox = document.getElementById('chat-messages');
+            if(!chatBox) return;
+            chatBox.innerHTML = '';
+            messages.slice(-50).forEach(msg => { // 최근 50개만 표시
+                const div = document.createElement('div');
+                div.className = "flex flex-col mb-1";
+                if(msg.type === 'system') {
+                    div.innerHTML = `<div class="chat-msg system">${msg.text}</div>`;
+                } else {
+                    const isSelf = msg.uid === currentUser?.uid;
+                    div.innerHTML = `
+                        <div class="chat-msg ${isSelf ? 'self' : 'other'}">
+                            ${!isSelf ? `<div class="chat-sender">${msg.sender}</div>` : ''}
+                            ${msg.text}
+                        </div>
+                    `;
+                }
+                chatBox.appendChild(div);
+            });
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        window.sendChat = async () => {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if(!text) return;
+            
+            input.value = ''; // 즉시 비움
+            
+            if(isLocalGame) {
+                // 로컬 게임은 채팅 시늉만
+                const chatBox = document.getElementById('chat-messages');
+                const div = document.createElement('div');
+                div.innerHTML = `<div class="chat-msg self">${text}</div>`;
+                div.className = "flex flex-col mb-1";
+                chatBox.appendChild(div);
+                chatBox.scrollTop = chatBox.scrollHeight;
+                return;
+            }
+
+            if(!currentRoomId || !currentUser) return;
+            
+            const myNick = localStorage.getItem('gbm_nickname') || "Guest";
+            const msgData = {
+                uid: currentUser.uid,
+                sender: myNick,
+                text: text,
+                timestamp: Date.now(),
+                type: 'user'
+            };
+
+            const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId);
+            await updateDoc(roomRef, {
+                messages: arrayUnion(msgData)
+            });
+        };
 
         function renderWaitingRoom(room) {
             document.getElementById('room-title-display').innerText = `${room.name} (${room.cpuCount || 0} CPU)`;
@@ -993,16 +1070,19 @@
             const humanSelect = document.getElementById('human-count');
             const cpuSelect = document.getElementById('cpu-count');
             const humanCount = parseInt(humanSelect.value);
-            const maxCpu = 6 - humanCount;
-            const currentCpu = parseInt(cpuSelect.value);
+            const maxPlayers = 6; 
+            const maxCpu = maxPlayers - humanCount;
+            const currentCpu = parseInt(cpuSelect.value) || 0;
+            
             cpuSelect.innerHTML = '';
             for(let i=0; i<=maxCpu; i++) {
                 const opt = document.createElement('option');
                 opt.value = i;
                 opt.innerText = i === 0 ? '없음' : `${i}대`;
-                if(i === currentCpu || (i===maxCpu && currentCpu > maxCpu)) opt.selected = true;
+                if(i === currentCpu) opt.selected = true;
                 cpuSelect.appendChild(opt);
             }
+            if (cpuSelect.selectedIndex === -1 && cpuSelect.options.length > 0) cpuSelect.options[0].selected = true;
         };
         window.updateLocalPlayerInputs = () => {
             const humanCount = parseInt(document.getElementById('human-count').value);
@@ -1020,7 +1100,6 @@
             if(!confirm("정말 종료하고 로비로 돌아가시겠습니까?")) return;
             
             try {
-                // Stop internals immediately
                 if(window.game) {
                     if (typeof window.game.stopTurnTimer === 'function') window.game.stopTurnTimer();
                     window.game = null;
@@ -1035,7 +1114,6 @@
             } catch (e) {
                 console.error("Quit Error:", e);
             } finally {
-                // Fallback force reset to ensure user gets back to lobby
                 resetToLobbyUI();
                 if(currentUser) initLobby();
             }
@@ -1055,6 +1133,7 @@
         window.showGameInfo = () => document.getElementById('game-info-modal').classList.remove('hidden');
         window.closeGameInfo = () => document.getElementById('game-info-modal').classList.add('hidden');
         window.toggleGlobalSpeed = () => { if (window.game) window.game.toggleSpeed(); };
+        window.toggleMute = () => { if (window.game) window.game.toggleMute(); };
         window.closePropertyCardGlobal = () => { if (window.game) window.game.closePropertyCard(); };
         window.toggleFullScreen = () => {
              if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(e=>console.log(e));
@@ -1065,9 +1144,16 @@
         const getPlayerColor = (id) => ['#ff0000', '#0066ff', '#00cc44', '#ffcc00', '#aa00ff', '#ff0099'][id - 1];
 
         class SoundManager {
-            constructor() { try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} }
+            constructor() { 
+                try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} 
+                this.isMuted = false;
+            }
+            toggle() {
+                this.isMuted = !this.isMuted;
+                return this.isMuted;
+            }
             play(freq, type, duration, vol = 0.1) {
-                if(!this.ctx) return;
+                if(!this.ctx || this.isMuted) return;
                 const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
                 osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
                 gain.gain.setValueAtTime(vol, this.ctx.currentTime);
@@ -1079,7 +1165,7 @@
             playMove() { this.play(600, 'sine', 0.1, 0.08); }
             playMoney() { this.play(880, 'sine', 0.1, 0.1); setTimeout(() => this.play(1320, 'sine', 0.2, 0.1), 50); }
             playAlert() { this.play(200, 'square', 0.3, 0.05); setTimeout(() => this.play(150, 'square', 0.3, 0.05), 100); }
-            playSpecial() { if(!this.ctx) return; let now = this.ctx.currentTime; const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain(); osc.frequency.setValueAtTime(400, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.5); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.5); osc.connect(gain); gain.connect(this.ctx.destination); osc.start(); osc.stop(now + 0.5); }
+            playSpecial() { if(!this.ctx || this.isMuted) return; let now = this.ctx.currentTime; const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain(); osc.frequency.setValueAtTime(400, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.5); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.5); osc.connect(gain); gain.connect(this.ctx.destination); osc.start(); osc.stop(now + 0.5); }
         }
 
         const boardData = [
@@ -1160,6 +1246,7 @@
                                 isCpu: cfg.isCpu,
                                 uid: cfg.uid || null,
                                 pos: 0, money: 3000000,
+                                lastMoney: 3000000, // 돈 변동 체크용
                                 name: cfg.name,
                                 icon: icons[i % icons.length],
                                 isBankrupt: false, doubleCount: 0, islandTurns: 0, isIslandIn: false, 
@@ -1183,7 +1270,6 @@
                 this.turnTimer = null;
                 this.timeLeft = 15;
 
-                // 순서 재정비: 메서드가 정의된 후 호출되도록
                 this.initUI();
                 this.initBoard();
                 
@@ -1201,12 +1287,15 @@
                 }, 200);
             }
 
-            // *** Missing Methods Added Here ***
-            
             toggleSpeed() {
                 this.gameSpeed = this.gameSpeed === 1 ? 2.5 : 1;
                 document.getElementById('speed-btn').innerText = this.gameSpeed === 1 ? '⏩ x1' : '⏩ x2.5';
                 this.log(`⏩ 속도 변경: x${this.gameSpeed}`);
+            }
+
+            toggleMute() {
+                const muted = this.sound.toggle();
+                document.getElementById('mute-btn').innerText = muted ? '🔇 Off' : '🔊 On';
             }
 
             save() {
@@ -1233,7 +1322,7 @@
             getRentPrice(price, baseRent, buildings, isSpecial) {
                 if (isSpecial) return baseRent; // Special cities usually have fixed high rent
                 let rent = baseRent;
-                if (buildings.villa) rent += Math.floor(price * 0.5); // Simplified rent rules for stability
+                if (buildings.villa) rent += Math.floor(price * 0.5); 
                 if (buildings.building) rent += Math.floor(price * 0.9);
                 if (buildings.hotel) rent += Math.floor(price * 1.5);
                 return rent;
@@ -1257,21 +1346,16 @@
             solveInsolvency(p, cost) {
                 if (p.money >= cost) return true;
                 
-                // Auto-sell logic to keep game moving without complex UI for selling
                 let assets = this.calculateTotalAssets(p);
-                if (assets < cost) return false; // Absolutely bankrupt
+                if (assets < cost) return false; 
 
-                // Sell properties until money >= cost
-                // Naive approach: sell from cheapest
                 while (p.money < cost) {
-                    // Find a property
                     let targetIdx = -1;
                     let minVal = Infinity;
 
                     this.properties.forEach((ownerId, idx) => {
                         if (ownerId === p.id) {
                             const s = boardData[idx];
-                            // Quick valuation
                             if (s.price < minVal) {
                                 minVal = s.price;
                                 targetIdx = idx;
@@ -1279,9 +1363,8 @@
                         }
                     });
 
-                    if (targetIdx === -1) break; // Should not happen if assets >= cost
+                    if (targetIdx === -1) break; 
 
-                    // Sell it
                     const s = boardData[targetIdx];
                     const b = this.buildings[targetIdx];
                     let sellValue = Math.floor(s.price * 0.5);
@@ -1330,7 +1413,6 @@
                 document.getElementById('prop-name').innerText = s.name;
                 document.getElementById('prop-tag').innerText = s.type === 'city' ? (s.isSpecial ? "SPECIAL CITY" : "CITY") : "LOCATION";
                 
-                // Costs
                 if (s.type === 'city' || s.isSpecial) {
                     document.getElementById('price-info').classList.remove('hidden');
                     document.getElementById('rent-info-area').classList.remove('hidden');
@@ -1347,7 +1429,6 @@
                     
                     document.getElementById('rent-1').innerText = `₩${s.rent.toLocaleString()}`;
                     
-                    // Simulating accumulated rents
                     document.getElementById('rent-2').innerText = `₩${(s.rent + Math.floor(s.price*0.5)).toLocaleString()}`;
                     document.getElementById('rent-3').innerText = `₩${(s.rent + Math.floor(s.price*0.5) + Math.floor(s.price*0.9)).toLocaleString()}`;
                     document.getElementById('rent-4').innerText = `₩${(s.rent + Math.floor(s.price*0.5) + Math.floor(s.price*0.9) + Math.floor(s.price*1.5)).toLocaleString()}`;
@@ -1372,7 +1453,16 @@
                 if(timerDisplay) timerDisplay.classList.add('hidden');
             }
 
-            // *** End of Added Methods ***
+            showFloatingMoney(pid, amount) {
+                const card = document.getElementById(`card-p${pid}`);
+                if(!card) return;
+                const el = document.createElement('div');
+                el.className = 'floating-text';
+                el.style.color = amount >= 0 ? '#22c55e' : '#ef4444';
+                el.innerText = (amount >= 0 ? '+' : '') + '₩' + amount.toLocaleString();
+                card.appendChild(el);
+                setTimeout(() => el.remove(), 1500);
+            }
 
             initUI() {
                 const pList = document.getElementById('player-list'); if(!pList) return;
@@ -1450,8 +1540,8 @@
                     <div id="game-chat" class="chat-overlay">
                         <div id="chat-messages" class="chat-messages"></div>
                         <div class="chat-input-row">
-                            <input type="text" id="chat-input" class="flex-1 p-1 text-xs border rounded outline-none" placeholder="메시지 입력..." onkeypress="if(event.key==='Enter') window.sendChat()">
-                            <button onclick="window.sendChat()" class="px-2 py-1 bg-indigo-500 text-white text-xs rounded">전송</button>
+                            <input type="text" id="chat-input" class="flex-1 p-1 text-xs border rounded outline-none bg-white" placeholder="메시지 입력..." onkeypress="if(event.key==='Enter') window.sendChat()">
+                            <button onclick="window.sendChat()" class="px-2 py-1 bg-indigo-500 text-white text-xs rounded hover:bg-indigo-600">전송</button>
                         </div>
                     </div>
                 </div>`;
@@ -1522,12 +1612,10 @@
                     board.appendChild(div);
                 });
                 
-                // player-list를 다시 그리기 위해 initUI 호출
                 this.initUI();
                 setTimeout(() => this.updatePiecePositions(), 100);
             }
 
-            // *** 필수 UI 메서드 복구 (자산 계산, 말 이동 등) ***
             updatePiecePositions(isSpecial = false) {
                 this.players.forEach(p => {
                     let piece = document.getElementById(`p${p.id}`);
@@ -1561,6 +1649,15 @@
                 if(roundEl) roundEl.innerText = `R ${this.round}/30`;
 
                 this.players.forEach(p => {
+                    // Floating Money Animation Logic
+                    if (p.lastMoney !== undefined && p.money !== p.lastMoney) {
+                        const diff = p.money - p.lastMoney;
+                        this.showFloatingMoney(p.id, diff);
+                        p.lastMoney = p.money; // Update last money
+                    } else if (p.lastMoney === undefined) {
+                        p.lastMoney = p.money;
+                    }
+
                     const mEl = document.getElementById(`money-p${p.id}`); if(mEl) mEl.innerText = p.money.toLocaleString();
                     const aEl = document.getElementById(`asset-p${p.id}`); if(aEl) aEl.innerText = this.calculateTotalAssets(p).toLocaleString();
                     const card = document.getElementById(`card-p${p.id}`); if (!card) return;
@@ -1626,18 +1723,15 @@
                 setTimeout(() => { overlay.style.display = 'none'; this.resetOverlayUI(); }, adjustedDuration);
             }
 
-            // *** 추가된 인수 기능 관련 메서드 ***
             showAcquireModal(s, ownerId, cost) {
-                // 멀티플레이어면 내 턴인지 확인
                 if (this.isMultiplayer && this.players[this.currentPlayerIndex].uid !== currentUser.uid) return;
 
                 const modal = document.getElementById('acquire-modal');
                 document.getElementById('acquire-desc').innerHTML = `<b>${s.name}</b>을(를) 인수하시겠습니까?<br>인수 비용: <b class="text-red-500">₩${cost.toLocaleString()}</b>`;
                 
-                // 인수 대상 정보 임시 저장
                 this.pendingAcquire = { s, ownerId, cost };
                 modal.classList.remove('hidden');
-                this.startTurnTimer(); // 결정 시간 타이머 재개
+                this.startTurnTimer(); 
             }
 
             confirmAcquire() {
@@ -1648,12 +1742,11 @@
 
                 if (p.money >= cost) {
                     p.money -= cost;
-                    owner.money += cost; // 주인에게 돈 지불
+                    owner.money += cost; 
                     this.sound.playMoney();
                     
                     const pos = boardData.indexOf(s);
-                    this.properties[pos] = p.id; // 소유권 이전
-                    // 건물은 유지됨
+                    this.properties[pos] = p.id; 
                     
                     this.updateBoardOwnerDisplay(pos);
                     this.log(`🏙️ <b>${s.name}</b> 인수 성공!`, "text-yellow-600 font-bold");
@@ -1713,7 +1806,7 @@
                     } else if (!document.getElementById('build-modal').classList.contains('hidden')) {
                          this.closeBuildModal();
                     } else if (!document.getElementById('acquire-modal').classList.contains('hidden')) {
-                         this.cancelAcquire(); // 인수는 기본적으로 취소
+                         this.cancelAcquire(); 
                     }
                 }
             }
@@ -1734,7 +1827,7 @@
                          if (this.isHost) {
                              btn.disabled = true;
                              btn.innerText = `${p.name} (CPU) Thinking...`;
-                             setTimeout(() => { this.rollDice(); }, 1000 / this.gameSpeed);
+                             setTimeout(() => { this.rollDice(); }, 1500 / this.gameSpeed);
                          } else {
                              btn.disabled = true;
                              btn.innerText = `${p.name} (CPU) 진행 중...`;
@@ -1750,7 +1843,7 @@
                 if (p.isCpu) {
                     btn.disabled = true;
                     btn.innerText = `${p.name} (CPU)`;
-                    setTimeout(() => { this.rollDice(); }, 1000 / this.gameSpeed);
+                    setTimeout(() => { this.rollDice(); }, 1500 / this.gameSpeed);
                 } else {
                     btn.disabled = false;
                     btn.innerText = p.isSpaceTravelReady ? "목적지 선택" : "주사위";
@@ -1947,7 +2040,6 @@
                         }
                     }
                     else { 
-                        // 인수 로직
                         if (!p.isCpu && (!this.isMultiplayer || p.uid === currentUser.uid)) {
                             const rent = this.getRentPrice(s.price, s.rent, this.buildings[pos], s.isSpecial);
                             let currentValue = s.price;
@@ -2209,7 +2301,6 @@
                 const modal = document.getElementById('modal'); 
                 const confirmBtn = document.getElementById('confirm-btn');
                 
-                // 멀티플레이어면 내 턴인지 확인
                 if (this.isMultiplayer && this.players[this.currentPlayerIndex].uid !== currentUser.uid) return;
 
                 document.getElementById('modal-flag-container').innerHTML = s.code ? `<img src="https://flagcdn.com/w160/${s.code}.png" class="mx-auto rounded-xl shadow-lg border-4 border-white max-w-[100px]">` : `<span class="text-7xl">${s.emoji}</span>`;
@@ -2302,10 +2393,11 @@
                 
                 if (buildingContainer) {
                     let html = '';
-                    if(b.villa) html += '🏡';
-                    if(b.building) html += '🏢';
-                    if(b.hotel) html += '🏨';
-                    buildingContainer.innerHTML = `<span class="text-[0.6rem] tracking-tighter">${html}</span>`;
+                    // 건물 시각화 개선
+                    if(b.villa) html += `<div class="building-block b-villa"></div>`;
+                    if(b.building) html += `<div class="building-block b-building"></div>`;
+                    if(b.hotel) html += `<div class="building-block b-hotel"></div>`;
+                    buildingContainer.innerHTML = html;
                 }
 
                 if (ownerContainer) {
@@ -2327,12 +2419,12 @@
                          this.checkPostAction();
                      } else {
                          this.showChoiceModal("🎫", "우대권 사용", "통행료를 면제받으시겠습니까?",
-                             () => { // Yes
+                             () => { 
                                  p.freePassCount--;
                                  this.log(`🎫 우대권 사용!`, "text-green-400 font-bold");
                                  this.checkPostAction();
                              },
-                             () => { // No
+                             () => { 
                                  this._processPayment(p, owner, finalRent);
                              }
                          );
@@ -2373,7 +2465,6 @@
             async chooseSpaceDestination(index) {
                 const p = this.players[this.currentPlayerIndex];
                 
-                // 멀티플레이어 권한 체크
                 if (this.isMultiplayer && p.uid !== currentUser.uid) return;
 
                 p.isSpaceTravelReady = false; const oldPos = p.pos; p.pos = index;
@@ -2414,12 +2505,6 @@
                 `).join('');
                 
                 localStorage.removeItem('gbm_save');
-                // 방 종료 처리 (로컬이 아닐때)
-                if (this.isMultiplayer && currentRoomId && currentUser) {
-                     // 게임 오버 상태를 방에 기록
-                     // 방장은 방 상태를 waiting으로 돌리거나 삭제할 수 있음. 
-                     // 여기선 quitGame 버튼을 통해 나가도록 유도.
-                }
             }
             
             endTurn(force = false) {
