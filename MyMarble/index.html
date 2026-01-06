@@ -325,7 +325,6 @@
                         <div id="dice-2" class="dice-box">?</div>
                     </div>
                 </div>
-                
                 <div class="flex items-center justify-between border-b pb-1 mb-1">
                     <div class="flex flex-col">
                         <h2 id="top-title" class="text-[0.6rem] md:text-xl game-font text-slate-300">WORLD TOUR</h2>
@@ -497,7 +496,6 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
         const auth = getAuth(app);
         const db = getFirestore(app);
         const rtdb = getDatabase(app);
@@ -793,15 +791,6 @@
             });
             onDisconnect(rtdbPresenceRef).remove(); 
             
-            // RTDB Listener for ghosts
-            const roomPresenceRef = ref(rtdb, `room_presence/${roomId}`);
-            onValue(roomPresenceRef, async (snap) => {
-                if (!currentRoomId) return;
-                const onlineUsers = snap.val() || {};
-                const onlineUids = Object.keys(onlineUsers);
-                // 방장은 여기서 Firestore 플레이어 목록 정리 가능 (생략)
-            });
-
             const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
 
             unsubscribeRoom = onSnapshot(roomRef, (docSnap) => {
@@ -894,29 +883,6 @@
             } else {
                 startBtn.classList.add('hidden');
             }
-        }
-
-        // Chat
-        window.sendChat = async () => {
-            const input = document.getElementById('chat-input');
-            const msg = input.value;
-            if(!msg || !currentRoomId) return;
-            const myNick = document.getElementById('my-nickname').value || "Guest";
-            const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId);
-            await updateDoc(roomRef, {
-                messages: arrayUnion({ sender: myNick, text: msg, time: Date.now() })
-            });
-            input.value = '';
-        }
-
-        function renderChat(messages) {
-            const container = document.getElementById('chat-messages');
-            if(!container) return;
-            container.innerHTML = messages.slice(-20).map(m => { // Last 20
-                if(m.sender === 'System') return `<div class="chat-msg system">${m.text}</div>`;
-                return `<div class="chat-msg"><b>${m.sender}:</b> ${m.text}</div>`;
-            }).join('');
-            container.scrollTop = container.scrollHeight;
         }
 
         window.toggleReady = async (roomId, currentStatus) => {
@@ -1101,6 +1067,7 @@
              else if (document.exitFullscreen) document.exitFullscreen();
         };
 
+        // --- GAME LOGIC ---
         const getPlayerColor = (id) => ['#ff0000', '#0066ff', '#00cc44', '#ffcc00', '#aa00ff', '#ff0099'][id - 1];
 
         class SoundManager {
@@ -1180,7 +1147,6 @@
                 this.isMultiplayer = isMultiplayer;
                 this.isHost = isHost;
                 const icons = ['🚗', '✈️', '🚢', '🚁', '🚲', '🚀'];
-                
                 this.players = [];
                 
                 if (savedData) {
@@ -1222,8 +1188,10 @@
                 this.turnTimer = null;
                 this.timeLeft = 15;
 
+                // 순서 재정비
                 this.initUI();
                 this.initBoard();
+                
                 window.addEventListener('resize', () => this.updatePiecePositions());
                 
                 if (savedData) {
@@ -1236,6 +1204,154 @@
                     this.updateStatus();
                     this.startTurn();
                 }, 200);
+            }
+
+            initUI() {
+                const pList = document.getElementById('player-list'); if(!pList) return;
+                pList.innerHTML = '';
+                this.players.forEach(p => {
+                    const card = document.createElement('div');
+                    card.id = `card-p${p.id}`; card.className = `bg-white p-1 rounded-lg shadow-sm border-l-[4px] border-slate-200 flex flex-col transition-all duration-300 relative overflow-hidden`;
+                    card.style.borderLeftColor = getPlayerColor(p.id);
+                    const cpuBadge = p.isCpu ? `<span class="bg-gray-800 text-white text-[7px] px-1 rounded ml-1">CPU</span>` : '';
+                    card.innerHTML = `
+                        <div class="flex items-center justify-between mb-0.5">
+                            <span class="player-card-content font-black flex items-center gap-1"><span class="text-xl">${p.icon}</span> ${p.name}${cpuBadge}</span>
+                            <div class="flex flex-col items-end gap-0.5">
+                                <span id="turn-p${p.id}" class="player-badge font-black rounded-full bg-indigo-600 text-white hidden uppercase">ACT</span>
+                                <span id="island-p${p.id}" class="player-badge font-black rounded-full bg-orange-500 text-white hidden uppercase">ISLE</span>
+                                <span id="space-p${p.id}" class="player-badge font-black rounded-full bg-blue-500 text-white hidden uppercase">SPACE</span>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-baseline px-0.5 border-t pt-0.5">
+                            <div class="player-money font-black text-slate-800">₩ <span id="money-p${p.id}">${p.money.toLocaleString()}</span></div>
+                            <div class="text-[7px] text-slate-400 font-bold">자산: <span id="asset-p${p.id}">0</span></div>
+                        </div>
+                        <div class="flex gap-0.5 mt-0.5 px-0.5">
+                           <span id="badge-escape-${p.id}" class="hidden player-badge bg-slate-600 text-white rounded">🔑탈출</span>
+                           <span id="badge-freepass-${p.id}" class="hidden player-badge bg-purple-600 text-white rounded">🎫우대(<span id="count-freepass-${p.id}">0</span>)</span>
+                        </div>
+                        <div id="owned-p${p.id}" class="flex flex-wrap gap-0.5 mt-0.5 px-0.5 min-h-[8px]"></div>
+                    `;
+                    pList.appendChild(card);
+                });
+            }
+            
+            initBoard() {
+                const board = document.getElementById('game-board');
+                board.innerHTML = `<div class="center-panel shadow-inner relative">
+                    <div id="dice-overlay" class="dice-overlay">
+                        <div id="event-emoji" class="text-7xl md:text-9xl drop-shadow-2xl"></div>
+                        <div id="event-msg" class="event-info-box hidden">
+                            <div class="text-lg md:text-2xl font-black text-indigo-600 mb-1" id="event-title"></div>
+                            <div class="text-xs md:text-sm font-medium text-slate-600" id="event-desc"></div>
+                        </div>
+                        <div class="dice-box-container" id="dice-container">
+                            <div id="dice-1" class="dice-box">?</div>
+                            <div id="dice-2" class="dice-box">?</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between border-b pb-1 mb-1">
+                        <div class="flex flex-col">
+                            <h2 id="top-title" class="text-[0.6rem] md:text-xl game-font text-slate-300">WORLD TOUR</h2>
+                            <div id="social-fund-display" class="text-[0.5rem] md:text-[10px] text-green-600 font-bold whitespace-nowrap">사회복지: ₩0</div>
+                        </div>
+                        <div class="flex flex-col items-end">
+                            <div class="flex items-center gap-1">
+                                <div id="turn-timer-display" class="text-[0.6rem] font-bold text-indigo-500 bg-white px-1.5 py-0.5 rounded shadow-sm hidden">⏰ 15s</div>
+                                <div id="round-display" class="text-[0.5rem] font-bold text-slate-500 mb-0.5">R 1/30</div>
+                            </div>
+                            <button id="roll-btn" onclick="window.game && window.game.rollDice()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition shadow-lg active:scale-95 disabled:opacity-50 text-[0.6rem] md:text-base disabled:cursor-not-allowed whitespace-nowrap">주사위</button>
+                        </div>
+                    </div>
+                    <div id="player-list" class="grid grid-cols-2 gap-1.5 flex-[6] overflow-y-auto content-start pr-0.5"></div>
+                    <div class="bg-slate-900 text-white p-2 rounded-lg shadow-2xl flex flex-col flex-[3] overflow-hidden border border-slate-700 min-h-0">
+                        <div class="text-[8px] font-bold text-slate-500 mb-0.5 uppercase tracking-widest border-b border-slate-800 pb-0.5 flex justify-between items-center">
+                            <span>Log</span>
+                            <span id="turn-display" class="text-indigo-400 font-bold animate-pulse uppercase">P1</span>
+                        </div>
+                        <div id="game-log" class="log-container overflow-y-auto flex-1 text-[8px] space-y-1 flex flex-col-reverse mt-0.5 pr-0.5 font-medium">
+                            <div class="text-indigo-300 italic">게임을 시작합니다.</div>
+                        </div>
+                    </div>
+                    <div id="game-chat" class="chat-overlay">
+                        <div id="chat-messages" class="chat-messages"></div>
+                        <div class="chat-input-row">
+                            <input type="text" id="chat-input" class="flex-1 p-1 text-xs border rounded outline-none" placeholder="메시지 입력..." onkeypress="if(event.key==='Enter') window.sendChat()">
+                            <button onclick="window.sendChat()" class="px-2 py-1 bg-indigo-500 text-white text-xs rounded">전송</button>
+                        </div>
+                    </div>
+                </div>`;
+                
+                boardData.forEach((data, index) => {
+                    const div = document.createElement('div'); 
+                    div.className = `square ${data.isSpecial ? 'special-city' : data.type}`; 
+                    div.id = `square-${index}`;
+                    const pos = gridPositions[index]; div.style.gridRow = pos[0]; div.style.gridColumn = pos[1];
+                    div.onclick = (e) => {
+                        const p = this.players[this.currentPlayerIndex];
+                        if (p.isCpu) return; 
+                        if (p.isSpaceTravelReady) this.chooseSpaceDestination(index);
+                        else this.showPropertyCard(index);
+                    };
+
+                    if (data.type === 'city') {
+                        const header = document.createElement('div');
+                        header.className = 'cell-header';
+                        header.style.backgroundColor = data.color;
+                        if(data.color === '#ec4899') header.style.color = 'white'; 
+                        let nameHtml = `<div class="flex flex-col items-center justify-center w-full leading-none">`;
+                        nameHtml += `<div class="flex items-center justify-center gap-0.5">`;
+                        if (data.code) nameHtml += `<img src="https://flagcdn.com/w40/${data.code}.png" class="flag-img" onerror="this.style.display='none'"> `;
+                        else if (data.emoji) nameHtml += `<span>${data.emoji}</span> `;
+                        nameHtml += `<span>${data.name}</span></div>`;
+                        nameHtml += `<div class="text-[0.65em] font-medium mt-0.5 opacity-80">₩${data.price/10000}만</div>`;
+                        nameHtml += `</div>`;
+                        header.innerHTML = nameHtml;
+
+                        const buildings = document.createElement('div');
+                        buildings.id = `build-${index}`;
+                        buildings.className = 'cell-buildings';
+
+                        const owner = document.createElement('div');
+                        owner.id = `owner-${index}`;
+                        owner.className = 'cell-owner';
+
+                        const spacer = document.createElement('div');
+                        spacer.className = 'cell-spacer';
+
+                        const users = document.createElement('div');
+                        users.id = `users-${index}`;
+                        users.className = 'cell-users';
+
+                        div.appendChild(header);
+                        div.appendChild(buildings);
+                        div.appendChild(owner);
+                        div.appendChild(spacer);
+                        div.appendChild(users);
+                    } else {
+                        div.style.backgroundColor = data.color;
+                        div.style.justifyContent = 'space-between'; 
+                        const topContent = document.createElement('div');
+                        topContent.style.flex = '4';
+                        topContent.style.display = 'flex';
+                        topContent.style.flexDirection = 'column';
+                        topContent.style.alignItems = 'center';
+                        topContent.style.justifyContent = 'center';
+                        topContent.innerHTML = `<div class="text-2xl mb-1">${data.emoji || ''}</div><div class="font-bold text-[0.65rem] text-slate-800">${data.name}</div>`;
+                        const users = document.createElement('div');
+                        users.id = `users-${index}`;
+                        users.className = 'cell-users';
+                        users.style.background = 'none'; 
+                        div.appendChild(topContent);
+                        div.appendChild(users);
+                    }
+                    board.appendChild(div);
+                });
+                
+                // [중요] innerHTML 교체로 인해 player-list가 사라졌으므로 다시 UI 초기화
+                this.initUI(); 
+                setTimeout(() => this.updatePiecePositions(), 100);
             }
 
             // *** 추가된 인수 기능 관련 메서드 ***
@@ -1568,15 +1684,9 @@
                         }
                     }
                     else { 
-                        // **인수 로직 추가**
-                        // 돈이 충분하고, 내 턴이며, 상대방 땅인 경우
+                        // 인수 로직
                         if (!p.isCpu && (!this.isMultiplayer || p.uid === currentUser.uid)) {
-                            // 통행료 계산
                             const rent = this.getRentPrice(s.price, s.rent, this.buildings[pos], s.isSpecial);
-                            
-                            // 통행료 지불 후 자금 확인 (인수비용 = 건설비용 * 2 라고 가정)
-                            // 여기서는 간단히 땅값 + 건물값의 2배로 설정
-                            // 실제 룰은 다양하지만 여기선 (현재가치 * 2)로 설정
                             let currentValue = s.price;
                             const b = this.buildings[pos];
                             if(b.villa) currentValue += this.getConstructionCost(s.price, 'villa');
@@ -1584,14 +1694,11 @@
                             if(b.hotel) currentValue += this.getConstructionCost(s.price, 'hotel');
                             
                             const acquireCost = currentValue * 2;
-                            
-                            // 일단 통행료 지불
                             this.payRent(p, this.players[ownerId - 1], pos);
                             
-                            // 지불 후에도 돈이 있고, 파산 안했고, 특수지역이 아니면 인수 제안
                             if (!p.isBankrupt && p.money >= acquireCost && !s.isSpecial) {
                                 this.showAcquireModal(s, ownerId, acquireCost);
-                                return; // 모달에서 처리 후 checkPostAction 호출
+                                return;
                             }
                         } else {
                             this.payRent(p, this.players[ownerId - 1], pos);
