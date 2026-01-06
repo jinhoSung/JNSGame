@@ -313,52 +313,7 @@
     <!-- 게임 판 -->
     <div id="game-board-container" class="hidden">
         <div id="game-board" class="board-grid opacity-0 transition-opacity duration-500">
-             <div class="center-panel shadow-inner relative">
-                <div id="dice-overlay" class="dice-overlay">
-                    <div id="event-emoji" class="text-7xl md:text-9xl drop-shadow-2xl"></div>
-                    <div id="event-msg" class="event-info-box hidden">
-                        <div class="text-lg md:text-2xl font-black text-indigo-600 mb-1" id="event-title"></div>
-                        <div class="text-xs md:text-sm font-medium text-slate-600" id="event-desc"></div>
-                    </div>
-                    <div class="dice-box-container" id="dice-container">
-                        <div id="dice-1" class="dice-box">?</div>
-                        <div id="dice-2" class="dice-box">?</div>
-                    </div>
-                </div>
-                <div class="flex items-center justify-between border-b pb-1 mb-1">
-                    <div class="flex flex-col">
-                        <h2 id="top-title" class="text-[0.6rem] md:text-xl game-font text-slate-300">WORLD TOUR</h2>
-                        <div id="social-fund-display" class="text-[0.5rem] md:text-[10px] text-green-600 font-bold whitespace-nowrap">사회복지: ₩0</div>
-                    </div>
-                    <div class="flex flex-col items-end">
-                        <div class="flex items-center gap-1">
-                            <div id="turn-timer-display" class="text-[0.6rem] font-bold text-indigo-500 bg-white px-1.5 py-0.5 rounded shadow-sm hidden">⏰ 15s</div>
-                            <div id="round-display" class="text-[0.5rem] font-bold text-slate-500 mb-0.5">R 1/30</div>
-                        </div>
-                        <button id="roll-btn" onclick="window.game && window.game.rollDice()" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition shadow-lg active:scale-95 disabled:opacity-50 text-[0.6rem] md:text-base disabled:cursor-not-allowed whitespace-nowrap">주사위</button>
-                    </div>
-                </div>
-                <div id="player-list" class="grid grid-cols-2 gap-1.5 flex-[6] overflow-y-auto content-start pr-0.5"></div>
-                <div class="bg-slate-900 text-white p-2 rounded-lg shadow-2xl flex flex-col flex-[3] overflow-hidden border border-slate-700 min-h-0">
-                    <div class="text-[8px] font-bold text-slate-500 mb-0.5 uppercase tracking-widest border-b border-slate-800 pb-0.5 flex justify-between items-center">
-                        <span>Log</span>
-                        <span id="turn-display" class="text-indigo-400 font-bold animate-pulse uppercase">P1</span>
-                    </div>
-                    <div id="game-log" class="log-container overflow-y-auto flex-1 text-[8px] space-y-1 flex flex-col-reverse mt-0.5 pr-0.5 font-medium">
-                        <div class="text-indigo-300 italic">게임을 시작합니다.</div>
-                    </div>
-                </div>
-
-                <!-- 채팅 UI -->
-                <div id="game-chat" class="chat-overlay">
-                    <div id="chat-messages" class="chat-messages"></div>
-                    <div class="chat-input-row">
-                        <input type="text" id="chat-input" class="flex-1 p-1 text-xs border rounded outline-none" placeholder="메시지 입력..." onkeypress="if(event.key==='Enter') window.sendChat()">
-                        <button onclick="window.sendChat()" class="px-2 py-1 bg-indigo-500 text-white text-xs rounded">전송</button>
-                    </div>
-                </div>
-
-            </div>
+             <!-- Javascript가 내용을 채움 -->
         </div>
     </div>
 
@@ -753,6 +708,7 @@
             const roomRef = doc(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId);
 
             try {
+                // arrayUnion 대신 transaction으로 안전하게 추가 권장하지만 여기선 간단히
                 const snap = await getDoc(roomRef);
                 if(snap.exists()) {
                     const data = snap.data();
@@ -1147,6 +1103,7 @@
                 this.isMultiplayer = isMultiplayer;
                 this.isHost = isHost;
                 const icons = ['🚗', '✈️', '🚢', '🚁', '🚲', '🚀'];
+                
                 this.players = [];
                 
                 if (savedData) {
@@ -1188,7 +1145,7 @@
                 this.turnTimer = null;
                 this.timeLeft = 15;
 
-                // 순서 재정비
+                // 순서 재정비: 메서드가 정의된 후 호출되도록
                 this.initUI();
                 this.initBoard();
                 
@@ -1206,13 +1163,179 @@
                 }, 200);
             }
 
+            // *** Missing Methods Added Here ***
+            
+            toggleSpeed() {
+                this.gameSpeed = this.gameSpeed === 1 ? 2.5 : 1;
+                document.getElementById('speed-btn').innerText = this.gameSpeed === 1 ? '⏩ x1' : '⏩ x2.5';
+                this.log(`⏩ 속도 변경: x${this.gameSpeed}`);
+            }
+
+            save() {
+                if (this.isMultiplayer) return;
+                const data = {
+                    players: this.players,
+                    currentPlayerIndex: this.currentPlayerIndex,
+                    socialFund: this.socialFund,
+                    properties: this.properties,
+                    buildings: this.buildings,
+                    round: this.round,
+                    gameSpeed: this.gameSpeed
+                };
+                localStorage.setItem('gbm_save', JSON.stringify(data));
+            }
+
+            getConstructionCost(price, type) {
+                if (type === 'villa') return Math.floor(price * 0.5);
+                if (type === 'building') return Math.floor(price * 0.3);
+                if (type === 'hotel') return price;
+                return 0;
+            }
+
+            getRentPrice(price, baseRent, buildings, isSpecial) {
+                if (isSpecial) return baseRent; // Special cities usually have fixed high rent
+                let rent = baseRent;
+                if (buildings.villa) rent += Math.floor(price * 0.5); // Simplified rent rules for stability
+                if (buildings.building) rent += Math.floor(price * 0.9);
+                if (buildings.hotel) rent += Math.floor(price * 1.5);
+                return rent;
+            }
+
+            calculateTotalAssets(p) {
+                let total = p.money;
+                this.properties.forEach((ownerId, idx) => {
+                    if (ownerId === p.id) {
+                        const s = boardData[idx];
+                        total += s.price;
+                        const b = this.buildings[idx];
+                        if (b.villa) total += this.getConstructionCost(s.price, 'villa');
+                        if (b.building) total += this.getConstructionCost(s.price, 'building');
+                        if (b.hotel) total += this.getConstructionCost(s.price, 'hotel');
+                    }
+                });
+                return total;
+            }
+
+            solveInsolvency(p, cost) {
+                if (p.money >= cost) return true;
+                
+                // Auto-sell logic to keep game moving without complex UI for selling
+                let assets = this.calculateTotalAssets(p);
+                if (assets < cost) return false; // Absolutely bankrupt
+
+                // Sell properties until money >= cost
+                // Naive approach: sell from cheapest
+                while (p.money < cost) {
+                    // Find a property
+                    let targetIdx = -1;
+                    let minVal = Infinity;
+
+                    this.properties.forEach((ownerId, idx) => {
+                        if (ownerId === p.id) {
+                            const s = boardData[idx];
+                            // Quick valuation
+                            if (s.price < minVal) {
+                                minVal = s.price;
+                                targetIdx = idx;
+                            }
+                        }
+                    });
+
+                    if (targetIdx === -1) break; // Should not happen if assets >= cost
+
+                    // Sell it
+                    const s = boardData[targetIdx];
+                    const b = this.buildings[targetIdx];
+                    let sellValue = Math.floor(s.price * 0.5);
+                    if (b.villa) sellValue += Math.floor(this.getConstructionCost(s.price, 'villa') * 0.5);
+                    if (b.building) sellValue += Math.floor(this.getConstructionCost(s.price, 'building') * 0.5);
+                    if (b.hotel) sellValue += Math.floor(this.getConstructionCost(s.price, 'hotel') * 0.5);
+
+                    this.properties[targetIdx] = null;
+                    this.buildings[targetIdx] = { villa: false, building: false, hotel: false };
+                    this.updateBoardOwnerDisplay(targetIdx);
+                    p.money += sellValue;
+                    this.log(`💸 자금 마련을 위해 ${s.name} 매각 (+${sellValue})`, "text-red-400");
+                }
+
+                return p.money >= cost;
+            }
+
+            showChoiceModal(emoji, title, desc, onYes, onNo) {
+                const modal = document.getElementById('choice-modal');
+                document.getElementById('choice-emoji').innerText = emoji;
+                document.getElementById('choice-title').innerText = title;
+                document.getElementById('choice-desc').innerText = desc;
+                
+                const yesBtn = document.getElementById('choice-yes-btn');
+                const noBtn = document.getElementById('choice-no-btn');
+
+                yesBtn.onclick = () => {
+                    modal.classList.add('hidden');
+                    onYes();
+                };
+                noBtn.onclick = () => {
+                    modal.classList.add('hidden');
+                    onNo();
+                };
+
+                modal.classList.remove('hidden');
+            }
+
+            showPropertyCard(index) {
+                const s = boardData[index];
+                const border = document.getElementById('prop-card-border');
+                const card = document.getElementById('property-card');
+                
+                border.style.borderColor = s.color || '#cbd5e1';
+                document.getElementById('prop-flag').innerHTML = s.code ? `<img src="https://flagcdn.com/w80/${s.code}.png" class="mx-auto rounded border-2 border-white shadow-sm w-12">` : `<span class="text-3xl">${s.emoji||'🏙️'}</span>`;
+                document.getElementById('prop-name').innerText = s.name;
+                document.getElementById('prop-tag').innerText = s.type === 'city' ? (s.isSpecial ? "SPECIAL CITY" : "CITY") : "LOCATION";
+                
+                // Costs
+                if (s.type === 'city' || s.isSpecial) {
+                    document.getElementById('price-info').classList.remove('hidden');
+                    document.getElementById('rent-info-area').classList.remove('hidden');
+                    
+                    document.getElementById('cost-land').innerText = `₩${s.price.toLocaleString()}`;
+                    
+                    const cVilla = this.getConstructionCost(s.price, 'villa');
+                    const cBuild = this.getConstructionCost(s.price, 'building');
+                    const cHotel = this.getConstructionCost(s.price, 'hotel');
+                    
+                    document.getElementById('cost-villa').innerText = `₩${cVilla.toLocaleString()}`;
+                    document.getElementById('cost-build').innerText = `₩${cBuild.toLocaleString()}`;
+                    document.getElementById('cost-hotel').innerText = `₩${cHotel.toLocaleString()}`;
+                    
+                    document.getElementById('rent-1').innerText = `₩${s.rent.toLocaleString()}`;
+                    
+                    // Simulating accumulated rents
+                    document.getElementById('rent-2').innerText = `₩${(s.rent + Math.floor(s.price*0.5)).toLocaleString()}`;
+                    document.getElementById('rent-3').innerText = `₩${(s.rent + Math.floor(s.price*0.5) + Math.floor(s.price*0.9)).toLocaleString()}`;
+                    document.getElementById('rent-4').innerText = `₩${(s.rent + Math.floor(s.price*0.5) + Math.floor(s.price*0.9) + Math.floor(s.price*1.5)).toLocaleString()}`;
+                } else {
+                    document.getElementById('price-info').classList.add('hidden');
+                    document.getElementById('rent-info-area').classList.add('hidden');
+                }
+
+                card.classList.remove('hidden');
+            }
+
+            closePropertyCard() {
+                document.getElementById('property-card').classList.add('hidden');
+            }
+
+            // *** End of Added Methods ***
+
             initUI() {
                 const pList = document.getElementById('player-list'); if(!pList) return;
                 pList.innerHTML = '';
                 this.players.forEach(p => {
                     const card = document.createElement('div');
-                    card.id = `card-p${p.id}`; card.className = `bg-white p-1 rounded-lg shadow-sm border-l-[4px] border-slate-200 flex flex-col transition-all duration-300 relative overflow-hidden`;
+                    card.id = `card-p${p.id}`; 
+                    card.className = `bg-white p-1 rounded-lg shadow-sm border-l-[4px] border-slate-200 flex flex-col transition-all duration-300 relative overflow-hidden`;
                     card.style.borderLeftColor = getPlayerColor(p.id);
+                    
                     const cpuBadge = p.isCpu ? `<span class="bg-gray-800 text-white text-[7px] px-1 rounded ml-1">CPU</span>` : '';
                     card.innerHTML = `
                         <div class="flex items-center justify-between mb-0.5">
@@ -1251,6 +1374,7 @@
                             <div id="dice-2" class="dice-box">?</div>
                         </div>
                     </div>
+                    
                     <div class="flex items-center justify-between border-b pb-1 mb-1">
                         <div class="flex flex-col">
                             <h2 id="top-title" class="text-[0.6rem] md:text-xl game-font text-slate-300">WORLD TOUR</h2>
@@ -1274,6 +1398,8 @@
                             <div class="text-indigo-300 italic">게임을 시작합니다.</div>
                         </div>
                     </div>
+
+                    <!-- 채팅 UI -->
                     <div id="game-chat" class="chat-overlay">
                         <div id="chat-messages" class="chat-messages"></div>
                         <div class="chat-input-row">
@@ -1349,9 +1475,108 @@
                     board.appendChild(div);
                 });
                 
-                // [중요] innerHTML 교체로 인해 player-list가 사라졌으므로 다시 UI 초기화
-                this.initUI(); 
+                // player-list를 다시 그리기 위해 initUI 호출
+                this.initUI();
                 setTimeout(() => this.updatePiecePositions(), 100);
+            }
+
+            // *** 필수 UI 메서드 복구 (자산 계산, 말 이동 등) ***
+            updatePiecePositions(isSpecial = false) {
+                this.players.forEach(p => {
+                    let piece = document.getElementById(`p${p.id}`);
+                    if (!piece) {
+                        piece = document.createElement('div');
+                        piece.id = `p${p.id}`; 
+                        piece.className = `piece p-bg-${p.id}`; 
+                        piece.innerText = p.icon;
+                    }
+                    if (p.isBankrupt) { 
+                        if(piece) piece.style.display = 'none'; 
+                        return; 
+                    }
+                    const userContainer = document.getElementById(`users-${p.pos}`);
+                    if (userContainer) {
+                        userContainer.appendChild(piece);
+                        const count = userContainer.childElementCount;
+                        Array.from(userContainer.children).forEach(child => {
+                            child.style.width = count > 4 ? '30%' : (count > 1 ? '45%' : '80%');
+                            child.style.fontSize = count > 4 ? '0.5rem' : (count > 1 ? '0.8rem' : '1.2rem');
+                        });
+                    }
+                });
+            }
+
+            updateStatus() {
+                const fundEl = document.getElementById('social-fund-display');
+                if (fundEl) fundEl.innerText = `사회복지: ₩${this.socialFund.toLocaleString()}`;
+                
+                const roundEl = document.getElementById('round-display');
+                if(roundEl) roundEl.innerText = `R ${this.round}/30`;
+
+                this.players.forEach(p => {
+                    const mEl = document.getElementById(`money-p${p.id}`); if(mEl) mEl.innerText = p.money.toLocaleString();
+                    const aEl = document.getElementById(`asset-p${p.id}`); if(aEl) aEl.innerText = this.calculateTotalAssets(p).toLocaleString();
+                    const card = document.getElementById(`card-p${p.id}`); if (!card) return;
+
+                    const escapeBadge = document.getElementById(`badge-escape-${p.id}`);
+                    if(escapeBadge) p.hasEscapeCard ? escapeBadge.classList.remove('hidden') : escapeBadge.classList.add('hidden');
+                    const freeBadge = document.getElementById(`badge-freepass-${p.id}`);
+                    const freeCount = document.getElementById(`count-freepass-${p.id}`);
+                    if(freeBadge && freeCount) {
+                        if(p.freePassCount > 0) {
+                            freeBadge.classList.remove('hidden');
+                            freeCount.innerText = p.freePassCount;
+                        } else {
+                            freeBadge.classList.add('hidden');
+                        }
+                    }
+
+                    const piece = document.getElementById(`p${p.id}`);
+                    
+                    if (this.currentPlayerIndex === p.id - 1) {
+                        card.classList.add('turn-anim'); 
+                        const actTag = document.getElementById(`turn-p${p.id}`);
+                        if (actTag) actTag.classList.remove('hidden');
+                        const turnDisplay = document.getElementById('turn-display');
+                        if (turnDisplay) turnDisplay.innerText = `${p.name}`;
+                        if (piece) { piece.classList.remove('inactive-piece'); piece.classList.add('active-piece'); }
+                    } else {
+                        card.classList.remove('turn-anim');
+                        const actTag = document.getElementById(`turn-p${p.id}`);
+                        if (actTag) actTag.classList.add('hidden');
+                        if (piece) { piece.classList.remove('active-piece'); piece.classList.add('inactive-piece'); }
+                    }
+                    
+                    const islandTag = document.getElementById(`island-p${p.id}`);
+                    if (islandTag) p.isIslandIn ? islandTag.classList.remove('hidden') : islandTag.classList.add('hidden');
+                    const spaceTag = document.getElementById(`space-p${p.id}`);
+                    if (spaceTag) p.isSpaceTravelReady ? spaceTag.classList.remove('hidden') : spaceTag.classList.add('hidden');
+                    if (p.isBankrupt) card.classList.add('grayscale', 'opacity-40');
+                    const ownedContainer = document.getElementById(`owned-p${p.id}`);
+                    if (ownedContainer) {
+                        const owned = boardData.filter((_, idx) => this.properties[idx] === p.id);
+                        ownedContainer.innerHTML = owned.map(c => `<span class="text-[7px] px-1 py-0.5 rounded text-white font-black shadow-sm" style="background-color: ${c.color}">${c.name}</span>`).join('');
+                    }
+                });
+            }
+
+            log(msg, colorClass = "text-slate-400") {
+                const logBox = document.getElementById('game-log'); const div = document.createElement('div');
+                div.className = `leading-relaxed border-l-2 pl-2 border-slate-700 ${colorClass}`;
+                div.innerHTML = msg; logBox.prepend(div);
+            }
+
+            resetOverlayUI() {
+                const e = document.getElementById('event-emoji'); const m = document.getElementById('event-msg'); const d = document.getElementById('dice-container');
+                if(e) e.innerText = ''; if(m) m.classList.add('hidden'); if(d) d.style.display = 'flex';
+            }
+
+            showEventOverlay(emoji, title, desc, duration = 2000) {
+                this.resetOverlayUI(); const overlay = document.getElementById('dice-overlay');
+                document.getElementById('event-emoji').innerText = emoji; document.getElementById('event-title').innerText = title; document.getElementById('event-desc').innerText = desc;
+                document.getElementById('dice-container').style.display = 'none'; document.getElementById('event-msg').classList.remove('hidden'); overlay.style.display = 'flex';
+                const adjustedDuration = duration / this.gameSpeed;
+                setTimeout(() => { overlay.style.display = 'none'; this.resetOverlayUI(); }, adjustedDuration);
             }
 
             // *** 추가된 인수 기능 관련 메서드 ***
@@ -2051,6 +2276,61 @@
             }
             
             cancelAction() { this.closeModal(); this.checkPostAction(); }
+
+            payRent(p, owner, pos) {
+                if (owner.isBankrupt) return;
+                const s = boardData[pos]; 
+                const finalRent = this.getRentPrice(s.price, s.rent, this.buildings[pos], s.isSpecial);
+                
+                if(p.freePassCount > 0) {
+                     if (p.isCpu) {
+                         p.freePassCount--;
+                         this.log(`🎫 CPU 우대권 사용!`, "text-green-400 font-bold");
+                         this.checkPostAction();
+                     } else {
+                         this.showChoiceModal("🎫", "우대권 사용", "통행료를 면제받으시겠습니까?",
+                             () => { // Yes
+                                 p.freePassCount--;
+                                 this.log(`🎫 우대권 사용!`, "text-green-400 font-bold");
+                                 this.checkPostAction();
+                             },
+                             () => { // No
+                                 this._processPayment(p, owner, finalRent);
+                             }
+                         );
+                     }
+                     return;
+                }
+                
+                this._processPayment(p, owner, finalRent);
+            }
+
+            _processPayment(p, owner, finalRent) {
+                if (this.solveInsolvency(p, finalRent)) {
+                    p.money -= finalRent; owner.money += finalRent;
+                    this.sound.playAlert(); document.getElementById('game-board').classList.add('shake-effect');
+                    setTimeout(() => document.getElementById('game-board').classList.remove('shake-effect'), 400);
+                    this.log(`🔔 ₩${finalRent.toLocaleString()} 지불`, "text-orange-400 font-bold");
+                } else {
+                    const payment = p.money; p.money = 0;
+                    owner.money += payment;
+                    this.bankrupt(p);
+                }
+                this.checkPostAction();
+            }
+
+            bankrupt(p) {
+                p.isBankrupt = true; this.sound.playAlert();
+                this.log(`🚫 <b>${p.name}</b> 파산!`, "text-red-500 font-black");
+                this.properties.forEach((id, idx) => { 
+                    if (id === p.id) { 
+                        this.properties[idx] = null; 
+                        this.buildings[idx] = { villa: false, building: false, hotel: false };
+                        this.updateBoardOwnerDisplay(idx); 
+                    } 
+                });
+                this.updatePiecePositions();
+            }
 
             async chooseSpaceDestination(index) {
                 const p = this.players[this.currentPlayerIndex];
