@@ -460,7 +460,7 @@
         let currentUser = null;
         let currentRoomId = null;
         let unsubscribeRoom = null;
-        let unsubscribeChat = null; // 채팅 리스너 추가
+        let unsubscribeLobby = null; // 로비 리스너 추적
         let rtdbPresenceRef = null; 
         let isLocalGame = false;
         let heartbeatInterval = null; 
@@ -545,9 +545,15 @@
 
             if(currentRoomId) return;
 
+            // 중복 리스너 방지
+            if (unsubscribeLobby) {
+                unsubscribeLobby();
+                unsubscribeLobby = null;
+            }
+
             const roomsRef = collection(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms');
             
-            onSnapshot(query(roomsRef, orderBy('createdAt', 'desc')), (snapshot) => {
+            unsubscribeLobby = onSnapshot(query(roomsRef, orderBy('createdAt', 'desc')), (snapshot) => {
                 if (currentRoomId) return; 
 
                 const list = document.getElementById('room-list');
@@ -727,45 +733,6 @@
             }
         }
 
-        // --- CHAT IMPLEMENTATION START ---
-        
-        function appendChatMessage(name, text, isMe) {
-            const container = document.getElementById('chat-messages');
-            if(!container) return;
-            const div = document.createElement('div');
-            div.className = `chat-msg ${isMe ? 'bg-indigo-100 text-right' : 'bg-slate-100 text-left'}`;
-            div.innerHTML = `<span class="font-bold text-[0.6rem] text-slate-500">${name}:</span> ${text}`;
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
-        }
-
-        window.sendChat = async () => {
-            const input = document.getElementById('chat-input');
-            const msg = input.value.trim();
-            if(!msg) return;
-
-            if (isLocalGame || !currentRoomId) {
-                 // 로컬 게임이거나 방이 없을 때 (싱글모드)
-                 const myNick = document.getElementById('my-nickname').value || "나";
-                 appendChatMessage(myNick, msg, true);
-            } else {
-                 // 멀티플레이어 채팅
-                 if(!currentUser) return;
-                 const messagesRef = collection(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', currentRoomId, 'messages');
-                 try {
-                     await addDoc(messagesRef, {
-                         sender: document.getElementById('my-nickname').value || "Guest",
-                         uid: currentUser.uid,
-                         text: msg,
-                         timestamp: serverTimestamp()
-                     });
-                 } catch(e) { console.error("Chat Error:", e); }
-            }
-            input.value = '';
-        };
-
-        // --- CHAT IMPLEMENTATION END ---
-
         function enterWaitingRoom(roomId) {
             currentRoomId = roomId;
             isLocalGame = false;
@@ -825,21 +792,6 @@
                 }
             }, (error) => {
                 console.error("Room Listener Error:", error);
-            });
-
-            // *** 채팅 리스너 등록 ***
-            const messagesRef = collection(db, 'artifacts', GAME_NAMESPACE, 'public', 'data', 'rooms', roomId, 'messages');
-            const q = query(messagesRef, orderBy('timestamp', 'asc'));
-            unsubscribeChat = onSnapshot(q, (snapshot) => {
-                snapshot.docChanges().forEach((change) => {
-                    if (change.type === "added") {
-                        const data = change.doc.data();
-                        // 내가 보낸 메시지는 로컬에서 추가할 수도 있지만, 서버 타임스탬프 등 일관성을 위해 리스너에서 처리하는 것이 일반적
-                        // 하지만 사용자 경험(반응성)을 위해 sendChat에서 로컬 추가를 안 하고 여기서만 해도 됨.
-                        // 이 구현에서는 여기서만 추가하여 중복 방지.
-                        appendChatMessage(data.sender, data.text, data.uid === currentUser.uid);
-                    }
-                });
             });
         }
 
@@ -925,8 +877,6 @@
             }
 
             if (unsubscribeRoom) { unsubscribeRoom(); unsubscribeRoom = null; }
-            if (unsubscribeChat) { unsubscribeChat(); unsubscribeChat = null; } // 채팅 구독 해제
-            document.getElementById('chat-messages').innerHTML = ''; // 채팅 초기화
 
             if (!forced && roomIdToLeave && currentUser && !isLocalGame) {
                 try {
@@ -1011,16 +961,30 @@
         };
         
         function resetToLobbyUI() {
-            document.getElementById('room-waiting').classList.add('hidden');
+            // Hide Game Elements
             document.getElementById('game-board-container').classList.add('hidden');
             document.getElementById('game-over-modal').classList.add('hidden');
+            document.getElementById('room-waiting').classList.add('hidden');
+            
+            // Hide all possible modals
+            document.getElementById('modal').classList.add('hidden');
+            document.getElementById('acquire-modal').classList.add('hidden');
+            document.getElementById('build-modal').classList.add('hidden');
+            document.getElementById('choice-modal').classList.add('hidden');
+            document.getElementById('game-info-modal').classList.add('hidden');
+            document.getElementById('property-card').classList.add('hidden');
+
             document.querySelector('.top-controls').style.display = 'none';
             document.querySelector('.top-controls-left').style.display = 'none';
             
+            // Show Lobby Elements
             document.getElementById('lobby-container').classList.remove('hidden');
             document.getElementById('network-lobby').classList.remove('hidden');
-            
-            if(window.game) window.game = null;
+
+            // Reset State
+            currentRoomId = null;
+            isLocalGame = false;
+            window.game = null;
         }
 
         window.openModal = (id) => document.getElementById(id).classList.remove('hidden');
@@ -1053,10 +1017,30 @@
         };
 
         window.quitGame = async () => {
-            if(confirm("정말 종료하고 로비로 돌아가시겠습니까?")) {
+            if(!confirm("정말 종료하고 로비로 돌아가시겠습니까?")) return;
+            
+            try {
+                // Stop internals
+                if(window.game) {
+                    if (typeof window.game.stopTurnTimer === 'function') window.game.stopTurnTimer();
+                    window.game = null;
+                }
+                
                 localStorage.removeItem('gbm_save');
-                if (typeof window.leaveRoom === 'function' && currentRoomId) { await window.leaveRoom(false); }
+                stopHeartbeatLoop(); 
+
+                if (currentRoomId && typeof window.leaveRoom === 'function' && !isLocalGame) { 
+                    await window.leaveRoom(false); 
+                    // leaveRoom calls resetToLobbyUI and initLobby internally usually, but let's be safe
+                } else {
+                    resetToLobbyUI();
+                    if(currentUser) initLobby();
+                }
+            } catch (e) {
+                console.error("Quit Error:", e);
+                // Fallback force reset
                 resetToLobbyUI();
+                if(currentUser) initLobby();
             }
         };
 
@@ -1382,6 +1366,15 @@
                 document.getElementById('property-card').classList.add('hidden');
             }
 
+            stopTurnTimer() {
+                if (this.turnTimer) {
+                    clearInterval(this.turnTimer);
+                    this.turnTimer = null;
+                }
+                const timerDisplay = document.getElementById('turn-timer-display');
+                if(timerDisplay) timerDisplay.classList.add('hidden');
+            }
+
             // *** End of Added Methods ***
 
             initUI() {
@@ -1705,15 +1698,6 @@
                         this.handleTurnTimeout();
                     }
                 }, 1000);
-            }
-
-            stopTurnTimer() {
-                if (this.turnTimer) {
-                    clearInterval(this.turnTimer);
-                    this.turnTimer = null;
-                }
-                const timerDisplay = document.getElementById('turn-timer-display');
-                if(timerDisplay) timerDisplay.classList.add('hidden');
             }
 
             handleTurnTimeout() {
