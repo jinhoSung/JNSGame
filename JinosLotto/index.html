@@ -79,7 +79,6 @@
         const Award = (p) => <IconBase {...p}><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></IconBase>;
         const Download = (p) => <IconBase {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></IconBase>;
         const Moon = (p) => <IconBase {...p}><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></IconBase>;
-        const Cloud = (p) => <IconBase {...p}><path d="M17.5 19c0-3.037-2.463-5.5-5.5-5.5S6.5 15.963 6.5 19"/><path d="M12 13.5v-3"/></IconBase>;
 
         // --- Sound Manager & TTS ---
         const SoundManager = {
@@ -291,7 +290,7 @@
             @keyframes shake-machine { 0% { transform: rotate(0deg) scale(1); } 25% { transform: rotate(-3deg) scale(1.02); } 50% { transform: rotate(3deg) scale(1.02); } 75% { transform: rotate(-1deg) scale(1.02); } 100% { transform: rotate(0deg) scale(1); } }
         `;
 
-        // --- Components ---
+        // --- App Components ---
 
         const LottoBall = ({ number, size = 'md', className = '', style = {}, theme = 'classic' }) => {
             const sizeClasses = {
@@ -622,7 +621,7 @@
             );
         };
 
-        const StatsView = ({ history, theme, onCopy, onShare, showHeatmap, setShowHeatmap, onWinCheck }) => {
+        const StatsView = ({ history, theme, onCopy, onShare, showHeatmap, setShowHeatmap, onWinCheck, saveReceiptImage }) => {
             const ui = THEMES[theme].ui;
             const getFrequentNumbers = () => {
                 const counts = {};
@@ -666,8 +665,8 @@
                         <div className="flex gap-1">
                             {!showHeatmap && topNumbers[0]?.count > 0 && (
                                 <>
-                                    <button onClick={() => onCopy(topNumbersSet)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-70 hover:opacity-100 transition-colors ${ui.text}`}><Copy className="w-3.5 h-3.5" /></button>
-                                    <button onClick={() => onShare(topNumbersSet)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-70 hover:opacity-100 transition-colors ${ui.text}`}><ShareIcon className="w-3.5 h-3.5" /></button>
+                                    <button onClick={() => onCopy(topNumbersSet)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-70 hover:opacity-100 transition-colors ${ui.text}`} aria-label="통계 번호 복사"><Copy className="w-3.5 h-3.5" /></button>
+                                    <button onClick={() => onShare(topNumbersSet)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-70 hover:opacity-100 transition-colors ${ui.text}`} aria-label="통계 번호 공유"><ShareIcon className="w-3.5 h-3.5" /></button>
                                 </>
                             )}
                             <button onClick={onWinCheck} className={`p-1.5 hover:bg-white/10 rounded-full opacity-70 hover:opacity-100 transition-colors text-yellow-400 font-bold`} title="당첨 확인"><Award className="w-3.5 h-3.5" /></button>
@@ -706,6 +705,8 @@
         };
 
         const App = () => {
+            // Load settings from localStorage
+            const [user, setUser] = React.useState(null);
             const [gameCount, setGameCount] = React.useState(1);
             const [finalNumbers, setFinalNumbers] = React.useState([]);
             const [drawnNumbers, setDrawnNumbers] = React.useState([]);
@@ -943,8 +944,14 @@
                 }
             }
 
-            const copyToClipboard = (numberSet) => {
-                const text = numberSet.join(',');
+            const formatAllNumbers = (sets) => {
+                return sets.map((set, i) => 
+                    `${String.fromCharCode(65+i)}: ${set.map(n => String(n).padStart(2, '0')).join(' ')}`
+                ).join('\n');
+            };
+
+            const copyToClipboard = (content) => {
+                const text = Array.isArray(content) ? (Array.isArray(content[0]) ? formatAllNumbers(content) : content.join(',')) : content;
                 const textArea = document.createElement("textarea");
                 textArea.value = text;
                 document.body.appendChild(textArea);
@@ -952,7 +959,7 @@
                 textArea.select();
                 try {
                     const successful = document.execCommand('copy');
-                    if (successful) showToast(`복사 완료: ${text}`);
+                    if (successful) showToast(`복사 완료`);
                     else showToast('복사 실패');
                 } catch (err) {
                     showToast('복사 실패');
@@ -960,12 +967,16 @@
                 document.body.removeChild(textArea);
             };
 
-            const shareNumbers = (numberSet) => {
-                const text = `행운의 번호: ${numberSet.join(', ')}`;
+            const shareNumbers = (content) => {
+                const text = Array.isArray(content) ? (Array.isArray(content[0]) ? formatAllNumbers(content) : content.join(', ')) : content;
+                const shareData = {
+                    title: '지노스 로또 추출기',
+                    text: `행운의 번호:\n${text}`,
+                };
                 if (navigator.share) {
-                    navigator.share({ title: '지노스 로또 추출기', text: text }).catch(console.error);
+                    navigator.share(shareData).catch(console.error);
                 } else {
-                    copyToClipboard(numberSet);
+                    copyToClipboard(text);
                 }
             };
 
@@ -1011,8 +1022,6 @@
                 const sum = numbers.reduce((a, b) => a + b, 0);
                 const odd = numbers.filter(n => n % 2 !== 0).length;
                 const even = numbers.length - odd;
-                const high = numbers.filter(n => n >= 23).length;
-                const low = numbers.length - high;
                 
                 const diffs = new Set();
                 for (let i = 0; i < numbers.length; i++) {
@@ -1031,6 +1040,9 @@
                     }
                 }
                 
+                const high = numbers.filter(n => n >= 23).length;
+                const low = numbers.length - high;
+
                 return { sum, odd, even, high, low, badges, acValue };
             };
 
@@ -1095,68 +1107,103 @@
                                 )}
                                 {!isRolling && finalNumbers.length > 0 && (
                                     <div className="w-full flex flex-col gap-3 mt-2 animate-fade-in">
-                                        {finalNumbers.map((set, idx) => {
-                                            const analysis = getAnalysis(set);
-                                            const receiptId = `receipt-${idx}`;
-                                            if (receiptMode) {
-                                                return (
-                                                    <div key={idx} id={receiptId} className={`p-4 rounded-sm shadow-md font-mono text-sm relative ${ui.receipt} receipt-pattern`}>
-                                                        <div className="ticket-zigzag absolute -bottom-2 left-0 w-full" style={{color: 'inherit'}}></div>
-                                                        <div className="flex justify-between border-b-2 border-dashed border-current pb-2 mb-2 opacity-80">
-                                                            <span className="font-bold">GINOS LOTTO</span>
-                                                            <span className="text-xs">{new Date().toLocaleDateString()}</span>
+                                        {receiptMode ? (
+                                             <div id="receipt-current" className={`p-5 rounded-sm shadow-lg font-mono text-sm relative ${ui.receipt} receipt-pattern mx-auto max-w-[320px]`}>
+                                                 <div className="ticket-zigzag absolute -top-1 left-0 w-full rotate-180" style={{background: `linear-gradient(45deg, transparent 33.333%, ${ballTheme === 'classic' || ballTheme === 'mono' ? '#ffffff' : ballTheme === 'forest' ? '#f0fdf4' : ballTheme === 'ocean' ? '#f0f9ff' : '#fff7ed'} 33.333%, ${ballTheme === 'classic' || ballTheme === 'mono' ? '#ffffff' : ballTheme === 'forest' ? '#f0fdf4' : ballTheme === 'ocean' ? '#f0f9ff' : '#fff7ed'} 66.667%, transparent 66.667%), linear-gradient(-45deg, transparent 33.333%, ${ballTheme === 'classic' || ballTheme === 'mono' ? '#ffffff' : ballTheme === 'forest' ? '#f0fdf4' : ballTheme === 'ocean' ? '#f0f9ff' : '#fff7ed'} 33.333%, ${ballTheme === 'classic' || ballTheme === 'mono' ? '#ffffff' : ballTheme === 'forest' ? '#f0fdf4' : ballTheme === 'ocean' ? '#f0f9ff' : '#fff7ed'} 66.667%, transparent 66.667%)`, backgroundSize: '10px 20px', height: '10px'}}></div>
+                                                 <div className="ticket-zigzag absolute -bottom-1 left-0 w-full" style={{background: `linear-gradient(45deg, transparent 33.333%, ${ballTheme === 'classic' || ballTheme === 'mono' ? '#ffffff' : ballTheme === 'forest' ? '#f0fdf4' : ballTheme === 'ocean' ? '#f0f9ff' : '#fff7ed'} 33.333%, ${ballTheme === 'classic' || ballTheme === 'mono' ? '#ffffff' : ballTheme === 'forest' ? '#f0fdf4' : ballTheme === 'ocean' ? '#f0f9ff' : '#fff7ed'} 66.667%, transparent 66.667%), linear-gradient(-45deg, transparent 33.333%, ${ballTheme === 'classic' || ballTheme === 'mono' ? '#ffffff' : ballTheme === 'forest' ? '#f0fdf4' : ballTheme === 'ocean' ? '#f0f9ff' : '#fff7ed'} 33.333%, ${ballTheme === 'classic' || ballTheme === 'mono' ? '#ffffff' : ballTheme === 'forest' ? '#f0fdf4' : ballTheme === 'ocean' ? '#f0f9ff' : '#fff7ed'} 66.667%, transparent 66.667%)`, backgroundSize: '10px 20px', height: '10px'}}></div>
+                                                 
+                                                 <div className="text-center border-b-2 border-dashed border-current/50 pb-4 mb-4 pt-2">
+                                                     <h3 className="text-xl font-black tracking-tight mb-1">GINOS LOTTO</h3>
+                                                     <p className="text-[10px] opacity-70">제 {Math.floor(Date.now() / 100000000)} 회차</p>
+                                                     <p className="text-xs mt-1 font-bold">발행일: {new Date().toLocaleString()}</p>
+                                                 </div>
+
+                                                 <div className="space-y-3 mb-4">
+                                                     {finalNumbers.map((set, idx) => (
+                                                         <div key={idx} className="flex justify-between items-center text-lg font-bold tracking-wider">
+                                                             <div className="flex items-center gap-2">
+                                                                 <span className="opacity-60 text-base">{String.fromCharCode(65+idx)}</span>
+                                                                 <span className="text-[10px] opacity-50 font-normal">자 동</span>
+                                                             </div>
+                                                             <div className="flex gap-2">
+                                                                 {set.map(n => (
+                                                                     <span key={n} className="w-6 text-right">{String(n).padStart(2, '0')}</span>
+                                                                 ))}
+                                                             </div>
+                                                         </div>
+                                                     ))}
+                                                 </div>
+
+                                                 <div className="border-t-2 border-dashed border-current/50 pt-4 flex flex-col items-center gap-3 pb-2">
+                                                     <div className="w-full flex justify-between font-bold">
+                                                         <span>금액</span>
+                                                         <span>₩{finalNumbers.length * 1000}</span>
+                                                     </div>
+                                                     
+                                                     <div className="flex justify-between w-full items-end mt-2">
+                                                          <div className="flex flex-col gap-1 text-[9px] opacity-50 text-left">
+                                                              <span>1234-5678-9012-3456</span>
+                                                              <span>TR: {Date.now()}</span>
+                                                          </div>
+                                                          <img 
+                                                             src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=GINOS:${Date.now()}`} 
+                                                             alt="QR" 
+                                                             className="w-16 h-16 mix-blend-multiply opacity-90"
+                                                         />
+                                                     </div>
+                                                     
+                                                     <div className="flex gap-2 w-full mt-2">
+                                                         <button onClick={() => copyToClipboard(finalNumbers)} className="flex-1 py-2 border border-current/30 rounded-lg text-xs font-bold hover:bg-black/5 transition-colors flex items-center justify-center gap-1">
+                                                             <Copy className="w-3 h-3" /> 전체 복사
+                                                         </button>
+                                                         <button onClick={() => shareNumbers(finalNumbers)} className="flex-1 py-2 border border-current/30 rounded-lg text-xs font-bold hover:bg-black/5 transition-colors flex items-center justify-center gap-1">
+                                                             <ShareIcon className="w-3 h-3" /> 전체 공유
+                                                         </button>
+                                                         <button onClick={() => saveReceiptImage('receipt-current')} className="flex-1 py-2 border border-current/30 rounded-lg text-xs font-bold hover:bg-black/5 transition-colors flex items-center justify-center gap-1">
+                                                             <Download className="w-3 h-3" /> 저장
+                                                         </button>
+                                                     </div>
+                                                 </div>
+                                             </div>
+                                        ) : (
+                                            <>
+                                                {finalNumbers.map((set, idx) => {
+                                                    const analysis = getAnalysis(set);
+                                                    return (
+                                                        <div key={idx} className={`p-2.5 rounded-2xl flex flex-col gap-2 border hover:border-white/40 group relative transition-all ${ui.panel}`}>
+                                                            {analysis.badges.length > 0 && (
+                                                                <div className="absolute -top-2 left-2 flex gap-1 z-10">
+                                                                    {analysis.badges.map((b, i) => (
+                                                                        <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded-full shadow-sm font-bold ${b.color} animate-fade-in-up`}>{b.label}</span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                            <div className="flex justify-center gap-2 items-center relative mt-1">
+                                                                <span className={`absolute left-1 top-1/2 -translate-y-1/2 text-xs font-mono opacity-50 font-bold ${ui.text}`}>{idx + 1}</span>
+                                                                <div className="flex gap-2 justify-center cursor-pointer" onClick={() => copyToClipboard(set)}>
+                                                                    {set.map((num, i) => <LottoBall key={i} number={num} size="sm" className="shadow-md" theme={ballTheme} />)}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex justify-center gap-4 text-[10px] opacity-60 border-t border-white/5 pt-1.5 mt-0.5">
+                                                                <span className={`${ui.text}`}>합계: <strong>{analysis.sum}</strong></span>
+                                                                <span className={`${ui.text}`}>고저: <strong>{analysis.high}:{analysis.low}</strong></span>
+                                                                <span className={`${ui.text}`}>AC: <strong>{analysis.acValue}</strong></span>
+                                                            </div>
                                                         </div>
-                                                        <div className="flex justify-between items-center text-lg font-bold tracking-wider mb-2">
-                                                            <span className="mr-2 opacity-50">{String.fromCharCode(65+idx)}</span>
-                                                            {set.map(n => String(n).padStart(2, '0')).join(' ')}
-                                                        </div>
-                                                        
-                                                        {/* QR Code & Save Button */}
-                                                        <div className="flex justify-between items-center my-3">
-                                                            <img 
-                                                                src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=LOTTO:${set.join(',')}`} 
-                                                                alt="Lotto QR" 
-                                                                className="w-16 h-16 opacity-90 mix-blend-multiply" 
-                                                            />
-                                                            <button onClick={() => saveReceiptImage(receiptId)} className="text-xs border border-current px-2 py-1 rounded opacity-60 hover:opacity-100 flex items-center gap-1">
-                                                                <Download className="w-3 h-3" /> 저장
-                                                            </button>
-                                                        </div>
-                                                        
-                                                        <div className="mt-2 pt-2 border-t border-dashed border-current flex justify-between text-[10px] opacity-70">
-                                                            <span>SUM: {analysis.sum}</span>
-                                                            <span>H/L: {analysis.high}/{analysis.low}</span>
-                                                        </div>
+                                                    );
+                                                })}
+                                                {finalNumbers.length > 0 && (
+                                                    <div className="flex gap-2 mt-2 pt-2 border-t border-white/10">
+                                                        <button onClick={() => copyToClipboard(finalNumbers)} className={`flex-1 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors ${ui.button} text-white`}>
+                                                            <Copy className="w-4 h-4" /> 전체 복사
+                                                        </button>
+                                                        <button onClick={() => shareNumbers(finalNumbers)} className={`flex-1 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors ${ui.button} text-white`}>
+                                                            <ShareIcon className="w-4 h-4" /> 전체 공유
+                                                        </button>
                                                     </div>
-                                                )
-                                            }
-                                            return (
-                                                <div key={idx} className={`p-2.5 rounded-2xl flex flex-col gap-2 border hover:border-white/40 group relative transition-all ${ui.panel}`}>
-                                                    {analysis.badges.length > 0 && (
-                                                        <div className="absolute -top-2 left-2 flex gap-1 z-10">
-                                                            {analysis.badges.map((b, i) => (
-                                                                <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded-full shadow-sm font-bold ${b.color} animate-fade-in-up`}>{b.label}</span>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                    <div className="flex justify-center gap-2 items-center relative mt-1">
-                                                        <span className={`absolute left-1 top-1/2 -translate-y-1/2 text-xs font-mono opacity-50 font-bold ${ui.text}`}>{idx + 1}</span>
-                                                        <div className="flex gap-2 justify-center cursor-pointer" onClick={() => copyToClipboard(set)}>
-                                                            {set.map((num, i) => <LottoBall key={i} number={num} size="sm" className="shadow-md" theme={ballTheme} />)}
-                                                        </div>
-                                                        <div className="absolute right-0 top-1/2 -translate-y-1/2 flex gap-1">
-                                                            <button onClick={() => copyToClipboard(set)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-50 hover:opacity-100 ${ui.text}`}><Copy className="w-3.5 h-3.5" /></button>
-                                                            <button onClick={() => shareNumbers(set)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-50 hover:opacity-100 ${ui.text}`}><ShareIcon className="w-3.5 h-3.5" /></button>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex justify-center gap-4 text-[10px] opacity-60 border-t border-white/5 pt-1.5 mt-0.5">
-                                                        <span className={`${ui.text}`}>합계: <strong>{analysis.sum}</strong></span>
-                                                        <span className={`${ui.text}`}>고저: <strong>{analysis.high}:{analysis.low}</strong></span>
-                                                        <span className={`${ui.text}`}>AC: <strong>{analysis.acValue}</strong></span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                                                )}
+                                            </>
+                                        )}
                                     </div>
                                 )}
                                 {!isRolling && finalNumbers.length === 0 && drawnNumbers.length === 0 && (
@@ -1322,6 +1369,7 @@
                                             setShowHistory(false);
                                             setShowWinCheck(true);
                                         }}
+                                        saveReceiptImage={saveReceiptImage}
                                     />
                                     
                                     {history.length === 0 ? (
@@ -1330,42 +1378,115 @@
                                             <p className={`text-sm ${ui.text}`}>기록이 없습니다</p>
                                         </div>
                                     ) : (
-                                        history.map((item) => (
-                                            <div key={item.id} className={`rounded-2xl p-4 border space-y-3 animate-fade-in-up transition-colors ${ui.panel}`}>
-                                                <div className={`flex justify-between items-center text-xs opacity-70 border-b border-white/5 pb-2 ${ui.text}`}>
-                                                    <span className="flex items-center gap-1.5 font-mono"><Sparkles className={`w-3 h-3 ${ui.accent}`}/> {new Date(item.createdAt).toLocaleDateString()} {new Date(item.createdAt).toLocaleTimeString()}</span>
-                                                    <button onClick={() => deleteHistoryItem(item.id)} className="text-red-400/60 hover:text-red-400 p-1.5 hover:bg-red-400/10 rounded-md transition-all"><Trash2 className="w-4 h-4" /></button>
-                                                </div>
-                                                {item.numbers.map((set, idx) => {
-                                                    const setAnalysis = getAnalysis(set);
-                                                    return (
-                                                    <div key={idx} className={`p-2.5 rounded-2xl flex flex-col gap-2 border hover:border-white/40 group relative transition-all ${ui.panel}`}>
-                                                        {setAnalysis.badges.length > 0 && (
-                                                            <div className="absolute -top-2 left-2 flex gap-1 z-10">
-                                                                {setAnalysis.badges.map((b, i) => (
-                                                                    <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded-full shadow-sm font-bold ${b.color} animate-fade-in-up`}>{b.label}</span>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                        <div className="flex justify-center gap-2 items-center relative mt-1">
-                                                            <span className={`absolute left-1 top-1/2 -translate-y-1/2 text-xs font-mono opacity-50 font-bold ${ui.text}`}>{idx + 1}</span>
-                                                            <div className="flex gap-2 justify-center cursor-pointer" onClick={() => copyToClipboard(set)}>
-                                                                {set.map((num, i) => <LottoBall key={i} number={num} size="sm" className="shadow-md" theme={ballTheme} />)}
-                                                            </div>
-                                                            <div className="absolute right-0 top-1/2 -translate-y-1/2 flex gap-1">
-                                                                <button onClick={() => copyToClipboard(set)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-50 hover:opacity-100 ${ui.text}`}><Copy className="w-3.5 h-3.5" /></button>
-                                                                <button onClick={() => shareNumbers(set)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-50 hover:opacity-100 ${ui.text}`}><ShareIcon className="w-3.5 h-3.5" /></button>
-                                                            </div>
+                                        history.map((item) => {
+                                            const receiptId = `receipt-${item.id}`;
+                                            
+                                            if (receiptMode) {
+                                                return (
+                                                    <div key={item.id} id={receiptId} className={`mb-4 p-5 rounded-sm shadow-lg font-mono text-sm relative ${ui.receipt} receipt-pattern mx-auto max-w-[320px]`}>
+                                                        <div className="ticket-zigzag absolute -top-1 left-0 w-full rotate-180" style={{background: `linear-gradient(45deg, transparent 33.333%, ${ballTheme === 'classic' || ballTheme === 'mono' ? '#ffffff' : ballTheme === 'forest' ? '#f0fdf4' : ballTheme === 'ocean' ? '#f0f9ff' : '#fff7ed'} 33.333%, ${ballTheme === 'classic' || ballTheme === 'mono' ? '#ffffff' : ballTheme === 'forest' ? '#f0fdf4' : ballTheme === 'ocean' ? '#f0f9ff' : '#fff7ed'} 66.667%, transparent 66.667%), linear-gradient(-45deg, transparent 33.333%, ${ballTheme === 'classic' || ballTheme === 'mono' ? '#ffffff' : ballTheme === 'forest' ? '#f0fdf4' : ballTheme === 'ocean' ? '#f0f9ff' : '#fff7ed'} 33.333%, ${ballTheme === 'classic' || ballTheme === 'mono' ? '#ffffff' : ballTheme === 'forest' ? '#f0fdf4' : ballTheme === 'ocean' ? '#f0f9ff' : '#fff7ed'} 66.667%, transparent 66.667%)`, backgroundSize: '10px 20px', height: '10px'}}></div>
+                                                        <div className="ticket-zigzag absolute -bottom-1 left-0 w-full" style={{background: `linear-gradient(45deg, transparent 33.333%, ${ballTheme === 'classic' || ballTheme === 'mono' ? '#ffffff' : ballTheme === 'forest' ? '#f0fdf4' : ballTheme === 'ocean' ? '#f0f9ff' : '#fff7ed'} 33.333%, ${ballTheme === 'classic' || ballTheme === 'mono' ? '#ffffff' : ballTheme === 'forest' ? '#f0fdf4' : ballTheme === 'ocean' ? '#f0f9ff' : '#fff7ed'} 66.667%, transparent 66.667%), linear-gradient(-45deg, transparent 33.333%, ${ballTheme === 'classic' || ballTheme === 'mono' ? '#ffffff' : ballTheme === 'forest' ? '#f0fdf4' : ballTheme === 'ocean' ? '#f0f9ff' : '#fff7ed'} 33.333%, ${ballTheme === 'classic' || ballTheme === 'mono' ? '#ffffff' : ballTheme === 'forest' ? '#f0fdf4' : ballTheme === 'ocean' ? '#f0f9ff' : '#fff7ed'} 66.667%, transparent 66.667%)`, backgroundSize: '10px 20px', height: '10px'}}></div>
+                                                        
+                                                        <div className="text-center border-b-2 border-dashed border-current/50 pb-4 mb-4 pt-2">
+                                                            <h3 className="text-xl font-black tracking-tight mb-1">GINOS LOTTO</h3>
+                                                            <p className="text-[10px] opacity-70">제 {Math.floor(Date.now() / 100000000)} 회차</p>
+                                                            <p className="text-xs mt-1 font-bold">발행일: {new Date(item.createdAt).toLocaleString()}</p>
                                                         </div>
-                                                        <div className="flex justify-center gap-4 text-[10px] opacity-60 border-t border-white/5 pt-1.5 mt-0.5">
-                                                            <span className={`${ui.text}`}>합계: <strong>{setAnalysis.sum}</strong></span>
-                                                            <span className={`${ui.text}`}>고저: <strong>{setAnalysis.high}:{setAnalysis.low}</strong></span>
-                                                            <span className={`${ui.text}`}>AC: <strong>{setAnalysis.acValue}</strong></span>
+
+                                                        <div className="space-y-3 mb-4">
+                                                            {item.numbers.map((set, idx) => (
+                                                                <div key={idx} className="flex justify-between items-center text-lg font-bold tracking-wider">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="opacity-60 text-base">{String.fromCharCode(65+idx)}</span>
+                                                                        <span className="text-[10px] opacity-50 font-normal">자 동</span>
+                                                                    </div>
+                                                                    <div className="flex gap-2">
+                                                                        {set.map(n => (
+                                                                            <span key={n} className="w-6 text-right">{String(n).padStart(2, '0')}</span>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+
+                                                        <div className="border-t-2 border-dashed border-current/50 pt-4 flex flex-col items-center gap-3 pb-2">
+                                                            <div className="w-full flex justify-between font-bold">
+                                                                <span>금액</span>
+                                                                <span>₩{item.gameCount * 1000}</span>
+                                                            </div>
+                                                            
+                                                            <div className="flex justify-between w-full items-end mt-2">
+                                                                 <div className="flex flex-col gap-1 text-[9px] opacity-50 text-left">
+                                                                     <span>1234-5678-9012-3456</span>
+                                                                     <span>TR: {item.id}</span>
+                                                                 </div>
+                                                                 <img 
+                                                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=GINOS:${item.id}`} 
+                                                                    alt="QR" 
+                                                                    className="w-16 h-16 mix-blend-multiply opacity-90"
+                                                                />
+                                                            </div>
+                                                            
+                                                            <div className="flex gap-2 w-full mt-2">
+                                                                <button onClick={() => copyToClipboard(item.numbers)} className="flex-1 py-2 border border-current/30 rounded-lg text-xs font-bold hover:bg-black/5 transition-colors flex items-center justify-center gap-1">
+                                                                    <Copy className="w-3 h-3" /> 복사
+                                                                </button>
+                                                                <button onClick={() => shareNumbers(item.numbers)} className="flex-1 py-2 border border-current/30 rounded-lg text-xs font-bold hover:bg-black/5 transition-colors flex items-center justify-center gap-1">
+                                                                    <ShareIcon className="w-3 h-3" /> 공유
+                                                                </button>
+                                                                <button onClick={() => saveReceiptImage(receiptId)} className="flex-1 py-2 border border-current/30 rounded-lg text-xs font-bold hover:bg-black/5 transition-colors flex items-center justify-center gap-1">
+                                                                    <Download className="w-3 h-3" /> 저장
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                )})} 
-                                            </div>
-                                        ))
+                                                );
+                                            }
+
+                                            return (
+                                                <div key={item.id} className={`rounded-2xl p-4 border space-y-3 animate-fade-in-up transition-colors ${ui.panel}`}>
+                                                    <div className={`flex justify-between items-center text-xs opacity-70 border-b border-white/5 pb-2 ${ui.text}`}>
+                                                        <span className="flex items-center gap-1.5 font-mono"><Sparkles className={`w-3 h-3 ${ui.accent}`}/> {new Date(item.createdAt).toLocaleDateString()} {new Date(item.createdAt).toLocaleTimeString()}</span>
+                                                        <button onClick={() => deleteHistoryItem(item.id)} className="text-red-400/60 hover:text-red-400 p-1.5 hover:bg-red-400/10 rounded-md transition-all"><Trash2 className="w-4 h-4" /></button>
+                                                    </div>
+                                                    {item.numbers.map((set, idx) => {
+                                                        const setAnalysis = getAnalysis(set);
+                                                        return (
+                                                            <div key={idx} className={`p-2.5 rounded-2xl flex flex-col gap-2 border hover:border-white/40 group relative transition-all ${ui.panel}`}>
+                                                                {setAnalysis.badges.length > 0 && (
+                                                                    <div className="absolute -top-2 left-2 flex gap-1 z-10">
+                                                                        {setAnalysis.badges.map((b, i) => (
+                                                                            <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded-full shadow-sm font-bold ${b.color} animate-fade-in-up`}>{b.label}</span>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                                <div className="flex justify-center gap-2 items-center relative mt-1">
+                                                                    <span className={`absolute left-1 top-1/2 -translate-y-1/2 text-xs font-mono opacity-50 font-bold ${ui.text}`}>{idx + 1}</span>
+                                                                    <div className="flex gap-2 justify-center cursor-pointer" onClick={() => copyToClipboard(set)}>
+                                                                        {set.map((num, i) => <LottoBall key={i} number={num} size="sm" className="shadow-md" theme={ballTheme} />)}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex justify-center gap-4 text-[10px] opacity-60 border-t border-white/5 pt-1.5 mt-0.5">
+                                                                    <span className={`${ui.text}`}>합계: <strong>{setAnalysis.sum}</strong></span>
+                                                                    <span className={`${ui.text}`}>고저: <strong>{setAnalysis.high}:{setAnalysis.low}</strong></span>
+                                                                    <span className={`${ui.text}`}>AC: <strong>{setAnalysis.acValue}</strong></span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    
+                                                    {/* History Item Action Buttons */}
+                                                    <div className="flex gap-2 pt-2 border-t border-white/10">
+                                                        <button onClick={() => copyToClipboard(item.numbers)} className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-colors bg-white/5 hover:bg-white/10 ${ui.text}`}>
+                                                            <Copy className="w-3.5 h-3.5" /> 전체 복사
+                                                        </button>
+                                                        <button onClick={() => shareNumbers(item.numbers)} className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-colors bg-white/5 hover:bg-white/10 ${ui.text}`}>
+                                                            <ShareIcon className="w-3.5 h-3.5" /> 전체 공유
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
                                     )}
                                 </div>
                             </div>
