@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Void Harvester - Loop</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #f0f0f2;
+            color: #333;
+            font-family: 'Pretendard', sans-serif;
+            user-select: none;
+            touch-action: none;
+        }
+
+        #gameCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* 인게임 UI (플레이 중에만 보임) */
+        #ingame-ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .timer-box {
+            display: flex;
+            align-items: center;
+            font-size: 3rem;
+            font-weight: 800;
+            color: #333;
+            text-shadow: 0 0 10px rgba(255,255,255,0.8);
+        }
+        
+        .timer-warn { color: #ef4444; animation: pulse 0.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+        .score-val {
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: #222;
+        }
+
+        /* 업그레이드 화면 (게임 끝나면 보임) */
+        #upgrade-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(245, 245, 247, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 20;
+            display: none; /* 기본 숨김 */
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        .screen-title { font-size: 2.5rem; font-weight: 900; margin-bottom: 10px; color: #111; }
+        .screen-subtitle { font-size: 1.2rem; color: #666; margin-bottom: 30px; }
+        .money-badge {
+            background: #111; color: white; padding: 10px 30px; border-radius: 50px;
+            font-size: 1.5rem; font-weight: bold; margin-bottom: 40px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+
+        /* 트리 구조 레이아웃 */
+        .tree-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 40px;
+            margin-bottom: 50px;
+        }
+        .tree-row {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        
+        /* 화살표 */
+        .arrow-down {
+            font-size: 24px; color: #ccc; margin: -20px 0;
+        }
+
+        .card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 16px;
+            padding: 20px;
+            width: 220px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .card:hover:not(.disabled):not(.locked) {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 25px rgba(0,0,0,0.1);
+            border-color: #3b82f6;
+        }
+        
+        .card.disabled { opacity: 0.6; filter: grayscale(1); }
+        .card.locked { background: #f3f4f6; cursor: not-allowed; border-style: dashed; }
+        
+        .card-icon { font-size: 24px; margin-bottom: 5px; }
+        .card-name { font-weight: 800; color: #1f2937; }
+        .card-desc { font-size: 0.8rem; color: #6b7280; height: 32px; overflow: hidden;}
+        .card-stat { font-size: 0.8rem; color: #8b5cf6; font-weight: 600; }
+        .card-cost { font-weight: 700; color: #2563eb; font-size: 1.1rem; margin-top: auto; }
+        .card-lvl { position: absolute; top: 15px; right: 15px; font-size: 0.8rem; font-weight: bold; color: #9ca3af; }
+        
+        .locked-msg {
+            position: absolute; inset: 0; background: rgba(243,244,246,0.9);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.9rem; color: #666; font-weight: bold;
+            border-radius: 16px; text-align: center; padding: 10px;
+        }
+
+        .btn-action {
+            background: #2563eb;
+            color: white;
+            padding: 15px 60px;
+            border-radius: 50px;
+            font-size: 1.3rem;
+            font-weight: 800;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.2s;
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
+        }
+        .btn-action:hover { transform: scale(1.05); background: #1d4ed8; }
+
+        /* 시작 오버레이 */
+        #start-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: white;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; transition: opacity 0.5s;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- 인게임 UI -->
+    <div id="ingame-ui">
+        <div class="timer-box">
+            <span id="timer-display">10.0</span>s
+        </div>
+        <div class="score-val" id="score-display">$0</div>
+    </div>
+
+    <!-- 업그레이드 화면 (라운드 종료 후) -->
+    <div id="upgrade-screen">
+        <h1 class="screen-title">RESEARCH LAB</h1>
+        <p class="screen-subtitle">블랙홀의 능력을 강화하세요</p>
+        <div class="money-badge" id="upgrade-money">$0</div>
+
+        <div class="tree-container" id="tree-root">
+            <!-- JS로 생성됨 -->
+        </div>
+
+        <button class="btn-action" onclick="startGame()">다시 시작 (Start Loop)</button>
+    </div>
+
+    <!-- 시작 화면 -->
+    <div id="start-overlay">
+        <h1 style="font-size: 4rem; font-weight: 900; margin-bottom: 10px;">Void Loop</h1>
+        <p class="text-gray-500 mb-8 text-xl">10초 동안 최대한 많은 물질을 흡수하세요.</p>
+        <button class="btn-action" onclick="firstStart()">게임 시작</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score-display');
+        const timerEl = document.getElementById('timer-display');
+        const upgradeScreen = document.getElementById('upgrade-screen');
+        const upgradeMoneyEl = document.getElementById('upgrade-money');
+        const treeRoot = document.getElementById('tree-root');
+        const startOverlay = document.getElementById('start-overlay');
+        const ingameUi = document.getElementById('ingame-ui');
+
+        // 게임 상태
+        let GAME = {
+            running: false,
+            phase: 'start', // start, playing, upgrade
+            money: 0,
+            scoreInRound: 0,
+            timeLeft: 10.0,
+            width: 0, height: 0, centerX: 0, centerY: 0,
+            lastTime: 0
+        };
+
+        const INPUT = { x: 0, y: 0, isDown: false };
+        const entities = [];
+        const texts = [];
+        const blackHole = { radius: 35 };
+
+        // --- 업그레이드 데이터 ---
+        const UPGRADES = [
+            // Row 0: 기본 능력 (너프된 초기값)
+            {
+                id: 'force', name: '중력장 강도', desc: '무거운 파편을 당기는 힘.', icon: '🧲',
+                row: 0, level: 1, baseCost: 100, mult: 1.5, val: 0.6, inc: 0.15, // val 0.8 -> 0.6
+                req: null
+            },
+            {
+                id: 'radius', name: '사건의 지평선', desc: '영향 범위가 넓어집니다.', icon: '⭕',
+                row: 0, level: 1, baseCost: 100, mult: 1.5, val: 45, inc: 8, // val 60 -> 45
+                req: null
+            },
+            
+            // Row 1: 1차 심화
+            {
+                id: 'spawn', name: '물질 밀도', desc: '더 많은 파편이 생성됩니다.', icon: '✨',
+                row: 1, level: 1, baseCost: 500, mult: 1.6, val: 1, inc: 0.5,
+                req: { id: 'force', level: 3 }
+            },
+            {
+                id: 'value', name: '입자 가치', desc: '더 비싼 입자가 출현합니다.', icon: '💎',
+                row: 1, level: 1, baseCost: 600, mult: 1.8, val: 1, inc: 1, // valMult 역할 겸함, 레벨이 오르면 티어 해금
+                req: { id: 'radius', level: 3 }
+            },
+
+            // Row 2: 2차 심화
+            {
+                id: 'time', name: '시간 왜곡', desc: '제한 시간이 늘어납니다.', icon: '⏳',
+                row: 2, level: 1, baseCost: 1500, mult: 2.0, val: 10, inc: 2,
+                req: { id: 'spawn', level: 3 } 
+            },
+             {
+                id: 'heavy', name: '중력 붕괴', desc: '무거운 파편 무게 보정.', icon: '🌌',
+                row: 2, level: 1, baseCost: 2000, mult: 1.5, val: 1.0, inc: 0.3,
+                req: { id: 'value', level: 3 } 
+            }
+        ];
+
+        // 파편 설정 (티어별)
+        const SHARD_TYPES = [
+            { id: 'blue',   color: '#3b82f6', minR: 6,  maxR: 10, mass: 1,   valMult: 1,  weight: 60 },
+            { id: 'green',  color: '#10b981', minR: 12, maxR: 16, mass: 4,   valMult: 3,  weight: 30 }, 
+            { id: 'orange', color: '#f59e0b', minR: 18, maxR: 24, mass: 12,  valMult: 8,  weight: 15 }, 
+            { id: 'purple', color: '#8b5cf6', minR: 28, maxR: 35, mass: 30,  valMult: 20, weight: 5 }
+        ];
+
+        // --- 클래스 ---
+        class Shard {
+            constructor() {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * (Math.min(GAME.width, GAME.height)/2 - 80) + 150;
+                this.x = GAME.centerX + Math.cos(angle) * dist;
+                this.y = GAME.centerY + Math.sin(angle) * dist;
+                
+                // --- 공전 속도 설정 ---
+                // 거리가 멀수록 느리게, 랜덤 방향
+                const speedBase = 0.003; 
+                this.orbitSpeed = (speedBase * (150/dist)) * (Math.random() < 0.5 ? 1 : -1);
+
+                // --- 티어 해금 로직 ---
+                const valueUpgrade = UPGRADES.find(u => u.id === 'value');
+                const lvl = valueUpgrade.level;
+                
+                // 레벨에 따라 등장 가능한 파편 제한
+                let availableTypes = [];
+                availableTypes.push(SHARD_TYPES[0]); // Blue (Always)
+                
+                if (lvl >= 2) availableTypes.push(SHARD_TYPES[1]); // Green at Lv.2
+                if (lvl >= 3) availableTypes.push(SHARD_TYPES[2]); // Orange at Lv.3
+                if (lvl >= 5) availableTypes.push(SHARD_TYPES[3]); // Purple at Lv.5
+
+                // 가중치 랜덤 선택
+                const totalWeight = availableTypes.reduce((sum, t) => sum + t.weight, 0);
+                let r = Math.random() * totalWeight;
+                let type = availableTypes[0];
+                
+                for(let t of availableTypes) {
+                    if(r < t.weight) { type = t; break; }
+                    r -= t.weight;
+                }
+
+                this.color = type.color;
+                this.radius = Math.random() * (type.maxR - type.minR) + type.minR;
+                this.mass = type.mass;
+                this.sides = Math.floor(Math.random() * 3) + 3;
+                
+                // 가치 계산 (업그레이드 수치 반영)
+                // 'value' 업그레이드는 해금 용도 외에 배율로도 작용
+                const valMultiplier = 1 + (lvl * 0.2); 
+                this.value = Math.floor(this.radius * 2 * type.valMult * valMultiplier);
+                
+                this.vx = 0;
+                this.vy = 0;
+                this.friction = 0.93; 
+            }
+
+            update() {
+                // 1. 공전 (플레이어 개입 없을 때 위치 회전)
+                // 현재 위치를 센터 기준으로 회전시킴
+                const dx0 = this.x - GAME.centerX;
+                const dy0 = this.y - GAME.centerY;
+                const cos = Math.cos(this.orbitSpeed);
+                const sin = Math.sin(this.orbitSpeed);
+                
+                // 회전 행렬 적용
+                const newX = GAME.centerX + (dx0 * cos - dy0 * sin);
+                const newY = GAME.centerY + (dx0 * sin + dy0 * cos);
+                
+                this.x = newX;
+                this.y = newY;
+
+                // 2. 물리 연산 (중력 & 스윕)
+                const dx = GAME.centerX - this.x;
+                const dy = GAME.centerY - this.y;
+                const distSq = dx*dx + dy*dy;
+                const dist = Math.sqrt(distSq);
+
+                // 블랙홀 기본 인력
+                if (dist < 180) {
+                    const g = 1200 / distSq;
+                    this.vx += (dx/dist) * g / this.mass;
+                    this.vy += (dy/dist) * g / this.mass;
+                }
+
+                // 플레이어 스윕
+                if (INPUT.isDown) {
+                    const radius = UPGRADES.find(u => u.id === 'radius').val;
+                    const power = UPGRADES.find(u => u.id === 'force').val;
+                    const heavyBonus = UPGRADES.find(u => u.id === 'heavy').val; 
+
+                    const mdx = INPUT.x - this.x;
+                    const mdy = INPUT.y - this.y;
+                    const mDist = Math.sqrt(mdx*mdx + mdy*mdy);
+
+                    if (mDist < radius) {
+                        const pushX = GAME.centerX - this.x;
+                        const pushY = GAME.centerY - this.y;
+                        const pushLen = Math.sqrt(pushX*pushX + pushY*pushY);
+                        
+                        let effectiveMass = this.mass;
+                        if(effectiveMass > 5) effectiveMass /= heavyBonus; 
+
+                        const accel = (3.0 * power) / effectiveMass; // 기본 힘 상수 조정
+
+                        this.vx += (pushX / pushLen) * accel;
+                        this.vy += (pushY / pushLen) * accel;
+                        
+                        this.vx += (mdx / mDist) * (0.3 / effectiveMass);
+                        this.vy += (mdy / mDist) * (0.3 / effectiveMass);
+                    }
+                }
+
+                // 물리 적용
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vx *= this.friction;
+                this.vy *= this.friction;
+                
+                this.rotation = (this.rotation || 0) + (this.vx + this.vy) * 0.1 + this.orbitSpeed * 5;
+
+                if (dist < blackHole.radius) return true;
+                return false;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                ctx.beginPath();
+                ctx.moveTo(this.radius, 0);
+                for (let i = 1; i < this.sides; i++) {
+                    const angle = (i * 2 * Math.PI) / this.sides;
+                    ctx.lineTo(Math.cos(angle) * this.radius, Math.sin(angle) * this.radius);
+                }
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        class PopText {
+            constructor(x, y, val) {
+                this.x = x; this.y = y; this.text = "+$" + val;
+                this.life = 1.0; this.vy = -1;
+            }
+            update() { this.y += this.vy; this.life -= 0.04; }
+            draw() {
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = '#10b981';
+                ctx.font = '800 16px "Pretendard"';
+                ctx.fillText(this.text, this.x, this.y);
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        // --- 시스템 ---
+        function init() {
+            window.addEventListener('resize', resize);
+            resize();
+            
+            canvas.addEventListener('mousedown', (e) => { INPUT.isDown = true; move(e); });
+            canvas.addEventListener('mousemove', move);
+            window.addEventListener('mouseup', () => INPUT.isDown = false);
+            
+            canvas.addEventListener('touchstart', (e) => { INPUT.isDown = true; move(e.touches[0]); e.preventDefault(); }, {passive:false});
+            canvas.addEventListener('touchmove', (e) => { move(e.touches[0]); e.preventDefault(); }, {passive:false});
+            window.addEventListener('touchend', () => INPUT.isDown = false);
+
+            requestAnimationFrame(loop);
+        }
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            GAME.width = canvas.width;
+            GAME.height = canvas.height;
+            GAME.centerX = canvas.width / 2;
+            GAME.centerY = canvas.height / 2;
+        }
+        function move(e) { INPUT.x = e.clientX; INPUT.y = e.clientY; }
+
+        function firstStart() {
+            startOverlay.style.display = 'none';
+            startGame();
+        }
+
+        function startGame() {
+            upgradeScreen.style.display = 'none';
+            ingameUi.style.display = 'flex';
+            
+            GAME.running = true;
+            GAME.phase = 'playing';
+            GAME.scoreInRound = 0;
+            scoreEl.innerText = "$0";
+            
+            const timeBonus = UPGRADES.find(u => u.id === 'time').val;
+            GAME.timeLeft = timeBonus; 
+            
+            entities.length = 0;
+            // 초기 파편
+            for(let i=0; i<60; i++) entities.push(new Shard());
+
+            if(window.spawnInterval) clearInterval(window.spawnInterval);
+            window.spawnInterval = setInterval(() => {
+                if(GAME.phase !== 'playing') return;
+                const density = UPGRADES.find(u => u.id === 'spawn').val;
+                if(entities.length < 250) {
+                    for(let i=0; i<density; i++) entities.push(new Shard());
+                }
+            }, 400);
+        }
+
+        function endGame() {
+            GAME.phase = 'upgrade';
+            GAME.running = false;
+            ingameUi.style.display = 'none';
+            upgradeScreen.style.display = 'flex';
+            renderUpgrades();
+        }
+
+        function loop(timestamp) {
+            const dt = (timestamp - GAME.lastTime) / 1000;
+            GAME.lastTime = timestamp;
+
+            if (GAME.phase === 'playing') {
+                updateGame(dt);
+            }
+            drawGame();
+
+            requestAnimationFrame(loop);
+        }
+
+        function updateGame(dt) {
+            GAME.timeLeft -= 0.016;
+            if (GAME.timeLeft <= 0) {
+                GAME.timeLeft = 0;
+                endGame();
+                return;
+            }
+
+            timerEl.innerText = GAME.timeLeft.toFixed(1);
+            if(GAME.timeLeft <= 3) timerEl.parentElement.classList.add('timer-warn');
+            else timerEl.parentElement.classList.remove('timer-warn');
+
+            for (let i = entities.length - 1; i >= 0; i--) {
+                const e = entities[i];
+                if (e.update()) {
+                    GAME.scoreInRound += e.value;
+                    GAME.money += e.value; 
+                    scoreEl.innerText = '$' + GAME.scoreInRound.toLocaleString();
+                    texts.push(new PopText(GAME.centerX, GAME.centerY - 30, e.value));
+                    entities.splice(i, 1);
+                }
+            }
+            
+            for (let i = texts.length - 1; i >= 0; i--) {
+                texts[i].update();
+                if (texts[i].life <= 0) texts.splice(i, 1);
+            }
+        }
+
+        function drawGame() {
+            ctx.clearRect(0, 0, GAME.width, GAME.height);
+
+            // 블랙홀
+            ctx.beginPath();
+            ctx.arc(GAME.centerX, GAME.centerY, blackHole.radius, 0, Math.PI * 2);
+            ctx.fillStyle = '#111';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+            ctx.lineWidth = 5;
+            ctx.stroke();
+
+            // 플레이어 영역
+            if (INPUT.isDown && GAME.phase === 'playing') {
+                const radius = UPGRADES.find(u => u.id === 'radius').val;
+                ctx.beginPath();
+                ctx.arc(INPUT.x, INPUT.y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(50, 50, 50, 0.3)';
+                ctx.setLineDash([4, 4]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            entities.forEach(e => e.draw());
+            texts.forEach(t => t.draw());
+        }
+
+        // --- 업그레이드 시스템 ---
+        
+        function getCost(u) {
+            return Math.floor(u.baseCost * Math.pow(u.mult, u.level - 1));
+        }
+
+        function checkUnlock(u) {
+            if (!u.req) return true;
+            const parent = UPGRADES.find(p => p.id === u.req.id);
+            return parent.level >= u.req.level;
+        }
+
+        function renderUpgrades() {
+            upgradeMoneyEl.innerText = '$' + GAME.money.toLocaleString();
+            treeRoot.innerHTML = '';
+
+            const rows = {};
+            UPGRADES.forEach(u => {
+                if(!rows[u.row]) rows[u.row] = [];
+                rows[u.row].push(u);
+            });
+
+            const maxRow = Math.max(...Object.keys(rows).map(Number));
+
+            for (let r = 0; r <= maxRow; r++) {
+                if(!rows[r]) continue;
+
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'tree-row';
+                
+                rows[r].forEach(u => {
+                    const isUnlocked = checkUnlock(u);
+                    const cost = getCost(u);
+                    const canBuy = GAME.money >= cost;
+                    
+                    const card = document.createElement('div');
+                    card.className = `card ${isUnlocked ? (canBuy ? '' : 'disabled') : 'locked'}`;
+                    
+                    if(isUnlocked) {
+                        card.onclick = () => buyUpgrade(u.id);
+                        
+                        let statText = '';
+                        if(u.id === 'radius') statText = `${u.val}px (+${u.inc})`;
+                        else if(u.id === 'time') statText = `${u.val}s (+${u.inc})`;
+                        else statText = `x${u.val.toFixed(2)} (+${u.inc})`; // toFixed 수정
+
+                        card.innerHTML = `
+                            <div class="card-lvl">Lv.${u.level}</div>
+                            <div class="card-icon">${u.icon}</div>
+                            <div class="card-name">${u.name}</div>
+                            <div class="card-desc">${u.desc}</div>
+                            <div class="card-stat">현재: ${statText}</div>
+                            <div class="card-cost">$${cost.toLocaleString()}</div>
+                        `;
+                    } else {
+                        const reqParent = UPGRADES.find(p => p.id === u.req.id);
+                        card.innerHTML = `
+                            <div class="card-icon" style="filter:grayscale(1); opacity:0.3">${u.icon}</div>
+                            <div class="card-name" style="opacity:0.5">???</div>
+                            <div class="locked-msg">🔒<br>${reqParent.name}<br>Lv.${u.req.level} 필요</div>
+                        `;
+                    }
+
+                    rowDiv.appendChild(card);
+                });
+
+                treeRoot.appendChild(rowDiv);
+                
+                if (r < maxRow) {
+                    const arrow = document.createElement('div');
+                    arrow.className = 'arrow-down';
+                    arrow.innerText = '⬇';
+                    treeRoot.appendChild(arrow);
+                }
+            }
+        }
+
+        function buyUpgrade(id) {
+            const u = UPGRADES.find(x => x.id === id);
+            const cost = getCost(u);
+            
+            if (GAME.money >= cost) {
+                GAME.money -= cost;
+                u.level++;
+                u.val += u.inc;
+                
+                if(u.id === 'force' || u.id === 'heavy' || u.id === 'spawn' || u.id === 'value') {
+                    u.val = parseFloat(u.val.toFixed(2));
+                }
+
+                renderUpgrades();
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
