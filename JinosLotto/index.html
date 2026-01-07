@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>지노스 로또 추출기</title>
     
-    <!-- PWA / Web App Meta Tags -->
+    <!-- PWA Meta Tags -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0f172a">
@@ -18,7 +18,7 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     
-    <!-- Babel for JSX -->
+    <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <!-- Canvas Confetti -->
@@ -31,7 +31,6 @@
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         .no-select { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
         
-        /* Dynamic Receipt Pattern */
         .receipt-pattern {
             background-image: radial-gradient(currentColor 0.5px, transparent 0.5px);
             background-size: 8px 8px;
@@ -47,58 +46,38 @@
     <div id="root" style="height: 100%;"></div>
 
     <script type="text/babel" data-type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { 
-            getAuth, 
-            signInAnonymously, 
-            signInWithCustomToken, 
-            onAuthStateChanged 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { 
-            getFirestore, 
-            collection, 
-            addDoc, 
-            query, 
-            orderBy, 
-            onSnapshot, 
-            deleteDoc, 
-            doc, 
-            serverTimestamp 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // --- Icon Components (SVG) ---
+        // --- Icon Components ---
         const IconBase = ({ children, className, ...props }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>{children}</svg>
         );
+        const Trash2 = (p) => <IconBase {...p}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></IconBase>;
+        const Copy = (p) => <IconBase {...p}><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></IconBase>;
+        const History = (p) => <IconBase {...p}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/><path d="M3 3v9h9"/><path d="M12 7v5l4 2"/></IconBase>;
+        const RefreshCw = (p) => <IconBase {...p}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></IconBase>;
+        const Settings = (p) => <IconBase {...p}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.39a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></IconBase>;
+        const Save = (p) => <IconBase {...p}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></IconBase>;
+        const X = (p) => <IconBase {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBase>;
+        const Trophy = (p) => <IconBase {...p}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 1 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></IconBase>;
+        const Sparkles = (p) => <IconBase {...p}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M9 3v4"/><path d="M3 9h4"/><path d="M3 5h4"/></IconBase>;
+        const Wind = (p) => <IconBase {...p}><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></IconBase>;
+        const Zap = (p) => <IconBase {...p}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></IconBase>;
+        const ShareIcon = (p) => <IconBase {...p}><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></IconBase>;
+        const Volume2 = (p) => <IconBase {...p}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></IconBase>;
+        const VolumeX = (p) => <IconBase {...p}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></IconBase>;
+        const Smartphone = (p) => <IconBase {...p}><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></IconBase>;
+        const Palette = (p) => <IconBase {...p}><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></IconBase>;
+        const BarChart = (p) => <IconBase {...p}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></IconBase>;
+        const RotateCcw = (p) => <IconBase {...p}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/><path d="M3 3v9h9"/></IconBase>;
+        const Target = (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></IconBase>;
+        const Check = (p) => <IconBase {...p}><polyline points="20 6 9 17 4 12"/></IconBase>;
+        const Ban = (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></IconBase>;
+        const FileDown = (p) => <IconBase {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></IconBase>;
+        const Receipt = (p) => <IconBase {...p}><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><line x1="16" y1="8" x2="8" y2="8"/><line x1="16" y1="12" x2="8" y2="12"/><line x1="16" y1="16" x2="10" y2="16"/></IconBase>;
+        const Mic = (p) => <IconBase {...p}><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></IconBase>;
+        const MicOff = (p) => <IconBase {...p}><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></IconBase>;
+        const Award = (p) => <IconBase {...p}><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></IconBase>;
 
-        const Trash2 = (props) => <IconBase {...props}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></IconBase>;
-        const Copy = (props) => <IconBase {...props}><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></IconBase>;
-        const History = (props) => <IconBase {...props}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/><path d="M3 3v9h9"/><path d="M12 7v5l4 2"/></IconBase>;
-        const RefreshCw = (props) => <IconBase {...props}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></IconBase>;
-        const Settings = (props) => <IconBase {...props}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.39a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></IconBase>;
-        const Save = (props) => <IconBase {...props}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></IconBase>;
-        const X = (props) => <IconBase {...props}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBase>;
-        const Trophy = (props) => <IconBase {...props}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 1 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></IconBase>;
-        const Sparkles = (props) => <IconBase {...props}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M9 3v4"/><path d="M3 9h4"/><path d="M3 5h4"/></IconBase>;
-        const Wind = (props) => <IconBase {...props}><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></IconBase>;
-        const Zap = (props) => <IconBase {...props}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></IconBase>;
-        const ShareIcon = (props) => <IconBase {...props}><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></IconBase>;
-        const Volume2 = (props) => <IconBase {...props}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></IconBase>;
-        const VolumeX = (props) => <IconBase {...props}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></IconBase>;
-        const Smartphone = (props) => <IconBase {...props}><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></IconBase>;
-        const Palette = (props) => <IconBase {...props}><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></IconBase>;
-        const BarChart = (props) => <IconBase {...props}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></IconBase>;
-        const RotateCcw = (props) => <IconBase {...props}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/><path d="M3 3v9h9"/></IconBase>;
-        const Target = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></IconBase>;
-        const Check = (props) => <IconBase {...props}><polyline points="20 6 9 17 4 12"/></IconBase>;
-        const Ban = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></IconBase>;
-        const FileDown = (props) => <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></IconBase>;
-        const FileUp = (props) => <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></IconBase>;
-        const Receipt = (props) => <IconBase {...props}><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><line x1="16" y1="8" x2="8" y2="8"/><line x1="16" y1="12" x2="8" y2="12"/><line x1="16" y1="16" x2="10" y2="16"/></IconBase>;
-        const Mic = (props) => <IconBase {...props}><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></IconBase>;
-        const MicOff = (props) => <IconBase {...props}><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></IconBase>;
-
-        // --- Sound Manager & TTS ---
+        // --- Sound Manager ---
         const SoundManager = {
             ctx: null,
             init: function() {
@@ -148,35 +127,6 @@
                 window.speechSynthesis.speak(utterance);
             }
         };
-
-        // --- Firebase Config & Setup ---
-        const defaultFirebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_PROJECT_ID.appspot.com",
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-            appId: "YOUR_APP_ID"
-        };
-
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : defaultFirebaseConfig;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        
-        let app, auth, db;
-        let isFirebaseAvailable = false;
-
-        try {
-            if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
-                app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-                isFirebaseAvailable = true;
-            } else {
-                console.warn("Firebase Config가 설정되지 않았습니다. 저장 기능이 비활성화됩니다.");
-            }
-        } catch (e) {
-            console.error("Firebase Init Error:", e);
-        }
 
         // --- Themes ---
         const THEMES = {
@@ -299,9 +249,10 @@
             @keyframes bounce-variant-9 { 0% { transform: translate(0, 0) rotate(0deg); } 25% { transform: translate(70px, -70px) rotate(90deg); } 50% { transform: translate(0, -130px) rotate(180deg); } 75% { transform: translate(-70px, -70px) rotate(270deg); } 100% { transform: translate(0, 0) rotate(360deg); } }
             @keyframes shoot-up-tube { 0% { transform: translateY(100px) scale(0.5); opacity: 0; } 50% { transform: translateY(-20px) scale(0.9); opacity: 1; } 100% { transform: translateY(-60px) scale(1); opacity: 1; } }
             @keyframes ball-glow { 0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); } 50% { box-shadow: 0 0 20px 10px rgba(255, 255, 255, 0.5); } 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); } }
+            @keyframes shake-machine { 0% { transform: rotate(0deg) scale(1); } 25% { transform: rotate(-3deg) scale(1.02); } 50% { transform: rotate(3deg) scale(1.02); } 75% { transform: rotate(-1deg) scale(1.02); } 100% { transform: rotate(0deg) scale(1); } }
         `;
 
-        // --- App Components ---
+        // --- Components ---
 
         const LottoBall = ({ number, size = 'md', className = '', style = {}, theme = 'classic' }) => {
             const sizeClasses = {
@@ -335,6 +286,111 @@
                 <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-2xl z-50 flex items-center gap-2 animate-fade-in-up pointer-events-none whitespace-nowrap">
                     <Sparkles className="w-4 h-4 text-yellow-400" />
                     <span>{message}</span>
+                </div>
+            );
+        };
+
+        // --- Win Check Modal ---
+        const WinCheckModal = ({ show, onClose, history, theme }) => {
+            const [winningNumbers, setWinningNumbers] = React.useState(['', '', '', '', '', '']);
+            const [bonusNumber, setBonusNumber] = React.useState('');
+            const [results, setResults] = React.useState(null);
+            const ui = THEMES[theme].ui;
+
+            if (!show) return null;
+
+            const handleInputChange = (index, value) => {
+                const newNumbers = [...winningNumbers];
+                newNumbers[index] = value;
+                setWinningNumbers(newNumbers);
+            };
+
+            const checkWin = () => {
+                const winNums = winningNumbers.map(n => parseInt(n)).filter(n => !isNaN(n));
+                const bonus = parseInt(bonusNumber);
+                
+                if (winNums.length !== 6 || isNaN(bonus)) {
+                    alert("당첨 번호 6개와 보너스 번호를 모두 입력해주세요.");
+                    return;
+                }
+
+                const winResults = [];
+                history.forEach(item => {
+                    item.numbers.forEach(set => {
+                        const matchCount = set.filter(n => winNums.includes(n)).length;
+                        const hasBonus = set.includes(bonus);
+                        let rank = 0;
+
+                        if (matchCount === 6) rank = 1;
+                        else if (matchCount === 5 && hasBonus) rank = 2;
+                        else if (matchCount === 5) rank = 3;
+                        else if (matchCount === 4) rank = 4;
+                        else if (matchCount === 3) rank = 5;
+
+                        if (rank > 0) {
+                            winResults.push({ rank, set, date: item.createdAt });
+                        }
+                    });
+                });
+
+                // Sort by rank (1st place first)
+                winResults.sort((a, b) => a.rank - b.rank);
+                setResults(winResults);
+            };
+
+            return (
+                <div className="absolute inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex flex-col animate-fade-in">
+                    <div className={`p-5 border-b flex justify-between items-center shrink-0 ${ui.panel}`}>
+                        <h2 className={`text-lg font-bold flex items-center gap-2 ${ui.text}`}><Award className="w-5 h-5 text-yellow-400" /> 당첨 확인</h2>
+                        <button onClick={onClose} className={`p-2 rounded-full transition-colors opacity-70 hover:opacity-100 ${ui.text}`}><X className="w-6 h-6" /></button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4 scrollbar-hide">
+                        {/* Input Area */}
+                        <div className="bg-white/5 p-4 rounded-2xl mb-4 border border-white/10">
+                            <h3 className={`text-sm mb-2 text-center opacity-80 ${ui.text}`}>이번 주 당첨 번호 입력</h3>
+                            <div className="flex justify-center gap-1 mb-2">
+                                {winningNumbers.map((num, i) => (
+                                    <input 
+                                        key={i} 
+                                        type="number" 
+                                        value={num} 
+                                        onChange={(e) => handleInputChange(i, e.target.value)}
+                                        className="w-10 h-10 bg-white/10 text-center rounded-lg text-white font-bold outline-none focus:ring-2 focus:ring-yellow-400"
+                                    />
+                                ))}
+                                <span className="flex items-center text-white/50">+</span>
+                                <input 
+                                    type="number" 
+                                    value={bonusNumber} 
+                                    onChange={(e) => setBonusNumber(e.target.value)}
+                                    className="w-10 h-10 bg-white/10 text-center rounded-lg text-yellow-300 font-bold outline-none focus:ring-2 focus:ring-yellow-400"
+                                    placeholder="B"
+                                />
+                            </div>
+                            <button onClick={checkWin} className={`w-full py-2 rounded-xl font-bold mt-2 transition-colors ${ui.button} text-white`}>확인하기</button>
+                        </div>
+
+                        {/* Results Area */}
+                        {results && (
+                            <div className="space-y-3">
+                                {results.length === 0 ? (
+                                    <div className="text-center py-10 opacity-50 text-white">당첨된 내역이 없습니다 😭</div>
+                                ) : (
+                                    results.map((res, idx) => (
+                                        <div key={idx} className={`p-3 rounded-xl border border-white/10 flex justify-between items-center ${ui.panel}`}>
+                                            <div className="flex flex-col gap-1">
+                                                <span className={`text-xs font-bold ${res.rank <= 3 ? 'text-yellow-400' : 'text-white'}`}>{res.rank}등 당첨!</span>
+                                                <div className="flex gap-1">
+                                                    {res.set.map(n => <span key={n} className="text-xs text-white/70">{n}</span>)}
+                                                </div>
+                                                <span className="text-[10px] text-white/30">{new Date(res.date).toLocaleDateString()}</span>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             );
         };
@@ -380,7 +436,7 @@
                         <div className="mb-4 text-center text-sm opacity-70 space-y-1" style={{color: 'white'}}>
                             <p>번호를 터치하여 상태를 변경하세요.</p>
                             <div className="flex justify-center gap-4 text-xs">
-                                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500"></span> 고정수 (최대 5개)</span>
+                                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500"></span> 고정수</span>
                                 <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500"></span> 제외수</span>
                             </div>
                         </div>
@@ -402,9 +458,12 @@
             );
         };
 
-        const LottoMachine = ({ isRolling, currentDrawingNumber, machineBalls, theme }) => {
+        const LottoMachine = ({ isRolling, currentDrawingNumber, machineBalls, theme, onMix }) => {
             return (
-                <div className="relative w-full flex flex-col items-center justify-center py-4 shrink-0 no-select">
+                <div 
+                    className="relative w-full flex flex-col items-center justify-center py-4 shrink-0 no-select cursor-pointer active:scale-95 transition-transform"
+                    onClick={onMix}
+                >
                     <style>{animationStyles}</style>
 
                     <div className="relative z-20 w-16 h-24 -mb-8 overflow-hidden">
@@ -416,7 +475,7 @@
                         )}
                     </div>
 
-                    <div className="relative w-64 h-64 sm:w-72 sm:h-72 rounded-full border-[8px] border-white/10 shadow-[0_0_50px_rgba(255,255,255,0.1)] overflow-hidden backdrop-blur-sm bg-gradient-to-br from-white/5 to-white/0 flex items-center justify-center z-10 transition-all duration-300">
+                    <div className={`relative w-64 h-64 sm:w-72 sm:h-72 rounded-full border-[8px] border-white/10 shadow-[0_0_50px_rgba(255,255,255,0.1)] overflow-hidden backdrop-blur-sm bg-gradient-to-br from-white/5 to-white/0 flex items-center justify-center z-10 transition-all duration-300 ${isRolling ? 'animate-[shake-machine_0.5s_linear_infinite]' : ''}`}>
                         <div className="absolute inset-0 rounded-full shadow-[inset_10px_10px_20px_rgba(255,255,255,0.2),inset_-10px_-10px_30px_rgba(0,0,0,0.2)] pointer-events-none z-30"></div>
                         <div className="absolute top-10 right-10 w-24 h-12 bg-white/20 blur-xl rounded-full transform -rotate-45 pointer-events-none z-30"></div>
                         <div className="absolute bottom-10 left-10 w-32 h-32 bg-indigo-500/10 blur-2xl rounded-full pointer-events-none z-0"></div>
@@ -466,75 +525,56 @@
             );
         };
 
-        const StatsView = ({ history, theme, onCopy, onShare, showHeatmap, setShowHeatmap }) => {
+        const StatsView = ({ history, theme, onCopy, onShare, showHeatmap, setShowHeatmap, onWinCheck }) => {
             const ui = THEMES[theme].ui;
-            
-            // 1. Get counts map for all numbers (1-45)
-            const getCountsMap = () => {
+            const getFrequentNumbers = () => {
                 const counts = {};
-                for (let i = 1; i <= 45; i++) counts[i] = 0; // Initialize
-                
                 history.forEach(item => {
                     item.numbers.flat().forEach(num => {
                         counts[num] = (counts[num] || 0) + 1;
                     });
                 });
-                return counts;
+                return Object.entries(counts)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([num, count]) => ({ num: parseInt(num), count }));
             };
 
-            const countsMap = getCountsMap();
-
-            // 2. Sort for TOP 6
-            const topNumbers = Object.entries(countsMap)
-                .sort((a, b) => b[1] - a[1]) // Sort by count descending
-                .slice(0, 6)
-                .map(([num, count]) => ({ num: parseInt(num), count }));
-
+            const frequentNumbers = getFrequentNumbers();
+            const topNumbers = frequentNumbers.slice(0, 6);
             const topNumbersSet = topNumbers.map(item => item.num).sort((a, b) => a - b);
-
-            // 3. Heatmap Logic (Relative Distribution)
-            const allCountsVal = Object.values(countsMap);
-            const maxCount = Math.max(...allCountsVal);
-            const minCount = Math.min(...allCountsVal);
+            const allCountsVal = Object.values(frequentNumbers.reduce((acc, cur) => ({...acc, [cur.num]: cur.count}), {}));
+            const maxCount = Math.max(...allCountsVal, 1);
+            const minCount = Math.min(...allCountsVal, 0);
+            const countsMap = {};
+            frequentNumbers.forEach(item => countsMap[item.num] = item.count);
 
             const getHeatmapColor = (count, min, max) => {
-                if (max === min) return 'bg-white/5 text-white/30'; // No distribution yet
-                
-                const ratio = (count - min) / (max - min); // 0.0 ~ 1.0
-                
-                // Color scale from Hot (Red) to Cold (Blue/Transparent)
-                if (ratio >= 0.9) return 'bg-red-600 text-white font-bold shadow-md shadow-red-500/50'; // Top 10%
+                if (max === min) return 'bg-white/5 text-white/30';
+                const ratio = (count - min) / (max - min);
+                if (ratio >= 0.9) return 'bg-red-600 text-white font-bold shadow-md shadow-red-500/50';
                 if (ratio >= 0.75) return 'bg-orange-500 text-white'; 
                 if (ratio >= 0.5) return 'bg-yellow-500 text-black';
                 if (ratio >= 0.25) return 'bg-green-500 text-white';
-                if (ratio > 0) return 'bg-blue-500 text-white'; // Appeared at least once
-                return 'bg-white/10 text-white/30'; // Min count (often 0)
+                if (ratio > 0) return 'bg-blue-500 text-white';
+                return 'bg-white/10 text-white/30';
             };
 
-            // Always render the StatsView component, showing empty states if no history
             return (
                 <div className={`mb-6 rounded-2xl p-4 border ${ui.panel}`}>
                     <div className="flex justify-between items-center mb-3">
                         <div className="flex items-center gap-2">
-                            <button 
-                                onClick={() => setShowHeatmap(false)} 
-                                className={`text-xs font-bold px-2 py-1 rounded transition-colors ${!showHeatmap ? 'bg-white/20 ' + ui.text : 'text-white/30'}`}
-                            >
-                                TOP 6
-                            </button>
-                            <button 
-                                onClick={() => setShowHeatmap(true)} 
-                                className={`text-xs font-bold px-2 py-1 rounded transition-colors ${showHeatmap ? 'bg-white/20 ' + ui.text : 'text-white/30'}`}
-                            >
-                                히트맵
-                            </button>
+                            <button onClick={() => setShowHeatmap(false)} className={`text-xs font-bold px-2 py-1 rounded transition-colors ${!showHeatmap ? 'bg-white/20 ' + ui.text : 'text-white/30'}`}>TOP 6</button>
+                            <button onClick={() => setShowHeatmap(true)} className={`text-xs font-bold px-2 py-1 rounded transition-colors ${showHeatmap ? 'bg-white/20 ' + ui.text : 'text-white/30'}`}>히트맵</button>
                         </div>
-                        {!showHeatmap && topNumbers[0].count > 0 && (
-                            <div className="flex gap-1">
-                                <button onClick={() => onCopy(topNumbersSet)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-70 hover:opacity-100 transition-colors ${ui.text}`} aria-label="통계 번호 복사"><Copy className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => onShare(topNumbersSet)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-70 hover:opacity-100 transition-colors ${ui.text}`} aria-label="통계 번호 공유"><ShareIcon className="w-3.5 h-3.5" /></button>
-                            </div>
-                        )}
+                        <div className="flex gap-1">
+                            {!showHeatmap && topNumbers[0]?.count > 0 && (
+                                <>
+                                    <button onClick={() => onCopy(topNumbersSet)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-70 hover:opacity-100 transition-colors ${ui.text}`}><Copy className="w-3.5 h-3.5" /></button>
+                                    <button onClick={() => onShare(topNumbersSet)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-70 hover:opacity-100 transition-colors ${ui.text}`}><ShareIcon className="w-3.5 h-3.5" /></button>
+                                </>
+                            )}
+                            <button onClick={onWinCheck} className={`p-1.5 hover:bg-white/10 rounded-full opacity-70 hover:opacity-100 transition-colors text-yellow-400 font-bold`} title="당첨 확인"><Award className="w-3.5 h-3.5" /></button>
+                        </div>
                     </div>
                     
                     {history.length === 0 ? (
@@ -555,8 +595,7 @@
                                     {Array.from({length: 45}, (_, i) => i + 1).map(num => (
                                         <div 
                                             key={num} 
-                                            className={`aspect-square rounded flex items-center justify-center text-[10px] transition-colors duration-300 ${getHeatmapColor(countsMap[num], minCount, maxCount)}`}
-                                            title={`${num}번: ${countsMap[num]}회`}
+                                            className={`aspect-square rounded flex items-center justify-center text-[10px] transition-colors duration-300 ${getHeatmapColor(countsMap[num] || 0, minCount, maxCount)}`}
                                         >
                                             {num}
                                         </div>
@@ -570,22 +609,17 @@
         };
 
         const App = () => {
-            // Load settings from localStorage
-            const [user, setUser] = React.useState(null);
             const [gameCount, setGameCount] = React.useState(1);
             const [finalNumbers, setFinalNumbers] = React.useState([]);
             const [drawnNumbers, setDrawnNumbers] = React.useState([]);
             const [isRolling, setIsRolling] = React.useState(false);
             const [history, setHistory] = React.useState(() => {
-                try {
-                    return JSON.parse(localStorage.getItem('lotto_history')) || [];
-                } catch {
-                    return [];
-                }
+                try { return JSON.parse(localStorage.getItem('lotto_history')) || []; } catch { return []; }
             });
             
             const [showHistory, setShowHistory] = React.useState(false);
             const [showStrategy, setShowStrategy] = React.useState(false);
+            const [showWinCheck, setShowWinCheck] = React.useState(false);
             const [toast, setToast] = React.useState({ show: false, message: '' });
             const [machineBalls, setMachineBalls] = React.useState([]);
             const [currentDrawingNumber, setCurrentDrawingNumber] = React.useState(null);
@@ -599,12 +633,11 @@
             const [fixedNumbers, setFixedNumbers] = React.useState(() => JSON.parse(localStorage.getItem('fixedNumbers')) || []);
             const [excludedNumbers, setExcludedNumbers] = React.useState(() => JSON.parse(localStorage.getItem('excludedNumbers')) || []);
             const [receiptMode, setReceiptMode] = React.useState(false);
-            const [showHeatmap, setShowHeatmap] = React.useState(false); // Heatmap state
+            const [showHeatmap, setShowHeatmap] = React.useState(false);
 
             const lastShakeTime = React.useRef(0);
             const ui = THEMES[ballTheme].ui;
 
-            // Save settings effects
             React.useEffect(() => localStorage.setItem('skipAnimation', JSON.stringify(skipAnimation)), [skipAnimation]);
             React.useEffect(() => localStorage.setItem('soundEnabled', JSON.stringify(soundEnabled)), [soundEnabled]);
             React.useEffect(() => localStorage.setItem('shakeEnabled', JSON.stringify(shakeEnabled)), [shakeEnabled]);
@@ -613,7 +646,6 @@
             React.useEffect(() => localStorage.setItem('fixedNumbers', JSON.stringify(fixedNumbers)), [fixedNumbers]);
             React.useEffect(() => localStorage.setItem('excludedNumbers', JSON.stringify(excludedNumbers)), [excludedNumbers]);
 
-            // Shake Detection
             React.useEffect(() => {
                 if (!shakeEnabled) return;
                 const handleMotion = (event) => {
@@ -849,11 +881,46 @@
                 showToast("결과 화면이 초기화되었습니다.");
             };
 
+            const handleMix = () => {
+                if (isRolling) return;
+                // Simple scatter effect
+                const newBalls = machineBalls.map(ball => ({
+                    ...ball,
+                    x: Math.random() * 80 + 10,
+                    y: Math.random() * 80 + 10,
+                    rotation: Math.random() * 360
+                }));
+                setMachineBalls(newBalls);
+                if (soundEnabled) SoundManager.playPop();
+                if (navigator.vibrate) navigator.vibrate(20);
+            };
+
             const getAnalysis = (numbers) => {
                 const sum = numbers.reduce((a, b) => a + b, 0);
                 const odd = numbers.filter(n => n % 2 !== 0).length;
                 const even = numbers.length - odd;
-                return { sum, odd, even };
+                
+                // AC Value Calculation
+                const diffs = new Set();
+                for (let i = 0; i < numbers.length; i++) {
+                    for (let j = i + 1; j < numbers.length; j++) {
+                        diffs.add(Math.abs(numbers[i] - numbers[j]));
+                    }
+                }
+                const acValue = diffs.size - (numbers.length - 1);
+                
+                // Badges
+                const badges = [];
+                if (acValue >= 7) badges.push({ label: 'AC완벽', color: 'bg-indigo-500 text-white' });
+                // Consecutive
+                for (let i = 0; i < numbers.length - 1; i++) {
+                    if (numbers[i] + 1 === numbers[i+1]) {
+                        badges.push({ label: '연속', color: 'bg-yellow-500 text-black' });
+                        break; 
+                    }
+                }
+                
+                return { sum, odd, even, badges, acValue };
             };
 
             return (
@@ -880,7 +947,7 @@
 
                         {/* Main Game Area */}
                         <main className="flex-1 p-4 sm:p-6 flex flex-col items-center gap-4 sm:gap-6 overflow-y-auto pb-24 scrollbar-hide w-full">
-                            <LottoMachine isRolling={isRolling} currentDrawingNumber={currentDrawingNumber} machineBalls={machineBalls} theme={ballTheme} />
+                            <LottoMachine isRolling={isRolling} currentDrawingNumber={currentDrawingNumber} machineBalls={machineBalls} theme={ballTheme} onMix={handleMix} />
 
                             {/* Drawn Numbers */}
                             <div className={`w-full min-h-[120px] rounded-3xl p-5 border backdrop-blur-md flex flex-col items-center justify-center gap-4 relative shadow-lg shrink-0 ${ui.panel}`}>
@@ -947,7 +1014,14 @@
                                             }
                                             return (
                                                 <div key={idx} className={`p-2.5 rounded-2xl flex flex-col gap-2 border hover:border-white/40 group relative transition-all ${ui.panel}`}>
-                                                    <div className="flex justify-center gap-2 items-center relative">
+                                                    {analysis.badges.length > 0 && (
+                                                        <div className="absolute -top-2 left-2 flex gap-1 z-10">
+                                                            {analysis.badges.map((b, i) => (
+                                                                <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded-full shadow-sm font-bold ${b.color} animate-fade-in-up`}>{b.label}</span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    <div className="flex justify-center gap-2 items-center relative mt-1">
                                                         <span className={`absolute left-1 top-1/2 -translate-y-1/2 text-xs font-mono opacity-50 font-bold ${ui.text}`}>{idx + 1}</span>
                                                         <div className="flex gap-2 justify-center cursor-pointer" onClick={() => copyToClipboard(set)}>
                                                             {set.map((num, i) => <LottoBall key={i} number={num} size="sm" className="shadow-md" theme={ballTheme} />)}
@@ -960,6 +1034,7 @@
                                                     <div className="flex justify-center gap-4 text-[10px] opacity-60 border-t border-white/5 pt-1.5 mt-0.5">
                                                         <span className={`${ui.text}`}>합계: <strong>{analysis.sum}</strong></span>
                                                         <span className={`${ui.text}`}>홀:짝 <strong>{analysis.odd}:{analysis.even}</strong></span>
+                                                        <span className={`${ui.text}`}>AC: <strong>{analysis.acValue}</strong></span>
                                                     </div>
                                                 </div>
                                             );
@@ -1091,6 +1166,13 @@
                             theme={ballTheme}
                         />
 
+                        <WinCheckModal
+                            show={showWinCheck}
+                            onClose={() => setShowWinCheck(false)}
+                            history={history}
+                            theme={ballTheme}
+                        />
+
                         {showHistory && (
                             <div className="absolute inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex flex-col animate-fade-in">
                                 <div className={`p-5 border-b flex justify-between items-center shrink-0 ${ui.panel}`}>
@@ -1101,7 +1183,18 @@
                                     </div>
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
-                                    <StatsView history={history} theme={ballTheme} onCopy={copyToClipboard} onShare={shareNumbers} showHeatmap={showHeatmap} setShowHeatmap={setShowHeatmap} />
+                                    <StatsView 
+                                        history={history} 
+                                        theme={ballTheme} 
+                                        onCopy={copyToClipboard} 
+                                        onShare={shareNumbers} 
+                                        showHeatmap={showHeatmap} 
+                                        setShowHeatmap={setShowHeatmap} 
+                                        onWinCheck={() => {
+                                            setShowHistory(false);
+                                            setShowWinCheck(true);
+                                        }}
+                                    />
                                     
                                     {history.length === 0 ? (
                                         <div className="h-40 flex flex-col items-center justify-center opacity-30 gap-4">
@@ -1115,18 +1208,34 @@
                                                     <span className="flex items-center gap-1.5 font-mono"><Sparkles className={`w-3 h-3 ${ui.accent}`}/> {new Date(item.createdAt).toLocaleDateString()} {new Date(item.createdAt).toLocaleTimeString()}</span>
                                                     <button onClick={() => deleteHistoryItem(item.id)} className="text-red-400/60 hover:text-red-400 p-1.5 hover:bg-red-400/10 rounded-md transition-all"><Trash2 className="w-4 h-4" /></button>
                                                 </div>
-                                                {item.numbers.map((set, idx) => (
-                                                    <div key={idx} className="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-2 rounded-xl transition-colors group relative">
-                                                        <span className="text-[10px] opacity-50 w-4 font-bold flex justify-center">{idx + 1}</span>
-                                                        <div className="flex gap-2 flex-1 justify-start" onClick={() => copyToClipboard(set)}>
-                                                            {set.map(num => <LottoBall key={num} number={num} size="sm" className="w-7 h-7 text-xs border-2 shadow-sm" theme={ballTheme} />)}
+                                                {item.numbers.map((set, idx) => {
+                                                    const setAnalysis = getAnalysis(set);
+                                                    return (
+                                                    <div key={idx} className={`p-2.5 rounded-2xl flex flex-col gap-2 border hover:border-white/40 group relative transition-all ${ui.panel}`}>
+                                                        {setAnalysis.badges.length > 0 && (
+                                                            <div className="absolute -top-2 left-2 flex gap-1 z-10">
+                                                                {setAnalysis.badges.map((b, i) => (
+                                                                    <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded-full shadow-sm font-bold ${b.color} animate-fade-in-up`}>{b.label}</span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        <div className="flex justify-center gap-2 items-center relative mt-1">
+                                                            <span className={`absolute left-1 top-1/2 -translate-y-1/2 text-xs font-mono opacity-50 font-bold ${ui.text}`}>{idx + 1}</span>
+                                                            <div className="flex gap-2 justify-center cursor-pointer" onClick={() => copyToClipboard(set)}>
+                                                                {set.map((num, i) => <LottoBall key={i} number={num} size="sm" className="shadow-md" theme={ballTheme} />)}
+                                                            </div>
+                                                            <div className="absolute right-0 top-1/2 -translate-y-1/2 flex gap-1">
+                                                                <button onClick={() => copyToClipboard(set)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-50 hover:opacity-100 ${ui.text}`}><Copy className="w-3.5 h-3.5" /></button>
+                                                                <button onClick={() => shareNumbers(set)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-50 hover:opacity-100 ${ui.text}`}><ShareIcon className="w-3.5 h-3.5" /></button>
+                                                            </div>
                                                         </div>
-                                                        <div className="flex gap-1">
-                                                            <button onClick={() => copyToClipboard(set)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-50 hover:opacity-100 ${ui.text}`}><Copy className="w-3.5 h-3.5" /></button>
-                                                            <button onClick={() => shareNumbers(set)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-50 hover:opacity-100 ${ui.text}`}><ShareIcon className="w-3.5 h-3.5" /></button>
+                                                        <div className="flex justify-center gap-4 text-[10px] opacity-60 border-t border-white/5 pt-1.5 mt-0.5">
+                                                            <span className={`${ui.text}`}>합계: <strong>{setAnalysis.sum}</strong></span>
+                                                            <span className={`${ui.text}`}>홀:짝 <strong>{setAnalysis.odd}:{setAnalysis.even}</strong></span>
+                                                            <span className={`${ui.text}`}>AC: <strong>{setAnalysis.acValue}</strong></span>
                                                         </div>
                                                     </div>
-                                                ))}
+                                                )})} 
                                             </div>
                                         ))
                                     )}
