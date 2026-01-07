@@ -55,6 +55,21 @@
             font-weight: 900;
             color: #222;
         }
+        
+        /* 음소거 버튼 */
+        #mute-btn {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(255,255,255,0.8);
+            border: 1px solid #ccc;
+            border-radius: 50%;
+            width: 40px; height: 40px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            pointer-events: auto;
+        }
 
         /* 업그레이드 화면 */
         #upgrade-screen {
@@ -98,6 +113,11 @@
         }
         .level-badge {
             font-size: 1rem; font-weight: 700; color: #4f46e5;
+        }
+        
+        /* 데이터 리셋 버튼 */
+        .reset-data-btn {
+            font-size: 0.7rem; color: #999; text-decoration: underline; cursor: pointer;
         }
 
         /* 트리 스크롤 영역 */
@@ -239,6 +259,8 @@
         </div>
         <div class="score-val" id="score-display">$0</div>
     </div>
+    
+    <button id="mute-btn" onclick="toggleMute()">🔊</button>
 
     <!-- 업그레이드 화면 -->
     <div id="upgrade-screen">
@@ -250,6 +272,10 @@
         <div class="status-bar">
             <div class="level-badge" id="total-level-display">총 연구 레벨: 0</div>
             <div class="money-badge" id="upgrade-money">$0</div>
+        </div>
+        
+        <div style="margin-bottom: 10px;">
+             <span class="reset-data-btn" onclick="resetSaveData()">[데이터 초기화]</span>
         </div>
 
         <div class="tree-scroll-area" id="tree-container">
@@ -269,6 +295,102 @@
     </div>
 
     <script>
+        // --- 사운드 매니저 (절차적 오디오) ---
+        class SoundManager {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+                this.osc = null; // 중력장 루프 소리용
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            playTone(freq, type, duration, vol=0.1) {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            }
+
+            playPop() {
+                // 뽁 소리 (빠른 frequency drop)
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.frequency.setValueAtTime(400 + Math.random()*200, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.1);
+                
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.1);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+
+            playBuy() {
+                // 코인 소리 (띵~ 띠링)
+                this.playTone(1200, 'sine', 0.1, 0.1);
+                setTimeout(() => this.playTone(1600, 'sine', 0.3, 0.1), 50);
+            }
+            
+            playStart() {
+                // 웅장한 시작 (저음)
+                this.playTone(100, 'sawtooth', 1.0, 0.1);
+            }
+
+            startGravityHum() {
+                if (this.muted || !this.ctx || this.osc) return;
+                this.osc = this.ctx.createOscillator();
+                this.oscGain = this.ctx.createGain();
+                
+                this.osc.type = 'sawtooth';
+                this.osc.frequency.value = 50; // 저음
+                this.oscGain.gain.value = 0.02; // 매우 작게
+
+                // 저역 통과 필터 (부드럽게)
+                this.filter = this.ctx.createBiquadFilter();
+                this.filter.type = "lowpass";
+                this.filter.frequency.value = 200;
+
+                this.osc.connect(this.filter);
+                this.filter.connect(this.oscGain);
+                this.oscGain.connect(this.ctx.destination);
+                this.osc.start();
+            }
+
+            stopGravityHum() {
+                if (this.osc) {
+                    this.osc.stop();
+                    this.osc.disconnect();
+                    this.osc = null;
+                }
+            }
+        }
+        
+        const audio = new SoundManager();
+
+        function toggleMute() {
+            audio.muted = !audio.muted;
+            document.getElementById('mute-btn').innerText = audio.muted ? '🔇' : '🔊';
+        }
+
+        // --- 메인 게임 코드 ---
+
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreEl = document.getElementById('score-display');
@@ -296,15 +418,14 @@
         const INPUT = { x: 0, y: 0, isDown: false };
         const entities = [];
         const texts = [];
-        const blackHole = { radius: 35 };
+        const particles = []; // 시각 효과용 파티클
+        const blackHole = { radius: 35, angle: 0 };
 
         // --- 업그레이드 시스템 (티어 기반) ---
-        // tier: 0부터 시작
-        // 각 티어 해금 조건: minTotalLevels (총 연구 레벨 합계)
         const TIER_UNLOCKS = [0, 4, 12, 24, 40, 60, 85]; 
 
         const UPGRADES = [
-            // [Tier 0] - 기본 물리 (시작) - 1레벨 유지 (연구 점수 계산 시 -1 적용)
+            // [Tier 0] 
             {
                 id: 'force', name: '중력장 강도', desc: '파편을 당기는 힘.', icon: '🧲',
                 tier: 0, level: 1, maxLevel: 99, baseCost: 50, mult: 1.4, val: 0.08, inc: 0.03
@@ -318,21 +439,21 @@
                 tier: 0, level: 1, maxLevel: 10, baseCost: 100, mult: 1.5, val: 0.94, inc: -0.01 
             },
 
-            // [Tier 1] - 확장 (필요 총렙: 4) - 여기서부터 초기 0레벨 시작
+            // [Tier 1]
             {
                 id: 'density', name: '초기 밀도', desc: '시작 행성 수 증가.', icon: '🌌',
-                tier: 1, level: 0, maxLevel: 20, baseCost: 200, mult: 1.5, val: 30, inc: 10 // 기본 30, 1렙 시 40
+                tier: 1, level: 0, maxLevel: 20, baseCost: 200, mult: 1.5, val: 30, inc: 10 
             },
             {
                 id: 'respawn', name: '행성 번식', desc: '흡수 시 재생성 확률.', icon: '🌱',
-                tier: 1, level: 0, maxLevel: 20, baseCost: 300, mult: 1.5, val: 0, inc: 5 // %
+                tier: 1, level: 0, maxLevel: 20, baseCost: 300, mult: 1.5, val: 0, inc: 5 
             },
              {
                 id: 'time', name: '시간 왜곡', desc: '제한 시간 증가.', icon: '⏳',
-                tier: 1, level: 0, maxLevel: 50, baseCost: 400, mult: 1.5, val: 10, inc: 1.5 // 기본 10초
+                tier: 1, level: 0, maxLevel: 50, baseCost: 400, mult: 1.5, val: 10, inc: 1.5 
             },
 
-            // [Tier 2] - 경제 및 심화 (필요 총렙: 12)
+            // [Tier 2] 
             {
                 id: 'value', name: '채굴 효율', desc: '행성 가치 상승.', icon: '💎',
                 tier: 2, level: 0, maxLevel: 99, baseCost: 600, mult: 1.5, val: 1.0, inc: 0.5
@@ -347,10 +468,10 @@
             },
             {
                 id: 'attract_range', name: '자연 중력', desc: '블랙홀 기본 흡입 범위.', icon: '🌑',
-                tier: 2, level: 0, maxLevel: 20, baseCost: 800, mult: 1.5, val: 150, inc: 20 // 기본 150
+                tier: 2, level: 0, maxLevel: 20, baseCost: 800, mult: 1.5, val: 150, inc: 20
             },
 
-            // [Tier 3] - 특수 행성 및 티어 (필요 총렙: 24)
+            // [Tier 3] 
             {
                 id: 'tier_unlock', name: '심우주 탐사', desc: '더 높은 등급 행성 발견.', icon: '🔭',
                 tier: 3, level: 0, maxLevel: 5, baseCost: 2000, mult: 3.0, val: 1, inc: 1
@@ -364,7 +485,7 @@
                 tier: 3, level: 0, maxLevel: 20, baseCost: 2500, mult: 1.5, val: 0, inc: 2
             },
 
-            // [Tier 4] - 번개 강화 (필요 총렙: 40)
+            // [Tier 4]
             {
                 id: 'l_range', name: '전이 범위', desc: '체인 라이트닝 거리.', icon: '📡',
                 tier: 4, level: 0, maxLevel: 10, baseCost: 4000, mult: 1.6, val: 60, inc: 15
@@ -375,23 +496,76 @@
             },
              {
                 id: 'luck', name: '행운의 별', desc: '행성 리젠 시 희귀 확률 증가.', icon: '🍀',
-                tier: 4, level: 0, maxLevel: 10, baseCost: 5000, mult: 1.6, val: 1.0, inc: 0.2 // 배율
+                tier: 4, level: 0, maxLevel: 10, baseCost: 5000, mult: 1.6, val: 1.0, inc: 0.2
             },
 
-            // [Tier 5] - 궁극 (필요 총렙: 60)
+            // [Tier 5]
             {
                 id: 'blackhole_size', name: '거대 블랙홀', desc: '블랙홀 크기 증가.', icon: '⚫',
                 tier: 5, level: 0, maxLevel: 10, baseCost: 10000, mult: 2.5, val: 35, inc: 3
             },
             {
                 id: 'interest', name: '암흑 물질 반응', desc: '라운드 종료 시 보유금 이자.', icon: '📈',
-                tier: 5, level: 0, maxLevel: 10, baseCost: 15000, mult: 2.0, val: 0, inc: 1 // %
+                tier: 5, level: 0, maxLevel: 10, baseCost: 15000, mult: 2.0, val: 0, inc: 1
             },
             {
                 id: 'singularity', name: '특이점', desc: '화면 전체 약한 지속 데미지.', icon: '⚛️',
                 tier: 5, level: 0, maxLevel: 5, baseCost: 20000, mult: 3.0, val: 0, inc: 1
             }
         ];
+
+        // --- Local Storage Save/Load ---
+        function saveGame() {
+            const data = {
+                money: GAME.money,
+                upgrades: UPGRADES.map(u => ({ id: u.id, level: u.level }))
+            };
+            localStorage.setItem('void_harvester_save_v2', JSON.stringify(data));
+        }
+
+        function loadGame() {
+            const str = localStorage.getItem('void_harvester_save_v2');
+            if(!str) return;
+            try {
+                const data = JSON.parse(str);
+                GAME.money = data.money || 0;
+                
+                if(data.upgrades) {
+                    data.upgrades.forEach(saved => {
+                        const u = UPGRADES.find(x => x.id === saved.id);
+                        if(u) {
+                            // 현재 레벨 설정
+                            u.level = saved.level;
+                            
+                            // 값(val) 재계산 (초기값 + 증가량 * 레벨업횟수)
+                            // 기본 레벨(tier0은 1, 그외 0)
+                            const startLvl = u.tier === 0 ? 1 : 0;
+                            const gained = Math.max(0, u.level - startLvl);
+                            
+                            // 초기값은 UPGRADES 정의에 있는 값.
+                            // 하지만 JS 객체 참조라 이미 수정되었을 수 있으므로...
+                            // 여기서는 정의대로 초기화하고 증가분 더하는게 안전하지만,
+                            // 코드가 복잡해지므로 그냥 현재 val에다 누적시키는 방식 대신
+                            // 원래 로직대로 level up 시 증가시키는 방식을 시뮬레이션 하거나
+                            // 간단히: 초기값이 하드코딩 되어있으므로, 사실 새로고침하면 초기값으로 돌아옴.
+                            // 따라서 gained 만큼 inc를 더해주면 됨.
+                            
+                            if(gained > 0) {
+                                u.val += u.inc * gained;
+                                if(!Number.isInteger(u.val)) u.val = parseFloat(u.val.toFixed(2));
+                            }
+                        }
+                    });
+                }
+            } catch(e) { console.error("Save load failed", e); }
+        }
+
+        function resetSaveData() {
+            if(confirm("모든 데이터를 초기화하시겠습니까?")) {
+                localStorage.removeItem('void_harvester_save_v2');
+                location.reload();
+            }
+        }
 
         // --- 행성 데이터 ---
         const SHARD_TYPES = [
@@ -405,8 +579,6 @@
         // --- 유틸 ---
         const rand = (min, max) => Math.random() * (max - min) + min;
         function getUpgrade(id) { return UPGRADES.find(u => u.id === id); }
-        
-        // 연구 레벨 계산: Tier 0은 기본 1렙이므로 1을 빼고 계산, 나머지는 0렙부터 시작하므로 그대로 계산
         function getTotalLevels() { 
             return UPGRADES.reduce((sum, u) => {
                 if(u.tier === 0) return sum + Math.max(0, u.level - 1);
@@ -415,6 +587,52 @@
         } 
 
         // --- 클래스 ---
+        class EffectParticle {
+            constructor(x, y, color, type) {
+                this.x = x; this.y = y;
+                this.color = color;
+                this.type = type; // 'explode', 'gravity', 'trail'
+                this.life = 1.0;
+                
+                if (type === 'explode') {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 3 + 1;
+                    this.vx = Math.cos(angle) * speed;
+                    this.vy = Math.sin(angle) * speed;
+                    this.decay = 0.05;
+                    this.size = Math.random() * 3 + 1;
+                } else if (type === 'gravity') {
+                    // 중력장 파티클: 마우스 -> 블랙홀 방향
+                    const angle = Math.atan2(GAME.centerY - y, GAME.centerX - x);
+                    const speed = Math.random() * 5 + 5;
+                    this.vx = Math.cos(angle) * speed;
+                    this.vy = Math.sin(angle) * speed;
+                    this.decay = 0.1;
+                    this.size = 2;
+                } else if (type === 'trail') {
+                    this.vx = 0; this.vy = 0;
+                    this.decay = 0.1;
+                    this.size = Math.random() * 2 + 1;
+                }
+            }
+
+            update(dt) {
+                const timeScale = dt * 60;
+                this.x += this.vx * timeScale;
+                this.y += this.vy * timeScale;
+                this.life -= this.decay * timeScale;
+            }
+
+            draw(ctx) {
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
         class Shard {
             constructor() {
                 const angle = Math.random() * Math.PI * 2;
@@ -461,9 +679,13 @@
             }
 
             update(dt) {
-                // dt 보정값 (60FPS 기준)
-                // dt가 0.016이면 timeScale은 1.0
                 const timeScale = dt * 60;
+                
+                // 트레일 효과 (빠르면 생성)
+                const speedSq = this.vx*this.vx + this.vy*this.vy;
+                if(speedSq > 5 && Math.random() < 0.3) {
+                    particles.push(new EffectParticle(this.x, this.y, this.color, 'trail'));
+                }
 
                 // 1. 공전
                 const currentOrbitSpeed = this.orbitSpeed * timeScale;
@@ -535,12 +757,9 @@
                     this.vy += (dy/dist) * sForce * timeScale;
                 }
 
-                // 속도 적용
                 this.x += this.vx * timeScale;
                 this.y += this.vy * timeScale;
                 
-                // 마찰력 적용 (시간 비례)
-                // frame 마찰이 0.94라면, timeScale만큼 거듭제곱
                 this.vx *= Math.pow(this.friction, timeScale);
                 this.vy *= Math.pow(this.friction, timeScale);
                 
@@ -635,13 +854,31 @@
             window.addEventListener('resize', resize);
             resize();
             
-            canvas.addEventListener('mousedown', (e) => { INPUT.isDown = true; move(e); });
+            canvas.addEventListener('mousedown', (e) => { 
+                INPUT.isDown = true; 
+                move(e); 
+                audio.init(); 
+                audio.startGravityHum();
+            });
             canvas.addEventListener('mousemove', move);
-            window.addEventListener('mouseup', () => INPUT.isDown = false);
+            window.addEventListener('mouseup', () => { 
+                INPUT.isDown = false;
+                audio.stopGravityHum();
+            });
             
-            canvas.addEventListener('touchstart', (e) => { INPUT.isDown = true; move(e.touches[0]); e.preventDefault(); }, {passive:false});
+            canvas.addEventListener('touchstart', (e) => { 
+                INPUT.isDown = true; move(e.touches[0]); e.preventDefault(); 
+                audio.init();
+                audio.startGravityHum();
+            }, {passive:false});
             canvas.addEventListener('touchmove', (e) => { move(e.touches[0]); e.preventDefault(); }, {passive:false});
-            window.addEventListener('touchend', () => INPUT.isDown = false);
+            window.addEventListener('touchend', () => {
+                INPUT.isDown = false;
+                audio.stopGravityHum();
+            });
+
+            // 로드
+            loadGame();
 
             GAME.lastTime = performance.now();
             requestAnimationFrame(loop);
@@ -659,10 +896,12 @@
 
         function firstStart() {
             startOverlay.style.display = 'none';
+            audio.init();
             startGame();
         }
 
         function startGame() {
+            audio.playStart();
             upgradeScreen.style.display = 'none';
             ingameUi.style.display = 'flex';
             
@@ -676,21 +915,20 @@
             
             entities.length = 0;
             bolts.length = 0;
+            particles.length = 0;
             
-            // 초기 파편
             const initCount = getUpgrade('density').val;
             for(let i=0; i<initCount; i++) entities.push(new Shard());
             
-            // lastTime 리셋 (업그레이드 창에서 오래 머물렀을 때 dt 튀는 것 방지)
             GAME.lastTime = performance.now();
         }
 
         function endGame() {
+            audio.stopGravityHum();
             GAME.phase = 'upgrade';
             GAME.running = false;
             
-            // 이자 지급
-            const interestRate = getUpgrade('interest') ? getUpgrade('interest').val : 0; // %
+            const interestRate = getUpgrade('interest') ? getUpgrade('interest').val : 0; 
             if(interestRate > 0) {
                 const interest = Math.floor(GAME.money * (interestRate / 100));
                 if(interest > 0) {
@@ -698,23 +936,24 @@
                 }
             }
 
+            // 자동 저장
+            saveGame();
+
             ingameUi.style.display = 'none';
             upgradeScreen.style.display = 'flex';
             renderUpgrades();
         }
 
         function loop(timestamp) {
-            // Delta Time 계산 (초 단위)
             let dt = (timestamp - GAME.lastTime) / 1000;
             GAME.lastTime = timestamp;
 
-            // dt가 너무 크면(렉 걸림 등) 캡 씌움 (0.1초)
             if (dt > 0.1) dt = 0.1;
 
             if (GAME.phase === 'playing') {
                 updateGame(dt);
             }
-            drawGame();
+            drawGame(dt); // dt for visual updates
             requestAnimationFrame(loop);
         }
 
@@ -744,16 +983,13 @@
                 const len = Math.sqrt(pushX*pushX + pushY*pushY);
                 const force = 15; 
                 
-                // 번개 힘은 순간 가속이라 dt 보정보다는 그냥 한방 쎄게
-                // 다만 dt 보정된 물리엔진에서 vx가 timeScale만큼 더해지는 게 아니므로
-                // 여기선 직접 속도에 더해줌 (순간 충격)
                 e.vx += (pushX/len) * force;
                 e.vy += (pushY/len) * force;
             });
         }
 
         function updateGame(dt) {
-            GAME.timeLeft -= dt; // dt를 빼줌
+            GAME.timeLeft -= dt; 
             if (GAME.timeLeft <= 0) {
                 GAME.timeLeft = 0;
                 endGame();
@@ -769,10 +1005,27 @@
                 if(bolts[i].life <= 0) bolts.splice(i, 1);
             }
 
+            for(let i=particles.length-1; i>=0; i--) {
+                particles[i].update(dt);
+                if(particles[i].life <= 0) particles.splice(i, 1);
+            }
+
             const critChance = getUpgrade('crit').val; 
             const respawnChance = getUpgrade('respawn').val;
 
             if (entities.length < 5) entities.push(new Shard());
+
+            // 마우스 누르고 있을 때 시각 효과 파티클 생성
+            if(INPUT.isDown) {
+                const radius = getUpgrade('radius').val;
+                if(Math.random() < 0.5) {
+                    // 원주상에서 랜덤 위치
+                    const angle = Math.random() * Math.PI * 2;
+                    const px = INPUT.x + Math.cos(angle) * radius;
+                    const py = INPUT.y + Math.sin(angle) * radius;
+                    particles.push(new EffectParticle(px, py, 'rgba(100,200,255,0.5)', 'gravity'));
+                }
+            }
 
             for (let i = entities.length - 1; i >= 0; i--) {
                 const e = entities[i];
@@ -792,6 +1045,12 @@
                     GAME.money += finalVal; 
                     
                     texts.push(new PopText(GAME.centerX, GAME.centerY - 30, finalVal, isCrit));
+                    // 폭발 이펙트
+                    for(let k=0; k<5; k++) {
+                        particles.push(new EffectParticle(e.x, e.y, e.color, 'explode'));
+                    }
+                    audio.playPop();
+
                     entities.splice(i, 1);
                 }
             }
@@ -804,28 +1063,59 @@
             }
         }
 
-        function drawGame() {
+        function drawGame(dt) {
             ctx.clearRect(0, 0, GAME.width, GAME.height);
 
+            // 블랙홀 시각화 (회전 & 맥동)
             const bhSize = blackHole.radius + (getUpgrade('blackhole_size').val - 35);
+            blackHole.angle += dt;
+            
+            // Accretion Disk
+            const grd = ctx.createRadialGradient(GAME.centerX, GAME.centerY, bhSize*0.8, GAME.centerX, GAME.centerY, bhSize*2.5);
+            grd.addColorStop(0, "rgba(0,0,0,1)");
+            grd.addColorStop(0.3, "rgba(76, 29, 149, 0.8)"); // purple-900
+            grd.addColorStop(0.6, "rgba(139, 92, 246, 0.4)"); // violet-500
+            grd.addColorStop(1, "rgba(0,0,0,0)");
+            
+            ctx.fillStyle = grd;
+            ctx.beginPath();
+            ctx.arc(GAME.centerX, GAME.centerY, bhSize*2.5, 0, Math.PI*2);
+            ctx.fill();
+
+            // Core
             ctx.beginPath();
             ctx.arc(GAME.centerX, GAME.centerY, bhSize, 0, Math.PI * 2);
-            ctx.fillStyle = '#111';
+            ctx.fillStyle = '#000';
             ctx.fill();
-            ctx.strokeStyle = 'rgba(0,0,0,0.1)';
-            ctx.lineWidth = 5;
+            
+            // Event Horizon Glow
+            ctx.strokeStyle = 'rgba(200,200,255,0.3)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(GAME.centerX, GAME.centerY, bhSize, 0, Math.PI*2);
             ctx.stroke();
+
+            // 파티클
+            particles.forEach(p => p.draw(ctx));
 
             if (INPUT.isDown && GAME.phase === 'playing') {
                 const radius = getUpgrade('radius').val;
                 ctx.beginPath();
                 ctx.arc(INPUT.x, INPUT.y, radius, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
+                ctx.fillStyle = 'rgba(100, 150, 255, 0.05)';
                 ctx.fill();
-                ctx.strokeStyle = 'rgba(50, 50, 50, 0.3)';
+                ctx.strokeStyle = 'rgba(100, 150, 255, 0.4)';
                 ctx.setLineDash([4, 4]);
                 ctx.stroke();
                 ctx.setLineDash([]);
+                
+                // 중심 연결선
+                ctx.beginPath();
+                ctx.moveTo(INPUT.x, INPUT.y);
+                ctx.lineTo(GAME.centerX, GAME.centerY);
+                ctx.strokeStyle = 'rgba(100,150,255,0.1)';
+                ctx.lineWidth = 10;
+                ctx.stroke();
             }
 
             entities.forEach(e => e.draw());
@@ -841,7 +1131,7 @@
         function renderUpgrades() {
             upgradeMoneyEl.innerText = '$' + GAME.money.toLocaleString();
             
-            const totalLevels = getTotalLevels(); // 수정된 함수 사용
+            const totalLevels = getTotalLevels(); 
             totalLevelEl.innerText = `연구 레벨: ${totalLevels}`;
 
             treeContainer.innerHTML = '';
@@ -951,6 +1241,8 @@
                 
                 if(!Number.isInteger(u.val)) u.val = parseFloat(u.val.toFixed(2));
 
+                audio.playBuy(); // 사운드 재생
+                saveGame();      // 저장
                 renderUpgrades();
             }
         }
