@@ -450,7 +450,7 @@
             );
         };
 
-        const StatsView = ({ history, theme }) => {
+        const StatsView = ({ history, theme, onCopy, onShare }) => {
             const ui = THEMES[theme].ui;
             const getFrequentNumbers = () => {
                 const counts = {};
@@ -461,7 +461,7 @@
                 });
                 return Object.entries(counts)
                     .sort((a, b) => b[1] - a[1])
-                    .slice(0, 5)
+                    .slice(0, 6) // Changed to 6
                     .map(([num, count]) => ({ num: parseInt(num), count }));
             };
 
@@ -469,14 +469,24 @@
 
             if (topNumbers.length === 0) return null;
 
+            // Extract just the numbers as a set for sharing/copying
+            const topNumbersSet = topNumbers.map(item => item.num).sort((a, b) => a - b);
+
             return (
                 <div className={`mb-6 rounded-2xl p-4 border ${ui.panel}`}>
-                    <h3 className={`text-sm font-bold mb-3 flex items-center gap-2 ${ui.text}`}>
-                        <BarChart className="w-4 h-4" /> 많이 나온 번호 TOP 5
-                    </h3>
-                    <div className="flex justify-between gap-2">
+                    <div className="flex justify-between items-center mb-3">
+                        <h3 className={`text-sm font-bold flex items-center gap-2 ${ui.text}`}>
+                            <BarChart className="w-4 h-4" /> 많이 나온 번호 TOP 6
+                        </h3>
+                        <div className="flex gap-1">
+                             <button onClick={() => onCopy(topNumbersSet)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-70 hover:opacity-100 transition-colors ${ui.text}`} aria-label="통계 번호 복사"><Copy className="w-3.5 h-3.5" /></button>
+                             <button onClick={() => onShare(topNumbersSet)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-70 hover:opacity-100 transition-colors ${ui.text}`} aria-label="통계 번호 공유"><ShareIcon className="w-3.5 h-3.5" /></button>
+                        </div>
+                    </div>
+                    
+                    <div className="flex justify-between gap-1 overflow-x-auto pb-2">
                         {topNumbers.map((item, idx) => (
-                            <div key={item.num} className="flex flex-col items-center gap-1">
+                            <div key={item.num} className="flex flex-col items-center gap-1 min-w-[32px]">
                                 <LottoBall number={item.num} size="sm" className="w-8 h-8 text-xs" theme={theme} />
                                 <span className={`text-[10px] opacity-70 ${ui.text}`}>{item.count}회</span>
                             </div>
@@ -761,7 +771,7 @@
             };
 
             const shareNumbers = (numberSet) => {
-                const text = `🍀 지노스 로또 추출기 🍀\n행운의 번호: ${numberSet.join(', ')}`;
+                const text = `행운의 번호: ${numberSet.join(', ')}`;
                 if (navigator.share) {
                     navigator.share({ title: '지노스 로또 추출기', text: text }).catch(console.error);
                 } else {
@@ -1006,7 +1016,7 @@
                                     </div>
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
-                                    <StatsView history={history} theme={ballTheme} />
+                                    <StatsView history={history} theme={ballTheme} onCopy={copyToClipboard} onShare={shareNumbers} />
                                     
                                     {history.length === 0 ? (
                                         <div className="h-40 flex flex-col items-center justify-center opacity-30 gap-4">
