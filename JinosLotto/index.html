@@ -2,8 +2,14 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>지노스 로또 추출기</title>
+    
+    <!-- PWA / Web App Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1055/1055658.png">
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -41,25 +47,6 @@
     <div id="root" style="height: 100%;"></div>
 
     <script type="text/babel" data-type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { 
-            getAuth, 
-            signInAnonymously, 
-            signInWithCustomToken, 
-            onAuthStateChanged 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { 
-            getFirestore, 
-            collection, 
-            addDoc, 
-            query, 
-            orderBy, 
-            onSnapshot, 
-            deleteDoc, 
-            doc, 
-            serverTimestamp 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
         // --- Icon Components (SVG) ---
         const IconBase = ({ children, className, ...props }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>{children}</svg>
@@ -88,8 +75,10 @@
         const Ban = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></IconBase>;
         const FileDown = (props) => <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></IconBase>;
         const Receipt = (props) => <IconBase {...props}><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><line x1="16" y1="8" x2="8" y2="8"/><line x1="16" y1="12" x2="8" y2="12"/><line x1="16" y1="16" x2="10" y2="16"/></IconBase>;
+        const Mic = (props) => <IconBase {...props}><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></IconBase>;
+        const MicOff = (props) => <IconBase {...props}><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></IconBase>;
 
-        // --- Sound Manager ---
+        // --- Sound Manager & TTS ---
         const SoundManager = {
             ctx: null,
             init: function() {
@@ -130,37 +119,15 @@
                     osc.start(now + i * 0.1);
                     osc.stop(now + i * 0.1 + 0.8);
                 });
+            },
+            speak: function(text) {
+                if (!window.speechSynthesis) return;
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'ko-KR';
+                utterance.rate = 1.0;
+                window.speechSynthesis.speak(utterance);
             }
         };
-
-        // --- Firebase Config & Setup ---
-        const defaultFirebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_PROJECT_ID.appspot.com",
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-            appId: "YOUR_APP_ID"
-        };
-
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : defaultFirebaseConfig;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        
-        let app, auth, db;
-        let isFirebaseAvailable = false;
-
-        try {
-            if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
-                app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-                isFirebaseAvailable = true;
-            } else {
-                console.warn("Firebase Config가 설정되지 않았습니다. 저장 기능이 비활성화됩니다.");
-            }
-        } catch (e) {
-            console.error("Firebase Init Error:", e);
-        }
 
         // --- Themes ---
         const THEMES = {
@@ -461,7 +428,7 @@
                 });
                 return Object.entries(counts)
                     .sort((a, b) => b[1] - a[1])
-                    .slice(0, 6) // Changed to 6
+                    .slice(0, 6)
                     .map(([num, count]) => ({ num: parseInt(num), count }));
             };
 
@@ -469,7 +436,6 @@
 
             if (topNumbers.length === 0) return null;
 
-            // Extract just the numbers as a set for sharing/copying
             const topNumbersSet = topNumbers.map(item => item.num).sort((a, b) => a - b);
 
             return (
@@ -521,6 +487,7 @@
             const [skipAnimation, setSkipAnimation] = React.useState(() => JSON.parse(localStorage.getItem('skipAnimation')) || false);
             const [soundEnabled, setSoundEnabled] = React.useState(() => JSON.parse(localStorage.getItem('soundEnabled')) || false);
             const [shakeEnabled, setShakeEnabled] = React.useState(() => JSON.parse(localStorage.getItem('shakeEnabled')) || false);
+            const [ttsEnabled, setTtsEnabled] = React.useState(() => JSON.parse(localStorage.getItem('ttsEnabled')) || false);
             const [ballTheme, setBallTheme] = React.useState(() => localStorage.getItem('ballTheme') || 'classic');
             const [fixedNumbers, setFixedNumbers] = React.useState(() => JSON.parse(localStorage.getItem('fixedNumbers')) || []);
             const [excludedNumbers, setExcludedNumbers] = React.useState(() => JSON.parse(localStorage.getItem('excludedNumbers')) || []);
@@ -533,6 +500,7 @@
             React.useEffect(() => localStorage.setItem('skipAnimation', JSON.stringify(skipAnimation)), [skipAnimation]);
             React.useEffect(() => localStorage.setItem('soundEnabled', JSON.stringify(soundEnabled)), [soundEnabled]);
             React.useEffect(() => localStorage.setItem('shakeEnabled', JSON.stringify(shakeEnabled)), [shakeEnabled]);
+            React.useEffect(() => localStorage.setItem('ttsEnabled', JSON.stringify(ttsEnabled)), [ttsEnabled]);
             React.useEffect(() => localStorage.setItem('ballTheme', ballTheme), [ballTheme]);
             React.useEffect(() => localStorage.setItem('fixedNumbers', JSON.stringify(fixedNumbers)), [fixedNumbers]);
             React.useEffect(() => localStorage.setItem('excludedNumbers', JSON.stringify(excludedNumbers)), [excludedNumbers]);
@@ -693,6 +661,10 @@
                 resetMachineBalls();
                 
                 if (soundEnabled) SoundManager.playWin();
+                if (ttsEnabled) {
+                    const lastSet = sortedNumberSets[sortedNumberSets.length - 1];
+                    SoundManager.speak(`행운의 번호는 ${lastSet.join(', ')} 입니다.`);
+                }
                 if (window.confetti) {
                     window.confetti({
                         particleCount: 150,
@@ -702,7 +674,6 @@
                     });
                 }
 
-                // Save to LocalStorage
                 const newEntry = {
                     id: Date.now(),
                     numbers: sortedNumberSets,
@@ -864,10 +835,20 @@
                                                             <span className="font-bold">GINOS LOTTO</span>
                                                             <span className="text-xs">{new Date().toLocaleDateString()}</span>
                                                         </div>
-                                                        <div className="flex justify-between items-center text-lg font-bold tracking-wider">
+                                                        <div className="flex justify-between items-center text-lg font-bold tracking-wider mb-2">
                                                             <span className="mr-2 opacity-50">{String.fromCharCode(65+idx)}</span>
                                                             {set.map(n => String(n).padStart(2, '0')).join(' ')}
                                                         </div>
+                                                        
+                                                        {/* QR Code Area */}
+                                                        <div className="flex justify-center my-3">
+                                                            <img 
+                                                                src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=LOTTO:${set.join(',')}`} 
+                                                                alt="Lotto QR" 
+                                                                className="w-20 h-20 opacity-90 mix-blend-multiply" 
+                                                            />
+                                                        </div>
+                                                        
                                                         <div className="mt-2 pt-2 border-t border-dashed border-current flex justify-between text-[10px] opacity-70">
                                                             <span>SUM: {analysis.sum}</span>
                                                             <span>ODD/EVEN: {analysis.odd}/{analysis.even}</span>
@@ -947,32 +928,46 @@
                                     </div>
 
                                     <div className="flex gap-2">
+                                        {/* TTS Toggle */}
+                                        <div className="flex-1 flex justify-between items-center text-sm bg-black/20 p-2 rounded-xl">
+                                            <span className={`flex items-center gap-2 font-medium ${ui.text}`}>
+                                                {ttsEnabled ? <Mic className="w-3.5 h-3.5 text-blue-400 opacity-90"/> : <MicOff className="w-3.5 h-3.5 text-gray-400 opacity-90"/>}
+                                                음성 안내
+                                            </span>
+                                            <button 
+                                                onClick={() => setTtsEnabled(!ttsEnabled)}
+                                                className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 ease-in-out ${ttsEnabled ? 'bg-blue-500' : 'bg-gray-700'}`}
+                                            >
+                                                <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-200 ease-in-out ${ttsEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                                            </button>
+                                        </div>
+
                                         {/* Shake Toggle */}
                                         <div className="flex-1 flex justify-between items-center text-sm bg-black/20 p-2 rounded-xl">
-                                            <span className={`flex items-center gap-2 font-medium ${ui.text}`}><Smartphone className="w-3.5 h-3.5 text-blue-400 opacity-90"/> 흔들기</span>
+                                            <span className={`flex items-center gap-2 font-medium ${ui.text}`}><Smartphone className="w-3.5 h-3.5 text-purple-400 opacity-90"/> 흔들기</span>
                                             <button 
                                                 onClick={toggleShake}
-                                                className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 ease-in-out ${shakeEnabled ? 'bg-blue-500' : 'bg-gray-700'}`}
+                                                className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 ease-in-out ${shakeEnabled ? 'bg-purple-500' : 'bg-gray-700'}`}
                                             >
                                                 <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-200 ease-in-out ${shakeEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
                                             </button>
                                         </div>
-
-                                        {/* Theme Selector */}
-                                        <div className="flex-1 flex justify-between items-center text-sm bg-black/20 p-2 rounded-xl relative group">
-                                            <span className={`flex items-center gap-2 font-medium ${ui.text}`}><Palette className="w-3.5 h-3.5 text-pink-400 opacity-90"/> 테마</span>
-                                            <select 
-                                                value={ballTheme} 
-                                                onChange={(e) => setBallTheme(e.target.value)}
-                                                className={`bg-transparent text-xs rounded-lg px-2 py-1 outline-none text-right font-bold appearance-none ${ui.text} ${ui.accent}`}
-                                            >
-                                                <option value="classic" className="text-black">미드나잇</option>
-                                                <option value="forest" className="text-black">포레스트</option>
-                                                <option value="ocean" className="text-black">오션</option>
-                                                <option value="sunset" className="text-black">선셋</option>
-                                                <option value="mono" className="text-black">모노</option>
-                                            </select>
-                                        </div>
+                                    </div>
+                                    
+                                    {/* Theme Selector */}
+                                    <div className="flex justify-between items-center text-sm bg-black/20 p-2 rounded-xl relative group mt-1">
+                                        <span className={`flex items-center gap-2 font-medium ${ui.text}`}><Palette className="w-3.5 h-3.5 text-pink-400 opacity-90"/> 테마 변경</span>
+                                        <select 
+                                            value={ballTheme} 
+                                            onChange={(e) => setBallTheme(e.target.value)}
+                                            className={`bg-transparent text-xs rounded-lg px-2 py-1 outline-none text-right font-bold appearance-none ${ui.text} ${ui.accent}`}
+                                        >
+                                            <option value="classic" className="text-black">미드나잇</option>
+                                            <option value="forest" className="text-black">포레스트</option>
+                                            <option value="ocean" className="text-black">오션</option>
+                                            <option value="sunset" className="text-black">선셋</option>
+                                            <option value="mono" className="text-black">모노</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
