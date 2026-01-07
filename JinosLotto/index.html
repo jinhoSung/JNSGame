@@ -47,6 +47,25 @@
     <div id="root" style="height: 100%;"></div>
 
     <script type="text/babel" data-type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            signInWithCustomToken, 
+            onAuthStateChanged 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            collection, 
+            addDoc, 
+            query, 
+            orderBy, 
+            onSnapshot, 
+            deleteDoc, 
+            doc, 
+            serverTimestamp 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
         // --- Icon Components (SVG) ---
         const IconBase = ({ children, className, ...props }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>{children}</svg>
@@ -129,6 +148,35 @@
                 window.speechSynthesis.speak(utterance);
             }
         };
+
+        // --- Firebase Config & Setup ---
+        const defaultFirebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : defaultFirebaseConfig;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        
+        let app, auth, db;
+        let isFirebaseAvailable = false;
+
+        try {
+            if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                isFirebaseAvailable = true;
+            } else {
+                console.warn("Firebase Config가 설정되지 않았습니다. 저장 기능이 비활성화됩니다.");
+            }
+        } catch (e) {
+            console.error("Firebase Init Error:", e);
+        }
 
         // --- Themes ---
         const THEMES = {
@@ -420,37 +468,48 @@
 
         const StatsView = ({ history, theme, onCopy, onShare, showHeatmap, setShowHeatmap }) => {
             const ui = THEMES[theme].ui;
-            const getFrequentNumbers = () => {
+            
+            // 1. Get counts map for all numbers (1-45)
+            const getCountsMap = () => {
                 const counts = {};
+                for (let i = 1; i <= 45; i++) counts[i] = 0; // Initialize
+                
                 history.forEach(item => {
                     item.numbers.flat().forEach(num => {
                         counts[num] = (counts[num] || 0) + 1;
                     });
                 });
-                return Object.entries(counts)
-                    .sort((a, b) => b[1] - a[1])
-                    .map(([num, count]) => ({ num: parseInt(num), count }));
+                return counts;
             };
 
-            const frequentNumbers = getFrequentNumbers();
-            const topNumbers = frequentNumbers.slice(0, 6); // Changed to TOP 6
+            const countsMap = getCountsMap();
+
+            // 2. Sort for TOP 6
+            const topNumbers = Object.entries(countsMap)
+                .sort((a, b) => b[1] - a[1]) // Sort by count descending
+                .slice(0, 6)
+                .map(([num, count]) => ({ num: parseInt(num), count }));
+
             const topNumbersSet = topNumbers.map(item => item.num).sort((a, b) => a - b);
 
-            // Heatmap logic
-            const getHeatmapColor = (count, maxCount) => {
-                if (maxCount === 0) return 'bg-white/5 text-white/30';
-                const ratio = count / maxCount;
-                if (ratio > 0.8) return 'bg-red-500 text-white font-bold';
-                if (ratio > 0.6) return 'bg-orange-500 text-white';
-                if (ratio > 0.4) return 'bg-yellow-500 text-black';
-                if (ratio > 0.2) return 'bg-green-500 text-white';
-                if (ratio > 0) return 'bg-blue-500 text-white';
-                return 'bg-white/5 text-white/30';
-            };
+            // 3. Heatmap Logic (Relative Distribution)
+            const allCountsVal = Object.values(countsMap);
+            const maxCount = Math.max(...allCountsVal);
+            const minCount = Math.min(...allCountsVal);
 
-            const maxCount = frequentNumbers.length > 0 ? frequentNumbers[0].count : 0;
-            const countsMap = {};
-            frequentNumbers.forEach(item => countsMap[item.num] = item.count);
+            const getHeatmapColor = (count, min, max) => {
+                if (max === min) return 'bg-white/5 text-white/30'; // No distribution yet
+                
+                const ratio = (count - min) / (max - min); // 0.0 ~ 1.0
+                
+                // Color scale from Hot (Red) to Cold (Blue/Transparent)
+                if (ratio >= 0.9) return 'bg-red-600 text-white font-bold shadow-md shadow-red-500/50'; // Top 10%
+                if (ratio >= 0.75) return 'bg-orange-500 text-white'; 
+                if (ratio >= 0.5) return 'bg-yellow-500 text-black';
+                if (ratio >= 0.25) return 'bg-green-500 text-white';
+                if (ratio > 0) return 'bg-blue-500 text-white'; // Appeared at least once
+                return 'bg-white/10 text-white/30'; // Min count (often 0)
+            };
 
             // Always render the StatsView component, showing empty states if no history
             return (
@@ -470,7 +529,7 @@
                                 히트맵
                             </button>
                         </div>
-                        {!showHeatmap && topNumbers.length > 0 && (
+                        {!showHeatmap && topNumbers[0].count > 0 && (
                             <div className="flex gap-1">
                                 <button onClick={() => onCopy(topNumbersSet)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-70 hover:opacity-100 transition-colors ${ui.text}`} aria-label="통계 번호 복사"><Copy className="w-3.5 h-3.5" /></button>
                                 <button onClick={() => onShare(topNumbersSet)} className={`p-1.5 hover:bg-white/10 rounded-full opacity-70 hover:opacity-100 transition-colors ${ui.text}`} aria-label="통계 번호 공유"><ShareIcon className="w-3.5 h-3.5" /></button>
@@ -496,7 +555,8 @@
                                     {Array.from({length: 45}, (_, i) => i + 1).map(num => (
                                         <div 
                                             key={num} 
-                                            className={`aspect-square rounded flex items-center justify-center text-[10px] ${getHeatmapColor(countsMap[num] || 0, maxCount)}`}
+                                            className={`aspect-square rounded flex items-center justify-center text-[10px] transition-colors duration-300 ${getHeatmapColor(countsMap[num], minCount, maxCount)}`}
+                                            title={`${num}번: ${countsMap[num]}회`}
                                         >
                                             {num}
                                         </div>
@@ -510,6 +570,8 @@
         };
 
         const App = () => {
+            // Load settings from localStorage
+            const [user, setUser] = React.useState(null);
             const [gameCount, setGameCount] = React.useState(1);
             const [finalNumbers, setFinalNumbers] = React.useState([]);
             const [drawnNumbers, setDrawnNumbers] = React.useState([]);
@@ -542,6 +604,7 @@
             const lastShakeTime = React.useRef(0);
             const ui = THEMES[ballTheme].ui;
 
+            // Save settings effects
             React.useEffect(() => localStorage.setItem('skipAnimation', JSON.stringify(skipAnimation)), [skipAnimation]);
             React.useEffect(() => localStorage.setItem('soundEnabled', JSON.stringify(soundEnabled)), [soundEnabled]);
             React.useEffect(() => localStorage.setItem('shakeEnabled', JSON.stringify(shakeEnabled)), [shakeEnabled]);
@@ -550,6 +613,7 @@
             React.useEffect(() => localStorage.setItem('fixedNumbers', JSON.stringify(fixedNumbers)), [fixedNumbers]);
             React.useEffect(() => localStorage.setItem('excludedNumbers', JSON.stringify(excludedNumbers)), [excludedNumbers]);
 
+            // Shake Detection
             React.useEffect(() => {
                 if (!shakeEnabled) return;
                 const handleMotion = (event) => {
@@ -721,6 +785,7 @@
                     });
                 }
 
+                // Save to LocalStorage
                 const newEntry = {
                     id: Date.now(),
                     numbers: sortedNumberSets,
