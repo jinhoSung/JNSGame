@@ -303,13 +303,12 @@
     </div>
 
     <script>
-        // --- 사운드 매니저 (절차적 오디오) ---
+        // --- 사운드 매니저 ---
         class SoundManager {
             constructor() {
                 this.ctx = null;
                 this.muted = false;
                 this.osc = null; 
-                this.lfo = null; // Low Frequency Oscillator for modulation
             }
 
             init() {
@@ -324,10 +323,8 @@
                 const gain = this.ctx.createGain();
                 osc.type = type;
                 osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-                
                 gain.gain.setValueAtTime(vol, this.ctx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
-
                 osc.connect(gain);
                 gain.connect(this.ctx.destination);
                 osc.start();
@@ -335,21 +332,18 @@
             }
 
             playPop() {
-                // 더 풍성한 흡수 사운드 (두 개의 오실레이터 레이어링)
                 if (this.muted || !this.ctx) return;
                 const t = this.ctx.currentTime;
-                
-                // 1. 메인 타격음
+                // 베이스 타격음
                 const osc1 = this.ctx.createOscillator();
                 const gain1 = this.ctx.createGain();
-                // 피치를 약간 랜덤하게 하여 단조로움 탈피
                 const baseFreq = 300 + Math.random() * 200; 
                 osc1.frequency.setValueAtTime(baseFreq, t);
                 osc1.frequency.exponentialRampToValueAtTime(50, t + 0.15);
                 gain1.gain.setValueAtTime(0.15, t);
                 gain1.gain.linearRampToValueAtTime(0, t + 0.15);
                 
-                // 2. 고음 틱 소리 (선명도)
+                // 고음 틱 소리
                 const osc2 = this.ctx.createOscillator();
                 const gain2 = this.ctx.createGain();
                 osc2.type = 'triangle';
@@ -381,34 +375,28 @@
             startGravityHum() {
                 if (this.muted || !this.ctx || this.osc) return;
                 
-                // 메인 오실레이터 (저음)
                 this.osc = this.ctx.createOscillator();
                 this.osc.type = 'sawtooth';
                 this.osc.frequency.value = 60; 
 
-                // LFO (Low Frequency Oscillator) - 떨림 효과
+                // LFO로 웅웅거리는 효과
                 this.lfo = this.ctx.createOscillator();
                 this.lfo.type = 'sine';
-                this.lfo.frequency.value = 8; // 8Hz로 떨림
+                this.lfo.frequency.value = 8; 
 
-                // LFO Gain (떨림의 강도)
                 const lfoGain = this.ctx.createGain();
-                lfoGain.gain.value = 300; // 필터 주파수를 흔듬
+                lfoGain.gain.value = 300; 
 
-                // 필터 (소리를 부드럽게)
                 this.filter = this.ctx.createBiquadFilter();
                 this.filter.type = "lowpass";
                 this.filter.frequency.value = 400;
 
-                // 볼륨
                 this.oscGain = this.ctx.createGain();
                 this.oscGain.gain.value = 0.05; 
 
-                // 연결: LFO -> LFO Gain -> Filter Frequency
                 this.lfo.connect(lfoGain);
                 lfoGain.connect(this.filter.frequency);
 
-                // 연결: Osc -> Filter -> Gain -> Destination
                 this.osc.connect(this.filter);
                 this.filter.connect(this.oscGain);
                 this.oscGain.connect(this.ctx.destination);
@@ -419,7 +407,6 @@
 
             stopGravityHum() {
                 if (this.osc) {
-                    // 부드럽게 끄기 (Click 노이즈 방지)
                     const t = this.ctx.currentTime;
                     this.oscGain.gain.cancelScheduledValues(t);
                     this.oscGain.gain.linearRampToValueAtTime(0, t + 0.1);
@@ -428,10 +415,8 @@
                     const oldLfo = this.lfo;
                     
                     setTimeout(() => {
-                        oldOsc.stop();
-                        oldOsc.disconnect();
-                        oldLfo.stop();
-                        oldLfo.disconnect();
+                        if(oldOsc) { oldOsc.stop(); oldOsc.disconnect(); }
+                        if(oldLfo) { oldLfo.stop(); oldLfo.disconnect(); }
                     }, 100);
 
                     this.osc = null;
@@ -583,50 +568,56 @@
                     this.vy = Math.sin(angle) * speed;
                     this.decay = 0.05;
                     this.size = Math.random() * 3 + 1;
-                } else if (type === 'gravity_pulse') {
-                    // 수축하는 원형 파동 (중력장)
+                } else if (type === 'gravity_suck') {
+                    // 마우스 커서 주변 -> 블랙홀 방향으로 빨려들어가는 입자
                     this.vx = 0; this.vy = 0;
-                    this.maxRadius = getUpgrade('radius').val;
-                    this.currentRadius = this.maxRadius * (0.5 + Math.random()*0.5); // 랜덤 시작점
-                    this.decay = 0.02; // 수명 감소 속도
-                    this.shrinkSpeed = 100; // 수축 속도 (px/sec)
+                    this.decay = 0.05;
+                    this.size = Math.random() * 2 + 1;
+                    // 처음에는 정지
                 } else if (type === 'trail') {
                     this.vx = 0; this.vy = 0;
-                    this.decay = 0.1;
-                    this.size = Math.random() * 2 + 1;
+                    this.decay = 0.05; // 잔상 수명
+                    this.size = Math.random() * 2 + 2; 
                 }
             }
 
             update(dt) {
                 const timeScale = dt * 60;
-                this.x += this.vx * timeScale;
-                this.y += this.vy * timeScale;
-                this.life -= this.decay * timeScale;
+                
+                if (this.type === 'gravity_suck') {
+                    // 블랙홀을 향해 가속
+                    const dx = GAME.centerX - this.x;
+                    const dy = GAME.centerY - this.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    
+                    // 거리가 가까울수록 더 빠르게
+                    const force = 500 / (dist + 10); 
+                    const angle = Math.atan2(dy, dx);
+                    this.vx += Math.cos(angle) * force * 0.1;
+                    this.vy += Math.sin(angle) * force * 0.1;
+                    
+                    this.x += this.vx * timeScale;
+                    this.y += this.vy * timeScale;
+                    
+                    this.life -= this.decay * timeScale;
+                    
+                    // 블랙홀 도달하면 사라짐
+                    if(dist < 20) this.life = 0;
 
-                if (this.type === 'gravity_pulse') {
-                    // 빠르게 수축
-                    this.currentRadius -= this.shrinkSpeed * dt;
-                    if (this.currentRadius < 0) this.life = 0;
+                } else {
+                    this.x += this.vx * timeScale;
+                    this.y += this.vy * timeScale;
+                    this.life -= this.decay * timeScale;
                 }
             }
 
             draw(ctx) {
-                if(this.type === 'gravity_pulse') {
-                    ctx.globalAlpha = Math.max(0, this.life * 0.5);
-                    ctx.strokeStyle = '#22d3ee'; // Cyan
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, Math.max(0, this.currentRadius), 0, Math.PI * 2);
-                    ctx.stroke();
-                    ctx.globalAlpha = 1.0;
-                } else {
-                    ctx.globalAlpha = Math.max(0, this.life);
-                    ctx.fillStyle = this.color;
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.globalAlpha = 1.0;
-                }
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
             }
         }
 
@@ -678,8 +669,10 @@
             update(dt) {
                 const timeScale = dt * 60;
                 
+                // 트레일 효과 (Tail Effect)
+                // 속도가 조금만 붙어도 생성
                 const speedSq = this.vx*this.vx + this.vy*this.vy;
-                if(speedSq > 5 && Math.random() < 0.3) {
+                if(speedSq > 2 && Math.random() < 0.4) {
                     particles.push(new EffectParticle(this.x, this.y, this.color, 'trail'));
                 }
 
@@ -999,11 +992,16 @@
 
             if (entities.length < 5) entities.push(new Shard());
 
-            // 중력장 이펙트 생성 (수축하는 파동)
+            // 중력장 이펙트 (빨려들어가는 입자) 생성
             if(INPUT.isDown) {
-                if(Math.random() < 0.2) { // 생성 빈도 조절
-                    // 마우스 위치에서 생성되는 gravity_pulse 파티클
-                    particles.push(new EffectParticle(INPUT.x, INPUT.y, null, 'gravity_pulse'));
+                const radius = getUpgrade('radius').val;
+                // 매 프레임 다수의 입자 생성
+                for(let i=0; i<2; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = Math.random() * radius; // 원 안쪽 랜덤
+                    const px = INPUT.x + Math.cos(angle) * dist;
+                    const py = INPUT.y + Math.sin(angle) * dist;
+                    particles.push(new EffectParticle(px, py, '#22d3ee', 'gravity_suck'));
                 }
             }
 
