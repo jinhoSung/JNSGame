@@ -464,6 +464,7 @@
             // Tier 4
             // Skill Stasis: Levelable
             { id: 'unlock_stasis', name: '타임 프리즈 [Skill]', desc: '[W] 시간 정지. 레벨업 시 지속시간 증가.', icon: '❄️', type: 'skill', tier: 4, level: 0, maxLevel: 10, baseCost: 8000, mult: 1.5, val: 0, inc: 1 },
+            { id: 'l_force', name: '전자기장', desc: '체인 라이트닝의 당기는 힘 증가.', icon: '🧲', tier: 4, level: 0, maxLevel: 20, baseCost: 5000, mult: 1.5, val: 40, inc: 10 },
             { id: 'crit', name: '행성 붕괴', desc: '가치 2배 크리티컬 확률.', icon: '💥', tier: 4, level: 0, maxLevel: 20, baseCost: 2500, mult: 1.5, val: 0, inc: 2 },
             { id: 'l_range', name: '전이 범위', desc: '체인 라이트닝 거리.', icon: '📡', tier: 4, level: 0, maxLevel: 10, baseCost: 4000, mult: 1.6, val: 150, inc: 20 }, 
             { id: 'l_count', name: '과부하', desc: '체인 라이트닝 타겟 수.', icon: '🔗', tier: 4, level: 0, maxLevel: 10, baseCost: 4500, mult: 1.8, val: 3, inc: 1 },
@@ -477,6 +478,7 @@
             // Tier 6
             { id: 'expansion', name: '우주 확장', desc: '시야를 넓혀 거대 행성 발견.', icon: '🔭', tier: 6, level: 0, maxLevel: 10, baseCost: 30000, mult: 2.0, val: 1.0, inc: 0.1 },
             { id: 'siphon', name: '시간 흡수', desc: '흡수 시 시간 연장 확률.', icon: '⏳', tier: 6, level: 0, maxLevel: 20, baseCost: 30000, mult: 1.8, val: 0, inc: 2 },
+            { id: 'unlock_magnet', name: '자성 행성', desc: '흡수 시 주변 행성을 강력하게 당깁니다.', icon: '🧲', tier: 6, level: 0, maxLevel: 1, baseCost: 60000, mult: 1, val: 0, inc: 1 },
             { id: 'frenzy', name: '코스믹 프렌지', desc: '3초 이하일 때 중력 2배.', icon: '🔥', tier: 6, level: 0, maxLevel: 1, baseCost: 50000, mult: 1, val: 0, inc: 1 },
 
             // Tier 7
@@ -488,6 +490,7 @@
             // Tier 8 ~ 20 (Expanded)
             { id: 'singularity', name: '특이점', desc: '화면 전체 약한 중력장 생성.', icon: '⚛️', tier: 8, level: 0, maxLevel: 5, baseCost: 80000, mult: 3.0, val: 0, inc: 1 },
             { id: 'neutron_unlock', name: '중성자별', desc: '초고밀도 행성 발견.', icon: '🌟', tier: 8, level: 0, maxLevel: 1, baseCost: 200000, mult: 1, val: 0, inc: 1 },
+            { id: 'unlock_nova', name: '노바 코어', desc: '흡수 시 폭발적인 흡입력을 발생시킵니다.', icon: '🎇', tier: 8, level: 0, maxLevel: 1, baseCost: 180000, mult: 1, val: 0, inc: 1 },
             
             { id: 'gravity_lens', name: '중력 렌즈', desc: '흡입 범위 추가 확장.', icon: '🔍', tier: 9, level: 0, maxLevel: 20, baseCost: 120000, mult: 1.8, val: 1.0, inc: 0.1 },
             { id: 'chrono_battery', name: '크로노 배터리', desc: '최대 시간 증가.', icon: '🔋', tier: 9, level: 0, maxLevel: 20, baseCost: 250000, mult: 1.6, val: 5, inc: 1 },
@@ -544,7 +547,9 @@
             { id: 'star',     color: '#f59e0b', minR: 80, maxR: 120, mass: 500, valMult: 200, weight: 0, isStar: true },
             { id: 'quasar',   color: '#ec4899', minR: 30, maxR: 40, mass: 300, valMult: 500, weight: 0, pulse: true },
             { id: 'comet', color: '#fbbf24', minR: 15, maxR: 20, mass: 20, valMult: 100, weight: 0, isComet: true },
-            { id: 'flux', color: '#3b82f6', minR: 15, maxR: 20, mass: 10, valMult: 10, weight: 0, isFlux: true }
+            { id: 'flux', color: '#3b82f6', minR: 15, maxR: 20, mass: 10, valMult: 10, weight: 0, isFlux: true },
+            { id: 'magnet', color: '#94a3b8', minR: 15, maxR: 20, mass: 30, valMult: 20, weight: 0, isMagnet: true },
+            { id: 'nova', color: '#f97316', minR: 20, maxR: 25, mass: 50, valMult: 40, weight: 0, isNova: true }
         ];
 
         // Global State
@@ -832,9 +837,61 @@
         }
 
         class LightningBolt {
-            constructor(x1, y1, x2, y2) { this.x1 = x1; this.y1 = y1; this.x2 = x2; this.y2 = y2; this.life = 1.0; }
+            constructor(x1, y1, x2, y2) { 
+                this.x1 = x1; this.y1 = y1; this.x2 = x2; this.y2 = y2; 
+                this.life = 1.0; 
+                this.segments = [];
+                this.generateSegments();
+            }
+
+            generateSegments() {
+                const dist = Math.sqrt((this.x2-this.x1)**2 + (this.y2-this.y1)**2);
+                const steps = Math.floor(dist / 10);
+                let cx = this.x1;
+                let cy = this.y1;
+                
+                this.segments.push({x: cx, y: cy});
+
+                for(let i=1; i<steps; i++) {
+                    const t = i / steps;
+                    // Linear interpolation
+                    let lx = this.x1 + (this.x2 - this.x1) * t;
+                    let ly = this.y1 + (this.y2 - this.y1) * t;
+                    
+                    // Jitter
+                    const jitter = (Math.random() - 0.5) * 20;
+                    lx += jitter * (this.y2 - this.y1) / dist; // Perpendicular offset approx
+                    ly += jitter * (this.x1 - this.x2) / dist;
+
+                    this.segments.push({x: lx, y: ly});
+                    cx = lx; cy = ly;
+                }
+                this.segments.push({x: this.x2, y: this.y2});
+            }
+
             update(dt) { this.life -= 0.1 * dt * 60; }
-            draw() { if(this.life<=0)return; ctx.globalAlpha = this.life; ctx.beginPath(); ctx.moveTo(this.x1, this.y1); ctx.lineTo(this.x2, this.y2); ctx.strokeStyle = '#facc15'; ctx.lineWidth = 2; ctx.stroke(); ctx.globalAlpha = 1.0; }
+            
+            draw(ctx) { 
+                if(this.life<=0) return; 
+                ctx.globalAlpha = this.life; 
+                ctx.strokeStyle = '#facc15'; 
+                ctx.lineWidth = 3; 
+                
+                // Outer glow
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#facc15';
+
+                ctx.beginPath(); 
+                ctx.moveTo(this.segments[0].x, this.segments[0].y);
+                for(let i=1; i<this.segments.length; i++) {
+                    ctx.lineTo(this.segments[i].x, this.segments[i].y);
+                }
+                ctx.stroke(); 
+                
+                // Reset shadow
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1.0; 
+            }
         }
 
         class Shard {
@@ -872,6 +929,8 @@
                 
                 const lightningUnlocked = getUpgrade('lightning_unlock').level > 0;
                 const ringUnlocked = getUpgrade('unlock_ring').level > 0;
+                const magnetUnlocked = getUpgrade('unlock_magnet').level > 0;
+                const novaUnlocked = getUpgrade('unlock_nova').level > 0;
                 const neutronUnlocked = getUpgrade('neutron_unlock') && getUpgrade('neutron_unlock').level > 0;
                 const starUnlocked = getUpgrade('star_unlock') && getUpgrade('star_unlock').level > 0;
                 const quasarUnlocked = getUpgrade('quasar_unlock') && getUpgrade('quasar_unlock').level > 0;
@@ -881,6 +940,8 @@
                 if (neutronUnlocked && expansion >= 1.6) available.push(SHARD_TYPES[7]);
                 if (starUnlocked && expansion >= 2.0) available.push(SHARD_TYPES[8]);
                 if (quasarUnlocked && expansion >= 2.5) available.push(SHARD_TYPES[9]);
+                if (magnetUnlocked) available.push(SHARD_TYPES[12]);
+                if (novaUnlocked) available.push(SHARD_TYPES[13]);
 
                 const luckBonus = getUpgrade('luck') ? getUpgrade('luck').val : 1;
 
@@ -997,6 +1058,18 @@
                 } else if (this.type.isStar) {
                     ctx.shadowColor = this.color; ctx.shadowBlur = 30;
                     ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
+                } else if (this.type.isMagnet) {
+                    ctx.shadowColor = '#cbd5e1'; ctx.shadowBlur = 15;
+                    ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
+                    ctx.strokeStyle = '#475569'; ctx.lineWidth = 3; ctx.stroke();
+                    ctx.fillStyle = '#1e293b'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline='middle';
+                    ctx.fillText('U', 0, 0); // Magnet shape
+                } else if (this.type.isNova) {
+                    ctx.shadowColor = '#f97316'; ctx.shadowBlur = 25;
+                    ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
+                    // Pulse animation
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.5 + Math.sin(Date.now()/100)*0.5})`;
+                    ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, this.radius*1.2, 0, Math.PI*2); ctx.stroke();
                 } else {
                     ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
                 }
@@ -1013,16 +1086,22 @@
         function triggerChainLightning(source) {
              const range = getUpgrade('l_range').val / GAME.zoom;
              const count = getUpgrade('l_count').val;
+             const lForce = getUpgrade('l_force').val;
+
              let candidates = entities.filter(e => e !== source && (e.x-source.x)**2 + (e.y-source.y)**2 < range**2);
              for(let i=0; i<count && candidates.length>0; i++) {
                  const idx = Math.floor(Math.random()*candidates.length);
                  const e = candidates[idx]; candidates.splice(idx,1);
-                 bolts.push(new LightningBolt(source.x, source.y, e.x, e.y));
                  
-                 // Spawn Sparks
-                 for(let k=0; k<3; k++) particles.push(new EffectParticle(e.x, e.y, '#facc15', 'spark'));
+                 // Improved Lightning Visual
+                 bolts.push(new LightningBolt(source.x, source.y, e.x, e.y));
+                 GAME.shakeTime = 0.2; GAME.shakeAmount = 5;
 
-                 const force = 40 / e.mass; 
+                 // Spawn Sparks
+                 for(let k=0; k<5; k++) particles.push(new EffectParticle(e.x, e.y, '#facc15', 'spark'));
+
+                 // Apply Pull Force
+                 const force = lForce / e.mass; 
                  e.vx += (-e.x / Math.sqrt(e.x*e.x+e.y*e.y)) * force;
                  e.vy += (-e.y / Math.sqrt(e.x*e.x+e.y*e.y)) * force;
              }
@@ -1076,8 +1155,36 @@
             for (let i = entities.length - 1; i >= 0; i--) {
                 const e = entities[i];
                 if (e.update(dt)) {
+                    // Logic when absorbed
                     if (e.type.isLightning) triggerChainLightning(e);
                     
+                    if (e.type.isMagnet) {
+                        audio.playSkill('bomb'); // Use bomb sound
+                        GAME.shakeTime = 0.5; GAME.shakeAmount = 15;
+                        particles.push(new EffectParticle(0,0, '#94a3b8', 'shockwave'));
+                        entities.forEach(target => {
+                             const dist = Math.sqrt(target.x*target.x + target.y*target.y);
+                             target.vx += (-target.x/dist) * 200;
+                             target.vy += (-target.y/dist) * 200;
+                        });
+                    }
+
+                    if (e.type.isNova) {
+                        audio.playSkill('bomb');
+                        GAME.shakeTime = 1.0; GAME.shakeAmount = 30;
+                        particles.push(new EffectParticle(0,0, '#f97316', 'shockwave'));
+                         // Strong pull for nearby objects only? No, let's make it a massive local clear
+                         // Actually, let's make it pull VERY hard nearby things
+                         entities.forEach(target => {
+                             const distSq = target.x*target.x + target.y*target.y;
+                             if(distSq < 400*400) { // Range
+                                 const dist = Math.sqrt(distSq);
+                                 target.vx += (-target.x/dist) * 800;
+                                 target.vy += (-target.y/dist) * 800;
+                             }
+                        });
+                    }
+
                     if (e.type.isComet) { audio.playBonus('comet'); GAME.scoreInRound += e.value*5; GAME.money += e.value*5; texts.push(new PopText(0, -60, e.value*5, true)); }
                     if (e.type.isFlux) { 
                         audio.playBonus('flux'); 
@@ -1133,597 +1240,3 @@
 
             updateSkillUI();
         }
-
-        function drawNebula(ctx, n, bgX, bgY) {
-            const grad = ctx.createRadialGradient(n.x - bgX*n.z, n.y - bgY*n.z, 0, n.x - bgX*n.z, n.y - bgY*n.z, n.size);
-            grad.addColorStop(0, n.color + "44"); // Transparent
-            grad.addColorStop(1, "transparent");
-            ctx.fillStyle = grad;
-            ctx.beginPath(); ctx.arc(n.x - bgX*n.z, n.y - bgY*n.z, n.size, 0, Math.PI*2); ctx.fill();
-        }
-
-        function drawBlackHole(ctx, dt) {
-            let bhSize = blackHole.radius + (getUpgrade('blackhole_size') ? getUpgrade('blackhole_size').val : 0) + (getUpgrade('event_horizon_ex') ? getUpgrade('event_horizon_ex').val : 0);
-            
-            // Pulse Effect
-            bhSize += Math.sin(GAME.bhPulse) * 2;
-
-            // Accretion Disk (Swirls)
-            ctx.save();
-            ctx.rotate(GAME.bhAngle);
-            for(let i=0; i<3; i++) {
-                ctx.beginPath();
-                ctx.arc(0, 0, bhSize * (1.2 + i*0.2), 0 + i, Math.PI + i);
-                ctx.strokeStyle = `rgba(124, 58, 237, ${0.3 - i*0.05})`;
-                ctx.lineWidth = 4;
-                ctx.stroke();
-            }
-            ctx.restore();
-
-             // Second Layer (Counter spin)
-            ctx.save();
-            ctx.rotate(-GAME.bhAngle * 0.5);
-            ctx.beginPath();
-            ctx.arc(0, 0, bhSize * 1.5, 0, Math.PI * 1.5);
-            ctx.strokeStyle = "rgba(59, 130, 246, 0.15)";
-            ctx.lineWidth = 8;
-            ctx.stroke();
-            ctx.restore();
-
-            // Glow
-            const glow = ctx.createRadialGradient(0,0, bhSize, 0,0, bhSize*4);
-            glow.addColorStop(0, "rgba(80,0,120,0.5)"); glow.addColorStop(1, "rgba(0,0,0,0)");
-            ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(0,0, bhSize*4, 0, Math.PI*2); ctx.fill();
-            
-            // Event Horizon
-            ctx.fillStyle = "black"; ctx.beginPath(); ctx.arc(0,0, bhSize, 0, Math.PI*2); ctx.fill();
-            
-            // Photon Ring
-            ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.arc(0,0, bhSize, 0, Math.PI*2); ctx.stroke();
-        }
-
-        function drawGame(dt) {
-            ctx.clearRect(0, 0, GAME.width, GAME.height);
-            
-            const bgX = (INPUT.x - GAME.centerX) * 0.05;
-            const bgY = (INPUT.y - GAME.centerY) * 0.05;
-
-            // Nebulae
-            GAME.nebulae.forEach(n => drawNebula(ctx, n, bgX, bgY));
-
-            // Stars (Background)
-            ctx.save();
-            ctx.fillStyle = 'white';
-            
-            GAME.bgStars.forEach(star => {
-                ctx.globalAlpha = star.alpha;
-                ctx.beginPath();
-                ctx.arc(star.x - bgX * star.z, star.y - bgY * star.z, star.size, 0, Math.PI*2);
-                ctx.fill();
-            });
-            ctx.restore();
-
-            ctx.save();
-            ctx.translate(GAME.centerX, GAME.centerY);
-            if(GAME.shakeTime > 0) {
-                GAME.shakeTime -= dt;
-                ctx.translate((Math.random()-0.5)*GAME.shakeAmount, (Math.random()-0.5)*GAME.shakeAmount);
-            }
-            
-            const scale = GAME.zoom * GAME.pixelScale;
-            ctx.scale(scale, scale);
-
-            // Gravitational Lensing Effect (Distorted Background simulation - simple circle)
-            ctx.beginPath();
-            ctx.arc(0, 0, (blackHole.radius + 20) * 3, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'; // Darken space around BH
-            ctx.fill();
-
-            // Skill Effects (Overlay)
-            // Stasis (Blue Tint)
-            if (GAME.skills.stasis.dur > 0) {
-                ctx.fillStyle = "rgba(56, 189, 248, 0.1)";
-                ctx.fillRect(-GAME.width/scale, -GAME.height/scale, GAME.width*2/scale, GAME.height*2/scale);
-                
-                // Frozen crystals effect
-                ctx.save();
-                ctx.strokeStyle = "rgba(186, 230, 253, 0.3)";
-                ctx.lineWidth = 2;
-                for(let i=0; i<5; i++) {
-                    ctx.beginPath();
-                    ctx.moveTo(Math.random()*400-200, Math.random()*400-200);
-                    ctx.lineTo(Math.random()*400-200, Math.random()*400-200);
-                    ctx.stroke();
-                }
-                ctx.restore();
-            }
-
-            // Surge (Purple Aura)
-            if (GAME.skills.surge.dur > 0) {
-                const surgeSize = (blackHole.radius + 60) * (1 + Math.sin(Date.now()/100)*0.1);
-                const grd = ctx.createRadialGradient(0, 0, blackHole.radius, 0, 0, surgeSize);
-                grd.addColorStop(0, "rgba(168, 85, 247, 0)");
-                grd.addColorStop(0.5, "rgba(168, 85, 247, 0.3)");
-                grd.addColorStop(1, "rgba(168, 85, 247, 0)");
-                ctx.fillStyle = grd;
-                ctx.beginPath(); ctx.arc(0, 0, surgeSize, 0, Math.PI*2); ctx.fill();
-            }
-
-            drawBlackHole(ctx, dt);
-
-            // Natural Gravity Ring
-            const nRange = getUpgrade('attract_range').val / GAME.zoom;
-            ctx.strokeStyle = "rgba(50, 100, 255, 0.1)"; ctx.lineWidth = 2/scale;
-            ctx.beginPath(); ctx.arc(0,0, nRange, 0, Math.PI*2); ctx.stroke();
-
-            // Mouse Gravity Field
-            if(INPUT.isDown && GAME.phase === 'playing') {
-                 const radius = getUpgrade('radius').val / GAME.zoom;
-                 const wx = (INPUT.x - GAME.centerX) / scale;
-                 const wy = (INPUT.y - GAME.centerY) / scale;
-                 ctx.strokeStyle = "rgba(34, 211, 238, 0.3)";
-                 ctx.setLineDash([8,8]);
-                 ctx.beginPath(); ctx.arc(wx, wy, radius, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
-            }
-
-            entities.forEach(e => e.draw(ctx));
-            bolts.forEach(b => b.draw(ctx));
-            particles.forEach(p => p.draw(ctx));
-            texts.forEach(t => t.draw(ctx));
-            
-            ctx.restore();
-            
-            // Low Health Vignette
-            if (GAME.timeLeft <= 5.0) {
-                const opacity = (Math.sin(Date.now() / 200) + 1) / 4 + 0.1;
-                const grd = ctx.createRadialGradient(GAME.centerX, GAME.centerY, GAME.height/3, GAME.centerX, GAME.centerY, GAME.height);
-                grd.addColorStop(0, "transparent");
-                grd.addColorStop(1, `rgba(239, 68, 68, ${opacity})`);
-                ctx.fillStyle = grd;
-                ctx.fillRect(0, 0, GAME.width, GAME.height);
-            }
-
-            // Combo
-            if (GAME.combo > 5) {
-                const intensity = Math.min(1, (GAME.combo - 5) / 20);
-                ctx.strokeStyle = `rgba(251, 191, 36, ${intensity * 0.5})`; 
-                ctx.lineWidth = 10;
-                ctx.strokeRect(0, 0, GAME.width, GAME.height);
-            }
-        }
-
-        // --- NEW & RESTORED FUNCTIONS ---
-        
-        function init() {
-            canvas = document.getElementById('gameCanvas');
-            ctx = canvas.getContext('2d');
-            
-            // UI Elements
-            scoreEl = document.getElementById('score-display');
-            timerEl = document.getElementById('timer-display');
-            upgradeScreen = document.getElementById('upgrade-screen');
-            upgradeMoneyEl = document.getElementById('upgrade-money');
-            totalLevelEl = document.getElementById('total-level-display');
-            treeContainer = document.getElementById('tree-container');
-            startOverlay = document.getElementById('start-overlay');
-            ingameUi = document.getElementById('ingame-ui');
-            comboBox = document.getElementById('combo-box');
-            comboValEl = document.getElementById('combo-val');
-            passiveStatsEl = document.getElementById('passive-stats');
-            pauseOverlay = document.getElementById('pause-overlay');
-            
-            // Skill Slots
-            slotBomb = document.getElementById('slot-bomb');
-            slotStasis = document.getElementById('slot-stasis');
-            slotSurge = document.getElementById('slot-surge');
-            slotStorm = document.getElementById('slot-storm');
-            
-            cdBomb = document.getElementById('cd-bomb');
-            cdStasis = document.getElementById('cd-stasis');
-            cdSurge = document.getElementById('cd-surge');
-            cdStorm = document.getElementById('cd-storm');
-            
-            glowBomb = document.getElementById('glow-bomb');
-            glowStasis = document.getElementById('glow-stasis');
-            glowSurge = document.getElementById('glow-surge');
-            glowStorm = document.getElementById('glow-storm');
-            
-            lvlBombEl = document.getElementById('lvl-bomb');
-            lvlStasisEl = document.getElementById('lvl-stasis');
-            lvlSurgeEl = document.getElementById('lvl-surge');
-            lvlStormEl = document.getElementById('lvl-storm');
-
-            audio.init();
-            loadGame();
-            updatePassiveStats();
-
-            // Background Stars
-            for(let i=0; i<150; i++) {
-                GAME.bgStars.push({
-                    x: Math.random() * window.innerWidth * 1.5,
-                    y: Math.random() * window.innerHeight * 1.5,
-                    z: Math.random() * 0.5 + 0.1,
-                    size: Math.random() * 2,
-                    alpha: Math.random() * 0.8 + 0.2
-                });
-            }
-
-            // Nebulae Generation
-            const colors = ['#4c1d95', '#1e3a8a', '#065f46'];
-            for(let i=0; i<5; i++) {
-                GAME.nebulae.push({
-                    x: Math.random() * window.innerWidth,
-                    y: Math.random() * window.innerHeight,
-                    z: Math.random() * 0.2 + 0.1,
-                    size: Math.random() * 300 + 100,
-                    color: colors[Math.floor(Math.random()*colors.length)]
-                });
-            }
-
-            window.addEventListener('resize', resize);
-            resize();
-
-            // Events
-            canvas.addEventListener('mousedown', () => INPUT.isDown = true);
-            window.addEventListener('mouseup', () => INPUT.isDown = false);
-            canvas.addEventListener('mousemove', e => {
-                const rect = canvas.getBoundingClientRect();
-                INPUT.x = e.clientX - rect.left;
-                INPUT.y = e.clientY - rect.top;
-            });
-            
-            canvas.addEventListener('touchstart', e => {
-                e.preventDefault();
-                INPUT.isDown = true;
-                const rect = canvas.getBoundingClientRect();
-                INPUT.x = e.touches[0].clientX - rect.left;
-                INPUT.y = e.touches[0].clientY - rect.top;
-            }, {passive: false});
-            
-            window.addEventListener('touchend', () => INPUT.isDown = false);
-            canvas.addEventListener('touchmove', e => {
-                e.preventDefault();
-                if(INPUT.isDown) {
-                    const rect = canvas.getBoundingClientRect();
-                    INPUT.x = e.touches[0].clientX - rect.left;
-                    INPUT.y = e.touches[0].clientY - rect.top;
-                }
-            }, {passive: false});
-
-            window.addEventListener('keydown', e => {
-                if (GAME.phase === 'playing' && e.key === 'Escape') togglePause();
-                if (!GAME.paused) {
-                    if (e.key === 'q' || e.key === 'Q') activateSkill('bomb');
-                    if (e.key === 'w' || e.key === 'W') activateSkill('stasis');
-                    if (e.key === 'e' || e.key === 'E') activateSkill('surge');
-                    if (e.key === 'r' || e.key === 'R') activateSkill('storm');
-                }
-            });
-
-            requestAnimationFrame(loop);
-        }
-
-        function togglePause() {
-            if (GAME.phase !== 'playing') return;
-            GAME.paused = !GAME.paused;
-            pauseOverlay.style.display = GAME.paused ? 'flex' : 'none';
-        }
-
-        function resize() {
-            GAME.width = window.innerWidth;
-            GAME.height = window.innerHeight;
-            canvas.width = GAME.width;
-            canvas.height = GAME.height;
-            GAME.centerX = GAME.width / 2;
-            GAME.centerY = GAME.height / 2;
-            GAME.pixelScale = Math.min(GAME.width, GAME.height) / BASE_RESOLUTION;
-        }
-
-        function loop(timestamp) {
-            const dt = (timestamp - GAME.lastTime) / 1000;
-            GAME.lastTime = timestamp;
-
-            if (GAME.running) {
-                updateGame(dt);
-                drawGame(dt);
-            }
-
-            requestAnimationFrame(loop);
-        }
-
-        function firstStart() {
-            audio.init();
-            audio.playStart();
-            startOverlay.style.opacity = 0;
-            setTimeout(() => {
-                startOverlay.style.display = 'none';
-                upgradeScreen.style.display = 'flex';
-                renderUpgrades();
-            }, 500);
-        }
-
-        function startGame() {
-            GAME.money += Math.floor(GAME.money * (getUpgrade('interest').val / 100)); // Interest
-            GAME.scoreInRound = 0;
-            GAME.timeLeft = getUpgrade('time').val;
-            GAME.maxTime = GAME.timeLeft;
-            GAME.combo = 0;
-            GAME.paused = false;
-            pauseOverlay.style.display = 'none';
-            
-            entities = [];
-            const density = getUpgrade('density').val;
-            for(let i=0; i<5 + density; i++) entities.push(new Shard());
-            
-            GAME.running = true;
-            GAME.phase = 'playing';
-            upgradeScreen.style.display = 'none';
-            ingameUi.style.display = 'flex';
-            document.getElementById('skill-bar').style.display = 'flex';
-            audio.playStart();
-        }
-
-        function endGame() {
-            GAME.running = false;
-            GAME.phase = 'upgrade';
-            saveGame();
-            ingameUi.style.display = 'none';
-            document.getElementById('skill-bar').style.display = 'none';
-            upgradeScreen.style.display = 'flex';
-            renderUpgrades();
-        }
-
-        function toggleMute() {
-            audio.muted = !audio.muted;
-            document.getElementById('mute-btn').innerText = audio.muted ? '🔇' : '🔊';
-        }
-
-        function updateComboUI() {
-            if (GAME.combo > 1) {
-                comboBox.style.opacity = 1;
-                comboBox.style.transform = "scale(1.2)";
-                comboValEl.innerText = "x" + GAME.combo;
-                setTimeout(() => comboBox.style.transform = "scale(1)", 100);
-            } else {
-                comboBox.style.opacity = 0;
-            }
-        }
-
-        function activateSkill(type) {
-            if (!GAME.running || GAME.paused) return;
-            const u = getUpgrade('unlock_' + type);
-            if (!u || u.level === 0) return;
-
-            const mastery = getUpgrade('skill_mastery').val / 100;
-            const lvl = u.level; // Current skill level
-
-            if (type === 'bomb') {
-                if (GAME.skills.bomb.cd > 0) return;
-                // Cooldown reduces by 5% per level
-                const baseCd = GAME.skills.bomb.max;
-                const reducedCd = baseCd * (1 - (lvl * 0.05));
-                GAME.skills.bomb.cd = Math.max(5, reducedCd) * (1 - mastery);
-                audio.playSkill();
-                
-                // Spawn Shockwave
-                particles.push(new EffectParticle(0,0, '#ef4444', 'shockwave'));
-
-                // Pull everyone based on mass
-                entities.forEach(e => {
-                    const dx = 0 - e.x; const dy = 0 - e.y;
-                    const dist = Math.sqrt(dx*dx+dy*dy);
-                    
-                    const baseForce = 200 + (lvl * 20); // Power increases with level
-                    const massFactor = e.mass + 10;
-                    const pullPower = baseForce / massFactor;
-
-                    e.vx += (dx/dist) * pullPower;
-                    e.vy += (dy/dist) * pullPower;
-                });
-                GAME.shakeTime = 0.5; GAME.shakeAmount = 20;
-            }
-            if (type === 'stasis') {
-                if (GAME.skills.stasis.cd > 0) return;
-                const baseCd = GAME.skills.stasis.max;
-                const reducedCd = baseCd * (1 - (lvl * 0.03));
-                GAME.skills.stasis.cd = Math.max(10, reducedCd) * (1 - mastery);
-                GAME.skills.stasis.dur = 5.0 + (lvl * 0.5); // Duration increases
-                audio.playSkill();
-            }
-            if (type === 'surge') {
-                if (GAME.skills.surge.cd > 0) return;
-                const baseCd = GAME.skills.surge.max;
-                const reducedCd = baseCd * (1 - (lvl * 0.03));
-                GAME.skills.surge.cd = Math.max(20, reducedCd) * (1 - mastery);
-                GAME.skills.surge.dur = 8.0 + (lvl * 0.8); // Duration increases
-                audio.playSkill();
-            }
-            if (type === 'storm') {
-                if (GAME.skills.storm.cd > 0) return;
-                const baseCd = GAME.skills.storm.max;
-                const reducedCd = baseCd * (1 - (lvl * 0.03));
-                GAME.skills.storm.cd = Math.max(15, reducedCd) * (1 - mastery);
-                audio.playSkill();
-                
-                // Storm Logic: Random Lightning Strikes
-                const strikeCount = 5 + lvl;
-                for(let i=0; i<strikeCount; i++) {
-                    setTimeout(() => {
-                        if(entities.length > 0) {
-                            const target = entities[Math.floor(Math.random()*entities.length)];
-                            // Create visual bolt from random sky position
-                            const skyX = (Math.random()-0.5) * GAME.width;
-                            const skyY = (Math.random()-0.5) * GAME.height;
-                            bolts.push(new LightningBolt(skyX, skyY, target.x, target.y));
-                            // Apply force towards center
-                            const force = 100 + (lvl * 10);
-                            const dist = Math.sqrt(target.x*target.x + target.y*target.y);
-                            target.vx += (-target.x/dist) * (force/target.mass);
-                            target.vy += (-target.y/dist) * (force/target.mass);
-                            particles.push(new EffectParticle(target.x, target.y, '#facc15', 'spark'));
-                        }
-                    }, i * 100);
-                }
-                GAME.shakeTime = 0.5; GAME.shakeAmount = 15;
-            }
-        }
-
-        function updateSkillUI() {
-            const mastery = getUpgrade('skill_mastery').val / 100;
-
-            const updateSlot = (key, slotEl, cdEl, glowEl, uId, lvlEl) => {
-                const s = GAME.skills[key];
-                const u = getUpgrade(uId);
-                const lvl = u ? u.level : 0;
-                
-                // Calculate max CD dynamically based on level
-                let baseMax = s.max;
-                if(key === 'bomb') baseMax = s.max * (1 - (lvl * 0.05));
-                if(key === 'stasis') baseMax = s.max * (1 - (lvl * 0.03));
-                if(key === 'surge') baseMax = s.max * (1 - (lvl * 0.03));
-                if(key === 'storm') baseMax = s.max * (1 - (lvl * 0.03));
-                
-                const realMax = Math.max(5, baseMax) * (1 - mastery);
-
-                if (s.cd > 0) {
-                    const pct = (s.cd / realMax) * 100;
-                    cdEl.style.height = pct + "%";
-                    slotEl.style.filter = "grayscale(1)";
-                } else {
-                    cdEl.style.height = "0%";
-                    slotEl.style.filter = "grayscale(0)";
-                }
-                
-                if (s.dur && s.dur > 0) glowEl.style.opacity = 1;
-                else glowEl.style.opacity = 0;
-
-                // Update Level Text
-                if(lvlEl) {
-                    if (lvl > 0) {
-                        lvlEl.style.display = 'flex';
-                        lvlEl.innerText = lvl;
-                    } else {
-                        lvlEl.style.display = 'none';
-                    }
-                }
-            };
-
-            updateSlot('bomb', slotBomb, cdBomb, glowBomb, 'unlock_bomb', lvlBombEl);
-            updateSlot('stasis', slotStasis, cdStasis, glowStasis, 'unlock_stasis', lvlStasisEl);
-            updateSlot('surge', slotSurge, cdSurge, glowSurge, 'unlock_surge', lvlSurgeEl);
-            updateSlot('storm', slotStorm, cdStorm, glowStorm, 'unlock_storm', lvlStormEl);
-        }
-
-        // Render Upgrades Logic
-        function renderUpgrades() {
-            treeContainer.innerHTML = '';
-            upgradeMoneyEl.innerText = '$' + GAME.money.toLocaleString();
-            totalLevelEl.innerText = "총 연구 레벨: " + getTotalLevels();
-
-            const maxTier = TIER_UNLOCKS.length - 1;
-            const currentTotal = getTotalLevels();
-
-            for(let t=0; t<=maxTier; t++) {
-                const required = TIER_UNLOCKS[t];
-                const nextReq = TIER_UNLOCKS[t+1] || 99999;
-                
-                // Show only if unlocked or close to unlocking
-                if (currentTotal < required && t > 0) {
-                     // Show locked next tier preview
-                     const lockedDiv = document.createElement('div');
-                     lockedDiv.className = 'tier-section';
-                     lockedDiv.style.opacity = 0.5;
-                     lockedDiv.innerHTML = `<div class="tier-header"><span class="tier-title">TIER ${t}</span><span class="tier-lock-msg">🔒 필요 레벨: ${required}</span></div>`;
-                     treeContainer.appendChild(lockedDiv);
-                     break; 
-                }
-
-                const tierDiv = document.createElement('div');
-                tierDiv.className = 'tier-section';
-                
-                let headerHTML = `<div class="tier-header"><span class="tier-title">TIER ${t}</span>`;
-                if(currentTotal >= required) headerHTML += `<span class="tier-unlock-msg">UNLOCKED</span>`;
-                headerHTML += `</div>`;
-                
-                const gridDiv = document.createElement('div');
-                gridDiv.className = 'tier-grid';
-
-                const tierUpgrades = UPGRADES.filter(u => u.tier === t);
-                tierUpgrades.forEach(u => {
-                    const card = document.createElement('div');
-                    const isMax = u.level >= u.maxLevel;
-                    const cost = Math.floor(u.baseCost * Math.pow(u.mult, u.level));
-                    const canAfford = GAME.money >= cost;
-                    
-                    let classes = 'card';
-                    if (isMax) classes += ' max-lvl';
-                    else if (!canAfford) classes += ' disabled';
-
-                    card.className = classes;
-                    card.onclick = () => buyUpgrade(u.id);
-
-                    let valStr = u.val;
-                    if(typeof u.val === 'number' && !Number.isInteger(u.val)) valStr = u.val.toFixed(2);
-                    
-                    // Special descriptions for skills & Increment display
-                    let statText = `현재: ${valStr}`;
-                    if(u.type === 'skill') {
-                        statText = isMax ? "MAX LVL" : `Lv.${u.level} -> ${u.level+1}`;
-                    } else {
-                        let incDisplay = u.inc;
-                        if(typeof u.inc === 'number' && !Number.isInteger(u.inc)) incDisplay = u.inc.toFixed(2);
-                        const sign = u.inc > 0 ? "+" : "";
-                        statText += ` <span style="color:#4ade80; font-size:0.85em">(${sign}${incDisplay}/Lv)</span>`;
-                    }
-
-                    card.innerHTML = `
-                        <div class="card-lvl ${isMax ? 'max-lvl' : ''}">Lv.${u.level} / ${u.maxLevel}</div>
-                        <div class="card-header">
-                            <span class="card-icon">${u.icon}</span>
-                            <span class="card-name">${u.name}</span>
-                        </div>
-                        <div class="card-desc">${u.desc}</div>
-                        <div class="card-footer">
-                            <div class="card-stat">${statText}</div>
-                            <div class="card-cost">${isMax ? 'MAX' : '$' + cost.toLocaleString()}</div>
-                        </div>
-                    `;
-                    gridDiv.appendChild(card);
-                });
-
-                tierDiv.innerHTML = headerHTML;
-                tierDiv.appendChild(gridDiv);
-                treeContainer.appendChild(tierDiv);
-            }
-            
-            // Unlocked skills slot visibility
-            if(getUpgrade('unlock_bomb').level > 0) slotBomb.classList.add('unlocked');
-            if(getUpgrade('unlock_stasis').level > 0) slotStasis.classList.add('unlocked');
-            if(getUpgrade('unlock_surge').level > 0) slotSurge.classList.add('unlocked');
-            if(getUpgrade('unlock_storm').level > 0) slotStorm.classList.add('unlocked');
-        }
-
-        function buyUpgrade(id) {
-            const u = getUpgrade(id);
-            if (!u || u.level >= u.maxLevel) return;
-            
-            const cost = Math.floor(u.baseCost * Math.pow(u.mult, u.level));
-            if (GAME.money >= cost) {
-                GAME.money -= cost;
-                u.level++;
-                u.val += u.inc;
-                if(!Number.isInteger(u.val)) u.val = parseFloat(u.val.toFixed(2));
-                
-                audio.playBuy();
-                saveGame();
-                renderUpgrades();
-            }
-        }
-
-        // Init Call
-        window.onload = init;
-
-    </script>
-</body>
-</html>
