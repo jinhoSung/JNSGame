@@ -556,7 +556,7 @@
         let GAME = {
             running: false, paused: false, phase: 'start', money: 0, scoreInRound: 0, timeLeft: 10.0, maxTime: 10.0,
             width: 0, height: 0, centerX: 0, centerY: 0, lastTime: 0,
-            combo: 0, comboTimer: 0, shakeX: 0, shakeY: 0, shakeTime: 0,
+            combo: 0, comboTimer: 0, shakeX: 0, shakeY: 0, shakeTime: 0, shakeAmount: 0,
             zoom: 1.0, bhAngle: 0, bhPulse: 0,
             skills: { 
                 bomb: { cd: 0, max: 15 }, 
@@ -975,8 +975,8 @@
                 
                 // Anomaly moves anyway
                 if (this.type.isComet || this.type.isFlux) {
-                     globalSpeed = 1.0; 
-                     particles.push(new EffectParticle(this.x, this.y, this.color, 'comet_trail'));
+                      globalSpeed = 1.0; 
+                      particles.push(new EffectParticle(this.x, this.y, this.color, 'comet_trail'));
                 }
 
                 const currentOrbitSpeed = this.orbitSpeed * timeScale * globalSpeed;
@@ -1173,9 +1173,8 @@
                         audio.playSkill('bomb');
                         GAME.shakeTime = 1.0; GAME.shakeAmount = 30;
                         particles.push(new EffectParticle(0,0, '#f97316', 'shockwave'));
-                         // Strong pull for nearby objects only? No, let's make it a massive local clear
-                         // Actually, let's make it pull VERY hard nearby things
-                         entities.forEach(target => {
+                          // Massive suction
+                          entities.forEach(target => {
                              const distSq = target.x*target.x + target.y*target.y;
                              if(distSq < 400*400) { // Range
                                  const dist = Math.sqrt(distSq);
@@ -1193,7 +1192,7 @@
                         texts.push(new PopText(0, -60, e.value, true)); // Visual feedback for money
                         
                         if(GAME.timeLeft < GAME.maxTime) GAME.timeLeft += 3; 
-                        particles.push(new EffectParticle(0, -50, null, 'time_bonus')); 
+                        particles.push(new EffectParticle(0, -50, '#3b82f6', 'time_bonus')); 
                     }
                     
                     if (!e.type.isComet && !e.type.isFlux) {
@@ -1240,3 +1239,440 @@
 
             updateSkillUI();
         }
+
+        function drawGame() {
+            // Screen Shake
+            let dx = 0, dy = 0;
+            if (GAME.shakeTime > 0) {
+                GAME.shakeTime -= 0.016;
+                const amt = GAME.shakeAmount || 5;
+                dx = (Math.random()-0.5) * amt; dy = (Math.random()-0.5) * amt;
+            }
+
+            ctx.setTransform(1,0,0,1,0,0);
+            ctx.clearRect(0,0,GAME.width, GAME.height);
+
+            // Draw Background (Static Stars)
+            ctx.save();
+            ctx.fillStyle = "#ffffff";
+            GAME.bgStars.forEach(s => {
+                ctx.globalAlpha = Math.random() * 0.5 + 0.3;
+                ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill();
+            });
+            ctx.restore();
+
+            // Setup Camera
+            ctx.translate(GAME.centerX + dx, GAME.centerY + dy);
+            ctx.scale(GAME.zoom * GAME.pixelScale, GAME.zoom * GAME.pixelScale);
+            
+            // Draw Range Indicators
+            if (INPUT.isDown) {
+                const radius = getUpgrade('radius').val / GAME.zoom;
+                const worldMouseX = (INPUT.x - GAME.centerX) / (GAME.zoom * GAME.pixelScale);
+                const worldMouseY = (INPUT.y - GAME.centerY) / (GAME.zoom * GAME.pixelScale);
+                
+                ctx.beginPath();
+                ctx.arc(worldMouseX, worldMouseY, radius, 0, Math.PI*2);
+                ctx.fillStyle = "rgba(100, 150, 255, 0.1)";
+                ctx.fill();
+                ctx.strokeStyle = "rgba(100, 150, 255, 0.3)";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            // Draw Black Hole (Revised Effect)
+            const bhSize = (blackHole.radius + (getUpgrade('blackhole_size') ? getUpgrade('blackhole_size').val : 0) + (getUpgrade('event_horizon_ex') ? getUpgrade('event_horizon_ex').val : 0));
+            const pulse = Math.sin(GAME.bhPulse * 2) * 2;
+            
+            // 1. Outer Glow (Aura)
+            const grad = ctx.createRadialGradient(0, 0, bhSize, 0, 0, bhSize * 3 + pulse);
+            grad.addColorStop(0, "rgba(0, 0, 0, 0)"); 
+            grad.addColorStop(0.2, "rgba(124, 58, 237, 0.2)"); // Purple weak
+            grad.addColorStop(0.5, "rgba(139, 92, 246, 0.1)"); // Purple even weaker
+            grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+            
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.arc(0, 0, bhSize * 4, 0, Math.PI*2); ctx.fill();
+
+            // 2. Accretion Disk Swirls (Cleaner lines)
+            ctx.save();
+            ctx.rotate(GAME.bhAngle);
+            ctx.strokeStyle = "rgba(167, 139, 250, 0.3)"; // Soft Purple Lines
+            ctx.lineWidth = 3;
+            for(let i=0; i<4; i++) {
+                ctx.beginPath();
+                ctx.arc(0, 0, bhSize * (1.3 + i*0.25) + pulse/2, i * Math.PI/2, i * Math.PI/2 + Math.PI);
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // 3. Event Horizon (Sharp Black Circle)
+            ctx.save();
+            ctx.shadowColor = "#8b5cf6"; // Violet Glow
+            ctx.shadowBlur = 20 + pulse;
+            ctx.fillStyle = "#000000";
+            ctx.beginPath(); ctx.arc(0, 0, bhSize, 0, Math.PI*2); ctx.fill();
+            
+            // 4. Photon Ring (White Rim)
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+
+            // Draw Game Objects
+            entities.forEach(e => e.draw(ctx));
+            bolts.forEach(b => b.draw(ctx));
+            particles.forEach(p => p.draw(ctx));
+            texts.forEach(t => t.draw());
+        }
+
+        function gameLoop() {
+            if (GAME.running) {
+                const now = performance.now();
+                const dt = Math.min((now - GAME.lastTime) / 1000, 0.1);
+                GAME.lastTime = now;
+                updateGame(dt);
+                drawGame();
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        // 5. UI & CONTROL
+        function startGame() {
+            upgradeScreen.style.display = 'none';
+            ingameUi.style.display = 'flex';
+            document.getElementById('skill-bar').style.display = 'flex';
+            
+            GAME.timeLeft = getUpgrade('time').val + (getUpgrade('chrono_battery') ? getUpgrade('chrono_battery').val : 0);
+            GAME.maxTime = GAME.timeLeft;
+            GAME.scoreInRound = 0;
+            GAME.combo = 0;
+            updateComboUI();
+            
+            // Reset Skill CD partially or fully? Let's reset durations but keep CD?
+            // Usually roguelikes reset skills per round or keep state. Let's keep state for strategy.
+            // Reset durations though.
+            GAME.skills.stasis.dur = 0;
+            GAME.skills.surge.dur = 0;
+
+            GAME.running = true;
+            GAME.lastTime = performance.now();
+            
+            // Reset Entities based on density
+            entities = [];
+            const density = 5 + getUpgrade('density').val + (getUpgrade('federation') ? getUpgrade('federation').val : 0);
+            for(let i=0; i<density; i++) entities.push(new Shard());
+            
+            gameLoop();
+            audio.playStart();
+        }
+
+        function endGame() {
+            GAME.running = false;
+            ingameUi.style.display = 'none';
+            document.getElementById('skill-bar').style.display = 'none';
+            upgradeScreen.style.display = 'flex';
+
+            // Interest
+            const interest = getUpgrade('interest').level * 0.05 + (getUpgrade('dyson_sphere') ? getUpgrade('dyson_sphere').level * 0.02 : 0);
+            if(interest > 0) {
+                 const bonus = Math.floor(GAME.money * interest);
+                 GAME.money += bonus;
+                 // maybe show toast?
+            }
+
+            saveGame();
+            renderTree();
+            upgradeMoneyEl.innerText = '$' + Math.floor(GAME.money).toLocaleString();
+            totalLevelEl.innerText = "총 연구 레벨: " + getTotalLevels();
+        }
+
+        function firstStart() {
+            audio.init();
+            startOverlay.style.opacity = 0;
+            setTimeout(() => { 
+                startOverlay.style.display = 'none'; 
+                renderTree(); // Ensure tree is ready
+                startGame(); // Start immediately
+            }, 500);
+        }
+
+        function toggleMute() {
+            audio.muted = !audio.muted;
+            document.getElementById('mute-btn').innerText = audio.muted ? '🔇' : '🔊';
+        }
+
+        // Upgrade Tree System
+        function renderTree() {
+            treeContainer.innerHTML = '';
+            upgradeMoneyEl.innerText = '$' + Math.floor(GAME.money).toLocaleString();
+            totalLevelEl.innerText = "총 연구 레벨: " + getTotalLevels();
+
+            const currentTotalLevels = getTotalLevels();
+            
+            // Group by tier
+            const maxTier = Math.max(...UPGRADES.map(u => u.tier));
+
+            for (let t = 0; t <= maxTier; t++) {
+                const tierUpgrades = UPGRADES.filter(u => u.tier === t);
+                if (tierUpgrades.length === 0) continue;
+
+                const section = document.createElement('div');
+                section.className = 'tier-section';
+                
+                const req = TIER_UNLOCKS[t];
+                const locked = currentTotalLevels < req;
+                
+                let headerHTML = `<div class="tier-header"><span class="tier-title">TIER ${t}</span>`;
+                if(locked) headerHTML += `<span class="tier-lock-msg">🔒 필요 레벨: ${req}</span>`;
+                else headerHTML += `<span class="tier-unlock-msg">🔓 UNLOCKED</span>`;
+                headerHTML += `</div>`;
+                
+                section.innerHTML = headerHTML;
+
+                const grid = document.createElement('div');
+                grid.className = 'tier-grid';
+
+                tierUpgrades.forEach(u => {
+                    const el = document.createElement('div');
+                    el.className = `card ${locked ? 'locked' : ''}`;
+                    const isMax = u.level >= u.maxLevel;
+                    const cost = Math.floor(u.baseCost * Math.pow(u.mult, u.level));
+                    
+                    if (locked) {
+                        el.innerHTML = `🔒 Tier ${t}`;
+                    } else {
+                        if (GAME.money < cost && !isMax) el.classList.add('disabled');
+                        
+                        el.onclick = () => buyUpgrade(u);
+                        
+                        el.innerHTML = `
+                            <div class="card-lvl ${isMax ? 'max-lvl' : ''}">Lv.${u.level}</div>
+                            <div class="card-header">
+                                <span class="card-icon">${u.icon}</span>
+                                <span class="card-name">${u.name}</span>
+                            </div>
+                            <div class="card-desc">${u.desc}</div>
+                            <div class="card-footer">
+                                <div class="card-stat">현재: ${Number.isInteger(u.val) ? u.val : u.val.toFixed(2)}</div>
+                                <div class="card-cost">${isMax ? 'MAX' : '$' + cost.toLocaleString()}</div>
+                            </div>
+                        `;
+                    }
+                    grid.appendChild(el);
+                });
+
+                section.appendChild(grid);
+                treeContainer.appendChild(section);
+            }
+        }
+
+        function buyUpgrade(u) {
+            if (u.level >= u.maxLevel) return;
+            const cost = Math.floor(u.baseCost * Math.pow(u.mult, u.level));
+            if (GAME.money >= cost) {
+                GAME.money -= cost;
+                u.level++;
+                u.val += u.inc;
+                // Fix float precision issues
+                if(!Number.isInteger(u.val)) u.val = parseFloat(u.val.toFixed(2));
+                
+                audio.playBuy();
+                saveGame();
+                renderTree();
+                
+                // Unlock check
+                if (u.type === 'skill') {
+                     // Skill unlcok logic handled in updateSkillUI via level check
+                }
+            }
+        }
+
+        // Skill System
+        function activateSkill(id) {
+            if (GAME.paused) return;
+            
+            const skillData = GAME.skills[id];
+            const upgrade = UPGRADES.find(u => u.id === `unlock_${id}`);
+            
+            if (!upgrade || upgrade.level <= 0) return; // Not unlocked
+            if (skillData.cd > 0) return; // Cooldown
+
+            const mastery = getUpgrade('skill_mastery') ? getUpgrade('skill_mastery').val : 0; // % reduction
+            const gamma = getUpgrade('gamma_ray') ? getUpgrade('gamma_ray').val : 1.0;
+
+            audio.playSkill(id);
+
+            if (id === 'bomb') {
+                // Massive Gravity Pulse
+                GAME.shakeTime = 0.5; GAME.shakeAmount = 20;
+                particles.push(new EffectParticle(0,0, '#ef4444', 'shockwave'));
+                entities.forEach(e => {
+                     const dist = Math.sqrt(e.x*e.x + e.y*e.y);
+                     e.vx += (-e.x/dist) * 300 * gamma; 
+                     e.vy += (-e.y/dist) * 300 * gamma;
+                });
+                
+                skillData.cd = skillData.max * (1 - mastery/100);
+            } 
+            else if (id === 'stasis') {
+                skillData.dur = (3.0 + upgrade.level * 0.5) * gamma;
+                skillData.cd = skillData.max * (1 - mastery/100);
+            }
+            else if (id === 'surge') {
+                skillData.dur = (5.0 + upgrade.level * 0.5) * gamma;
+                skillData.cd = skillData.max * (1 - mastery/100);
+            }
+            else if (id === 'storm') {
+                // Destroy random targets
+                const count = (5 + upgrade.level) * gamma;
+                for(let i=0; i<count; i++) {
+                    setTimeout(() => {
+                         if(entities.length > 0) {
+                             const target = entities[Math.floor(Math.random()*entities.length)];
+                             triggerChainLightning(target); // Reuse logic
+                         }
+                    }, i * 100);
+                }
+                skillData.cd = skillData.max * (1 - mastery/100);
+            }
+            
+            updateSkillUI();
+        }
+
+        function updateSkillUI() {
+            const list = ['bomb', 'stasis', 'surge', 'storm'];
+            list.forEach(id => {
+                const upgrade = UPGRADES.find(u => u.id === `unlock_${id}`);
+                const slot = document.getElementById(`slot-${id}`);
+                const cdOverlay = document.getElementById(`cd-${id}`);
+                const glow = document.getElementById(`glow-${id}`);
+                const lvlInd = document.getElementById(`lvl-${id}`);
+
+                if (upgrade && upgrade.level > 0) {
+                    slot.classList.add('unlocked');
+                    lvlInd.innerText = upgrade.level;
+                    
+                    const data = GAME.skills[id];
+                    if (data.cd > 0) {
+                        const pct = (data.cd / data.max) * 100;
+                        cdOverlay.style.height = `${pct}%`;
+                        slot.style.cursor = 'default';
+                    } else {
+                        cdOverlay.style.height = '0%';
+                        slot.style.cursor = 'pointer';
+                    }
+
+                    if (data.dur > 0) glow.style.opacity = 1;
+                    else glow.style.opacity = 0;
+
+                } else {
+                    slot.classList.remove('unlocked');
+                }
+            });
+        }
+
+        function updateComboUI() {
+            if (GAME.combo > 1) {
+                comboBox.style.opacity = 1;
+                comboBox.style.transform = `scale(${1 + GAME.combo*0.02})`;
+                comboValEl.innerText = `x${GAME.combo}`;
+            } else {
+                comboBox.style.opacity = 0;
+                comboBox.style.transform = 'scale(1)';
+            }
+        }
+
+        // Initialization
+        window.onload = () => {
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+            
+            scoreEl = document.getElementById('score-display');
+            timerEl = document.getElementById('timer-display');
+            upgradeScreen = document.getElementById('upgrade-screen');
+            upgradeMoneyEl = document.getElementById('upgrade-money');
+            totalLevelEl = document.getElementById('total-level-display');
+            treeContainer = document.getElementById('tree-container');
+            startOverlay = document.getElementById('start-overlay');
+            ingameUi = document.getElementById('ingame-ui');
+            comboBox = document.getElementById('combo-box');
+            comboValEl = document.getElementById('combo-val');
+            passiveStatsEl = document.getElementById('passive-stats');
+            pauseOverlay = document.getElementById('pause-overlay');
+
+            lvlBombEl = document.getElementById('lvl-bomb');
+            lvlStasisEl = document.getElementById('lvl-stasis');
+            lvlSurgeEl = document.getElementById('lvl-surge');
+            lvlStormEl = document.getElementById('lvl-storm');
+
+            window.addEventListener('resize', resize);
+            resize();
+            
+            // Input Handlers
+            canvas.addEventListener('mousedown', e => { INPUT.isDown = true; INPUT.x = e.clientX; INPUT.y = e.clientY; audio.startGravityHum(); });
+            window.addEventListener('mouseup', () => { INPUT.isDown = false; audio.stopGravityHum(); });
+            canvas.addEventListener('mousemove', e => { INPUT.x = e.clientX; INPUT.y = e.clientY; });
+            
+            canvas.addEventListener('touchstart', e => { 
+                INPUT.isDown = true; 
+                INPUT.x = e.touches[0].clientX; INPUT.y = e.touches[0].clientY; 
+                e.preventDefault();
+            }, {passive: false});
+            window.addEventListener('touchend', () => INPUT.isDown = false);
+            canvas.addEventListener('touchmove', e => {
+                 INPUT.x = e.touches[0].clientX; INPUT.y = e.touches[0].clientY;
+                 e.preventDefault();
+            }, {passive: false});
+
+            // Keyboard
+            window.addEventListener('keydown', e => {
+                if (e.key === 'q' || e.key === 'Q') activateSkill('bomb');
+                if (e.key === 'w' || e.key === 'W') activateSkill('stasis');
+                if (e.key === 'e' || e.key === 'E') activateSkill('surge');
+                if (e.key === 'r' || e.key === 'R') activateSkill('storm');
+                if (e.key === 'Escape') togglePause();
+            });
+
+            // Load Data
+            loadGame();
+            
+            // Generate BG Stars
+            for(let i=0; i<200; i++) {
+                GAME.bgStars.push({
+                    x: Math.random() * window.innerWidth,
+                    y: Math.random() * window.innerHeight,
+                    size: Math.random() * 2
+                });
+            }
+        };
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            GAME.width = canvas.width;
+            GAME.height = canvas.height;
+            GAME.centerX = canvas.width / 2;
+            GAME.centerY = canvas.height / 2;
+            GAME.pixelScale = Math.min(canvas.width, canvas.height) / BASE_RESOLUTION * 1.5; 
+            // Regenerate BG stars
+             GAME.bgStars = [];
+             for(let i=0; i<200; i++) {
+                GAME.bgStars.push({
+                    x: Math.random() * window.innerWidth,
+                    y: Math.random() * window.innerHeight,
+                    size: Math.random() * 2
+                });
+            }
+        }
+
+        function togglePause() {
+            if (GAME.phase !== 'start' && upgradeScreen.style.display !== 'flex') {
+                GAME.paused = !GAME.paused;
+                pauseOverlay.style.display = GAME.paused ? 'flex' : 'none';
+            }
+        }
+
+    </script>
+</body>
+</html>
