@@ -25,6 +25,7 @@
             z-index: 1;
         }
 
+        /* 인게임 UI */
         #ingame-ui {
             position: absolute;
             top: 0;
@@ -63,6 +64,7 @@
             text-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
         }
 
+        /* 콤보 UI */
         .combo-box {
             align-self: center;
             text-align: center;
@@ -78,6 +80,7 @@
         }
         .combo-label { font-size: 1.2rem; color: #fbbf24; font-weight: 700; letter-spacing: 2px; }
 
+        /* 스킬 바 UI */
         #skill-bar {
             position: absolute;
             bottom: 30px;
@@ -145,6 +148,7 @@
             background: rgba(0,0,0,0.5); padding: 2px 8px; border-radius: 10px;
         }
         
+        /* 음소거 버튼 */
         #mute-btn {
             position: absolute;
             bottom: 20px;
@@ -162,6 +166,7 @@
         }
         #mute-btn:hover { background: #334155; }
 
+        /* 업그레이드 화면 */
         #upgrade-screen {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -336,15 +341,18 @@
     </div>
 
     <script>
-        // --- 1. GLOBAL VARIABLES ---
+        // -----------------------------------------------------
+        // 1. GLOBAL VARIABLES & CONFIG
+        // -----------------------------------------------------
+        // DOM Elements
         let canvas, ctx;
         let scoreEl, timerEl, upgradeScreen, upgradeMoneyEl, totalLevelEl, treeContainer, startOverlay, ingameUi, comboBox, comboValEl;
         let slotBomb, slotStasis, slotSurge;
         let cdBomb, cdStasis, cdSurge;
         let glowBomb, glowStasis, glowSurge;
 
+        // Game Configuration
         const VALUE_MULTIPLIER = 0.3; 
-        // 0~20티어 해금 조건 (연구 레벨 합계)
         const TIER_UNLOCKS = [0, 4, 12, 24, 40, 60, 90, 130, 180, 240, 310, 390, 480, 580, 700, 850, 1050, 1300, 1600, 2000, 2500];
 
         const UPGRADES = [
@@ -362,7 +370,7 @@
             { id: 'value', name: '채굴 효율', desc: '행성 가치 상승.', icon: '💎', tier: 2, level: 0, maxLevel: 99, baseCost: 600, mult: 1.5, val: 1.0, inc: 0.5 },
             { id: 'unlock_bomb', name: '중력 폭탄 [Skill]', desc: '[Q] 주변 행성 당기기.', icon: '💣', type: 'skill', tier: 2, level: 0, maxLevel: 1, baseCost: 1000, mult: 1, val: 0, inc: 1 },
             { id: 'heavy', name: '고중력', desc: '무거운 행성 무게 무시.', icon: '⚓', tier: 2, level: 0, maxLevel: 20, baseCost: 700, mult: 1.5, val: 1.0, inc: 0.2 },
-            { id: 'auto', name: '자동 인력', desc: '클릭 없이도 당김.', icon: '🌀', tier: 2, level: 0, maxLevel: 10, baseCost: 1000, mult: 2.0, val: 0, inc: 0.1 },
+            // Removed Auto Attract
 
             // Tier 3
             { id: 'attract_range', name: '자연 중력', desc: '블랙홀 기본 흡입 범위.', icon: '🌑', tier: 3, level: 0, maxLevel: 20, baseCost: 800, mult: 1.5, val: 150, inc: 20 },
@@ -400,7 +408,7 @@
             { id: 'star_unlock', name: '항성 발견', desc: '스스로 빛나는 별 발견.', icon: '☀️', tier: 10, level: 0, maxLevel: 1, baseCost: 500000, mult: 1, val: 0, inc: 1 },
             { id: 'nucleosynthesis', name: '핵융합', desc: '모든 행성 가치 대폭 증가.', icon: '☢️', tier: 10, level: 0, maxLevel: 50, baseCost: 400000, mult: 1.5, val: 1.0, inc: 0.5 },
 
-            { id: 'void_hunger', name: '공허의 굶주림', desc: '자동 인력 강화.', icon: '👿', tier: 11, level: 0, maxLevel: 10, baseCost: 600000, mult: 2.0, val: 0, inc: 0.2 },
+            { id: 'void_hunger', name: '중력 우물', desc: '자연 중력 흡입력 강화.', icon: '👿', tier: 11, level: 0, maxLevel: 10, baseCost: 600000, mult: 2.0, val: 1.0, inc: 0.5 },
             { id: 'event_horizon_ex', name: '사건의 지평선 II', desc: '블랙홀 크기 추가 확장.', icon: '⚫', tier: 11, level: 0, maxLevel: 10, baseCost: 700000, mult: 2.0, val: 0, inc: 5 },
 
             { id: 'antimatter', name: '반물질 생성', desc: '크리티컬 확률 추가.', icon: '💠', tier: 12, level: 0, maxLevel: 20, baseCost: 800000, mult: 1.6, val: 0, inc: 2 },
@@ -447,7 +455,8 @@
             width: 0, height: 0, centerX: 0, centerY: 0, lastTime: 0,
             combo: 0, comboTimer: 0, shakeX: 0, shakeY: 0, shakeTime: 0,
             zoom: 1.0, 
-            skills: { bomb: { cd: 0, max: 15 }, stasis: { cd: 0, max: 30, dur: 0 }, surge: { cd: 0, max: 60, dur: 0 } }
+            skills: { bomb: { cd: 0, max: 15 }, stasis: { cd: 0, max: 30, dur: 0 }, surge: { cd: 0, max: 60, dur: 0 } },
+            bgStars: [] // Background stars
         };
 
         const INPUT = { x: 0, y: 0, isDown: false };
@@ -472,11 +481,11 @@
 
         function saveGame() {
             const data = { money: GAME.money, upgrades: UPGRADES.map(u => ({ id: u.id, level: u.level })) };
-            localStorage.setItem('void_harvester_save_v5', JSON.stringify(data));
+            localStorage.setItem('void_harvester_save_v6', JSON.stringify(data));
         }
 
         function loadGame() {
-            const str = localStorage.getItem('void_harvester_save_v5');
+            const str = localStorage.getItem('void_harvester_save_v6');
             if(!str) return;
             try {
                 const data = JSON.parse(str);
@@ -500,7 +509,7 @@
 
         function resetSaveData() {
             if(confirm("모든 데이터를 초기화하시겠습니까?")) {
-                localStorage.removeItem('void_harvester_save_v5');
+                localStorage.removeItem('void_harvester_save_v6');
                 location.reload();
             }
         }
@@ -720,7 +729,6 @@
                 let globalSpeed = 1.0;
                 if (GAME.skills.stasis.dur > 0) globalSpeed = 0.1;
                 
-                // Tier 18 Time Dilation Effect
                 const dilation = getUpgrade('time_dilation') ? getUpgrade('time_dilation').val : 1.0;
                 globalSpeed /= dilation;
 
@@ -746,6 +754,11 @@
                 if (getUpgrade('gravity_lens')) naturalRange += (getUpgrade('gravity_lens').val / GAME.zoom);
                 
                 let naturalG = 1000;
+                
+                // Tier 11 - Gravity Well (void_hunger) effect
+                const wellMult = getUpgrade('void_hunger') ? getUpgrade('void_hunger').val : 1.0;
+                naturalG *= wellMult;
+                
                 if (GAME.skills.surge.dur > 0) { naturalRange *= 3; naturalG *= 5; }
 
                 if (dist < naturalRange) {
@@ -753,14 +766,6 @@
                     const force = g / this.mass;
                     this.vx += (dx/dist) * force * timeScale * globalSpeed;
                     this.vy += (dy/dist) * force * timeScale * globalSpeed;
-                }
-
-                const autoRate = getUpgrade('auto').val + (getUpgrade('void_hunger') ? getUpgrade('void_hunger').val : 0) + (getUpgrade('gravity_well') ? getUpgrade('gravity_well').val : 0);
-                if (autoRate > 0 && dist < 600 / GAME.zoom) {
-                     const force = getUpgrade('force').val * autoRate * 0.5;
-                     const accel = force / this.mass;
-                     this.vx += (dx/dist) * accel * timeScale * globalSpeed;
-                     this.vy += (dy/dist) * accel * timeScale * globalSpeed;
                 }
 
                 if (INPUT.isDown) {
@@ -773,6 +778,7 @@
                     const frenzy = getUpgrade('frenzy') && getUpgrade('frenzy').level > 0;
                     if(frenzy && GAME.timeLeft <= 3.0) power *= 2;
 
+                    // World Coordinates Mouse Position
                     const worldMouseX = (INPUT.x - GAME.centerX) / GAME.zoom + GAME.centerX;
                     const worldMouseY = (INPUT.y - GAME.centerY) / GAME.zoom + GAME.centerY;
 
@@ -963,7 +969,7 @@
             }
 
             let critChance = getUpgrade('crit').val + (getUpgrade('antimatter') ? getUpgrade('antimatter').val : 0);
-            const respawnChance = getUpgrade('respawn').val + (getUpgrade('entropy_reversal') ? getUpgrade('entropy_reversal').val : 0);
+            const respawnChance = getUpgrade('respawn').val; // Removed 'entropy_reversal' check as it wasn't defined
 
             if (entities.length < 5) entities.push(new Shard());
 
@@ -1033,6 +1039,20 @@
 
         function drawGame(dt) {
             ctx.clearRect(0, 0, GAME.width, GAME.height);
+            
+            // Stars Parallax
+            ctx.save();
+            ctx.fillStyle = 'white';
+            const mouseOffsetX = (INPUT.x - GAME.centerX) * 0.05;
+            const mouseOffsetY = (INPUT.y - GAME.centerY) * 0.05;
+            GAME.bgStars.forEach(star => {
+                ctx.globalAlpha = star.alpha;
+                ctx.beginPath();
+                ctx.arc(star.x - mouseOffsetX * star.z, star.y - mouseOffsetY * star.z, star.size, 0, Math.PI*2);
+                ctx.fill();
+            });
+            ctx.restore();
+
             ctx.save();
             if (GAME.shakeTime > 0) {
                 GAME.shakeTime -= dt;
@@ -1053,6 +1073,20 @@
             if (getUpgrade('event_horizon_ex')) bhSize += getUpgrade('event_horizon_ex').val;
             if (GAME.skills.surge.dur > 0) bhSize *= 1.5; 
 
+            // Natural Gravity Visual
+            let naturalRange = getUpgrade('attract_range').val / GAME.zoom; 
+            if (getUpgrade('gravity_lens')) naturalRange += (getUpgrade('gravity_lens').val / GAME.zoom);
+            if (GAME.skills.surge.dur > 0) naturalRange *= 3;
+
+            // Draw Natural Gravity Field (Pulsing Blue Ring)
+            ctx.beginPath();
+            ctx.arc(GAME.centerX, GAME.centerY, naturalRange, 0, Math.PI * 2);
+            ctx.lineWidth = 2 / GAME.zoom;
+            const pulse = (Math.sin(Date.now() * 0.003) + 1) * 0.5;
+            ctx.strokeStyle = `rgba(50, 100, 255, ${0.1 + pulse * 0.1})`;
+            ctx.stroke();
+
+            // Black Hole Visuals
             const glow = ctx.createRadialGradient(GAME.centerX, GAME.centerY, bhSize, GAME.centerX, GAME.centerY, bhSize * 5);
             glow.addColorStop(0, GAME.skills.surge.dur > 0 ? "rgba(255, 50, 50, 0.4)" : "rgba(80, 0, 120, 0.4)"); 
             glow.addColorStop(1, "rgba(0,0,0,0)");
@@ -1095,6 +1129,14 @@
             bolts.forEach(b => b.draw(ctx));
             texts.forEach(t => t.draw(ctx));
             ctx.restore(); 
+            
+            // Combo Border Effect
+            if (GAME.combo > 5) {
+                const intensity = Math.min(1, (GAME.combo - 5) / 20);
+                ctx.strokeStyle = `rgba(251, 191, 36, ${intensity * 0.5})`; // Amber
+                ctx.lineWidth = 10;
+                ctx.strokeRect(0, 0, GAME.width, GAME.height);
+            }
         }
 
         // 5. GLOBAL INTERFACE
@@ -1261,7 +1303,20 @@
             entities = [];
             bolts = [];
             particles = [];
-            const initCount = getUpgrade('density').val;
+            
+            // Background Stars
+            GAME.bgStars = [];
+            for(let i=0; i<100; i++) {
+                GAME.bgStars.push({
+                    x: Math.random() * GAME.width,
+                    y: Math.random() * GAME.height,
+                    size: Math.random() * 1.5,
+                    alpha: Math.random() * 0.8 + 0.2,
+                    z: Math.random() * 0.5 + 0.5 // Depth for parallax
+                });
+            }
+
+            const initCount = getUpgrade('density').val + (getUpgrade('federation') ? getUpgrade('federation').val : 0);
             for(let i=0; i<initCount; i++) entities.push(new Shard());
             GAME.lastTime = performance.now();
         }
@@ -1365,6 +1420,7 @@
             requestAnimationFrame(loop);
         }
 
+        // Global Assignments for HTML Events
         window.firstStart = firstStart;
         window.startGame = startGame;
         window.resetSaveData = resetSaveData;
