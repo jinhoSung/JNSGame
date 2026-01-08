@@ -211,6 +211,17 @@
         }
         #mute-btn:hover { background: #334155; }
 
+        /* 일시정지 오버레이 */
+        #pause-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); backdrop-filter: blur(5px);
+            z-index: 90; display: none;
+            flex-direction: column; align-items: center; justify-content: center;
+            color: white; font-size: 3rem; font-weight: 900;
+        }
+        .pause-text { margin-bottom: 20px; text-shadow: 0 0 20px rgba(255,255,255,0.5); }
+        .pause-sub { font-size: 1.2rem; font-weight: 400; color: #94a3b8; }
+
         /* 업그레이드 화면 */
         #upgrade-screen {
             position: absolute;
@@ -354,6 +365,11 @@
         </div>
     </div>
     
+    <div id="pause-overlay">
+        <div class="pause-text">PAUSED</div>
+        <div class="pause-sub">Press ESC to Resume</div>
+    </div>
+
     <button id="mute-btn" onclick="toggleMute()">🔊</button>
 
     <div id="upgrade-screen">
@@ -383,7 +399,7 @@
     <script>
         // --- 1. GLOBAL VARIABLES ---
         let canvas, ctx;
-        let scoreEl, timerEl, upgradeScreen, upgradeMoneyEl, totalLevelEl, treeContainer, startOverlay, ingameUi, comboBox, comboValEl, passiveStatsEl;
+        let scoreEl, timerEl, upgradeScreen, upgradeMoneyEl, totalLevelEl, treeContainer, startOverlay, ingameUi, comboBox, comboValEl, passiveStatsEl, pauseOverlay;
         let slotBomb, slotStasis, slotSurge;
         let cdBomb, cdStasis, cdSurge;
         let glowBomb, glowStasis, glowSurge;
@@ -497,12 +513,12 @@
 
         // Global State
         let GAME = {
-            running: false, phase: 'start', money: 0, scoreInRound: 0, timeLeft: 10.0, maxTime: 10.0,
+            running: false, paused: false, phase: 'start', money: 0, scoreInRound: 0, timeLeft: 10.0, maxTime: 10.0,
             width: 0, height: 0, centerX: 0, centerY: 0, lastTime: 0,
             combo: 0, comboTimer: 0, shakeX: 0, shakeY: 0, shakeTime: 0,
-            zoom: 1.0, 
+            zoom: 1.0, bhAngle: 0,
             skills: { bomb: { cd: 0, max: 15 }, stasis: { cd: 0, max: 30, dur: 0 }, surge: { cd: 0, max: 60, dur: 0 } },
-            bgStars: [], pixelScale: 1.0,
+            bgStars: [], nebulae: [], pixelScale: 1.0,
             stats: { totalAbsorbed: 0, totalMoney: 0, maxCombo: 0, achievements: [] } 
         };
 
@@ -661,6 +677,12 @@
                     this.vx = 0; this.vy = -2; this.decay = 0.03; this.size = 0; 
                 } else if (type === 'comet_trail') {
                     this.vx = 0; this.vy = 0; this.decay = 0.1; this.size = Math.random() * 3 + 2;
+                } else if (type === 'spiral_in') {
+                    this.angle = Math.random() * Math.PI * 2;
+                    this.dist = Math.random() * 20 + 30; // Start away from center
+                    this.speed = Math.random() * 0.1 + 0.05;
+                    this.size = Math.random() * 2 + 1;
+                    this.decay = 0.05;
                 }
             }
             update(dt) {
@@ -669,8 +691,16 @@
                     const dx = 0 - this.x; const dy = 0 - this.y;
                     const angle = Math.atan2(dy, dx);
                     this.vx += Math.cos(angle) * 50 * 0.1; this.vy += Math.sin(angle) * 50 * 0.1;
+                    this.x += this.vx * timeScale; this.y += this.vy * timeScale;
+                } else if (this.type === 'spiral_in') {
+                    this.angle += 0.2 * timeScale;
+                    this.dist -= 3 * timeScale;
+                    this.x = Math.cos(this.angle) * this.dist;
+                    this.y = Math.sin(this.angle) * this.dist;
+                    if(this.dist <= 0) this.life = 0;
+                } else {
+                    this.x += this.vx * timeScale; this.y += this.vy * timeScale;
                 }
-                this.x += this.vx * timeScale; this.y += this.vy * timeScale;
                 this.life -= this.decay * timeScale;
             }
             draw(ctx) {
@@ -886,6 +916,10 @@
         }
 
         function updateGame(dt) {
+            if (GAME.paused) return;
+
+            GAME.bhAngle += dt; // Spin the black hole
+
             if (GAME.skills.stasis.dur > 0) GAME.skills.stasis.dur -= dt;
             if (GAME.skills.surge.dur > 0) GAME.skills.surge.dur -= dt;
             if (GAME.skills.bomb.cd > 0) GAME.skills.bomb.cd -= dt;
@@ -940,6 +974,9 @@
                         texts.push(new PopText(0, -30, e.value, false));
                         audio.playPop();
                         
+                        // Spawn suck-in particles
+                        for(let k=0; k<3; k++) particles.push(new EffectParticle(0,0, e.color, 'spiral_in'));
+
                         GAME.stats.totalAbsorbed++;
                         GAME.stats.totalMoney += e.value;
                         checkAchievements();
@@ -963,14 +1000,65 @@
             updateSkillUI();
         }
 
+        function drawNebula(ctx, n, bgX, bgY) {
+            const grad = ctx.createRadialGradient(n.x - bgX*n.z, n.y - bgY*n.z, 0, n.x - bgX*n.z, n.y - bgY*n.z, n.size);
+            grad.addColorStop(0, n.color + "44"); // Transparent
+            grad.addColorStop(1, "transparent");
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.arc(n.x - bgX*n.z, n.y - bgY*n.z, n.size, 0, Math.PI*2); ctx.fill();
+        }
+
+        function drawBlackHole(ctx, dt) {
+            const bhSize = blackHole.radius + (getUpgrade('blackhole_size') ? getUpgrade('blackhole_size').val : 0) + (getUpgrade('event_horizon_ex') ? getUpgrade('event_horizon_ex').val : 0);
+            
+            // Accretion Disk (Swirls)
+            ctx.save();
+            ctx.rotate(GAME.bhAngle);
+            for(let i=0; i<3; i++) {
+                ctx.beginPath();
+                ctx.arc(0, 0, bhSize * (1.2 + i*0.2), 0 + i, Math.PI + i);
+                ctx.strokeStyle = `rgba(124, 58, 237, ${0.3 - i*0.05})`;
+                ctx.lineWidth = 4;
+                ctx.stroke();
+            }
+            ctx.restore();
+
+             // Second Layer (Counter spin)
+            ctx.save();
+            ctx.rotate(-GAME.bhAngle * 0.5);
+            ctx.beginPath();
+            ctx.arc(0, 0, bhSize * 1.5, 0, Math.PI * 1.5);
+            ctx.strokeStyle = "rgba(59, 130, 246, 0.15)";
+            ctx.lineWidth = 8;
+            ctx.stroke();
+            ctx.restore();
+
+            // Glow
+            const glow = ctx.createRadialGradient(0,0, bhSize, 0,0, bhSize*4);
+            glow.addColorStop(0, "rgba(80,0,120,0.5)"); glow.addColorStop(1, "rgba(0,0,0,0)");
+            ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(0,0, bhSize*4, 0, Math.PI*2); ctx.fill();
+            
+            // Event Horizon
+            ctx.fillStyle = "black"; ctx.beginPath(); ctx.arc(0,0, bhSize, 0, Math.PI*2); ctx.fill();
+            
+            // Photon Ring
+            ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.arc(0,0, bhSize, 0, Math.PI*2); ctx.stroke();
+        }
+
         function drawGame(dt) {
             ctx.clearRect(0, 0, GAME.width, GAME.height);
             
+            const bgX = (INPUT.x - GAME.centerX) * 0.05;
+            const bgY = (INPUT.y - GAME.centerY) * 0.05;
+
+            // Nebulae
+            GAME.nebulae.forEach(n => drawNebula(ctx, n, bgX, bgY));
+
             // Stars (Background)
             ctx.save();
             ctx.fillStyle = 'white';
-            const bgX = (INPUT.x - GAME.centerX) * 0.05;
-            const bgY = (INPUT.y - GAME.centerY) * 0.05;
+            
             GAME.bgStars.forEach(star => {
                 ctx.globalAlpha = star.alpha;
                 ctx.beginPath();
@@ -995,13 +1083,7 @@
             ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'; // Darken space around BH
             ctx.fill();
 
-            // Black Hole
-            const bhSize = blackHole.radius + (getUpgrade('blackhole_size') ? getUpgrade('blackhole_size').val : 0) + (getUpgrade('event_horizon_ex') ? getUpgrade('event_horizon_ex').val : 0);
-            const glow = ctx.createRadialGradient(0,0, bhSize, 0,0, bhSize*4);
-            glow.addColorStop(0, "rgba(80,0,120,0.5)"); glow.addColorStop(1, "rgba(0,0,0,0)");
-            ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(0,0, bhSize*4, 0, Math.PI*2); ctx.fill();
-            
-            ctx.fillStyle = "black"; ctx.beginPath(); ctx.arc(0,0, bhSize, 0, Math.PI*2); ctx.fill();
+            drawBlackHole(ctx, dt);
 
             // Natural Gravity Ring
             const nRange = getUpgrade('attract_range').val / GAME.zoom;
@@ -1052,6 +1134,7 @@
             comboBox = document.getElementById('combo-box');
             comboValEl = document.getElementById('combo-val');
             passiveStatsEl = document.getElementById('passive-stats');
+            pauseOverlay = document.getElementById('pause-overlay');
             
             // Skill Slots
             slotBomb = document.getElementById('slot-bomb');
@@ -1076,6 +1159,18 @@
                     z: Math.random() * 0.5 + 0.1,
                     size: Math.random() * 2,
                     alpha: Math.random() * 0.8 + 0.2
+                });
+            }
+
+            // Nebulae Generation
+            const colors = ['#4c1d95', '#1e3a8a', '#065f46'];
+            for(let i=0; i<5; i++) {
+                GAME.nebulae.push({
+                    x: Math.random() * window.innerWidth,
+                    y: Math.random() * window.innerHeight,
+                    z: Math.random() * 0.2 + 0.1,
+                    size: Math.random() * 300 + 100,
+                    color: colors[Math.floor(Math.random()*colors.length)]
                 });
             }
 
@@ -1110,12 +1205,21 @@
             }, {passive: false});
 
             window.addEventListener('keydown', e => {
-                if (e.key === 'q' || e.key === 'Q') activateSkill('bomb');
-                if (e.key === 'w' || e.key === 'W') activateSkill('stasis');
-                if (e.key === 'e' || e.key === 'E') activateSkill('surge');
+                if (GAME.phase === 'playing' && e.key === 'Escape') togglePause();
+                if (!GAME.paused) {
+                    if (e.key === 'q' || e.key === 'Q') activateSkill('bomb');
+                    if (e.key === 'w' || e.key === 'W') activateSkill('stasis');
+                    if (e.key === 'e' || e.key === 'E') activateSkill('surge');
+                }
             });
 
             requestAnimationFrame(loop);
+        }
+
+        function togglePause() {
+            if (GAME.phase !== 'playing') return;
+            GAME.paused = !GAME.paused;
+            pauseOverlay.style.display = GAME.paused ? 'flex' : 'none';
         }
 
         function resize() {
@@ -1157,6 +1261,8 @@
             GAME.timeLeft = getUpgrade('time').val;
             GAME.maxTime = GAME.timeLeft;
             GAME.combo = 0;
+            GAME.paused = false;
+            pauseOverlay.style.display = 'none';
             
             entities = [];
             const density = getUpgrade('density').val;
@@ -1197,7 +1303,7 @@
         }
 
         function activateSkill(type) {
-            if (!GAME.running) return;
+            if (!GAME.running || GAME.paused) return;
             const u = getUpgrade('unlock_' + type);
             if (!u || u.level === 0) return;
 
