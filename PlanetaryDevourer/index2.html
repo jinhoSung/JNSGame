@@ -359,7 +359,7 @@
         const UPGRADES = [
             // Tier 0
             { id: 'force', name: '중력장 강도', desc: '파편을 당기는 힘.', icon: '🧲', tier: 0, level: 1, maxLevel: 99, baseCost: 50, mult: 1.4, val: 0.08, inc: 0.03 },
-            { id: 'radius', name: '사건의 지평선', desc: '영향 범위 확장.', icon: '⭕', tier: 0, level: 1, maxLevel: 99, baseCost: 50, mult: 1.4, val: 40, inc: 4 },
+            { id: 'radius', name: '사건의 지평선', desc: '영향 범위 확장.', icon: '⭕', tier: 0, level: 1, maxLevel: 99, baseCost: 50, mult: 1.4, val: 60, inc: 4 }, // Base radius updated to 60
             { id: 'friction', name: '공간 점성', desc: '파편이 덜 미끄러짐.', icon: '🕸️', tier: 0, level: 1, maxLevel: 10, baseCost: 100, mult: 1.5, val: 0.94, inc: -0.01 },
 
             // Tier 1
@@ -381,7 +381,7 @@
             // Tier 4
             { id: 'unlock_stasis', name: '타임 프리즈 [Skill]', desc: '[W] 5초간 시간 멈춤 & 질량 50% 감소.', icon: '❄️', type: 'skill', tier: 4, level: 0, maxLevel: 1, baseCost: 8000, mult: 1, val: 0, inc: 1 },
             { id: 'crit', name: '행성 붕괴', desc: '가치 2배 크리티컬 확률.', icon: '💥', tier: 4, level: 0, maxLevel: 20, baseCost: 2500, mult: 1.5, val: 0, inc: 2 },
-            { id: 'l_range', name: '전이 범위', desc: '체인 라이트닝 거리.', icon: '📡', tier: 4, level: 0, maxLevel: 10, baseCost: 4000, mult: 1.6, val: 150, inc: 20 }, // Increased from 60
+            { id: 'l_range', name: '전이 범위', desc: '체인 라이트닝 거리.', icon: '📡', tier: 4, level: 0, maxLevel: 10, baseCost: 4000, mult: 1.6, val: 150, inc: 20 }, 
             { id: 'l_count', name: '과부하', desc: '체인 라이트닝 타겟 수.', icon: '🔗', tier: 4, level: 0, maxLevel: 10, baseCost: 4500, mult: 1.8, val: 3, inc: 1 },
 
             // Tier 5
@@ -918,9 +918,17 @@
                 const pushX = 0 - e.x;
                 const pushY = 0 - e.y;
                 const len = Math.sqrt(pushX*pushX + pushY*pushY);
-                const force = 40; 
-                e.vx += (pushX/len) * force;
-                e.vy += (pushY/len) * force;
+                
+                // 질량에 따른 끌림 힘 계산 (F = ma => a = F/m)
+                // 기본 충격량(Force)을 크게 주고 질량으로 나눔
+                const baseImpulse = 4000; 
+                let velocityChange = baseImpulse / e.mass;
+                
+                // 최대 속도 제한 (너무 가벼운 행성이 튕겨나가는 것 방지)
+                velocityChange = Math.min(velocityChange, 150);
+
+                e.vx += (pushX/len) * velocityChange;
+                e.vy += (pushY/len) * velocityChange;
             });
         }
 
@@ -1329,11 +1337,9 @@
             GAME.skills.stasis.dur = 0;
             GAME.skills.surge.cd = 0;
             GAME.skills.surge.dur = 0;
-            
             const timeBase = getUpgrade('time').val + (getUpgrade('chrono_battery') ? getUpgrade('chrono_battery').val : 0);
             GAME.timeLeft = timeBase; 
             GAME.maxTime = timeBase; // 최대 시간 설정
-            
             entities = [];
             bolts = [];
             particles = [];
@@ -1348,7 +1354,6 @@
                     z: Math.random() * 0.5 + 0.5 
                 });
             }
-
             const initCount = getUpgrade('density').val + (getUpgrade('federation') ? getUpgrade('federation').val : 0);
             for(let i=0; i<initCount; i++) entities.push(new Shard());
             GAME.lastTime = performance.now();
