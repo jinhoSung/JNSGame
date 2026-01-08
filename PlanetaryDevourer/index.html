@@ -80,10 +80,10 @@
         }
         .combo-label { font-size: 1.2rem; color: #fbbf24; font-weight: 700; letter-spacing: 2px; }
 
-        /* 업적 알림 UI */
+        /* 업적 알림 UI - 위치 조정됨 */
         #achievement-container {
             position: absolute;
-            top: 100px;
+            top: 160px; /* 100px -> 160px로 내려서 타이머와 겹침 방지 */
             left: 20px;
             display: flex;
             flex-direction: column;
@@ -410,8 +410,8 @@
 
         const UPGRADES = [
             // Tier 0
-            { id: 'force', name: '중력장 강도', desc: '파편을 당기는 힘.', icon: '🧲', tier: 0, level: 1, maxLevel: 99, baseCost: 30, mult: 1.4, val: 0.08, inc: 0.03 },
-            { id: 'radius', name: '사건의 지평선', desc: '영향 범위 확장.', icon: '⭕', tier: 0, level: 1, maxLevel: 99, baseCost: 30, mult: 1.4, val: 60, inc: 4 }, 
+            { id: 'force', name: '중력장 강도', desc: '파편을 당기는 힘.', icon: '🧲', tier: 0, level: 1, maxLevel: 99, baseCost: 15, mult: 1.4, val: 0.12, inc: 0.03 },
+            { id: 'radius', name: '사건의 지평선', desc: '영향 범위 확장.', icon: '⭕', tier: 0, level: 1, maxLevel: 99, baseCost: 15, mult: 1.4, val: 80, inc: 4 }, 
             { id: 'friction', name: '공간 점성', desc: '파편이 덜 미끄러짐.', icon: '🕸️', tier: 0, level: 1, maxLevel: 10, baseCost: 50, mult: 1.5, val: 0.92, inc: -0.01 },
 
             // Tier 1
@@ -996,6 +996,10 @@
             if (GAME.skills.stasis.dur > 0) GAME.skills.stasis.dur -= dt;
             if (GAME.skills.surge.dur > 0) GAME.skills.surge.dur -= dt;
             if (GAME.skills.bomb.cd > 0) GAME.skills.bomb.cd -= dt;
+            
+            // Skill Cooldowns
+            if (GAME.skills.stasis.cd > 0) GAME.skills.stasis.cd -= dt;
+            if (GAME.skills.surge.cd > 0) GAME.skills.surge.cd -= dt;
 
             // Combo Timer
             if (GAME.combo > 0) {
@@ -1173,6 +1177,36 @@
             ctx.arc(0, 0, (blackHole.radius + 20) * 3, 0, Math.PI * 2);
             ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'; // Darken space around BH
             ctx.fill();
+
+            // Skill Effects (Overlay)
+            // Stasis (Blue Tint)
+            if (GAME.skills.stasis.dur > 0) {
+                ctx.fillStyle = "rgba(56, 189, 248, 0.1)";
+                ctx.fillRect(-GAME.width/scale, -GAME.height/scale, GAME.width*2/scale, GAME.height*2/scale);
+                
+                // Frozen crystals effect
+                ctx.save();
+                ctx.strokeStyle = "rgba(186, 230, 253, 0.3)";
+                ctx.lineWidth = 2;
+                for(let i=0; i<5; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(Math.random()*400-200, Math.random()*400-200);
+                    ctx.lineTo(Math.random()*400-200, Math.random()*400-200);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            // Surge (Purple Aura)
+            if (GAME.skills.surge.dur > 0) {
+                const surgeSize = (blackHole.radius + 60) * (1 + Math.sin(Date.now()/100)*0.1);
+                const grd = ctx.createRadialGradient(0, 0, blackHole.radius, 0, 0, surgeSize);
+                grd.addColorStop(0, "rgba(168, 85, 247, 0)");
+                grd.addColorStop(0.5, "rgba(168, 85, 247, 0.3)");
+                grd.addColorStop(1, "rgba(168, 85, 247, 0)");
+                ctx.fillStyle = grd;
+                ctx.beginPath(); ctx.arc(0, 0, surgeSize, 0, Math.PI*2); ctx.fill();
+            }
 
             drawBlackHole(ctx, dt);
 
@@ -1430,7 +1464,7 @@
                     // 공식: 기본파워 / (질량 + 감쇠상수)
                     // 가벼운 파편(질량1)은 약 50~60 정도의 속도를 얻어 꽤 당겨짐
                     // 거대 행성(질량80)은 약 6~7 정도의 속도만 얻어 살짝 끌려옴
-                    const baseForce = 600; 
+                    const baseForce = 300; 
                     const massFactor = e.mass + 10;
                     const pullPower = baseForce / massFactor;
 
