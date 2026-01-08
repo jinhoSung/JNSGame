@@ -1402,12 +1402,24 @@
                 // Spawn Shockwave
                 particles.push(new EffectParticle(0,0, '#ef4444', 'shockwave'));
 
-                // Pull everyone
+                // Pull everyone based on mass
                 entities.forEach(e => {
                     const dx = 0 - e.x; const dy = 0 - e.y;
                     const dist = Math.sqrt(dx*dx+dy*dy);
-                    e.vx += (dx/dist) * 100;
-                    e.vy += (dy/dist) * 100;
+                    
+                    // 당기는 힘 조절: 무게(mass)에 반비례하여 힘 적용
+                    // 가벼운 것은 많이, 무거운 것은 조금 당겨짐.
+                    // 한번에 다 들어가지 않도록 기본 힘(Base Force)을 적절히 조절 (기존 100 -> 가변)
+                    
+                    // 공식: 기본파워 / (질량 + 감쇠상수)
+                    // 가벼운 파편(질량1)은 약 50~60 정도의 속도를 얻어 꽤 당겨짐
+                    // 거대 행성(질량80)은 약 6~7 정도의 속도만 얻어 살짝 끌려옴
+                    const baseForce = 600; 
+                    const massFactor = e.mass + 10;
+                    const pullPower = baseForce / massFactor;
+
+                    e.vx += (dx/dist) * pullPower;
+                    e.vy += (dy/dist) * pullPower;
                 });
                 GAME.shakeTime = 0.5; GAME.shakeAmount = 20;
             }
