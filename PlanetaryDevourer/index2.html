@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Void Harvester: Planetary Devourer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -11,7 +11,7 @@
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #050814;
+            background-color: #0b1026;
             color: #e2e8f0;
             font-family: 'Pretendard', sans-serif;
             user-select: none;
@@ -80,51 +80,6 @@
         }
         .combo-label { font-size: 1.2rem; color: #fbbf24; font-weight: 700; letter-spacing: 2px; }
 
-        /* 업적 알림 UI */
-        #achievement-container {
-            position: absolute;
-            top: 100px;
-            left: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            pointer-events: none;
-            z-index: 15;
-        }
-        
-        .achievement-toast {
-            background: rgba(15, 23, 42, 0.9);
-            border: 1px solid #3b82f6;
-            border-left: 5px solid #3b82f6;
-            padding: 10px 15px;
-            border-radius: 4px;
-            color: white;
-            width: 280px;
-            animation: slideIn 0.5s ease-out, fadeOut 0.5s ease-in 4.5s forwards;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            pointer-events: none;
-        }
-        
-        @keyframes slideIn { from { transform: translateX(-100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
-
-        /* 패시브 보너스 표시 */
-        #passive-stats {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            font-size: 0.8rem;
-            color: #94a3b8;
-            background: rgba(0,0,0,0.6);
-            padding: 8px 12px;
-            border-radius: 8px;
-            pointer-events: none;
-            z-index: 10;
-            display: none; 
-            line-height: 1.4;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-
         /* 스킬 바 UI */
         #skill-bar {
             position: absolute;
@@ -133,7 +88,7 @@
             transform: translateX(-50%);
             display: flex;
             gap: 20px;
-            pointer-events: auto;
+            pointer-events: none; /* 배경은 클릭 통과 */
             z-index: 10;
         }
 
@@ -141,10 +96,10 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            opacity: 0.3;
+            opacity: 0.3; /* 잠김 상태 */
             filter: grayscale(1);
             transition: all 0.3s;
-            pointer-events: auto;
+            pointer-events: auto; /* 버튼 클릭 가능 */
             cursor: pointer;
         }
 
@@ -210,17 +165,6 @@
             transition: all 0.2s;
         }
         #mute-btn:hover { background: #334155; }
-
-        /* 일시정지 오버레이 */
-        #pause-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.7); backdrop-filter: blur(5px);
-            z-index: 90; display: none;
-            flex-direction: column; align-items: center; justify-content: center;
-            color: white; font-size: 3rem; font-weight: 900;
-        }
-        .pause-text { margin-bottom: 20px; text-shadow: 0 0 20px rgba(255,255,255,0.5); }
-        .pause-sub { font-size: 1.2rem; font-weight: 400; color: #94a3b8; }
 
         /* 업그레이드 화면 */
         #upgrade-screen {
@@ -335,94 +279,322 @@
 
     <canvas id="gameCanvas"></canvas>
 
+    <!-- 인게임 UI -->
     <div id="ingame-ui">
-        <div id="passive-stats"></div>
         <div class="top-row">
             <div class="timer-box">
                 <span id="timer-display">10.0</span>s
             </div>
             <div class="score-val" id="score-display">$0</div>
         </div>
+        
+        <!-- 콤보 UI -->
         <div class="combo-box" id="combo-box">
             <div class="combo-val" id="combo-val">x1.0</div>
             <div class="combo-label">COMBO!</div>
         </div>
-        <div id="achievement-container"></div>
     </div>
     
+    <!-- 스킬 바 UI (3개 슬롯) -->
     <div id="skill-bar">
+        <!-- 1. 중력 폭탄 (Q) -->
         <div class="skill-slot" id="slot-bomb" onclick="activateSkill('bomb')">
-            <div class="skill-icon">💣<div class="skill-overlay" id="cd-bomb"></div><div class="skill-active-glow" id="glow-bomb"></div></div>
+            <div class="skill-icon">
+                💣
+                <div class="skill-overlay" id="cd-bomb"></div>
+                <div class="skill-active-glow" id="glow-bomb"></div>
+            </div>
             <div class="skill-key">Q</div>
         </div>
+        
+        <!-- 2. 시간 정지 (W) -->
         <div class="skill-slot" id="slot-stasis" onclick="activateSkill('stasis')">
-            <div class="skill-icon">❄️<div class="skill-overlay" id="cd-stasis"></div><div class="skill-active-glow" id="glow-stasis"></div></div>
+            <div class="skill-icon">
+                ❄️
+                <div class="skill-overlay" id="cd-stasis"></div>
+                <div class="skill-active-glow" id="glow-stasis"></div>
+            </div>
             <div class="skill-key">W</div>
         </div>
+
+        <!-- 3. 특이점 폭주 (E) -->
         <div class="skill-slot" id="slot-surge" onclick="activateSkill('surge')">
-            <div class="skill-icon">⚛️<div class="skill-overlay" id="cd-surge"></div><div class="skill-active-glow" id="glow-surge"></div></div>
+            <div class="skill-icon">
+                ⚛️
+                <div class="skill-overlay" id="cd-surge"></div>
+                <div class="skill-active-glow" id="glow-surge"></div>
+            </div>
             <div class="skill-key">E</div>
         </div>
     </div>
     
-    <div id="pause-overlay">
-        <div class="pause-text">PAUSED</div>
-        <div class="pause-sub">Press ESC to Resume</div>
-    </div>
-
     <button id="mute-btn" onclick="toggleMute()">🔊</button>
 
+    <!-- 업그레이드 화면 -->
     <div id="upgrade-screen">
         <div class="upgrade-header">
             <h1 class="screen-title">RESEARCH LAB</h1>
-            <p class="screen-subtitle">우주의 힘을 연구하여 블랙홀을 진화시키세요.</p>
+            <p class="screen-subtitle">다양한 기술을 연구하여 블랙홀을 진화시키세요.</p>
         </div>
+
         <div class="status-bar">
             <div class="level-badge" id="total-level-display">총 연구 레벨: 0</div>
             <div class="money-badge" id="upgrade-money">$0</div>
         </div>
+        
         <div style="margin-bottom: 10px;">
              <span class="reset-data-btn" onclick="resetSaveData()">[데이터 초기화]</span>
         </div>
-        <div class="tree-scroll-area" id="tree-container"></div>
+
+        <div class="tree-scroll-area" id="tree-container">
+            <!-- JS 생성 -->
+        </div>
+
         <div class="bottom-bar">
             <button class="btn-action" onclick="startGame()">Start Loop</button>
         </div>
     </div>
 
+    <!-- 시작 화면 -->
     <div id="start-overlay">
         <h1 class="text-5xl font-black mb-2 text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-500">Void Harvester:<br>Planetary Devourer</h1>
-        <p class="text-gray-400 mb-8 text-xl">행성을 파괴하고 흡수하여 끝없이 성장하세요.</p>
+        <p class="text-gray-400 mb-8 text-xl">10초 동안 최대한 많은 물질을 흡수하세요.</p>
         <button class="btn-action" onclick="firstStart()">게임 시작</button>
     </div>
 
     <script>
-        // --- 1. GLOBAL VARIABLES ---
-        let canvas, ctx;
-        let scoreEl, timerEl, upgradeScreen, upgradeMoneyEl, totalLevelEl, treeContainer, startOverlay, ingameUi, comboBox, comboValEl, passiveStatsEl, pauseOverlay;
-        let slotBomb, slotStasis, slotSurge;
-        let cdBomb, cdStasis, cdSurge;
-        let glowBomb, glowStasis, glowSurge;
+        // --- 사운드 매니저 ---
+        class SoundManager {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+                this.osc = null; 
+            }
 
-        const VALUE_MULTIPLIER = 0.4; 
-        const BASE_RESOLUTION = 1080;
-        const TIER_UNLOCKS = [0, 4, 12, 24, 40, 60, 90, 130, 180, 240, 310, 390, 480, 580, 700, 850, 1050, 1300, 1600, 2000, 2500];
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            playTone(freq, type, duration, vol=0.1) {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            }
+
+            playPop() {
+                if (this.muted || !this.ctx) return;
+                const t = this.ctx.currentTime;
+                const osc1 = this.ctx.createOscillator();
+                const gain1 = this.ctx.createGain();
+                const baseFreq = 300 + Math.random() * 200; 
+                osc1.frequency.setValueAtTime(baseFreq, t);
+                osc1.frequency.exponentialRampToValueAtTime(50, t + 0.15);
+                gain1.gain.setValueAtTime(0.15, t);
+                gain1.gain.linearRampToValueAtTime(0, t + 0.15);
+                
+                const osc2 = this.ctx.createOscillator();
+                const gain2 = this.ctx.createGain();
+                osc2.type = 'triangle';
+                osc2.frequency.setValueAtTime(baseFreq * 2, t);
+                osc2.frequency.exponentialRampToValueAtTime(baseFreq, t + 0.05);
+                gain2.gain.setValueAtTime(0.05, t);
+                gain2.gain.linearRampToValueAtTime(0, t + 0.05);
+
+                osc1.connect(gain1);
+                gain1.connect(this.ctx.destination);
+                osc2.connect(gain2);
+                gain2.connect(this.ctx.destination);
+                osc1.start(); osc1.stop(t + 0.15);
+                osc2.start(); osc2.stop(t + 0.05);
+            }
+
+            playSkill(type) {
+                if (this.muted || !this.ctx) return;
+                const t = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                if(type === 'bomb') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(100, t);
+                    osc.frequency.linearRampToValueAtTime(600, t + 0.2);
+                    osc.frequency.exponentialRampToValueAtTime(50, t + 0.6);
+                    gain.gain.setValueAtTime(0.3, t);
+                    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.6);
+                    osc.start(); osc.stop(t + 0.6);
+                } else if(type === 'stasis') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(800, t);
+                    osc.frequency.linearRampToValueAtTime(200, t + 1.0);
+                    gain.gain.setValueAtTime(0.2, t);
+                    gain.gain.linearRampToValueAtTime(0, t + 1.0);
+                    osc.start(); osc.stop(t + 1.0);
+                } else if(type === 'surge') {
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(50, t);
+                    osc.frequency.linearRampToValueAtTime(100, t + 2.0);
+                    gain.gain.setValueAtTime(0.1, t);
+                    gain.gain.linearRampToValueAtTime(0, t + 2.0);
+                    osc.start(); osc.stop(t + 2.0);
+                }
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+            }
+
+            playBuy() {
+                this.playTone(1200, 'sine', 0.1, 0.1);
+                setTimeout(() => this.playTone(1600, 'sine', 0.3, 0.1), 50);
+            }
+            
+            playStart() {
+                this.playTone(100, 'sawtooth', 1.0, 0.1);
+            }
+
+            startGravityHum() {
+                if (this.muted || !this.ctx || this.osc) return;
+                
+                this.osc = this.ctx.createOscillator();
+                this.osc.type = 'sawtooth';
+                this.osc.frequency.value = 60; 
+
+                this.lfo = this.ctx.createOscillator();
+                this.lfo.type = 'sine';
+                this.lfo.frequency.value = 8; 
+
+                const lfoGain = this.ctx.createGain();
+                lfoGain.gain.value = 300; 
+
+                this.filter = this.ctx.createBiquadFilter();
+                this.filter.type = "lowpass";
+                this.filter.frequency.value = 400;
+
+                this.oscGain = this.ctx.createGain();
+                this.oscGain.gain.value = 0.05; 
+
+                this.lfo.connect(lfoGain);
+                lfoGain.connect(this.filter.frequency);
+
+                this.osc.connect(this.filter);
+                this.filter.connect(this.oscGain);
+                this.oscGain.connect(this.ctx.destination);
+
+                this.osc.start();
+                this.lfo.start();
+            }
+
+            stopGravityHum() {
+                if (this.osc) {
+                    const t = this.ctx.currentTime;
+                    this.oscGain.gain.cancelScheduledValues(t);
+                    this.oscGain.gain.linearRampToValueAtTime(0, t + 0.1);
+                    
+                    const oldOsc = this.osc;
+                    const oldLfo = this.lfo;
+                    
+                    setTimeout(() => {
+                        if(oldOsc) { oldOsc.stop(); oldOsc.disconnect(); }
+                        if(oldLfo) { oldLfo.stop(); oldLfo.disconnect(); }
+                    }, 100);
+
+                    this.osc = null;
+                    this.lfo = null;
+                }
+            }
+        }
+        
+        const audio = new SoundManager();
+
+        function toggleMute() {
+            audio.muted = !audio.muted;
+            document.getElementById('mute-btn').innerText = audio.muted ? '🔇' : '🔊';
+        }
+
+        // --- 메인 게임 코드 ---
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score-display');
+        const timerEl = document.getElementById('timer-display');
+        const upgradeScreen = document.getElementById('upgrade-screen');
+        const upgradeMoneyEl = document.getElementById('upgrade-money');
+        const totalLevelEl = document.getElementById('total-level-display');
+        const treeContainer = document.getElementById('tree-container');
+        const startOverlay = document.getElementById('start-overlay');
+        const ingameUi = document.getElementById('ingame-ui');
+        const comboBox = document.getElementById('combo-box');
+        const comboValEl = document.getElementById('combo-val');
+        
+        // 스킬 UI 요소
+        const slotBomb = document.getElementById('slot-bomb');
+        const cdBomb = document.getElementById('cd-bomb');
+        const glowBomb = document.getElementById('glow-bomb');
+        
+        const slotStasis = document.getElementById('slot-stasis');
+        const cdStasis = document.getElementById('cd-stasis');
+        const glowStasis = document.getElementById('glow-stasis');
+        
+        const slotSurge = document.getElementById('slot-surge');
+        const cdSurge = document.getElementById('cd-surge');
+        const glowSurge = document.getElementById('glow-surge');
+
+        const VALUE_MULTIPLIER = 0.3; 
+
+        let GAME = {
+            running: false,
+            phase: 'start',
+            money: 0,
+            scoreInRound: 0,
+            timeLeft: 10.0,
+            width: 0, height: 0, centerX: 0, centerY: 0,
+            lastTime: 0,
+            combo: 0,
+            comboTimer: 0,
+            shakeX: 0, shakeY: 0, shakeTime: 0,
+            
+            // Skills State
+            skills: {
+                bomb: { cd: 0, max: 15 },
+                stasis: { cd: 0, max: 30, dur: 0 },
+                surge: { cd: 0, max: 60, dur: 0 }
+            }
+        };
+
+        const INPUT = { x: 0, y: 0, isDown: false };
+        const entities = [];
+        const texts = [];
+        const particles = []; 
+        const blackHole = { radius: 35, angle: 0 };
+
+        // --- 업그레이드 데이터 ---
+        const TIER_UNLOCKS = [0, 4, 12, 24, 40, 60, 90]; 
 
         const UPGRADES = [
             // Tier 0
-            { id: 'force', name: '중력장 강도', desc: '파편을 당기는 힘.', icon: '🧲', tier: 0, level: 1, maxLevel: 99, baseCost: 30, mult: 1.4, val: 0.12, inc: 0.03 },
-            { id: 'radius', name: '사건의 지평선', desc: '영향 범위 확장.', icon: '⭕', tier: 0, level: 1, maxLevel: 99, baseCost: 30, mult: 1.4, val: 80, inc: 4 }, 
-            { id: 'friction', name: '공간 점성', desc: '파편이 덜 미끄러짐.', icon: '🕸️', tier: 0, level: 1, maxLevel: 10, baseCost: 50, mult: 1.5, val: 0.92, inc: -0.01 },
+            { id: 'force', name: '중력장 강도', desc: '파편을 당기는 힘.', icon: '🧲', tier: 0, level: 1, maxLevel: 99, baseCost: 50, mult: 1.4, val: 0.08, inc: 0.03 },
+            { id: 'radius', name: '사건의 지평선', desc: '영향 범위 확장.', icon: '⭕', tier: 0, level: 1, maxLevel: 99, baseCost: 50, mult: 1.4, val: 40, inc: 4 },
+            { id: 'friction', name: '공간 점성', desc: '파편이 덜 미끄러짐.', icon: '🕸️', tier: 0, level: 1, maxLevel: 10, baseCost: 100, mult: 1.5, val: 0.94, inc: -0.01 },
 
             // Tier 1
-            { id: 'density', name: '초기 밀도', desc: '시작 행성 수 증가.', icon: '🌌', tier: 1, level: 0, maxLevel: 20, baseCost: 100, mult: 1.5, val: 30, inc: 10 },
-            { id: 'respawn', name: '행성 번식', desc: '흡수 시 재생성 확률.', icon: '🌱', tier: 1, level: 0, maxLevel: 20, baseCost: 150, mult: 1.5, val: 0, inc: 5 },
-            { id: 'time', name: '시간 왜곡', desc: '제한 시간 증가.', icon: '⏳', tier: 1, level: 0, maxLevel: 50, baseCost: 200, mult: 1.5, val: 15, inc: 1.5 },
+            { id: 'density', name: '초기 밀도', desc: '시작 행성 수 증가.', icon: '🌌', tier: 1, level: 0, maxLevel: 20, baseCost: 200, mult: 1.5, val: 30, inc: 10 },
+            { id: 'respawn', name: '행성 번식', desc: '흡수 시 재생성 확률.', icon: '🌱', tier: 1, level: 0, maxLevel: 20, baseCost: 300, mult: 1.5, val: 0, inc: 5 },
+            { id: 'time', name: '시간 왜곡', desc: '제한 시간 증가.', icon: '⏳', tier: 1, level: 0, maxLevel: 50, baseCost: 400, mult: 1.5, val: 10, inc: 1.5 },
 
-            // Tier 2
-            { id: 'value', name: '채굴 효율', desc: '행성 가치 상승.', icon: '💎', tier: 2, level: 0, maxLevel: 99, baseCost: 300, mult: 1.5, val: 1.0, inc: 0.5 },
+            // Tier 2 - Skills Start
+            { id: 'value', name: '채굴 효율', desc: '행성 가치 상승.', icon: '💎', tier: 2, level: 0, maxLevel: 99, baseCost: 600, mult: 1.5, val: 1.0, inc: 0.5 },
             { id: 'unlock_bomb', name: '중력 폭탄 [Skill]', desc: '[Q] 주변 행성 당기기.', icon: '💣', type: 'skill', tier: 2, level: 0, maxLevel: 1, baseCost: 1000, mult: 1, val: 0, inc: 1 },
-            { id: 'heavy', name: '고중력', desc: '무거운 행성 무게 무시.', icon: '⚓', tier: 2, level: 0, maxLevel: 20, baseCost: 350, mult: 1.5, val: 1.0, inc: 0.2 },
+            { id: 'heavy', name: '고중력', desc: '무거운 행성 무게 무시.', icon: '⚓', tier: 2, level: 0, maxLevel: 20, baseCost: 700, mult: 1.5, val: 1.0, inc: 0.2 },
+            { id: 'auto', name: '자동 인력', desc: '클릭 없이도 당김.', icon: '🌀', tier: 2, level: 0, maxLevel: 10, baseCost: 1000, mult: 2.0, val: 0, inc: 0.1 },
 
             // Tier 3
             { id: 'attract_range', name: '자연 중력', desc: '블랙홀 기본 흡입 범위.', icon: '🌑', tier: 3, level: 0, maxLevel: 20, baseCost: 800, mult: 1.5, val: 150, inc: 20 },
@@ -430,131 +602,38 @@
             { id: 'lightning_unlock', name: '뇌전 행성', desc: '체인 라이트닝 행성 등장.', icon: '⚡', tier: 3, level: 0, maxLevel: 1, baseCost: 3000, mult: 1, val: 0, inc: 1 },
             
             // Tier 4
-            { id: 'unlock_stasis', name: '타임 프리즈 [Skill]', desc: '[W] 5초간 시간 멈춤 & 질량 50% 감소.', icon: '❄️', type: 'skill', tier: 4, level: 0, maxLevel: 1, baseCost: 8000, mult: 1, val: 0, inc: 1 },
+            { id: 'unlock_stasis', name: '시간 정지 [Skill]', desc: '[W] 5초간 시간/이동 멈춤.', icon: '❄️', type: 'skill', tier: 4, level: 0, maxLevel: 1, baseCost: 8000, mult: 1, val: 0, inc: 1 },
             { id: 'crit', name: '행성 붕괴', desc: '가치 2배 크리티컬 확률.', icon: '💥', tier: 4, level: 0, maxLevel: 20, baseCost: 2500, mult: 1.5, val: 0, inc: 2 },
-            { id: 'l_range', name: '전이 범위', desc: '체인 라이트닝 거리.', icon: '📡', tier: 4, level: 0, maxLevel: 10, baseCost: 4000, mult: 1.6, val: 150, inc: 20 }, 
+            { id: 'l_range', name: '전이 범위', desc: '체인 라이트닝 거리.', icon: '📡', tier: 4, level: 0, maxLevel: 10, baseCost: 4000, mult: 1.6, val: 60, inc: 15 },
             { id: 'l_count', name: '과부하', desc: '체인 라이트닝 타겟 수.', icon: '🔗', tier: 4, level: 0, maxLevel: 10, baseCost: 4500, mult: 1.8, val: 3, inc: 1 },
 
             // Tier 5
-            { id: 'unlock_surge', name: '블랙홀 개방 [Skill]', desc: '[E] 8초간 전체 흡입 & 파워 3배.', icon: '⚛️', type: 'skill', tier: 5, level: 0, maxLevel: 1, baseCost: 25000, mult: 1, val: 0, inc: 1 },
-            { id: 'luck', name: '행운의 별', desc: '희귀 행성 확률 증가.', icon: '🍀', tier: 5, level: 0, maxLevel: 10, baseCost: 5000, mult: 1.6, val: 1.0, inc: 0.2 },
+            { id: 'unlock_surge', name: '특이점 폭주 [Skill]', desc: '[E] 8초간 초강력 흡입.', icon: '⚛️', type: 'skill', tier: 5, level: 0, maxLevel: 1, baseCost: 25000, mult: 1, val: 0, inc: 1 },
+            { id: 'luck', name: '행운의 별', desc: '행성 리젠 시 희귀 확률 증가.', icon: '🍀', tier: 5, level: 0, maxLevel: 10, baseCost: 5000, mult: 1.6, val: 1.0, inc: 0.2 },
             { id: 'blackhole_size', name: '거대 블랙홀', desc: '블랙홀 크기 증가.', icon: '⚫', tier: 5, level: 0, maxLevel: 10, baseCost: 10000, mult: 2.5, val: 35, inc: 3 },
             
             // Tier 6
-            { id: 'expansion', name: '우주 확장', desc: '시야를 넓혀 거대 행성 발견.', icon: '🔭', tier: 6, level: 0, maxLevel: 10, baseCost: 30000, mult: 2.0, val: 1.0, inc: 0.1 },
+            { id: 'interest', name: '암흑 물질 반응', desc: '라운드 종료 시 보유금 이자.', icon: '📈', tier: 6, level: 0, maxLevel: 10, baseCost: 15000, mult: 2.0, val: 0, inc: 1 },
+            { id: 'singularity', name: '특이점', desc: '화면 전체 약한 지속 데미지.', icon: '⚛️', tier: 6, level: 0, maxLevel: 5, baseCost: 20000, mult: 3.0, val: 0, inc: 1 },
             { id: 'siphon', name: '시간 흡수', desc: '흡수 시 시간 연장 확률.', icon: '⏳', tier: 6, level: 0, maxLevel: 20, baseCost: 30000, mult: 1.8, val: 0, inc: 2 },
-            { id: 'frenzy', name: '코스믹 프렌지', desc: '3초 이하일 때 중력 2배.', icon: '🔥', tier: 6, level: 0, maxLevel: 1, baseCost: 50000, mult: 1, val: 0, inc: 1 },
-
-            // Tier 7
-            { id: 'unlock_ring', name: '고리 행성', desc: '거대한 고리 행성 발견.', icon: '🪐', tier: 7, level: 0, maxLevel: 1, baseCost: 100000, mult: 1, val: 0, inc: 1 },
-            { id: 'interest', name: '암흑 물질 반응', desc: '라운드 종료 시 보유금 이자.', icon: '📈', tier: 7, level: 0, maxLevel: 10, baseCost: 15000, mult: 2.0, val: 0, inc: 1 },
-            { id: 'singularity', name: '특이점', desc: '화면 전체 약한 중력장 생성.', icon: '⚛️', tier: 7, level: 0, maxLevel: 5, baseCost: 80000, mult: 3.0, val: 0, inc: 1 },
-
-            // Tier 8 ~ 20 (Expanded)
-            { id: 'neutron_unlock', name: '중성자별', desc: '초고밀도 행성 발견.', icon: '🌟', tier: 8, level: 0, maxLevel: 1, baseCost: 200000, mult: 1, val: 0, inc: 1 },
-            { id: 'gravity_lens', name: '중력 렌즈', desc: '흡입 범위 추가 확장.', icon: '🔍', tier: 8, level: 0, maxLevel: 20, baseCost: 120000, mult: 1.8, val: 1.0, inc: 0.1 },
-
-            { id: 'chrono_battery', name: '크로노 배터리', desc: '최대 시간 증가.', icon: '🔋', tier: 9, level: 0, maxLevel: 20, baseCost: 250000, mult: 1.6, val: 5, inc: 1 },
-            { id: 'skill_mastery', name: '스킬 마스터리', desc: '스킬 쿨타임 감소.', icon: '🎓', tier: 9, level: 0, maxLevel: 10, baseCost: 300000, mult: 2.0, val: 0, inc: 5 }, // %
-
-            { id: 'star_unlock', name: '항성 발견', desc: '스스로 빛나는 별 발견.', icon: '☀️', tier: 10, level: 0, maxLevel: 1, baseCost: 500000, mult: 1, val: 0, inc: 1 },
-            { id: 'nucleosynthesis', name: '핵융합', desc: '모든 행성 가치 대폭 증가.', icon: '☢️', tier: 10, level: 0, maxLevel: 50, baseCost: 400000, mult: 1.5, val: 1.0, inc: 0.5 },
-
-            { id: 'void_hunger', name: '중력 우물', desc: '자연 중력 흡입력 강화.', icon: '👿', tier: 11, level: 0, maxLevel: 10, baseCost: 600000, mult: 2.0, val: 1.0, inc: 0.5 },
-            { id: 'event_horizon_ex', name: '사건의 지평선 II', desc: '블랙홀 크기 추가 확장.', icon: '⚫', tier: 11, level: 0, maxLevel: 10, baseCost: 700000, mult: 2.0, val: 0, inc: 5 },
-
-            { id: 'antimatter', name: '반물질 생성', desc: '크리티컬 확률 추가.', icon: '💠', tier: 12, level: 0, maxLevel: 20, baseCost: 800000, mult: 1.6, val: 0, inc: 2 },
-            { id: 'warp_drive', name: '워프 드라이브', desc: '마찰력 추가 감소.', icon: '🚀', tier: 12, level: 0, maxLevel: 10, baseCost: 900000, mult: 2.0, val: 0, inc: 0.005 },
-
-            { id: 'federation', name: '은하 연합', desc: '행성 밀도 대폭 증가.', icon: '🛸', tier: 13, level: 0, maxLevel: 10, baseCost: 1200000, mult: 1.8, val: 0, inc: 20 },
-            { id: 'dyson_sphere', name: '다이슨 스피어', desc: '라운드 종료 이자 증가.', icon: '🌐', tier: 13, level: 0, maxLevel: 10, baseCost: 1500000, mult: 2.0, val: 0, inc: 2 },
-
-            { id: 'dark_energy', name: '암흑 에너지', desc: '중력장 힘 극대화.', icon: '🟣', tier: 14, level: 0, maxLevel: 20, baseCost: 2000000, mult: 1.6, val: 1.0, inc: 0.2 },
-            { id: 'expansion_2', name: '우주 확장 II', desc: '시야 추가 확장 (줌아웃).', icon: '🔭', tier: 14, level: 0, maxLevel: 5, baseCost: 2500000, mult: 3.0, val: 0, inc: 0.1 },
-
-            { id: 'quasar_unlock', name: '퀘이사 파편', desc: '전설적인 물질 발견.', icon: '✨', tier: 18, level: 0, maxLevel: 1, baseCost: 10000000, mult: 1, val: 0, inc: 1 },
-            { id: 'gamma_ray', name: '감마선 폭발', desc: '스킬 효과 증폭.', icon: '🔆', tier: 15, level: 0, maxLevel: 5, baseCost: 3000000, mult: 2.5, val: 1.0, inc: 0.2 },
-
-            { id: 'multiverse', name: '다중우주 채굴', desc: '가치 극대화.', icon: '🌌', tier: 16, level: 0, maxLevel: 20, baseCost: 4000000, mult: 1.7, val: 1.0, inc: 1.0 },
-            { id: 'reality_anchor', name: '현실 고정', desc: '시간 왜곡 효율 증가.', icon: '⚓', tier: 16, level: 0, maxLevel: 10, baseCost: 5000000, mult: 2.0, val: 0, inc: 2.0 },
-
-            { id: 'supermassive', name: '초거대 질량', desc: '고중력 효과 강화.', icon: '🏋️', tier: 17, level: 0, maxLevel: 10, baseCost: 7000000, mult: 2.0, val: 1.0, inc: 0.5 },
-            
-            { id: 'time_dilation', name: '시간 지연', desc: '행성 속도 감소.', icon: '🐌', tier: 18, level: 0, maxLevel: 5, baseCost: 9000000, mult: 2.0, val: 1.0, inc: 0.1 },
-
-            { id: 'omega_point', name: '오메가 포인트', desc: '모든 능력치 소폭 증가.', icon: 'Ω', tier: 19, level: 0, maxLevel: 50, baseCost: 15000000, mult: 1.4, val: 0, inc: 0.05 },
-            
-            { id: 'big_bang', name: '빅뱅', desc: '궁극의 힘.', icon: '💥', tier: 20, level: 0, maxLevel: 1, baseCost: 100000000, mult: 1, val: 0, inc: 1 },
+            { id: 'gaze', name: '심연의 응시', desc: '마우스 위치로 자동 흡입.', icon: '👁️', tier: 6, level: 0, maxLevel: 5, baseCost: 40000, mult: 2.5, val: 0, inc: 0.2 },
+            { id: 'frenzy', name: '코스믹 프렌지', desc: '3초 이하일 때 중력 2배.', icon: '🔥', tier: 6, level: 0, maxLevel: 1, baseCost: 50000, mult: 1, val: 0, inc: 1 }
         ];
-
-        // Achievements
-        const ACHIEVEMENTS = [
-            { id: 'novice', name: '초보 포식자', desc: '행성 100개 흡수', req: { type: 'count', val: 100 }, bonus: 'force', amount: 0.05 },
-            { id: 'skilled', name: '숙련된 포식자', desc: '행성 1000개 흡수', req: { type: 'count', val: 1000 }, bonus: 'force', amount: 0.1 },
-            { id: 'master', name: '우주의 지배자', desc: '행성 5000개 흡수', req: { type: 'count', val: 5000 }, bonus: 'force', amount: 0.15 },
-            { id: 'rich', name: '부자', desc: '누적 $100,000 달성', req: { type: 'money', val: 100000 }, bonus: 'value', amount: 0.2 },
-            { id: 'combo', name: '콤보 마스터', desc: '50 콤보 달성', req: { type: 'combo', val: 50 }, bonus: 'crit', amount: 5 } 
-        ];
-
-        const SHARD_TYPES = [
-            { id: 'blue',   color: '#3b82f6', minR: 6,  maxR: 10, mass: 1,   valMult: 1,  weight: 60 },
-            { id: 'green',  color: '#10b981', minR: 12, maxR: 16, mass: 5,   valMult: 3,  weight: 30 }, 
-            { id: 'orange', color: '#f59e0b', minR: 18, maxR: 24, mass: 15,  valMult: 8,  weight: 15 }, 
-            { id: 'purple', color: '#8b5cf6', minR: 28, maxR: 35, mass: 40,  valMult: 20, weight: 5 },
-            { id: 'electric', color: '#facc15', minR: 15, maxR: 20, mass: 10, valMult: 15, weight: 0, isLightning: true },
-            { id: 'giant',    color: '#ef4444', minR: 40, maxR: 60, mass: 80,  valMult: 50, weight: 0 },
-            { id: 'ringed',   color: '#d97706', minR: 50, maxR: 70, mass: 150, valMult: 100, weight: 0, hasRings: true },
-            { id: 'neutron',  color: '#ffffff', minR: 8,  maxR: 12, mass: 200, valMult: 300, weight: 0, glow: '#0ea5e9' },
-            { id: 'star',     color: '#f59e0b', minR: 80, maxR: 120, mass: 500, valMult: 200, weight: 0, isStar: true },
-            { id: 'quasar',   color: '#ec4899', minR: 30, maxR: 40, mass: 300, valMult: 500, weight: 0, pulse: true },
-            { id: 'comet', color: '#fbbf24', minR: 15, maxR: 20, mass: 20, valMult: 100, weight: 0, isComet: true },
-            { id: 'flux', color: '#3b82f6', minR: 15, maxR: 20, mass: 10, valMult: 10, weight: 0, isFlux: true }
-        ];
-
-        // Global State
-        let GAME = {
-            running: false, paused: false, phase: 'start', money: 0, scoreInRound: 0, timeLeft: 10.0, maxTime: 10.0,
-            width: 0, height: 0, centerX: 0, centerY: 0, lastTime: 0,
-            combo: 0, comboTimer: 0, shakeX: 0, shakeY: 0, shakeTime: 0,
-            zoom: 1.0, bhAngle: 0, bhPulse: 0,
-            skills: { bomb: { cd: 0, max: 15 }, stasis: { cd: 0, max: 30, dur: 0 }, surge: { cd: 0, max: 60, dur: 0 } },
-            bgStars: [], nebulae: [], pixelScale: 1.0,
-            stats: { totalAbsorbed: 0, totalMoney: 0, maxCombo: 0, achievements: [] } 
-        };
-
-        const INPUT = { x: 0, y: 0, isDown: false };
-        let entities = [];
-        let texts = [];
-        let particles = []; 
-        let bolts = []; 
-        const blackHole = { radius: 35, angle: 0 };
-
-        // 2. HELPER FUNCTIONS
-        function getUpgrade(id) { return UPGRADES.find(u => u.id === id); }
-        function getTotalLevels() { 
-            return UPGRADES.reduce((sum, u) => {
-                if(u.tier === 0) return sum + Math.max(0, u.level - 1);
-                return sum + u.level;
-            }, 0); 
-        } 
-        function rand(min, max) { return Math.random() * (max - min) + min; }
 
         function saveGame() {
-            const data = { 
-                money: GAME.money, 
-                upgrades: UPGRADES.map(u => ({ id: u.id, level: u.level })),
-                stats: GAME.stats 
+            const data = {
+                money: GAME.money,
+                upgrades: UPGRADES.map(u => ({ id: u.id, level: u.level }))
             };
-            localStorage.setItem('void_harvester_save_v10', JSON.stringify(data));
+            localStorage.setItem('void_harvester_save_v3', JSON.stringify(data));
         }
 
         function loadGame() {
-            const str = localStorage.getItem('void_harvester_save_v10');
+            const str = localStorage.getItem('void_harvester_save_v3');
             if(!str) return;
             try {
                 const data = JSON.parse(str);
                 GAME.money = data.money || 0;
-                if(data.stats) GAME.stats = data.stats;
                 if(data.upgrades) {
                     data.upgrades.forEach(saved => {
                         const u = UPGRADES.find(x => x.id === saved.id);
@@ -574,783 +653,453 @@
 
         function resetSaveData() {
             if(confirm("모든 데이터를 초기화하시겠습니까?")) {
-                localStorage.removeItem('void_harvester_save_v10');
+                localStorage.removeItem('void_harvester_save_v3');
                 location.reload();
             }
         }
 
-        function checkAchievements() {
-            let newlyUnlocked = false;
-            ACHIEVEMENTS.forEach(ach => {
-                if (!GAME.stats.achievements.includes(ach.id)) {
-                    let unlocked = false;
-                    if (ach.req.type === 'count' && GAME.stats.totalAbsorbed >= ach.req.val) unlocked = true;
-                    if (ach.req.type === 'money' && GAME.stats.totalMoney >= ach.req.val) unlocked = true;
-                    if (ach.req.type === 'combo' && GAME.stats.maxCombo >= ach.req.val) unlocked = true;
-                    
-                    if (unlocked) {
-                        GAME.stats.achievements.push(ach.id);
-                        showAchievementToast(ach.name);
-                        newlyUnlocked = true;
-                    }
-                }
-            });
-            if(newlyUnlocked) updatePassiveStats();
-        }
+        const SHARD_TYPES = [
+            { id: 'blue',   color: '#3b82f6', minR: 6,  maxR: 10, mass: 1,   valMult: 1,  weight: 60 },
+            { id: 'green',  color: '#10b981', minR: 12, maxR: 16, mass: 5,   valMult: 3,  weight: 30 }, 
+            { id: 'orange', color: '#f59e0b', minR: 18, maxR: 24, mass: 15,  valMult: 8,  weight: 15 }, 
+            { id: 'purple', color: '#8b5cf6', minR: 28, maxR: 35, mass: 40,  valMult: 20, weight: 5 },
+            { id: 'electric', color: '#facc15', minR: 15, maxR: 20, mass: 8, valMult: 10, weight: 0, isLightning: true } 
+        ];
 
-        function showAchievementToast(name) {
-            const el = document.createElement('div');
-            el.className = 'achievement-toast';
-            el.innerHTML = `<strong>🏆 업적 달성!</strong><br>${name}`;
-            document.getElementById('achievement-container').appendChild(el);
-            setTimeout(() => el.remove(), 4000);
-        }
-
-        function updatePassiveStats() {
-            let forceBonus = 0;
-            let valueBonus = 0;
-            let critBonus = 0;
-            
-            GAME.stats.achievements.forEach(id => {
-                const ach = ACHIEVEMENTS.find(a => a.id === id);
-                if(ach) {
-                    if(ach.bonus === 'force') forceBonus += ach.amount;
-                    if(ach.bonus === 'value') valueBonus += ach.amount;
-                    if(ach.bonus === 'crit') critBonus += ach.amount;
-                }
-            });
-            
-            const el = document.getElementById('passive-stats');
-            if (forceBonus > 0 || valueBonus > 0 || critBonus > 0) {
-                el.style.display = 'block';
-                el.innerHTML = `업적 보너스:<br>힘 +${(forceBonus*100).toFixed(0)}%<br>가치 +${(valueBonus*100).toFixed(0)}%<br>치명타 +${critBonus}%`;
-            }
-        }
-
-        function getAchievementMultiplier(type) {
-            let mult = 1.0;
-            let add = 0;
-            GAME.stats.achievements.forEach(id => {
-                const ach = ACHIEVEMENTS.find(a => a.id === id);
-                if(ach) {
-                    if(type === 'force' && ach.bonus === 'force') mult += ach.amount;
-                    if(type === 'value' && ach.bonus === 'value') mult += ach.amount;
-                    if(type === 'crit' && ach.bonus === 'crit') add += ach.amount;
-                }
-            });
-            return { mult, add };
-        }
-
-        // 3. CLASSES 
-        class SoundManager {
-            constructor() { this.ctx = null; this.muted = false; }
-            init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
-            playTone(freq, type, duration, vol=0.1) {
-                if (this.muted || !this.ctx) return;
-                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
-                osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-                gain.gain.setValueAtTime(vol, this.ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
-                osc.connect(gain); gain.connect(this.ctx.destination); osc.start(); osc.stop(this.ctx.currentTime + duration);
-            }
-            playPop() { this.playTone(300 + Math.random()*200, 'triangle', 0.1); }
-            playSkill(type) { this.playTone(100, 'sawtooth', 0.5); }
-            playBuy() { this.playTone(1200, 'sine', 0.1); }
-            playStart() { this.playTone(100, 'sawtooth', 1.0); }
-            playBonus(type) { this.playTone(1500, 'sine', 0.5, 0.2); }
-            playDamage() { this.playTone(150, 'sawtooth', 0.3, 0.5); }
-            startGravityHum() {} 
-            stopGravityHum() {}
-        }
-        const audio = new SoundManager();
+        const rand = (min, max) => Math.random() * (max - min) + min;
+        function getUpgrade(id) { return UPGRADES.find(u => u.id === id); }
+        function getTotalLevels() { 
+            return UPGRADES.reduce((sum, u) => {
+                if(u.tier === 0) return sum + Math.max(0, u.level - 1);
+                return sum + u.level;
+            }, 0); 
+        } 
 
         class EffectParticle {
             constructor(x, y, color, type) {
-                this.x = x; this.y = y; this.color = color; this.type = type; this.life = 1.0;
+                this.x = x; this.y = y;
+                this.color = color;
+                this.type = type; 
+                this.life = 1.0;
+                
                 if (type === 'explode') {
-                    const angle = Math.random() * Math.PI * 2; const speed = Math.random() * 3 + 1;
-                    this.vx = Math.cos(angle) * speed; this.vy = Math.sin(angle) * speed;
-                    this.decay = 0.05; this.size = Math.random() * 3 + 1;
-                } else if (type === 'gravity_suck') {
-                    this.vx = 0; this.vy = 0; this.decay = 0.05; this.size = Math.random() * 2 + 1;
-                } else if (type === 'trail') {
-                    this.vx = 0; this.vy = 0; this.decay = 0.05; this.size = Math.random() * 2 + 2; 
-                } else if (type === 'time_bonus') {
-                    this.vx = 0; this.vy = -2; this.decay = 0.03; this.size = 0; 
-                } else if (type === 'comet_trail') {
-                    this.vx = 0; this.vy = 0; this.decay = 0.1; this.size = Math.random() * 3 + 2;
-                } else if (type === 'spiral_in') {
-                    this.angle = Math.random() * Math.PI * 2;
-                    this.dist = Math.random() * 20 + 30; // Start away from center
-                    this.speed = Math.random() * 0.1 + 0.05;
-                    this.size = Math.random() * 2 + 1;
-                    this.decay = 0.05;
-                } else if (type === 'shockwave') {
-                    this.vx = 0; this.vy = 0; this.decay = 0.02; this.size = 10;
-                    this.maxSize = 300; 
-                } else if (type === 'spark') {
                     const angle = Math.random() * Math.PI * 2;
-                    const speed = Math.random() * 5 + 5;
+                    const speed = Math.random() * 3 + 1;
                     this.vx = Math.cos(angle) * speed;
                     this.vy = Math.sin(angle) * speed;
-                    this.decay = 0.1; this.size = Math.random() * 2 + 1;
+                    this.decay = 0.05;
+                    this.size = Math.random() * 3 + 1;
+                } else if (type === 'gravity_suck') {
+                    this.vx = 0; this.vy = 0;
+                    this.decay = 0.05;
+                    this.size = Math.random() * 2 + 1;
+                } else if (type === 'trail') {
+                    this.vx = 0; this.vy = 0;
+                    this.decay = 0.05; 
+                    this.size = Math.random() * 2 + 2; 
+                } else if (type === 'time_bonus') {
+                    this.vx = 0; this.vy = -2;
+                    this.decay = 0.03;
+                    this.size = 0; 
                 }
             }
+
             update(dt) {
                 const timeScale = dt * 60;
-                if(this.type === 'gravity_suck') {
-                    const dx = 0 - this.x; const dy = 0 - this.y;
+                
+                if (this.type === 'gravity_suck') {
+                    const dx = GAME.centerX - this.x;
+                    const dy = GAME.centerY - this.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const force = 500 / (dist + 10); 
                     const angle = Math.atan2(dy, dx);
-                    this.vx += Math.cos(angle) * 50 * 0.1; this.vy += Math.sin(angle) * 50 * 0.1;
-                    this.x += this.vx * timeScale; this.y += this.vy * timeScale;
-                } else if (this.type === 'spiral_in') {
-                    this.angle += 0.2 * timeScale;
-                    this.dist -= 3 * timeScale;
-                    this.x = Math.cos(this.angle) * this.dist;
-                    this.y = Math.sin(this.angle) * this.dist;
-                    if(this.dist <= 0) this.life = 0;
-                } else if (this.type === 'shockwave') {
-                    this.size += 15 * timeScale;
-                    if (this.size > this.maxSize) this.life = 0;
+                    this.vx += Math.cos(angle) * force * 0.1;
+                    this.vy += Math.sin(angle) * force * 0.1;
+                    this.x += this.vx * timeScale;
+                    this.y += this.vy * timeScale;
+                    this.life -= this.decay * timeScale;
+                    if(dist < 20) this.life = 0;
                 } else {
-                    this.x += this.vx * timeScale; this.y += this.vy * timeScale;
+                    this.x += this.vx * timeScale;
+                    this.y += this.vy * timeScale;
+                    this.life -= this.decay * timeScale;
                 }
-                this.life -= this.decay * timeScale;
             }
+
             draw(ctx) {
-                ctx.globalAlpha = Math.max(0, this.life); 
-                if(this.type === 'time_bonus') { 
-                    ctx.fillStyle = this.color;
-                    ctx.font = 'bold 16px sans-serif'; ctx.fillText(this.color === '#ef4444' ? "-5.0s" : "+0.5s", this.x, this.y); 
-                } else if (this.type === 'shockwave') {
-                    ctx.strokeStyle = this.color || 'white';
-                    ctx.lineWidth = 5 * this.life;
-                    ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.stroke();
-                } else { 
-                    ctx.fillStyle = this.color;
-                    ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); 
+                if (this.type === 'time_bonus') {
+                    ctx.globalAlpha = Math.max(0, this.life);
+                    ctx.fillStyle = '#60a5fa'; 
+                    ctx.font = 'bold 16px "Pretendard"';
+                    ctx.fillText("+0.5s", this.x, this.y);
+                    ctx.globalAlpha = 1.0;
+                    return;
                 }
+
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
                 ctx.globalAlpha = 1.0;
+            }
+        }
+
+        class Shard {
+            constructor() {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * (Math.min(GAME.width, GAME.height)/2 - 80) + 150;
+                this.x = GAME.centerX + Math.cos(angle) * dist;
+                this.y = GAME.centerY + Math.sin(angle) * dist;
+                
+                const speedBase = 0.003; 
+                this.orbitSpeed = (speedBase * (150/dist)) * (Math.random() < 0.5 ? 1 : -1);
+
+                const tierLvl = getUpgrade('tier_unlock').val; 
+                const lightningUnlocked = getUpgrade('lightning_unlock').level > 0;
+                const luckBonus = getUpgrade('luck') ? getUpgrade('luck').val : 1;
+
+                let available = [SHARD_TYPES[0]]; 
+                if (tierLvl >= 2) available.push(SHARD_TYPES[1]);
+                if (tierLvl >= 3) available.push(SHARD_TYPES[2]);
+                if (tierLvl >= 4) available.push(SHARD_TYPES[3]);
+                
+                let type = null;
+                if (lightningUnlocked && Math.random() < 0.05 * luckBonus) { 
+                    type = SHARD_TYPES[4]; 
+                } else {
+                    const totalW = available.reduce((a,b)=>a+b.weight,0);
+                    let r = Math.random() * totalW;
+                    type = available[0];
+                    for(let t of available){
+                        if(r < t.weight) { type = t; break; }
+                        r -= t.weight;
+                    }
+                }
+
+                this.type = type;
+                this.color = type.color;
+                this.radius = rand(type.minR, type.maxR);
+                this.mass = type.mass;
+                this.sides = type.isLightning ? 3 : Math.floor(rand(4, 7)); 
+                
+                const valueBonus = getUpgrade('value').val; 
+                this.value = Math.floor(this.radius * 2 * type.valMult * valueBonus * VALUE_MULTIPLIER);
+                
+                this.vx = 0; this.vy = 0;
+                this.friction = getUpgrade('friction').val;
+            }
+
+            update(dt) {
+                const timeScale = dt * 60;
+                
+                // --- Skill Effects ---
+                let globalSpeed = 1.0;
+                if (GAME.skills.stasis.dur > 0) globalSpeed = 0.1; // Slow down logic
+
+                const speedSq = this.vx*this.vx + this.vy*this.vy;
+                if(speedSq > 2 && Math.random() < 0.4) {
+                    particles.push(new EffectParticle(this.x, this.y, this.color, 'trail'));
+                }
+
+                // 1. 공전
+                const currentOrbitSpeed = this.orbitSpeed * timeScale * globalSpeed;
+                const dx0 = this.x - GAME.centerX;
+                const dy0 = this.y - GAME.centerY;
+                const cos = Math.cos(currentOrbitSpeed);
+                const sin = Math.sin(currentOrbitSpeed);
+                this.x = GAME.centerX + (dx0 * cos - dy0 * sin);
+                this.y = GAME.centerY + (dx0 * sin + dy0 * cos);
+
+                // 2. 물리
+                const dx = GAME.centerX - this.x;
+                const dy = GAME.centerY - this.y;
+                const distSq = dx*dx + dy*dy;
+                const dist = Math.sqrt(distSq);
+
+                // Hyper Surge Effect (Massive natural gravity)
+                let naturalRange = getUpgrade('attract_range').val;
+                let naturalG = 1000;
+                if (GAME.skills.surge.dur > 0) {
+                    naturalRange *= 3;
+                    naturalG *= 5;
+                }
+
+                if (dist < naturalRange) {
+                    const g = naturalG / distSq;
+                    const force = g / this.mass;
+                    this.vx += (dx/dist) * force * timeScale * globalSpeed;
+                    this.vy += (dy/dist) * force * timeScale * globalSpeed;
+                }
+
+                const autoRate = getUpgrade('auto').val; 
+                if (autoRate > 0 && dist < 600) {
+                     const force = getUpgrade('force').val * autoRate * 0.5;
+                     const accel = force / this.mass;
+                     this.vx += (dx/dist) * accel * timeScale * globalSpeed;
+                     this.vy += (dy/dist) * accel * timeScale * globalSpeed;
+                }
+
+                // Gaze
+                const gazePower = getUpgrade('gaze') ? getUpgrade('gaze').val : 0;
+                if (!INPUT.isDown && gazePower > 0) {
+                    const gx = INPUT.x - this.x;
+                    const gy = INPUT.y - this.y;
+                    const gDist = Math.sqrt(gx*gx + gy*gy);
+                    if(gDist < 200) {
+                        const gForce = gazePower * 0.1 / this.mass;
+                        this.vx += (gx/gDist) * gForce * timeScale * globalSpeed;
+                        this.vy += (gy/gDist) * gForce * timeScale * globalSpeed;
+                    }
+                }
+
+                if (INPUT.isDown) {
+                    const radius = getUpgrade('radius').val;
+                    let power = getUpgrade('force').val;
+                    const heavyBonus = getUpgrade('heavy').val;
+                    
+                    const frenzy = getUpgrade('frenzy') && getUpgrade('frenzy').level > 0;
+                    if(frenzy && GAME.timeLeft <= 3.0) power *= 2;
+
+                    const mdx = INPUT.x - this.x;
+                    const mdy = INPUT.y - this.y;
+                    const mDist = Math.sqrt(mdx*mdx + mdy*mdy);
+
+                    if (mDist < radius) {
+                        const pushX = GAME.centerX - this.x;
+                        const pushY = GAME.centerY - this.y;
+                        const pushLen = Math.sqrt(pushX*pushX + pushY*pushY);
+                        
+                        let effectiveMass = this.mass;
+                        if(effectiveMass > 8) effectiveMass /= heavyBonus; 
+
+                        const accel = (2.0 * power) / effectiveMass;
+
+                        this.vx += (pushX / pushLen) * accel * timeScale;
+                        this.vy += (pushY / pushLen) * accel * timeScale;
+                        
+                        const gatherForce = 0.2 / effectiveMass;
+                        this.vx += (mdx / mDist) * gatherForce * timeScale;
+                        this.vy += (mdy / mDist) * gatherForce * timeScale;
+                    }
+                }
+
+                const singularityLvl = getUpgrade('singularity') ? getUpgrade('singularity').level : 0;
+                if(singularityLvl > 0) {
+                    const sForce = singularityLvl * 0.05 / this.mass;
+                    this.vx += (dx/dist) * sForce * timeScale * globalSpeed;
+                    this.vy += (dy/dist) * sForce * timeScale * globalSpeed;
+                }
+
+                this.x += this.vx * timeScale * globalSpeed;
+                this.y += this.vy * timeScale * globalSpeed;
+                
+                this.vx *= Math.pow(this.friction, timeScale);
+                this.vy *= Math.pow(this.friction, timeScale);
+                
+                this.rotation = (this.rotation || 0) + (this.vx + this.vy) * 0.1 * timeScale + this.orbitSpeed * 3 * timeScale;
+
+                const bhSize = blackHole.radius + (getUpgrade('blackhole_size').val - 35);
+                if (dist < bhSize) return true;
+                return false;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                
+                ctx.beginPath();
+                if(this.type.isLightning) {
+                    ctx.shadowColor = '#facc15';
+                    ctx.shadowBlur = 10;
+                    ctx.moveTo(this.radius, 0);
+                    ctx.lineTo(-this.radius/2, this.radius);
+                    ctx.lineTo(-this.radius/2, -this.radius);
+                } else {
+                    ctx.moveTo(this.radius, 0);
+                    for (let i = 1; i < this.sides; i++) {
+                        const angle = (i * 2 * Math.PI) / this.sides;
+                        ctx.lineTo(Math.cos(angle) * this.radius, Math.sin(angle) * this.radius);
+                    }
+                }
+                ctx.closePath();
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+                ctx.restore();
             }
         }
 
         class PopText {
             constructor(x, y, val, isCrit) {
-                this.x = x; this.y = y; this.text = "+$" + val; this.life = 1.0; this.vy = -1.5; this.isCrit = isCrit;
-                this.vx = (Math.random() - 0.5) * 1;
+                this.x = x; this.y = y; 
+                this.text = "+$" + val;
+                this.life = 1.0; this.vy = -1;
+                this.isCrit = isCrit;
             }
-            update(dt) { 
-                this.x += this.vx * dt * 60;
-                this.y += this.vy * dt * 60; 
-                this.life -= 0.02 * dt * 60; 
-                this.vy *= 0.95; // Friction
+            update(dt) {
+                const timeScale = dt * 60;
+                this.y += this.vy * timeScale; 
+                this.life -= 0.03 * timeScale; 
             }
             draw() {
                 ctx.globalAlpha = Math.max(0, this.life);
-                ctx.fillStyle = this.isCrit ? '#ef4444' : '#4ade80';
-                if(parseInt(this.text.substring(2)) > 1000) ctx.fillStyle = '#facc15'; 
-                ctx.font = this.isCrit ? '900 24px "Pretendard"' : '800 16px "Pretendard"';
-                
-                // Scale effect for pop text
-                const scale = this.life > 0.8 ? 1.2 : 1.0;
-                ctx.save();
-                ctx.translate(this.x, this.y);
-                ctx.scale(scale, scale);
-                ctx.fillText(this.text, 0, 0); 
-                ctx.restore();
-                
+                ctx.fillStyle = this.isCrit ? '#ef4444' : '#4ade80'; 
+                ctx.font = this.isCrit ? '900 20px "Pretendard"' : '800 14px "Pretendard"';
+                if(this.isCrit && !this.text.includes('!')) this.text += "!";
+                ctx.fillText(this.text, this.x, this.y);
                 ctx.globalAlpha = 1.0;
             }
         }
 
         class LightningBolt {
-            constructor(x1, y1, x2, y2) { this.x1 = x1; this.y1 = y1; this.x2 = x2; this.y2 = y2; this.life = 1.0; }
-            update(dt) { this.life -= 0.1 * dt * 60; }
-            draw() { if(this.life<=0)return; ctx.globalAlpha = this.life; ctx.beginPath(); ctx.moveTo(this.x1, this.y1); ctx.lineTo(this.x2, this.y2); ctx.strokeStyle = '#facc15'; ctx.lineWidth = 2; ctx.stroke(); ctx.globalAlpha = 1.0; }
-        }
-
-        class Shard {
-            constructor(forceType) {
-                const expansion = getUpgrade('expansion').val + (getUpgrade('expansion_2') ? getUpgrade('expansion_2').val : 0);
-                GAME.zoom = 1 / Math.max(1, expansion);
-                const angle = Math.random() * Math.PI * 2;
-                
-                // ** Spawn Distance Reduced **
-                const minDist = 300 / GAME.zoom; // Was 600
-                const dist = minDist + Math.random() * 300;
-                
-                this.x = Math.cos(angle) * dist;
-                this.y = Math.sin(angle) * dist;
-                this.orbitSpeed = 0.003 * (Math.random() < 0.5 ? 1 : -1);
-                
-                this.vx = 0; this.vy = 0;
-                let frictionBase = getUpgrade('friction').val;
-                if(getUpgrade('warp_drive')) frictionBase -= getUpgrade('warp_drive').val;
-                this.friction = frictionBase;
-
-                if (forceType) {
-                    let t = SHARD_TYPES.find(x => x.id === forceType);
-                    this.type = t; this.color = t.color; this.radius = rand(t.minR, t.maxR);
-                    this.mass = t.mass; this.sides = 3; 
-                    this.value = Math.floor(this.radius * 2 * t.valMult * VALUE_MULTIPLIER);
-                    this.orbitSpeed *= 5; return;
-                }
-
-                let available = [SHARD_TYPES[0]]; 
-                const tierLvl = getUpgrade('tier_unlock').val; 
-                if (tierLvl >= 2) available.push(SHARD_TYPES[1]);
-                if (tierLvl >= 3) available.push(SHARD_TYPES[2]);
-                if (tierLvl >= 4) available.push(SHARD_TYPES[3]);
-                
-                const lightningUnlocked = getUpgrade('lightning_unlock').level > 0;
-                const ringUnlocked = getUpgrade('unlock_ring').level > 0;
-                const neutronUnlocked = getUpgrade('neutron_unlock') && getUpgrade('neutron_unlock').level > 0;
-                const starUnlocked = getUpgrade('star_unlock') && getUpgrade('star_unlock').level > 0;
-                const quasarUnlocked = getUpgrade('quasar_unlock') && getUpgrade('quasar_unlock').level > 0;
-                
-                if (expansion >= 1.2) available.push(SHARD_TYPES[5]); 
-                if (ringUnlocked && expansion >= 1.4) available.push(SHARD_TYPES[6]);
-                if (neutronUnlocked && expansion >= 1.6) available.push(SHARD_TYPES[7]);
-                if (starUnlocked && expansion >= 2.0) available.push(SHARD_TYPES[8]);
-                if (quasarUnlocked && expansion >= 2.5) available.push(SHARD_TYPES[9]);
-
-                const luckBonus = getUpgrade('luck') ? getUpgrade('luck').val : 1;
-
-                let type = null;
-                if (lightningUnlocked && Math.random() < 0.05 * luckBonus) type = SHARD_TYPES[4];
-                else {
-                    const totalW = available.reduce((a,b)=>a+(b.weight || 10), 0);
-                    let r = Math.random() * totalW;
-                    type = available[0];
-                    for(let t of available){
-                        if(r < (t.weight || 10)) { type = t; break; }
-                        r -= (t.weight || 10);
-                    }
-                }
-                
-                this.type = type; this.color = type.color; this.radius = rand(type.minR, type.maxR);
-                this.mass = type.mass; this.sides = 3;
-                const valueBonus = getUpgrade('value').val;
-                this.value = Math.floor(this.radius * 2 * type.valMult * valueBonus * VALUE_MULTIPLIER);
+            constructor(x1, y1, x2, y2) {
+                this.x1 = x1; this.y1 = y1; this.x2 = x2; this.y2 = y2;
+                this.life = 1.0;
             }
-
-            update(dt) {
+            update(dt) { 
                 const timeScale = dt * 60;
-                let globalSpeed = 1.0;
-                let playerSuctionMult = 1.0;
-
-                if (GAME.skills.stasis.dur > 0) {
-                    globalSpeed = 0.0;
-                    playerSuctionMult = 3.0;
-                }
-                
-                // Anomaly moves anyway
-                if (this.type.isComet || this.type.isFlux) {
-                     globalSpeed = 1.0; 
-                     particles.push(new EffectParticle(this.x, this.y, this.color, 'comet_trail'));
-                }
-
-                const currentOrbitSpeed = this.orbitSpeed * timeScale * globalSpeed;
-                const cos = Math.cos(currentOrbitSpeed); const sin = Math.sin(currentOrbitSpeed);
-                const nx = this.x * cos - this.y * sin; const ny = this.x * sin + this.y * cos;
-                this.x = nx; this.y = ny;
-
-                const distSq = this.x*this.x + this.y*this.y;
-                const dist = Math.sqrt(distSq);
-
-                // Natural Gravity
-                let naturalRange = getUpgrade('attract_range').val / GAME.zoom;
-                let naturalG = 1000;
-                const wellMult = getUpgrade('void_hunger') ? getUpgrade('void_hunger').val : 1.0;
-                naturalG *= wellMult;
-                if (GAME.skills.surge.dur > 0) { naturalRange = 10000; naturalG *= 3; }
-
-                if (dist < naturalRange) {
-                    const g = naturalG / distSq;
-                    let force = g / this.mass;
-                    if(GAME.skills.stasis.dur > 0) force = 0;
-                    if (globalSpeed > 0 || GAME.skills.surge.dur > 0) {
-                        this.vx += (-this.x/dist) * force * timeScale;
-                        this.vy += (-this.y/dist) * force * timeScale;
-                    }
-                }
-
-                if (INPUT.isDown) {
-                    const radius = getUpgrade('radius').val / GAME.zoom;
-                    let power = getUpgrade('force').val;
-                    if(getUpgrade('dark_energy')) power *= getUpgrade('dark_energy').val;
-                    
-                    const heavyBonus = getUpgrade('heavy').val + (getUpgrade('supermassive') ? getUpgrade('supermassive').val : 0);
-                    const frenzy = getUpgrade('frenzy') && getUpgrade('frenzy').level > 0;
-                    if(frenzy && GAME.timeLeft <= 3.0) power *= 2;
-
-                    // Mouse Logic Coordinates
-                    const worldMouseX = (INPUT.x - GAME.centerX) / (GAME.zoom * GAME.pixelScale);
-                    const worldMouseY = (INPUT.y - GAME.centerY) / (GAME.zoom * GAME.pixelScale);
-                    const mdx = worldMouseX - this.x; const mdy = worldMouseY - this.y;
-                    const mDist = Math.sqrt(mdx*mdx + mdy*mdy);
-
-                    if (mDist < radius) {
-                        let effectiveMass = this.mass;
-                        if (GAME.skills.stasis.dur > 0) effectiveMass *= 0.5;
-                        else if(effectiveMass > 8) effectiveMass /= heavyBonus; 
-
-                        const accel = (2.0 * power * playerSuctionMult) / effectiveMass;
-
-                        this.vx += (-this.x / Math.sqrt(this.x*this.x+this.y*this.y)) * accel * timeScale;
-                        this.vy += (-this.y / Math.sqrt(this.x*this.x+this.y*this.y)) * accel * timeScale;
-                    }
-                }
-                
-                const sForce = (getUpgrade('singularity').val * 0.05) / this.mass;
-                if (sForce > 0) {
-                    this.vx += (-this.x/dist) * sForce * timeScale;
-                    this.vy += (-this.y/dist) * sForce * timeScale;
-                }
-
-                this.x += this.vx * timeScale;
-                this.y += this.vy * timeScale;
-                this.vx *= Math.pow(this.friction, timeScale);
-                this.vy *= Math.pow(this.friction, timeScale);
-
-                const bhSize = blackHole.radius + 10; 
-                if (dist < bhSize) return true;
-                return false;
+                this.life -= 0.1 * timeScale; 
             }
-
-            draw(ctx) {
-                ctx.save();
-                ctx.translate(this.x, this.y);
-                ctx.fillStyle = this.color;
-                
-                if (this.type.isComet) {
-                    ctx.shadowColor = this.color; ctx.shadowBlur = 20;
-                    ctx.beginPath(); ctx.ellipse(0, 0, this.radius*1.5, this.radius*0.8, 0, 0, Math.PI*2); ctx.fill();
-                } else if (this.type.isStar) {
-                    ctx.shadowColor = this.color; ctx.shadowBlur = 30;
-                    ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
-                } else {
-                    ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
-                }
-                
-                if (this.type.hasRings) {
-                    ctx.beginPath(); ctx.ellipse(0, 0, this.radius * 2.2, this.radius * 0.6, -0.2, 0, Math.PI * 2);
-                    ctx.strokeStyle = 'rgba(200, 200, 200, 0.6)'; ctx.lineWidth = this.radius * 0.3; ctx.stroke();
-                }
-                ctx.restore();
-            }
-        }
-
-        // 4. LOGIC
-        function triggerChainLightning(source) {
-             const range = getUpgrade('l_range').val / GAME.zoom;
-             const count = getUpgrade('l_count').val;
-             let candidates = entities.filter(e => e !== source && (e.x-source.x)**2 + (e.y-source.y)**2 < range**2);
-             for(let i=0; i<count && candidates.length>0; i++) {
-                 const idx = Math.floor(Math.random()*candidates.length);
-                 const e = candidates[idx]; candidates.splice(idx,1);
-                 bolts.push(new LightningBolt(source.x, source.y, e.x, e.y));
-                 
-                 // Spawn Sparks
-                 for(let k=0; k<3; k++) particles.push(new EffectParticle(e.x, e.y, '#facc15', 'spark'));
-
-                 const force = 40 / e.mass; 
-                 e.vx += (-e.x / Math.sqrt(e.x*e.x+e.y*e.y)) * force;
-                 e.vy += (-e.y / Math.sqrt(e.x*e.x+e.y*e.y)) * force;
-             }
-        }
-
-        function updateGame(dt) {
-            if (GAME.paused) return;
-
-            GAME.bhAngle += dt; // Spin the black hole
-            GAME.bhPulse += dt * 2; // Pulse effect
-
-            if (GAME.skills.stasis.dur > 0) GAME.skills.stasis.dur -= dt;
-            if (GAME.skills.surge.dur > 0) GAME.skills.surge.dur -= dt;
-            if (GAME.skills.bomb.cd > 0) GAME.skills.bomb.cd -= dt;
-
-            // Combo Timer
-            if (GAME.combo > 0) {
-                GAME.comboTimer -= dt;
-                if (GAME.comboTimer <= 0) {
-                    GAME.combo = 0;
-                    updateComboUI();
-                }
-            }
-
-            if (GAME.skills.stasis.dur <= 0) GAME.timeLeft -= dt;
-            if (GAME.timeLeft <= 0) { GAME.timeLeft = 0; endGame(); return; }
-
-            if (Math.random() < 0.005) {
-                 if(Math.random() < 0.5) entities.push(new Shard('comet'));
-                 else entities.push(new Shard('flux'));
-            }
-
-            if (entities.length < 5) entities.push(new Shard());
-            if (INPUT.isDown) {
-                const radius = getUpgrade('radius').val / GAME.zoom;
-                for(let i=0; i<2; i++) {
-                    const angle = Math.random() * Math.PI * 2; const dist = Math.random() * radius;
-                    const worldMouseX = (INPUT.x - GAME.centerX) / (GAME.zoom * GAME.pixelScale);
-                    const worldMouseY = (INPUT.y - GAME.centerY) / (GAME.zoom * GAME.pixelScale);
-                    const px = worldMouseX + Math.cos(angle) * dist;
-                    const py = worldMouseY + Math.sin(angle) * dist;
-                    particles.push(new EffectParticle(px, py, '#22d3ee', 'gravity_suck'));
-                }
-            }
-
-            for (let i = entities.length - 1; i >= 0; i--) {
-                const e = entities[i];
-                if (e.update(dt)) {
-                    if (e.type.isLightning) triggerChainLightning(e);
-                    
-                    if (e.type.isComet) { audio.playBonus('comet'); GAME.scoreInRound += e.value*5; GAME.money += e.value*5; texts.push(new PopText(0, -60, e.value*5, true)); }
-                    if (e.type.isFlux) { 
-                        audio.playBonus('flux'); 
-                        GAME.scoreInRound += e.value; // Add score
-                        GAME.money += e.value;       // Add money
-                        texts.push(new PopText(0, -60, e.value, true)); // Visual feedback for money
-                        
-                        if(GAME.timeLeft < GAME.maxTime) GAME.timeLeft += 3; 
-                        particles.push(new EffectParticle(0, -50, null, 'time_bonus')); 
-                    }
-                    
-                    if (!e.type.isComet && !e.type.isFlux) {
-                        GAME.scoreInRound += e.value; GAME.money += e.value;
-                        
-                        // Combo Logic
-                        GAME.combo++;
-                        GAME.comboTimer = 2.0;
-                        if(GAME.combo > GAME.stats.maxCombo) GAME.stats.maxCombo = GAME.combo;
-                        updateComboUI();
-
-                        texts.push(new PopText(0, -30, e.value, false));
-                        audio.playPop();
-                        
-                        // Spawn suck-in particles
-                        for(let k=0; k<3; k++) particles.push(new EffectParticle(0,0, e.color, 'spiral_in'));
-
-                        // Giant Shockwave
-                        if(e.type.id === 'giant' || e.type.id === 'star' || e.type.id === 'quasar') {
-                             particles.push(new EffectParticle(0,0, e.color, 'shockwave'));
-                             GAME.shakeTime = 0.3; GAME.shakeAmount = 10;
-                        }
-
-                        GAME.stats.totalAbsorbed++;
-                        GAME.stats.totalMoney += e.value;
-                        checkAchievements();
-                    }
-                    
-                    entities.splice(i, 1);
-                    if(!e.type.isComet && !e.type.isFlux && Math.random()*100 < getUpgrade('respawn').val) entities.push(new Shard());
-                }
-            }
-
-            for(let i=bolts.length-1; i>=0; i--) { bolts[i].update(dt); if(bolts[i].life<=0) bolts.splice(i,1); }
-            for(let i=particles.length-1; i>=0; i--) { particles[i].update(dt); if(particles[i].life<=0) particles.splice(i,1); }
-            for(let i=texts.length-1; i>=0; i--) { texts[i].update(dt); if(texts[i].life<=0) texts.splice(i,1); }
-            
-            if(timerEl) timerEl.innerText = GAME.timeLeft.toFixed(1);
-            if(timerEl && GAME.timeLeft <= 5.0) timerEl.classList.add('timer-warn');
-            else if(timerEl) timerEl.classList.remove('timer-warn');
-
-            if(scoreEl) scoreEl.innerText = '$' + GAME.scoreInRound.toLocaleString();
-
-            updateSkillUI();
-        }
-
-        function drawNebula(ctx, n, bgX, bgY) {
-            const grad = ctx.createRadialGradient(n.x - bgX*n.z, n.y - bgY*n.z, 0, n.x - bgX*n.z, n.y - bgY*n.z, n.size);
-            grad.addColorStop(0, n.color + "44"); // Transparent
-            grad.addColorStop(1, "transparent");
-            ctx.fillStyle = grad;
-            ctx.beginPath(); ctx.arc(n.x - bgX*n.z, n.y - bgY*n.z, n.size, 0, Math.PI*2); ctx.fill();
-        }
-
-        function drawBlackHole(ctx, dt) {
-            let bhSize = blackHole.radius + (getUpgrade('blackhole_size') ? getUpgrade('blackhole_size').val : 0) + (getUpgrade('event_horizon_ex') ? getUpgrade('event_horizon_ex').val : 0);
-            
-            // Pulse Effect
-            bhSize += Math.sin(GAME.bhPulse) * 2;
-
-            // Accretion Disk (Swirls)
-            ctx.save();
-            ctx.rotate(GAME.bhAngle);
-            for(let i=0; i<3; i++) {
+            draw() {
+                if(this.life <= 0) return;
+                ctx.globalAlpha = this.life;
                 ctx.beginPath();
-                ctx.arc(0, 0, bhSize * (1.2 + i*0.2), 0 + i, Math.PI + i);
-                ctx.strokeStyle = `rgba(124, 58, 237, ${0.3 - i*0.05})`;
-                ctx.lineWidth = 4;
+                ctx.moveTo(this.x1, this.y1);
+                ctx.lineTo(this.x2, this.y2);
+                ctx.strokeStyle = '#facc15';
+                ctx.lineWidth = 2;
+                ctx.shadowColor = '#facc15';
+                ctx.shadowBlur = 10;
                 ctx.stroke();
-            }
-            ctx.restore();
-
-             // Second Layer (Counter spin)
-            ctx.save();
-            ctx.rotate(-GAME.bhAngle * 0.5);
-            ctx.beginPath();
-            ctx.arc(0, 0, bhSize * 1.5, 0, Math.PI * 1.5);
-            ctx.strokeStyle = "rgba(59, 130, 246, 0.15)";
-            ctx.lineWidth = 8;
-            ctx.stroke();
-            ctx.restore();
-
-            // Glow
-            const glow = ctx.createRadialGradient(0,0, bhSize, 0,0, bhSize*4);
-            glow.addColorStop(0, "rgba(80,0,120,0.5)"); glow.addColorStop(1, "rgba(0,0,0,0)");
-            ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(0,0, bhSize*4, 0, Math.PI*2); ctx.fill();
-            
-            // Event Horizon
-            ctx.fillStyle = "black"; ctx.beginPath(); ctx.arc(0,0, bhSize, 0, Math.PI*2); ctx.fill();
-            
-            // Photon Ring
-            ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.arc(0,0, bhSize, 0, Math.PI*2); ctx.stroke();
-        }
-
-        function drawGame(dt) {
-            ctx.clearRect(0, 0, GAME.width, GAME.height);
-            
-            const bgX = (INPUT.x - GAME.centerX) * 0.05;
-            const bgY = (INPUT.y - GAME.centerY) * 0.05;
-
-            // Nebulae
-            GAME.nebulae.forEach(n => drawNebula(ctx, n, bgX, bgY));
-
-            // Stars (Background)
-            ctx.save();
-            ctx.fillStyle = 'white';
-            
-            GAME.bgStars.forEach(star => {
-                ctx.globalAlpha = star.alpha;
-                ctx.beginPath();
-                ctx.arc(star.x - bgX * star.z, star.y - bgY * star.z, star.size, 0, Math.PI*2);
-                ctx.fill();
-            });
-            ctx.restore();
-
-            ctx.save();
-            ctx.translate(GAME.centerX, GAME.centerY);
-            if(GAME.shakeTime > 0) {
-                GAME.shakeTime -= dt;
-                ctx.translate((Math.random()-0.5)*GAME.shakeAmount, (Math.random()-0.5)*GAME.shakeAmount);
-            }
-            
-            const scale = GAME.zoom * GAME.pixelScale;
-            ctx.scale(scale, scale);
-
-            // Gravitational Lensing Effect (Distorted Background simulation - simple circle)
-            ctx.beginPath();
-            ctx.arc(0, 0, (blackHole.radius + 20) * 3, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'; // Darken space around BH
-            ctx.fill();
-
-            drawBlackHole(ctx, dt);
-
-            // Natural Gravity Ring
-            const nRange = getUpgrade('attract_range').val / GAME.zoom;
-            ctx.strokeStyle = "rgba(50, 100, 255, 0.1)"; ctx.lineWidth = 2/scale;
-            ctx.beginPath(); ctx.arc(0,0, nRange, 0, Math.PI*2); ctx.stroke();
-
-            // Mouse Gravity Field
-            if(INPUT.isDown && GAME.phase === 'playing') {
-                 const radius = getUpgrade('radius').val / GAME.zoom;
-                 const wx = (INPUT.x - GAME.centerX) / scale;
-                 const wy = (INPUT.y - GAME.centerY) / scale;
-                 ctx.strokeStyle = "rgba(34, 211, 238, 0.3)";
-                 ctx.setLineDash([8,8]);
-                 ctx.beginPath(); ctx.arc(wx, wy, radius, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
-            }
-
-            entities.forEach(e => e.draw(ctx));
-            bolts.forEach(b => b.draw(ctx));
-            particles.forEach(p => p.draw(ctx));
-            texts.forEach(t => t.draw(ctx));
-            
-            ctx.restore();
-            
-            // Low Health Vignette
-            if (GAME.timeLeft <= 5.0) {
-                const opacity = (Math.sin(Date.now() / 200) + 1) / 4 + 0.1;
-                const grd = ctx.createRadialGradient(GAME.centerX, GAME.centerY, GAME.height/3, GAME.centerX, GAME.centerY, GAME.height);
-                grd.addColorStop(0, "transparent");
-                grd.addColorStop(1, `rgba(239, 68, 68, ${opacity})`);
-                ctx.fillStyle = grd;
-                ctx.fillRect(0, 0, GAME.width, GAME.height);
-            }
-
-            // Combo
-            if (GAME.combo > 5) {
-                const intensity = Math.min(1, (GAME.combo - 5) / 20);
-                ctx.strokeStyle = `rgba(251, 191, 36, ${intensity * 0.5})`; 
-                ctx.lineWidth = 10;
-                ctx.strokeRect(0, 0, GAME.width, GAME.height);
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1.0;
             }
         }
 
-        // --- NEW & RESTORED FUNCTIONS ---
-        
+        // --- 시스템 함수 ---
+        const bolts = [];
+
         function init() {
-            canvas = document.getElementById('gameCanvas');
-            ctx = canvas.getContext('2d');
-            
-            // UI Elements
-            scoreEl = document.getElementById('score-display');
-            timerEl = document.getElementById('timer-display');
-            upgradeScreen = document.getElementById('upgrade-screen');
-            upgradeMoneyEl = document.getElementById('upgrade-money');
-            totalLevelEl = document.getElementById('total-level-display');
-            treeContainer = document.getElementById('tree-container');
-            startOverlay = document.getElementById('start-overlay');
-            ingameUi = document.getElementById('ingame-ui');
-            comboBox = document.getElementById('combo-box');
-            comboValEl = document.getElementById('combo-val');
-            passiveStatsEl = document.getElementById('passive-stats');
-            pauseOverlay = document.getElementById('pause-overlay');
-            
-            // Skill Slots
-            slotBomb = document.getElementById('slot-bomb');
-            slotStasis = document.getElementById('slot-stasis');
-            slotSurge = document.getElementById('slot-surge');
-            cdBomb = document.getElementById('cd-bomb');
-            cdStasis = document.getElementById('cd-stasis');
-            cdSurge = document.getElementById('cd-surge');
-            glowBomb = document.getElementById('glow-bomb');
-            glowStasis = document.getElementById('glow-stasis');
-            glowSurge = document.getElementById('glow-surge');
-
-            audio.init();
-            loadGame();
-            updatePassiveStats();
-
-            // Background Stars
-            for(let i=0; i<150; i++) {
-                GAME.bgStars.push({
-                    x: Math.random() * window.innerWidth * 1.5,
-                    y: Math.random() * window.innerHeight * 1.5,
-                    z: Math.random() * 0.5 + 0.1,
-                    size: Math.random() * 2,
-                    alpha: Math.random() * 0.8 + 0.2
-                });
-            }
-
-            // Nebulae Generation
-            const colors = ['#4c1d95', '#1e3a8a', '#065f46'];
-            for(let i=0; i<5; i++) {
-                GAME.nebulae.push({
-                    x: Math.random() * window.innerWidth,
-                    y: Math.random() * window.innerHeight,
-                    z: Math.random() * 0.2 + 0.1,
-                    size: Math.random() * 300 + 100,
-                    color: colors[Math.floor(Math.random()*colors.length)]
-                });
-            }
-
             window.addEventListener('resize', resize);
             resize();
-
-            // Events
-            canvas.addEventListener('mousedown', () => INPUT.isDown = true);
-            window.addEventListener('mouseup', () => INPUT.isDown = false);
-            canvas.addEventListener('mousemove', e => {
-                const rect = canvas.getBoundingClientRect();
-                INPUT.x = e.clientX - rect.left;
-                INPUT.y = e.clientY - rect.top;
+            
+            canvas.addEventListener('mousedown', (e) => { 
+                INPUT.isDown = true; 
+                move(e); 
+                audio.init(); 
+                audio.startGravityHum();
+            });
+            canvas.addEventListener('mousemove', move);
+            window.addEventListener('mouseup', () => { 
+                INPUT.isDown = false;
+                audio.stopGravityHum();
             });
             
-            canvas.addEventListener('touchstart', e => {
-                e.preventDefault();
-                INPUT.isDown = true;
-                const rect = canvas.getBoundingClientRect();
-                INPUT.x = e.touches[0].clientX - rect.left;
-                INPUT.y = e.touches[0].clientY - rect.top;
-            }, {passive: false});
-            
-            window.addEventListener('touchend', () => INPUT.isDown = false);
-            canvas.addEventListener('touchmove', e => {
-                e.preventDefault();
-                if(INPUT.isDown) {
-                    const rect = canvas.getBoundingClientRect();
-                    INPUT.x = e.touches[0].clientX - rect.left;
-                    INPUT.y = e.touches[0].clientY - rect.top;
-                }
-            }, {passive: false});
+            canvas.addEventListener('touchstart', (e) => { 
+                INPUT.isDown = true; move(e.touches[0]); e.preventDefault(); 
+                audio.init();
+                audio.startGravityHum();
+            }, {passive:false});
+            canvas.addEventListener('touchmove', (e) => { move(e.touches[0]); e.preventDefault(); }, {passive:false});
+            window.addEventListener('touchend', () => {
+                INPUT.isDown = false;
+                audio.stopGravityHum();
+            });
 
-            window.addEventListener('keydown', e => {
-                if (GAME.phase === 'playing' && e.key === 'Escape') togglePause();
-                if (!GAME.paused) {
-                    if (e.key === 'q' || e.key === 'Q') activateSkill('bomb');
-                    if (e.key === 'w' || e.key === 'W') activateSkill('stasis');
-                    if (e.key === 'e' || e.key === 'E') activateSkill('surge');
+            // 스킬 키 리스너 (Q, W, E)
+            window.addEventListener('keydown', (e) => {
+                if (GAME.phase === 'playing') {
+                    if (e.code === 'KeyQ') activateSkill('bomb');
+                    if (e.code === 'KeyW') activateSkill('stasis');
+                    if (e.code === 'KeyE') activateSkill('surge');
                 }
             });
 
+            loadGame();
+            GAME.lastTime = performance.now();
             requestAnimationFrame(loop);
-        }
-
-        function togglePause() {
-            if (GAME.phase !== 'playing') return;
-            GAME.paused = !GAME.paused;
-            pauseOverlay.style.display = GAME.paused ? 'flex' : 'none';
         }
 
         function resize() {
-            GAME.width = window.innerWidth;
-            GAME.height = window.innerHeight;
-            canvas.width = GAME.width;
-            canvas.height = GAME.height;
-            GAME.centerX = GAME.width / 2;
-            GAME.centerY = GAME.height / 2;
-            GAME.pixelScale = Math.min(GAME.width, GAME.height) / BASE_RESOLUTION;
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            GAME.width = canvas.width;
+            GAME.height = canvas.height;
+            GAME.centerX = canvas.width / 2;
+            GAME.centerY = canvas.height / 2;
         }
-
-        function loop(timestamp) {
-            const dt = (timestamp - GAME.lastTime) / 1000;
-            GAME.lastTime = timestamp;
-
-            if (GAME.running) {
-                updateGame(dt);
-                drawGame(dt);
-            }
-
-            requestAnimationFrame(loop);
-        }
+        function move(e) { INPUT.x = e.clientX; INPUT.y = e.clientY; }
 
         function firstStart() {
+            startOverlay.style.display = 'none';
             audio.init();
-            audio.playStart();
-            startOverlay.style.opacity = 0;
-            setTimeout(() => {
-                startOverlay.style.display = 'none';
-                upgradeScreen.style.display = 'flex';
-                renderUpgrades();
-            }, 500);
+            startGame();
         }
 
         function startGame() {
-            GAME.money += Math.floor(GAME.money * (getUpgrade('interest').val / 100)); // Interest
-            GAME.scoreInRound = 0;
-            GAME.timeLeft = getUpgrade('time').val;
-            GAME.maxTime = GAME.timeLeft;
-            GAME.combo = 0;
-            GAME.paused = false;
-            pauseOverlay.style.display = 'none';
+            audio.playStart();
+            upgradeScreen.style.display = 'none';
+            ingameUi.style.display = 'flex';
             
-            entities = [];
-            const density = getUpgrade('density').val;
-            for(let i=0; i<5 + density; i++) entities.push(new Shard());
+            // 스킬 UI 갱신
+            updateSkillUI();
             
             GAME.running = true;
             GAME.phase = 'playing';
-            upgradeScreen.style.display = 'none';
-            ingameUi.style.display = 'flex';
+            GAME.scoreInRound = 0;
+            scoreEl.innerText = "$0";
+            GAME.combo = 0;
+            GAME.comboTimer = 0;
+            GAME.shakeTime = 0;
+            
+            // 스킬 쿨타임 초기화
+            GAME.skills.bomb.cd = 0;
+            GAME.skills.stasis.cd = 0;
+            GAME.skills.stasis.dur = 0;
+            GAME.skills.surge.cd = 0;
+            GAME.skills.surge.dur = 0;
+            
+            const timeBonus = getUpgrade('time').val;
+            GAME.timeLeft = timeBonus; 
+            
+            entities.length = 0;
+            bolts.length = 0;
+            particles.length = 0;
+            
+            const initCount = getUpgrade('density').val;
+            for(let i=0; i<initCount; i++) entities.push(new Shard());
+            
+            GAME.lastTime = performance.now();
+        }
+
+        function updateSkillUI() {
             document.getElementById('skill-bar').style.display = 'flex';
-            audio.playStart();
+            
+            const uBomb = getUpgrade('unlock_bomb').level > 0;
+            const uStasis = getUpgrade('unlock_stasis').level > 0;
+            const uSurge = getUpgrade('unlock_surge').level > 0;
+            
+            slotBomb.classList.toggle('unlocked', uBomb);
+            slotStasis.classList.toggle('unlocked', uStasis);
+            slotSurge.classList.toggle('unlocked', uSurge);
         }
 
         function endGame() {
-            GAME.running = false;
+            audio.stopGravityHum();
             GAME.phase = 'upgrade';
+            GAME.running = false;
+            
+            const interestRate = getUpgrade('interest') ? getUpgrade('interest').val : 0; 
+            if(interestRate > 0) {
+                const interest = Math.floor(GAME.money * (interestRate / 100));
+                if(interest > 0) GAME.money += interest;
+            }
+
             saveGame();
             ingameUi.style.display = 'none';
             document.getElementById('skill-bar').style.display = 'none';
@@ -1358,186 +1107,395 @@
             renderUpgrades();
         }
 
-        function toggleMute() {
-            audio.muted = !audio.muted;
-            document.getElementById('mute-btn').innerText = audio.muted ? '🔇' : '🔊';
-        }
-
-        function updateComboUI() {
-            if (GAME.combo > 1) {
-                comboBox.style.opacity = 1;
-                comboBox.style.transform = "scale(1.2)";
-                comboValEl.innerText = "x" + GAME.combo;
-                setTimeout(() => comboBox.style.transform = "scale(1)", 100);
-            } else {
-                comboBox.style.opacity = 0;
-            }
-        }
-
+        // --- 스킬 로직 ---
         function activateSkill(type) {
-            if (!GAME.running || GAME.paused) return;
-            const u = getUpgrade('unlock_' + type);
-            if (!u || u.level === 0) return;
+            const skill = GAME.skills[type];
+            // 해금 체크
+            const unlockId = 'unlock_' + type;
+            if(getUpgrade(unlockId).level === 0) return;
 
-            const mastery = getUpgrade('skill_mastery').val / 100;
-
-            if (type === 'bomb') {
-                if (GAME.skills.bomb.cd > 0) return;
-                GAME.skills.bomb.cd = GAME.skills.bomb.max * (1 - mastery);
-                audio.playSkill();
+            if(skill.cd > 0) return; // Cooltime
+            
+            if(type === 'bomb') {
+                skill.cd = skill.max;
+                shakeScreen(15);
+                audio.playSkill('bomb');
                 
-                // Spawn Shockwave
-                particles.push(new EffectParticle(0,0, '#ef4444', 'shockwave'));
-
-                // Pull everyone
+                // 이펙트
+                for(let i=0; i<20; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = Math.random() * 500;
+                    particles.push(new EffectParticle(GAME.centerX + Math.cos(angle)*dist, GAME.centerY + Math.sin(angle)*dist, '#818cf8', 'gravity_suck'));
+                }
+                // 물리 (Nerfed)
                 entities.forEach(e => {
-                    const dx = 0 - e.x; const dy = 0 - e.y;
-                    const dist = Math.sqrt(dx*dx+dy*dy);
-                    e.vx += (dx/dist) * 100;
-                    e.vy += (dy/dist) * 100;
+                    const dx = GAME.centerX - e.x;
+                    const dy = GAME.centerY - e.y;
+                    const len = Math.sqrt(dx*dx + dy*dy);
+                    e.vx += (dx/len) * 12; // 50 -> 12
+                    e.vy += (dy/len) * 12;
                 });
-                GAME.shakeTime = 0.5; GAME.shakeAmount = 20;
+            } 
+            else if (type === 'stasis') {
+                skill.cd = skill.max;
+                skill.dur = 5.0; // 5초 지속
+                audio.playSkill('stasis');
+                shakeScreen(5);
             }
-            if (type === 'stasis') {
-                if (GAME.skills.stasis.cd > 0) return;
-                GAME.skills.stasis.cd = GAME.skills.stasis.max * (1 - mastery);
-                GAME.skills.stasis.dur = 5.0;
-                audio.playSkill();
-            }
-            if (type === 'surge') {
-                if (GAME.skills.surge.cd > 0) return;
-                GAME.skills.surge.cd = GAME.skills.surge.max * (1 - mastery);
-                GAME.skills.surge.dur = 8.0;
-                audio.playSkill();
+            else if (type === 'surge') {
+                skill.cd = skill.max;
+                skill.dur = 8.0; // 8초 지속
+                audio.playSkill('surge');
+                shakeScreen(10);
             }
         }
 
-        function updateSkillUI() {
-            const mastery = getUpgrade('skill_mastery').val / 100;
-
-            // Update Cooldowns Visuals
-            const updateSlot = (key, slotEl, cdEl, glowEl) => {
-                const s = GAME.skills[key];
-                const max = s.max * (1 - mastery);
-                if (s.cd > 0) {
-                    const pct = (s.cd / max) * 100;
-                    cdEl.style.height = pct + "%";
-                    slotEl.style.filter = "grayscale(1)";
-                } else {
-                    cdEl.style.height = "0%";
-                    slotEl.style.filter = "grayscale(0)";
-                }
-                
-                if (s.dur && s.dur > 0) glowEl.style.opacity = 1;
-                else glowEl.style.opacity = 0;
-            };
-
-            updateSlot('bomb', slotBomb, cdBomb, glowBomb);
-            updateSlot('stasis', slotStasis, cdStasis, glowStasis);
-            updateSlot('surge', slotSurge, cdSurge, glowSurge);
+        function shakeScreen(amount) {
+            GAME.shakeTime = 0.5; 
+            GAME.shakeAmount = amount;
         }
 
-        // Render Upgrades Logic
-        function renderUpgrades() {
-            treeContainer.innerHTML = '';
-            upgradeMoneyEl.innerText = '$' + GAME.money.toLocaleString();
-            totalLevelEl.innerText = "총 연구 레벨: " + getTotalLevels();
+        function loop(timestamp) {
+            let dt = (timestamp - GAME.lastTime) / 1000;
+            GAME.lastTime = timestamp;
+            if (dt > 0.1) dt = 0.1;
 
-            const maxTier = TIER_UNLOCKS.length - 1;
-            const currentTotal = getTotalLevels();
+            if (GAME.phase === 'playing') {
+                updateGame(dt);
+            }
+            drawGame(dt);
+            requestAnimationFrame(loop);
+        }
 
-            for(let t=0; t<=maxTier; t++) {
-                const required = TIER_UNLOCKS[t];
-                const nextReq = TIER_UNLOCKS[t+1] || 99999;
-                
-                // Show only if unlocked or close to unlocking
-                if (currentTotal < required && t > 0) {
-                     // Show locked next tier preview
-                     const lockedDiv = document.createElement('div');
-                     lockedDiv.className = 'tier-section';
-                     lockedDiv.style.opacity = 0.5;
-                     lockedDiv.innerHTML = `<div class="tier-header"><span class="tier-title">TIER ${t}</span><span class="tier-lock-msg">🔒 필요 레벨: ${required}</span></div>`;
-                     treeContainer.appendChild(lockedDiv);
-                     break; 
+        function triggerChainLightning(sourceShard) {
+            const range = getUpgrade('l_range').val;
+            const count = getUpgrade('l_count').val;
+            
+            let targets = [];
+            for(let other of entities) {
+                if(other === sourceShard) continue;
+                const dx = other.x - sourceShard.x;
+                const dy = other.y - sourceShard.y;
+                if(dx*dx + dy*dy < range*range) {
+                    targets.push({ entity: other, dist: dx*dx+dy*dy });
                 }
-
-                const tierDiv = document.createElement('div');
-                tierDiv.className = 'tier-section';
-                
-                let headerHTML = `<div class="tier-header"><span class="tier-title">TIER ${t}</span>`;
-                if(currentTotal >= required) headerHTML += `<span class="tier-unlock-msg">UNLOCKED</span>`;
-                headerHTML += `</div>`;
-                
-                const gridDiv = document.createElement('div');
-                gridDiv.className = 'tier-grid';
-
-                const tierUpgrades = UPGRADES.filter(u => u.tier === t);
-                tierUpgrades.forEach(u => {
-                    const card = document.createElement('div');
-                    const isMax = u.level >= u.maxLevel;
-                    const cost = Math.floor(u.baseCost * Math.pow(u.mult, u.level));
-                    const canAfford = GAME.money >= cost;
-                    
-                    let classes = 'card';
-                    if (isMax) classes += ' max-lvl';
-                    else if (!canAfford) classes += ' disabled';
-
-                    card.className = classes;
-                    card.onclick = () => buyUpgrade(u.id);
-
-                    let valStr = u.val;
-                    if(typeof u.val === 'number' && !Number.isInteger(u.val)) valStr = u.val.toFixed(2);
-                    
-                    // Special descriptions for skills
-                    let statText = `현재: ${valStr}`;
-                    if(u.type === 'skill') statText = isMax ? "습득 완료" : "미습득";
-
-                    card.innerHTML = `
-                        <div class="card-lvl ${isMax ? 'max-lvl' : ''}">Lv.${u.level} / ${u.maxLevel}</div>
-                        <div class="card-header">
-                            <span class="card-icon">${u.icon}</span>
-                            <span class="card-name">${u.name}</span>
-                        </div>
-                        <div class="card-desc">${u.desc}</div>
-                        <div class="card-footer">
-                            <div class="card-stat">${statText}</div>
-                            <div class="card-cost">${isMax ? 'MAX' : '$' + cost.toLocaleString()}</div>
-                        </div>
-                    `;
-                    gridDiv.appendChild(card);
-                });
-
-                tierDiv.innerHTML = headerHTML;
-                tierDiv.appendChild(gridDiv);
-                treeContainer.appendChild(tierDiv);
             }
             
-            // Unlocked skills slot visibility
-            if(getUpgrade('unlock_bomb').level > 0) slotBomb.classList.add('unlocked');
-            if(getUpgrade('unlock_stasis').level > 0) slotStasis.classList.add('unlocked');
-            if(getUpgrade('unlock_surge').level > 0) slotSurge.classList.add('unlocked');
+            targets.sort((a,b) => a.dist - b.dist);
+            targets = targets.slice(0, count);
+
+            targets.forEach(t => {
+                const e = t.entity;
+                bolts.push(new LightningBolt(sourceShard.x, sourceShard.y, e.x, e.y));
+                const pushX = GAME.centerX - e.x;
+                const pushY = GAME.centerY - e.y;
+                const len = Math.sqrt(pushX*pushX + pushY*pushY);
+                const force = 15; 
+                e.vx += (pushX/len) * force;
+                e.vy += (pushY/len) * force;
+            });
+        }
+
+        function updateGame(dt) {
+            // Stasis Logic
+            let timeFlow = 1.0;
+            if (GAME.skills.stasis.dur > 0) {
+                timeFlow = 0.0; // 시간 멈춤
+                GAME.skills.stasis.dur -= dt;
+                glowStasis.style.opacity = 1;
+            } else {
+                glowStasis.style.opacity = 0;
+            }
+
+            // Surge Logic
+            if (GAME.skills.surge.dur > 0) {
+                GAME.skills.surge.dur -= dt;
+                glowSurge.style.opacity = 1;
+            } else {
+                glowSurge.style.opacity = 0;
+            }
+
+            // Bomb Glow (Instant)
+            glowBomb.style.opacity = GAME.skills.bomb.cd > 14.5 ? 1 : 0; // 잠깐 반짝
+
+            // Timer Update
+            GAME.timeLeft -= dt * timeFlow; 
+            if (GAME.timeLeft <= 0) {
+                GAME.timeLeft = 0;
+                endGame();
+                return;
+            }
+
+            // Skill Cooldowns
+            for(let key in GAME.skills) {
+                if(GAME.skills[key].cd > 0) {
+                    GAME.skills[key].cd -= dt;
+                    if(GAME.skills[key].cd < 0) GAME.skills[key].cd = 0;
+                    
+                    // UI Update
+                    const el = document.getElementById('cd-' + key);
+                    const pct = (GAME.skills[key].cd / GAME.skills[key].max) * 100;
+                    el.style.height = `${pct}%`;
+                }
+            }
+
+            // Combo
+            if (GAME.combo > 0) {
+                GAME.comboTimer -= dt * timeFlow; // Stasis 멈춤 적용? 아니면 유지? 유지하자.
+                if (GAME.comboTimer <= 0) {
+                    GAME.combo = 0;
+                    comboBox.style.opacity = 0;
+                }
+            }
+            
+            timerEl.innerText = GAME.timeLeft.toFixed(1);
+            if(GAME.timeLeft <= 3) timerEl.parentElement.classList.add('timer-warn');
+            else timerEl.parentElement.classList.remove('timer-warn');
+
+            for(let i=bolts.length-1; i>=0; i--) {
+                bolts[i].update(dt);
+                if(bolts[i].life <= 0) bolts.splice(i, 1);
+            }
+
+            for(let i=particles.length-1; i>=0; i--) {
+                particles[i].update(dt);
+                if(particles[i].life <= 0) particles.splice(i, 1);
+            }
+
+            const critChance = getUpgrade('crit').val; 
+            const respawnChance = getUpgrade('respawn').val;
+
+            if (entities.length < 5) entities.push(new Shard());
+
+            // 중력장 이펙트
+            if(INPUT.isDown) {
+                const radius = getUpgrade('radius').val;
+                for(let i=0; i<2; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = Math.random() * radius;
+                    const px = INPUT.x + Math.cos(angle) * dist;
+                    const py = INPUT.y + Math.sin(angle) * dist;
+                    particles.push(new EffectParticle(px, py, '#22d3ee', 'gravity_suck'));
+                }
+            }
+
+            for (let i = entities.length - 1; i >= 0; i--) {
+                const e = entities[i];
+                if (e.update(dt)) { // Entity Update Handles internal logic
+                    if(e.type.isLightning) triggerChainLightning(e);
+                    if (Math.random() * 100 < respawnChance) entities.push(new Shard());
+
+                    const siphon = getUpgrade('siphon') ? getUpgrade('siphon').val : 0; 
+                    if (siphon > 0 && Math.random() * 100 < siphon) {
+                        GAME.timeLeft += 0.5;
+                        particles.push(new EffectParticle(GAME.centerX, GAME.centerY - 50, null, 'time_bonus'));
+                    }
+
+                    GAME.combo++;
+                    GAME.comboTimer = 2.0; 
+                    const comboMult = Math.min(5, 1 + (GAME.combo * 0.05));
+                    
+                    comboBox.style.opacity = 1;
+                    comboBox.style.transform = `scale(${1 + Math.min(0.5, GAME.combo*0.01)})`;
+                    comboValEl.innerText = `x${comboMult.toFixed(1)}`;
+
+                    let finalVal = Math.floor(e.value * comboMult);
+                    let isCrit = false;
+                    if(Math.random() * 100 < critChance) {
+                        finalVal *= 2;
+                        isCrit = true;
+                    }
+
+                    GAME.scoreInRound += finalVal;
+                    GAME.money += finalVal; 
+                    
+                    texts.push(new PopText(GAME.centerX, GAME.centerY - 30, finalVal, isCrit));
+                    for(let k=0; k<5; k++) {
+                        particles.push(new EffectParticle(e.x, e.y, e.color, 'explode'));
+                    }
+                    
+                    if (finalVal > 100) shakeScreen(5);
+
+                    audio.playPop();
+                    entities.splice(i, 1);
+                }
+            }
+            scoreEl.innerText = '$' + GAME.scoreInRound.toLocaleString();
+
+            for (let i = texts.length - 1; i >= 0; i--) {
+                texts[i].update(dt);
+                if (texts[i].life <= 0) texts.splice(i, 1);
+            }
+        }
+
+        function drawGame(dt) {
+            ctx.clearRect(0, 0, GAME.width, GAME.height);
+
+            ctx.save();
+            if (GAME.shakeTime > 0) {
+                GAME.shakeTime -= dt;
+                const dx = (Math.random() - 0.5) * GAME.shakeAmount;
+                const dy = (Math.random() - 0.5) * GAME.shakeAmount;
+                ctx.translate(dx, dy);
+            }
+
+            // Visual Effects for Skills
+            if (GAME.skills.stasis.dur > 0) {
+                // Blue tint for Stasis
+                ctx.fillStyle = 'rgba(100, 200, 255, 0.1)';
+                ctx.fillRect(0,0, GAME.width, GAME.height);
+            }
+
+            // 1. 블랙홀
+            let bhSize = blackHole.radius + (getUpgrade('blackhole_size').val - 35);
+            if (GAME.skills.surge.dur > 0) bhSize *= 1.5; // Surge increases visual size
+
+            const glow = ctx.createRadialGradient(GAME.centerX, GAME.centerY, bhSize, GAME.centerX, GAME.centerY, bhSize * 5);
+            glow.addColorStop(0, GAME.skills.surge.dur > 0 ? "rgba(255, 50, 50, 0.4)" : "rgba(80, 0, 120, 0.4)"); 
+            glow.addColorStop(1, "rgba(0,0,0,0)");
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(GAME.centerX, GAME.centerY, bhSize * 5, 0, Math.PI*2);
+            ctx.fill();
+
+            const innerGlow = ctx.createRadialGradient(GAME.centerX, GAME.centerY, bhSize*0.5, GAME.centerX, GAME.centerY, bhSize*1.2);
+            innerGlow.addColorStop(0, "black");
+            innerGlow.addColorStop(0.8, GAME.skills.surge.dur > 0 ? "rgba(255, 100, 100, 0.8)" : "rgba(100, 50, 200, 0.8)");
+            innerGlow.addColorStop(1, "rgba(0,0,0,0)");
+            ctx.fillStyle = innerGlow;
+            ctx.beginPath();
+            ctx.arc(GAME.centerX, GAME.centerY, bhSize*1.2, 0, Math.PI*2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(GAME.centerX, GAME.centerY, bhSize * 0.9, 0, Math.PI * 2);
+            ctx.fillStyle = '#000000';
+            ctx.fill();
+            
+            particles.forEach(p => p.draw(ctx));
+
+            if (INPUT.isDown && GAME.phase === 'playing') {
+                const radius = getUpgrade('radius').val;
+                ctx.beginPath();
+                ctx.arc(INPUT.x, INPUT.y, radius, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(34, 211, 238, 0.3)';
+                ctx.setLineDash([8, 8]);
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            entities.forEach(e => e.draw());
+            bolts.forEach(b => b.draw());
+            texts.forEach(t => t.draw());
+            
+            ctx.restore(); 
+        }
+
+        // --- 업그레이드 UI 로직 ---
+        function getCost(u) { return Math.floor(u.baseCost * Math.pow(u.mult, u.level - 1)); }
+
+        function renderUpgrades() {
+            upgradeMoneyEl.innerText = '$' + GAME.money.toLocaleString();
+            const totalLevels = getTotalLevels(); 
+            totalLevelEl.innerText = `연구 레벨: ${totalLevels}`;
+            treeContainer.innerHTML = '';
+
+            const tiers = {};
+            UPGRADES.forEach(u => {
+                if(!tiers[u.tier]) tiers[u.tier] = [];
+                tiers[u.tier].push(u);
+            });
+            const maxTier = Math.max(...Object.keys(tiers).map(Number));
+
+            for (let t = 0; t <= maxTier; t++) {
+                if (!tiers[t]) continue;
+                const reqLevels = TIER_UNLOCKS[t] || 0;
+                const isTierUnlocked = totalLevels >= reqLevels;
+
+                const tierSection = document.createElement('div');
+                tierSection.className = 'tier-section';
+                
+                const header = document.createElement('div');
+                header.className = 'tier-header';
+                const title = document.createElement('div');
+                title.className = 'tier-title';
+                title.innerText = `TIER ${t}`;
+                header.appendChild(title);
+
+                if(!isTierUnlocked) {
+                    const msg = document.createElement('div');
+                    msg.className = 'tier-lock-msg';
+                    msg.innerText = `🔒 잠김 (필요 연구 레벨: ${reqLevels})`;
+                    header.appendChild(msg);
+                } else if (reqLevels > 0) {
+                     const msg = document.createElement('div');
+                     msg.className = 'tier-unlock-msg';
+                     msg.innerText = `✓ 해금됨`;
+                     header.appendChild(msg);
+                }
+                tierSection.appendChild(header);
+
+                const grid = document.createElement('div');
+                grid.className = 'tier-grid';
+
+                tiers[t].forEach(u => {
+                    const cost = getCost(u);
+                    const canBuy = GAME.money >= cost;
+                    const isMax = u.level >= u.maxLevel;
+                    const card = document.createElement('div');
+                    
+                    if (isTierUnlocked) {
+                        card.className = `card ${canBuy && !isMax ? '' : 'disabled'}`;
+                        if (!isMax && canBuy) card.onclick = () => buyUpgrade(u.id);
+                        
+                        let statText = '';
+                        if(u.type === 'skill') statText = u.level > 0 ? "보유중" : "미보유";
+                        else if(u.id.includes('unlock')) statText = u.level > 0 ? "보유중" : "미보유";
+                        else if(u.id === 'radius' || u.id === 'l_range') statText = `${Math.floor(u.val)}px`;
+                        else if(u.id === 'time') statText = `${u.val.toFixed(1)}s`;
+                        else if(u.id === 'crit' || u.id === 'respawn' || u.id === 'interest' || u.id === 'siphon') statText = `${u.val}%`;
+                        else if(u.id === 'friction') statText = `${(1-u.val).toFixed(2)} 마찰`;
+                        else statText = `x${u.val.toFixed(2)}`;
+
+                        let incText = '';
+                        if(isMax) incText = '(MAX)';
+                        else if(u.inc > 0) incText = `(+${u.inc})`;
+                        else incText = `(${u.inc})`;
+
+                        card.innerHTML = `
+                            <div class="card-lvl ${isMax ? 'max-lvl' : ''}">${isMax ? 'MAX' : 'Lv.' + u.level}</div>
+                            <div class="card-header"><div class="card-icon">${u.icon}</div><div class="card-name">${u.name}</div></div>
+                            <div class="card-desc">${u.desc}</div>
+                            <div class="card-footer"><div class="card-stat">${statText} <span class="text-gray-400 text-xs">${incText}</span></div><div class="card-cost">${isMax ? '-' : '$' + cost.toLocaleString()}</div></div>
+                        `;
+                    } else {
+                        card.className = 'card locked';
+                        card.innerHTML = `<div class="card-icon">🔒</div><div style="font-size:0.8rem; font-weight:bold; margin-top:5px;">연구 필요</div>`;
+                    }
+                    grid.appendChild(card);
+                });
+                tierSection.appendChild(grid);
+                treeContainer.appendChild(tierSection);
+            }
         }
 
         function buyUpgrade(id) {
-            const u = getUpgrade(id);
-            if (!u || u.level >= u.maxLevel) return;
-            
-            const cost = Math.floor(u.baseCost * Math.pow(u.mult, u.level));
+            const u = UPGRADES.find(x => x.id === id);
+            if (u.level >= u.maxLevel) return;
+            const cost = getCost(u);
             if (GAME.money >= cost) {
                 GAME.money -= cost;
                 u.level++;
                 u.val += u.inc;
                 if(!Number.isInteger(u.val)) u.val = parseFloat(u.val.toFixed(2));
-                
                 audio.playBuy();
                 saveGame();
                 renderUpgrades();
             }
         }
 
-        // Init Call
-        window.onload = init;
-
+        init();
     </script>
 </body>
 </html>
