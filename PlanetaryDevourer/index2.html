@@ -354,7 +354,7 @@
         // Configuration
         const VALUE_MULTIPLIER = 0.3; 
         const BASE_RESOLUTION = 1080; // Baseline resolution for difficulty scaling
-        const TIER_UNLOCKS = [0, 4, 12, 24, 40, 60, 90, 120]; 
+        const TIER_UNLOCKS = [0, 4, 12, 24, 40, 60, 90, 130, 180, 240, 310, 390, 480, 580, 700, 850, 1050, 1300, 1600, 2000, 2500];
 
         const UPGRADES = [
             // Tier 0
@@ -379,13 +379,13 @@
             { id: 'lightning_unlock', name: '뇌전 행성', desc: '체인 라이트닝 행성 등장.', icon: '⚡', tier: 3, level: 0, maxLevel: 1, baseCost: 3000, mult: 1, val: 0, inc: 1 },
             
             // Tier 4
-            { id: 'unlock_stasis', name: '타임 프리즈 [Skill]', desc: '[W] 5초간 시간 멈춤 & 초고속 흡입.', icon: '❄️', type: 'skill', tier: 4, level: 0, maxLevel: 1, baseCost: 8000, mult: 1, val: 0, inc: 1 },
+            { id: 'unlock_stasis', name: '타임 프리즈 [Skill]', desc: '[W] 5초간 시간 멈춤 & 질량 50% 감소.', icon: '❄️', type: 'skill', tier: 4, level: 0, maxLevel: 1, baseCost: 8000, mult: 1, val: 0, inc: 1 },
             { id: 'crit', name: '행성 붕괴', desc: '가치 2배 크리티컬 확률.', icon: '💥', tier: 4, level: 0, maxLevel: 20, baseCost: 2500, mult: 1.5, val: 0, inc: 2 },
-            { id: 'l_range', name: '전이 범위', desc: '체인 라이트닝 거리.', icon: '📡', tier: 4, level: 0, maxLevel: 10, baseCost: 4000, mult: 1.6, val: 60, inc: 15 },
+            { id: 'l_range', name: '전이 범위', desc: '체인 라이트닝 거리.', icon: '📡', tier: 4, level: 0, maxLevel: 10, baseCost: 4000, mult: 1.6, val: 150, inc: 20 }, // Increased from 60
             { id: 'l_count', name: '과부하', desc: '체인 라이트닝 타겟 수.', icon: '🔗', tier: 4, level: 0, maxLevel: 10, baseCost: 4500, mult: 1.8, val: 3, inc: 1 },
 
             // Tier 5
-            { id: 'unlock_surge', name: '블랙홀 개방 [Skill]', desc: '[E] 8초간 전체 흡입 & 파워 5배.', icon: '⚛️', type: 'skill', tier: 5, level: 0, maxLevel: 1, baseCost: 25000, mult: 1, val: 0, inc: 1 },
+            { id: 'unlock_surge', name: '블랙홀 개방 [Skill]', desc: '[E] 8초간 전체 흡입 & 파워 3배.', icon: '⚛️', type: 'skill', tier: 5, level: 0, maxLevel: 1, baseCost: 25000, mult: 1, val: 0, inc: 1 },
             { id: 'luck', name: '행운의 별', desc: '희귀 행성 확률 증가.', icon: '🍀', tier: 5, level: 0, maxLevel: 10, baseCost: 5000, mult: 1.6, val: 1.0, inc: 0.2 },
             { id: 'blackhole_size', name: '거대 블랙홀', desc: '블랙홀 크기 증가.', icon: '⚫', tier: 5, level: 0, maxLevel: 10, baseCost: 10000, mult: 2.5, val: 35, inc: 3 },
             
@@ -397,7 +397,7 @@
             // Tier 7
             { id: 'unlock_ring', name: '고리 행성', desc: '거대한 고리 행성 발견.', icon: '🪐', tier: 7, level: 0, maxLevel: 1, baseCost: 100000, mult: 1, val: 0, inc: 1 },
             { id: 'interest', name: '암흑 물질 반응', desc: '라운드 종료 시 보유금 이자.', icon: '📈', tier: 7, level: 0, maxLevel: 10, baseCost: 15000, mult: 2.0, val: 0, inc: 1 },
-            { id: 'singularity', name: '특이점', desc: '화면 전체 약한 지속 데미지.', icon: '⚛️', tier: 7, level: 0, maxLevel: 5, baseCost: 80000, mult: 3.0, val: 0, inc: 1 },
+            { id: 'singularity', name: '특이점', desc: '화면 전체 약한 중력장 생성.', icon: '⚛️', tier: 7, level: 0, maxLevel: 5, baseCost: 80000, mult: 3.0, val: 0, inc: 1 },
 
             // Tier 8 ~ 20 (Expanded)
             { id: 'neutron_unlock', name: '중성자별', desc: '초고밀도 행성 발견.', icon: '🌟', tier: 8, level: 0, maxLevel: 1, baseCost: 200000, mult: 1, val: 0, inc: 1 },
@@ -452,7 +452,7 @@
 
         // Global State
         let GAME = {
-            running: false, phase: 'start', money: 0, scoreInRound: 0, timeLeft: 10.0,
+            running: false, phase: 'start', money: 0, scoreInRound: 0, timeLeft: 10.0, maxTime: 10.0,
             width: 0, height: 0, centerX: 0, centerY: 0, lastTime: 0,
             combo: 0, comboTimer: 0, shakeX: 0, shakeY: 0, shakeTime: 0,
             zoom: 1.0, 
@@ -729,14 +729,12 @@
             update(dt) {
                 const timeScale = dt * 60;
                 let globalSpeed = 1.0;
-                let playerSuctionMult = 1.0; // Multiplier for player input force
+                let playerSuctionMult = 1.0;
 
-                // STASIS (W): Time Freeze & Mass Zero
+                // STASIS (W): Time Freeze & Mass 50%
                 if (GAME.skills.stasis.dur > 0) {
-                    globalSpeed = 0.0; // Stop orbital movement
-                    playerSuctionMult = 3.0; // Boost player pull
-                    // Effectively simulate 0 mass by boosting force, 
-                    // or just apply direct velocity towards center if pulled.
+                    globalSpeed = 0.0;
+                    playerSuctionMult = 3.0;
                 }
                 
                 const dilation = getUpgrade('time_dilation') ? getUpgrade('time_dilation').val : 1.0;
@@ -768,17 +766,16 @@
                 const wellMult = getUpgrade('void_hunger') ? getUpgrade('void_hunger').val : 1.0;
                 naturalG *= wellMult;
                 
-                // SURGE (E): Infinite Range & Stronger Pull
+                // SURGE (E): Infinite Range & Stronger Pull (3x)
                 if (GAME.skills.surge.dur > 0) { 
-                    naturalRange = 10000; // Screen wide
-                    naturalG *= 5; 
+                    naturalRange = 10000; 
+                    naturalG *= 3; 
                 }
 
                 if (dist < naturalRange) {
                     const g = naturalG / distSq;
                     let force = g / this.mass;
-                    if(GAME.skills.stasis.dur > 0) force = 0; // Don't let natural gravity ruin stasis placement? Or allow it? Let's allow it but weak. Actually stasis freezes motion.
-                    if(GAME.skills.stasis.dur > 0 && GAME.skills.surge.dur === 0) force = 0; // Stasis freezes natural orbit decay unless Surge is active?
+                    if(GAME.skills.stasis.dur > 0) force = 0; 
                     
                     if (globalSpeed > 0 || GAME.skills.surge.dur > 0) {
                         this.vx += (-this.x/dist) * force * timeScale;
@@ -812,8 +809,8 @@
                         const pushLen = Math.sqrt(pushX*pushX + pushY*pushY);
                         
                         let effectiveMass = this.mass;
-                        // Stasis makes mass effectively 1
-                        if (GAME.skills.stasis.dur > 0) effectiveMass = 1;
+                        // Stasis makes mass 50%
+                        if (GAME.skills.stasis.dur > 0) effectiveMass *= 0.5;
                         else if(effectiveMass > 8) effectiveMass /= heavyBonus; 
 
                         const accel = (2.0 * power * playerSuctionMult) / effectiveMass;
@@ -837,9 +834,8 @@
                 this.x += this.vx * timeScale;
                 this.y += this.vy * timeScale;
                 
-                // Friction
                 let currentFriction = this.friction;
-                if (GAME.skills.stasis.dur > 0) currentFriction = 0.8; // Stop sliding quickly in Stasis
+                if (GAME.skills.stasis.dur > 0) currentFriction = 0.8; 
                 this.vx *= Math.pow(currentFriction, timeScale);
                 this.vy *= Math.pow(currentFriction, timeScale);
                 
@@ -929,8 +925,9 @@
         }
 
         function updateGame(dt) {
-            // Skill timers
+            let timeFlow = 1.0;
             if (GAME.skills.stasis.dur > 0) {
+                timeFlow = 0.0; 
                 GAME.skills.stasis.dur -= dt;
                 if(glowStasis) glowStasis.style.opacity = 1;
             } else {
@@ -957,7 +954,6 @@
                 return;
             }
 
-            // Skill Cooldown Reductions
             const mastery = getUpgrade('skill_mastery') ? getUpgrade('skill_mastery').val : 0; // %
             const cdMult = 1.0 + (mastery / 100);
 
@@ -974,7 +970,6 @@
             }
 
             if (GAME.combo > 0) {
-                // Combo timer pauses in Stasis
                 if (GAME.skills.stasis.dur <= 0) GAME.comboTimer -= dt;
                 
                 if (GAME.comboTimer <= 0) {
@@ -1028,8 +1023,11 @@
 
                     const siphon = getUpgrade('siphon') ? getUpgrade('siphon').val : 0; 
                     if (siphon > 0 && Math.random() * 100 < siphon) {
-                        GAME.timeLeft += 0.5;
-                        particles.push(new EffectParticle(0, -50, null, 'time_bonus'));
+                        // 시간 증가 시 최대 시간(maxTime)을 넘지 않도록 제한
+                        if (GAME.timeLeft < GAME.maxTime) {
+                            GAME.timeLeft = Math.min(GAME.timeLeft + 0.5, GAME.maxTime);
+                            particles.push(new EffectParticle(0, -50, null, 'time_bonus'));
+                        }
                     }
 
                     GAME.combo++;
@@ -1087,7 +1085,6 @@
             ctx.restore();
 
             ctx.save();
-            // Translate to center of screen first
             ctx.translate(GAME.centerX, GAME.centerY);
 
             if (GAME.shakeTime > 0) {
@@ -1097,11 +1094,9 @@
                 ctx.translate(dx, dy);
             }
 
-            // Apply Coordinate Scaling
             const globalScale = GAME.zoom * GAME.pixelScale;
             ctx.scale(globalScale, globalScale);
 
-            // Stasis Visual (Background Tint)
             if (GAME.skills.stasis.dur > 0) {
                 ctx.fillStyle = 'rgba(100, 200, 255, 0.1)';
                 ctx.fillRect(-5000, -5000, 10000, 10000);
@@ -1111,15 +1106,14 @@
             if (getUpgrade('event_horizon_ex')) bhSize += getUpgrade('event_horizon_ex').val;
             if (GAME.skills.surge.dur > 0) bhSize *= 1.5; 
 
-            // Natural Gravity Visual (Pulsing Ring)
+            // Natural Gravity Visual
             let naturalRange = getUpgrade('attract_range').val / GAME.zoom; 
             if (getUpgrade('gravity_lens')) naturalRange += (getUpgrade('gravity_lens').val / GAME.zoom);
-            if (GAME.skills.surge.dur > 0) naturalRange = 1000; // Visual fix
+            if (GAME.skills.surge.dur > 0) naturalRange = 1000; 
 
-            // Draw Natural Gravity Field (Pulsing Blue Ring)
             ctx.beginPath();
             ctx.arc(0, 0, naturalRange, 0, Math.PI * 2);
-            ctx.lineWidth = 2 / globalScale; // Keep line width constant on screen
+            ctx.lineWidth = 2 / globalScale; 
             const pulse = (Math.sin(Date.now() * 0.003) + 1) * 0.5;
             ctx.strokeStyle = `rgba(50, 100, 255, ${0.1 + pulse * 0.1})`;
             ctx.stroke();
@@ -1338,11 +1332,11 @@
             
             const timeBase = getUpgrade('time').val + (getUpgrade('chrono_battery') ? getUpgrade('chrono_battery').val : 0);
             GAME.timeLeft = timeBase; 
+            GAME.maxTime = timeBase; // 최대 시간 설정
             
             entities = [];
             bolts = [];
             particles = [];
-            
             // Background Stars
             GAME.bgStars = [];
             for(let i=0; i<100; i++) {
@@ -1393,7 +1387,6 @@
             document.getElementById('mute-btn').innerText = audio.muted ? '🔇' : '🔊'; 
         }
 
-        // Init function
         function init() {
             canvas = document.getElementById('gameCanvas');
             ctx = canvas.getContext('2d');
@@ -1447,7 +1440,6 @@
             GAME.height = canvas.height;
             GAME.centerX = canvas.width / 2;
             GAME.centerY = canvas.height / 2;
-            // Calculate scale based on 1080p baseline
             GAME.pixelScale = Math.min(canvas.width, canvas.height) / BASE_RESOLUTION;
         }
         function move(e) { INPUT.x = e.clientX; INPUT.y = e.clientY; }
@@ -1461,7 +1453,6 @@
             requestAnimationFrame(loop);
         }
 
-        // Global Assignments for HTML Events
         window.firstStart = firstStart;
         window.startGame = startGame;
         window.resetSaveData = resetSaveData;
