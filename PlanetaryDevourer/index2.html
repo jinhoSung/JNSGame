@@ -657,6 +657,7 @@
             playBuy() { this.playTone(1200, 'sine', 0.1); }
             playStart() { this.playTone(100, 'sawtooth', 1.0); }
             playBonus(type) { this.playTone(1500, 'sine', 0.5, 0.2); }
+            playDamage() { this.playTone(150, 'sawtooth', 0.3, 0.5); }
             startGravityHum() {} 
             stopGravityHum() {}
         }
@@ -719,7 +720,7 @@
                 ctx.globalAlpha = Math.max(0, this.life); 
                 if(this.type === 'time_bonus') { 
                     ctx.fillStyle = this.color;
-                    ctx.font = 'bold 16px sans-serif'; ctx.fillText("+0.5s", this.x, this.y); 
+                    ctx.font = 'bold 16px sans-serif'; ctx.fillText(this.color === '#ef4444' ? "-5.0s" : "+0.5s", this.x, this.y); 
                 } else if (this.type === 'shockwave') {
                     ctx.strokeStyle = this.color || 'white';
                     ctx.lineWidth = 5 * this.life;
@@ -772,8 +773,11 @@
                 const expansion = getUpgrade('expansion').val + (getUpgrade('expansion_2') ? getUpgrade('expansion_2').val : 0);
                 GAME.zoom = 1 / Math.max(1, expansion);
                 const angle = Math.random() * Math.PI * 2;
-                const minDist = 600 / GAME.zoom;
+                
+                // ** Spawn Distance Reduced **
+                const minDist = 300 / GAME.zoom; // Was 600
                 const dist = minDist + Math.random() * 300;
+                
                 this.x = Math.cos(angle) * dist;
                 this.y = Math.sin(angle) * dist;
                 this.orbitSpeed = 0.003 * (Math.random() < 0.5 ? 1 : -1);
@@ -812,7 +816,9 @@
                 const luckBonus = getUpgrade('luck') ? getUpgrade('luck').val : 1;
 
                 let type = null;
-                if (lightningUnlocked && Math.random() < 0.05 * luckBonus) type = SHARD_TYPES[4];
+                // Mine spawn chance
+                if (Math.random() < 0.05) type = SHARD_TYPES.find(t => t.isMine);
+                else if (lightningUnlocked && Math.random() < 0.05 * luckBonus) type = SHARD_TYPES[4];
                 else {
                     const totalW = available.reduce((a,b)=>a+(b.weight || 10), 0);
                     let r = Math.random() * totalW;
@@ -924,6 +930,17 @@
                 } else if (this.type.isStar) {
                     ctx.shadowColor = this.color; ctx.shadowBlur = 30;
                     ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
+                } else if (this.type.isMine) {
+                    // Spike mine shape
+                    ctx.shadowColor = '#ef4444'; ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    for(let i=0; i<8; i++) {
+                        const a = (i/8)*Math.PI*2;
+                        const r = i%2===0 ? this.radius : this.radius*0.6;
+                        ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
                 } else {
                     ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
                 }
@@ -1003,7 +1020,14 @@
                     if (e.type.isComet) { audio.playBonus('comet'); GAME.scoreInRound += e.value*5; GAME.money += e.value*5; texts.push(new PopText(0, -60, e.value*5, true)); }
                     if (e.type.isFlux) { audio.playBonus('flux'); if(GAME.timeLeft < GAME.maxTime) GAME.timeLeft += 3; particles.push(new EffectParticle(0, -50, null, 'time_bonus')); }
                     
-                    if (!e.type.isComet && !e.type.isFlux) {
+                    if (e.type.isMine) {
+                        // Mine Damage
+                        audio.playDamage();
+                        GAME.timeLeft = Math.max(0, GAME.timeLeft - 5);
+                        particles.push(new EffectParticle(0, -50, '#ef4444', 'time_bonus')); // Reuse for negative time
+                        GAME.shakeTime = 0.5; GAME.shakeAmount = 25;
+                        particles.push(new EffectParticle(0,0, '#ef4444', 'shockwave'));
+                    } else if (!e.type.isComet && !e.type.isFlux) {
                         GAME.scoreInRound += e.value; GAME.money += e.value;
                         
                         // Combo Logic
@@ -1039,7 +1063,7 @@
             for(let i=texts.length-1; i>=0; i--) { texts[i].update(dt); if(texts[i].life<=0) texts.splice(i,1); }
             
             if(timerEl) timerEl.innerText = GAME.timeLeft.toFixed(1);
-            if(timerEl && GAME.timeLeft <= 3.0) timerEl.classList.add('timer-warn');
+            if(timerEl && GAME.timeLeft <= 5.0) timerEl.classList.add('timer-warn');
             else if(timerEl) timerEl.classList.remove('timer-warn');
 
             if(scoreEl) scoreEl.innerText = '$' + GAME.scoreInRound.toLocaleString();
@@ -1157,6 +1181,16 @@
             
             ctx.restore();
             
+            // Low Health Vignette
+            if (GAME.timeLeft <= 5.0) {
+                const opacity = (Math.sin(Date.now() / 200) + 1) / 4 + 0.1;
+                const grd = ctx.createRadialGradient(GAME.centerX, GAME.centerY, GAME.height/3, GAME.centerX, GAME.centerY, GAME.height);
+                grd.addColorStop(0, "transparent");
+                grd.addColorStop(1, `rgba(239, 68, 68, ${opacity})`);
+                ctx.fillStyle = grd;
+                ctx.fillRect(0, 0, GAME.width, GAME.height);
+            }
+
             // Combo
             if (GAME.combo > 5) {
                 const intensity = Math.min(1, (GAME.combo - 5) / 20);
@@ -1518,4 +1552,4 @@
 
     </script>
 </body>
-</html>"
+</html>
