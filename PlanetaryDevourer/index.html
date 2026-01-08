@@ -410,8 +410,8 @@
 
         const UPGRADES = [
             // Tier 0
-            { id: 'force', name: '중력장 강도', desc: '파편을 당기는 힘.', icon: '🧲', tier: 0, level: 1, maxLevel: 99, baseCost: 30, mult: 1.4, val: 0.12, inc: 0.03 },
-            { id: 'radius', name: '사건의 지평선', desc: '영향 범위 확장.', icon: '⭕', tier: 0, level: 1, maxLevel: 99, baseCost: 30, mult: 1.4, val: 80, inc: 4 }, 
+            { id: 'force', name: '중력장 강도', desc: '파편을 당기는 힘.', icon: '🧲', tier: 0, level: 1, maxLevel: 99, baseCost: 30, mult: 1.4, val: 0.08, inc: 0.03 },
+            { id: 'radius', name: '사건의 지평선', desc: '영향 범위 확장.', icon: '⭕', tier: 0, level: 1, maxLevel: 99, baseCost: 30, mult: 1.4, val: 60, inc: 4 }, 
             { id: 'friction', name: '공간 점성', desc: '파편이 덜 미끄러짐.', icon: '🕸️', tier: 0, level: 1, maxLevel: 10, baseCost: 50, mult: 1.5, val: 0.92, inc: -0.01 },
 
             // Tier 1
@@ -660,6 +660,18 @@
             playDamage() { this.playTone(150, 'sawtooth', 0.3, 0.5); }
             startGravityHum() {} 
             stopGravityHum() {}
+            playSuck() {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle'; 
+                osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(50, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.15);
+            }
         }
         const audio = new SoundManager();
 
@@ -680,7 +692,7 @@
                     this.vx = 0; this.vy = 0; this.decay = 0.1; this.size = Math.random() * 3 + 2;
                 } else if (type === 'spiral_in') {
                     this.angle = Math.random() * Math.PI * 2;
-                    this.dist = Math.random() * 20 + 30; // Start away from center
+                    this.dist = Math.random() * 40 + 20; // 시작 거리 조절
                     this.speed = Math.random() * 0.1 + 0.05;
                     this.size = Math.random() * 2 + 1;
                     this.decay = 0.05;
@@ -703,11 +715,11 @@
                     this.vx += Math.cos(angle) * 50 * 0.1; this.vy += Math.sin(angle) * 50 * 0.1;
                     this.x += this.vx * timeScale; this.y += this.vy * timeScale;
                 } else if (this.type === 'spiral_in') {
-                    this.angle += 0.2 * timeScale;
-                    this.dist -= 3 * timeScale;
+                    this.angle += 0.3 * timeScale;
+                    this.dist -= 5 * timeScale; // 빨려드는 속도
                     this.x = Math.cos(this.angle) * this.dist;
                     this.y = Math.sin(this.angle) * this.dist;
-                    if(this.dist <= 0) this.life = 0;
+                    if(this.dist <= 2) this.life = 0; // 중심에 도달하면 즉시 사라짐
                 } else if (this.type === 'shockwave') {
                     this.size += 15 * timeScale;
                     if (this.size > this.maxSize) this.life = 0;
@@ -1026,6 +1038,7 @@
 
                         texts.push(new PopText(0, -30, e.value, false));
                         audio.playPop();
+                        audio.playSuck(); // 빨아들이는 소리 추가
                         
                         // Spawn suck-in particles
                         for(let k=0; k<3; k++) particles.push(new EffectParticle(0,0, e.color, 'spiral_in'));
