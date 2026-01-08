@@ -80,10 +80,10 @@
         }
         .combo-label { font-size: 1.2rem; color: #fbbf24; font-weight: 700; letter-spacing: 2px; }
 
-        /* 업적 알림 UI - 위치 조정됨 */
+        /* 업적 알림 UI */
         #achievement-container {
             position: absolute;
-            top: 160px; /* 100px -> 160px로 내려서 타이머와 겹침 방지 */
+            top: 160px;
             left: 20px;
             display: flex;
             flex-direction: column;
@@ -146,6 +146,7 @@
             transition: all 0.3s;
             pointer-events: auto;
             cursor: pointer;
+            position: relative;
         }
 
         .skill-slot.unlocked {
@@ -191,6 +192,27 @@
             margin-top: 5px;
             font-size: 0.8rem; font-weight: bold; color: #cbd5e1;
             background: rgba(0,0,0,0.5); padding: 2px 8px; border-radius: 10px;
+        }
+
+        .skill-level-indicator {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #facc15;
+            color: #0f172a;
+            font-size: 0.7rem;
+            font-weight: 800;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            display: none; /* Initially hidden */
+        }
+        .skill-slot.unlocked .skill-level-indicator {
+            display: flex;
         }
         
         /* 음소거 버튼 */
@@ -354,14 +376,22 @@
         <div class="skill-slot" id="slot-bomb" onclick="activateSkill('bomb')">
             <div class="skill-icon">💣<div class="skill-overlay" id="cd-bomb"></div><div class="skill-active-glow" id="glow-bomb"></div></div>
             <div class="skill-key">Q</div>
+            <div class="skill-level-indicator" id="lvl-bomb">1</div>
         </div>
         <div class="skill-slot" id="slot-stasis" onclick="activateSkill('stasis')">
             <div class="skill-icon">❄️<div class="skill-overlay" id="cd-stasis"></div><div class="skill-active-glow" id="glow-stasis"></div></div>
             <div class="skill-key">W</div>
+            <div class="skill-level-indicator" id="lvl-stasis">1</div>
         </div>
         <div class="skill-slot" id="slot-surge" onclick="activateSkill('surge')">
             <div class="skill-icon">⚛️<div class="skill-overlay" id="cd-surge"></div><div class="skill-active-glow" id="glow-surge"></div></div>
             <div class="skill-key">E</div>
+            <div class="skill-level-indicator" id="lvl-surge">1</div>
+        </div>
+        <div class="skill-slot" id="slot-storm" onclick="activateSkill('storm')">
+            <div class="skill-icon">⚡<div class="skill-overlay" id="cd-storm"></div><div class="skill-active-glow" id="glow-storm"></div></div>
+            <div class="skill-key">R</div>
+            <div class="skill-level-indicator" id="lvl-storm">1</div>
         </div>
     </div>
     
@@ -400,9 +430,10 @@
         // --- 1. GLOBAL VARIABLES ---
         let canvas, ctx;
         let scoreEl, timerEl, upgradeScreen, upgradeMoneyEl, totalLevelEl, treeContainer, startOverlay, ingameUi, comboBox, comboValEl, passiveStatsEl, pauseOverlay;
-        let slotBomb, slotStasis, slotSurge;
-        let cdBomb, cdStasis, cdSurge;
-        let glowBomb, glowStasis, glowSurge;
+        let slotBomb, slotStasis, slotSurge, slotStorm;
+        let cdBomb, cdStasis, cdSurge, cdStorm;
+        let glowBomb, glowStasis, glowSurge, glowStorm;
+        let lvlBombEl, lvlStasisEl, lvlSurgeEl, lvlStormEl;
 
         const VALUE_MULTIPLIER = 0.4; 
         const BASE_RESOLUTION = 1080;
@@ -421,7 +452,8 @@
 
             // Tier 2
             { id: 'value', name: '채굴 효율', desc: '행성 가치 상승.', icon: '💎', tier: 2, level: 0, maxLevel: 99, baseCost: 300, mult: 1.5, val: 1.0, inc: 0.5 },
-            { id: 'unlock_bomb', name: '중력 폭탄 [Skill]', desc: '[Q] 주변 행성 당기기.', icon: '💣', type: 'skill', tier: 2, level: 0, maxLevel: 1, baseCost: 1000, mult: 1, val: 0, inc: 1 },
+            // Skill Bomb: Levelable
+            { id: 'unlock_bomb', name: '중력 폭탄 [Skill]', desc: '[Q] 주변 행성 당기기. 레벨업 시 쿨타임 감소.', icon: '💣', type: 'skill', tier: 2, level: 0, maxLevel: 10, baseCost: 1000, mult: 1.5, val: 0, inc: 1 },
             { id: 'heavy', name: '고중력', desc: '무거운 행성 무게 무시.', icon: '⚓', tier: 2, level: 0, maxLevel: 20, baseCost: 350, mult: 1.5, val: 1.0, inc: 0.2 },
 
             // Tier 3
@@ -430,13 +462,15 @@
             { id: 'lightning_unlock', name: '뇌전 행성', desc: '체인 라이트닝 행성 등장.', icon: '⚡', tier: 3, level: 0, maxLevel: 1, baseCost: 3000, mult: 1, val: 0, inc: 1 },
             
             // Tier 4
-            { id: 'unlock_stasis', name: '타임 프리즈 [Skill]', desc: '[W] 5초간 시간 멈춤 & 질량 50% 감소.', icon: '❄️', type: 'skill', tier: 4, level: 0, maxLevel: 1, baseCost: 8000, mult: 1, val: 0, inc: 1 },
+            // Skill Stasis: Levelable
+            { id: 'unlock_stasis', name: '타임 프리즈 [Skill]', desc: '[W] 시간 정지. 레벨업 시 지속시간 증가.', icon: '❄️', type: 'skill', tier: 4, level: 0, maxLevel: 10, baseCost: 8000, mult: 1.5, val: 0, inc: 1 },
             { id: 'crit', name: '행성 붕괴', desc: '가치 2배 크리티컬 확률.', icon: '💥', tier: 4, level: 0, maxLevel: 20, baseCost: 2500, mult: 1.5, val: 0, inc: 2 },
             { id: 'l_range', name: '전이 범위', desc: '체인 라이트닝 거리.', icon: '📡', tier: 4, level: 0, maxLevel: 10, baseCost: 4000, mult: 1.6, val: 150, inc: 20 }, 
             { id: 'l_count', name: '과부하', desc: '체인 라이트닝 타겟 수.', icon: '🔗', tier: 4, level: 0, maxLevel: 10, baseCost: 4500, mult: 1.8, val: 3, inc: 1 },
 
             // Tier 5
-            { id: 'unlock_surge', name: '블랙홀 개방 [Skill]', desc: '[E] 8초간 전체 흡입 & 파워 3배.', icon: '⚛️', type: 'skill', tier: 5, level: 0, maxLevel: 1, baseCost: 25000, mult: 1, val: 0, inc: 1 },
+            // Skill Surge: Levelable
+            { id: 'unlock_surge', name: '블랙홀 개방 [Skill]', desc: '[E] 흡입력/범위 강화. 레벨업 시 지속시간 증가.', icon: '⚛️', type: 'skill', tier: 5, level: 0, maxLevel: 10, baseCost: 25000, mult: 1.6, val: 0, inc: 1 },
             { id: 'luck', name: '행운의 별', desc: '희귀 행성 확률 증가.', icon: '🍀', tier: 5, level: 0, maxLevel: 10, baseCost: 5000, mult: 1.6, val: 1.0, inc: 0.2 },
             { id: 'blackhole_size', name: '거대 블랙홀', desc: '블랙홀 크기 증가.', icon: '⚫', tier: 5, level: 0, maxLevel: 10, baseCost: 10000, mult: 2.5, val: 35, inc: 3 },
             
@@ -446,33 +480,34 @@
             { id: 'frenzy', name: '코스믹 프렌지', desc: '3초 이하일 때 중력 2배.', icon: '🔥', tier: 6, level: 0, maxLevel: 1, baseCost: 50000, mult: 1, val: 0, inc: 1 },
 
             // Tier 7
+            // NEW SKILL: Void Storm
+            { id: 'unlock_storm', name: '공허의 폭풍 [Skill]', desc: '[R] 화면 전체 무작위 타격. 레벨업 시 위력 증가.', icon: '⚡', type: 'skill', tier: 7, level: 0, maxLevel: 10, baseCost: 150000, mult: 1.7, val: 0, inc: 1 },
             { id: 'unlock_ring', name: '고리 행성', desc: '거대한 고리 행성 발견.', icon: '🪐', tier: 7, level: 0, maxLevel: 1, baseCost: 100000, mult: 1, val: 0, inc: 1 },
             { id: 'interest', name: '암흑 물질 반응', desc: '라운드 종료 시 보유금 이자.', icon: '📈', tier: 7, level: 0, maxLevel: 10, baseCost: 15000, mult: 2.0, val: 0, inc: 1 },
-            { id: 'singularity', name: '특이점', desc: '화면 전체 약한 중력장 생성.', icon: '⚛️', tier: 7, level: 0, maxLevel: 5, baseCost: 80000, mult: 3.0, val: 0, inc: 1 },
-
+            
             // Tier 8 ~ 20 (Expanded)
+            { id: 'singularity', name: '특이점', desc: '화면 전체 약한 중력장 생성.', icon: '⚛️', tier: 8, level: 0, maxLevel: 5, baseCost: 80000, mult: 3.0, val: 0, inc: 1 },
             { id: 'neutron_unlock', name: '중성자별', desc: '초고밀도 행성 발견.', icon: '🌟', tier: 8, level: 0, maxLevel: 1, baseCost: 200000, mult: 1, val: 0, inc: 1 },
-            { id: 'gravity_lens', name: '중력 렌즈', desc: '흡입 범위 추가 확장.', icon: '🔍', tier: 8, level: 0, maxLevel: 20, baseCost: 120000, mult: 1.8, val: 1.0, inc: 0.1 },
-
+            
+            { id: 'gravity_lens', name: '중력 렌즈', desc: '흡입 범위 추가 확장.', icon: '🔍', tier: 9, level: 0, maxLevel: 20, baseCost: 120000, mult: 1.8, val: 1.0, inc: 0.1 },
             { id: 'chrono_battery', name: '크로노 배터리', desc: '최대 시간 증가.', icon: '🔋', tier: 9, level: 0, maxLevel: 20, baseCost: 250000, mult: 1.6, val: 5, inc: 1 },
-            { id: 'skill_mastery', name: '스킬 마스터리', desc: '스킬 쿨타임 감소.', icon: '🎓', tier: 9, level: 0, maxLevel: 10, baseCost: 300000, mult: 2.0, val: 0, inc: 5 }, // %
-
+            
+            { id: 'skill_mastery', name: '스킬 마스터리', desc: '모든 스킬 쿨타임 감소.', icon: '🎓', tier: 10, level: 0, maxLevel: 10, baseCost: 300000, mult: 2.0, val: 0, inc: 5 }, // %
             { id: 'star_unlock', name: '항성 발견', desc: '스스로 빛나는 별 발견.', icon: '☀️', tier: 10, level: 0, maxLevel: 1, baseCost: 500000, mult: 1, val: 0, inc: 1 },
-            { id: 'nucleosynthesis', name: '핵융합', desc: '모든 행성 가치 대폭 증가.', icon: '☢️', tier: 10, level: 0, maxLevel: 50, baseCost: 400000, mult: 1.5, val: 1.0, inc: 0.5 },
-
+            
+            { id: 'nucleosynthesis', name: '핵융합', desc: '모든 행성 가치 대폭 증가.', icon: '☢️', tier: 11, level: 0, maxLevel: 50, baseCost: 400000, mult: 1.5, val: 1.0, inc: 0.5 },
             { id: 'void_hunger', name: '중력 우물', desc: '자연 중력 흡입력 강화.', icon: '👿', tier: 11, level: 0, maxLevel: 10, baseCost: 600000, mult: 2.0, val: 1.0, inc: 0.5 },
-            { id: 'event_horizon_ex', name: '사건의 지평선 II', desc: '블랙홀 크기 추가 확장.', icon: '⚫', tier: 11, level: 0, maxLevel: 10, baseCost: 700000, mult: 2.0, val: 0, inc: 5 },
-
+            
+            { id: 'event_horizon_ex', name: '사건의 지평선 II', desc: '블랙홀 크기 추가 확장.', icon: '⚫', tier: 12, level: 0, maxLevel: 10, baseCost: 700000, mult: 2.0, val: 0, inc: 5 },
             { id: 'antimatter', name: '반물질 생성', desc: '크리티컬 확률 추가.', icon: '💠', tier: 12, level: 0, maxLevel: 20, baseCost: 800000, mult: 1.6, val: 0, inc: 2 },
-            { id: 'warp_drive', name: '워프 드라이브', desc: '마찰력 추가 감소.', icon: '🚀', tier: 12, level: 0, maxLevel: 10, baseCost: 900000, mult: 2.0, val: 0, inc: 0.005 },
-
+            
+            { id: 'warp_drive', name: '워프 드라이브', desc: '마찰력 추가 감소.', icon: '🚀', tier: 13, level: 0, maxLevel: 10, baseCost: 900000, mult: 2.0, val: 0, inc: 0.005 },
             { id: 'federation', name: '은하 연합', desc: '행성 밀도 대폭 증가.', icon: '🛸', tier: 13, level: 0, maxLevel: 10, baseCost: 1200000, mult: 1.8, val: 0, inc: 20 },
-            { id: 'dyson_sphere', name: '다이슨 스피어', desc: '라운드 종료 이자 증가.', icon: '🌐', tier: 13, level: 0, maxLevel: 10, baseCost: 1500000, mult: 2.0, val: 0, inc: 2 },
-
+            
+            { id: 'dyson_sphere', name: '다이슨 스피어', desc: '라운드 종료 이자 증가.', icon: '🌐', tier: 14, level: 0, maxLevel: 10, baseCost: 1500000, mult: 2.0, val: 0, inc: 2 },
             { id: 'dark_energy', name: '암흑 에너지', desc: '중력장 힘 극대화.', icon: '🟣', tier: 14, level: 0, maxLevel: 20, baseCost: 2000000, mult: 1.6, val: 1.0, inc: 0.2 },
-            { id: 'expansion_2', name: '우주 확장 II', desc: '시야 추가 확장 (줌아웃).', icon: '🔭', tier: 14, level: 0, maxLevel: 5, baseCost: 2500000, mult: 3.0, val: 0, inc: 0.1 },
-
-            { id: 'quasar_unlock', name: '퀘이사 파편', desc: '전설적인 물질 발견.', icon: '✨', tier: 18, level: 0, maxLevel: 1, baseCost: 10000000, mult: 1, val: 0, inc: 1 },
+            
+            { id: 'expansion_2', name: '우주 확장 II', desc: '시야 추가 확장 (줌아웃).', icon: '🔭', tier: 15, level: 0, maxLevel: 5, baseCost: 2500000, mult: 3.0, val: 0, inc: 0.1 },
             { id: 'gamma_ray', name: '감마선 폭발', desc: '스킬 효과 증폭.', icon: '🔆', tier: 15, level: 0, maxLevel: 5, baseCost: 3000000, mult: 2.5, val: 1.0, inc: 0.2 },
 
             { id: 'multiverse', name: '다중우주 채굴', desc: '가치 극대화.', icon: '🌌', tier: 16, level: 0, maxLevel: 20, baseCost: 4000000, mult: 1.7, val: 1.0, inc: 1.0 },
@@ -480,6 +515,7 @@
 
             { id: 'supermassive', name: '초거대 질량', desc: '고중력 효과 강화.', icon: '🏋️', tier: 17, level: 0, maxLevel: 10, baseCost: 7000000, mult: 2.0, val: 1.0, inc: 0.5 },
             
+            { id: 'quasar_unlock', name: '퀘이사 파편', desc: '전설적인 물질 발견.', icon: '✨', tier: 18, level: 0, maxLevel: 1, baseCost: 10000000, mult: 1, val: 0, inc: 1 },
             { id: 'time_dilation', name: '시간 지연', desc: '행성 속도 감소.', icon: '🐌', tier: 18, level: 0, maxLevel: 5, baseCost: 9000000, mult: 2.0, val: 1.0, inc: 0.1 },
 
             { id: 'omega_point', name: '오메가 포인트', desc: '모든 능력치 소폭 증가.', icon: 'Ω', tier: 19, level: 0, maxLevel: 50, baseCost: 15000000, mult: 1.4, val: 0, inc: 0.05 },
@@ -517,7 +553,12 @@
             width: 0, height: 0, centerX: 0, centerY: 0, lastTime: 0,
             combo: 0, comboTimer: 0, shakeX: 0, shakeY: 0, shakeTime: 0,
             zoom: 1.0, bhAngle: 0, bhPulse: 0,
-            skills: { bomb: { cd: 0, max: 15 }, stasis: { cd: 0, max: 30, dur: 0 }, surge: { cd: 0, max: 60, dur: 0 } },
+            skills: { 
+                bomb: { cd: 0, max: 15 }, 
+                stasis: { cd: 0, max: 30, dur: 0 }, 
+                surge: { cd: 0, max: 60, dur: 0 },
+                storm: { cd: 0, max: 45 } 
+            },
             bgStars: [], nebulae: [], pixelScale: 1.0,
             stats: { totalAbsorbed: 0, totalMoney: 0, maxCombo: 0, achievements: [] } 
         };
@@ -1000,6 +1041,7 @@
             // Skill Cooldowns
             if (GAME.skills.stasis.cd > 0) GAME.skills.stasis.cd -= dt;
             if (GAME.skills.surge.cd > 0) GAME.skills.surge.cd -= dt;
+            if (GAME.skills.storm.cd > 0) GAME.skills.storm.cd -= dt;
 
             // Combo Timer
             if (GAME.combo > 0) {
@@ -1275,12 +1317,22 @@
             slotBomb = document.getElementById('slot-bomb');
             slotStasis = document.getElementById('slot-stasis');
             slotSurge = document.getElementById('slot-surge');
+            slotStorm = document.getElementById('slot-storm');
+            
             cdBomb = document.getElementById('cd-bomb');
             cdStasis = document.getElementById('cd-stasis');
             cdSurge = document.getElementById('cd-surge');
+            cdStorm = document.getElementById('cd-storm');
+            
             glowBomb = document.getElementById('glow-bomb');
             glowStasis = document.getElementById('glow-stasis');
             glowSurge = document.getElementById('glow-surge');
+            glowStorm = document.getElementById('glow-storm');
+            
+            lvlBombEl = document.getElementById('lvl-bomb');
+            lvlStasisEl = document.getElementById('lvl-stasis');
+            lvlSurgeEl = document.getElementById('lvl-surge');
+            lvlStormEl = document.getElementById('lvl-storm');
 
             audio.init();
             loadGame();
@@ -1345,6 +1397,7 @@
                     if (e.key === 'q' || e.key === 'Q') activateSkill('bomb');
                     if (e.key === 'w' || e.key === 'W') activateSkill('stasis');
                     if (e.key === 'e' || e.key === 'E') activateSkill('surge');
+                    if (e.key === 'r' || e.key === 'R') activateSkill('storm');
                 }
             });
 
@@ -1443,10 +1496,14 @@
             if (!u || u.level === 0) return;
 
             const mastery = getUpgrade('skill_mastery').val / 100;
+            const lvl = u.level; // Current skill level
 
             if (type === 'bomb') {
                 if (GAME.skills.bomb.cd > 0) return;
-                GAME.skills.bomb.cd = GAME.skills.bomb.max * (1 - mastery);
+                // Cooldown reduces by 5% per level
+                const baseCd = GAME.skills.bomb.max;
+                const reducedCd = baseCd * (1 - (lvl * 0.05));
+                GAME.skills.bomb.cd = Math.max(5, reducedCd) * (1 - mastery);
                 audio.playSkill();
                 
                 // Spawn Shockwave
@@ -1457,14 +1514,7 @@
                     const dx = 0 - e.x; const dy = 0 - e.y;
                     const dist = Math.sqrt(dx*dx+dy*dy);
                     
-                    // 당기는 힘 조절: 무게(mass)에 반비례하여 힘 적용
-                    // 가벼운 것은 많이, 무거운 것은 조금 당겨짐.
-                    // 한번에 다 들어가지 않도록 기본 힘(Base Force)을 적절히 조절 (기존 100 -> 가변)
-                    
-                    // 공식: 기본파워 / (질량 + 감쇠상수)
-                    // 가벼운 파편(질량1)은 약 50~60 정도의 속도를 얻어 꽤 당겨짐
-                    // 거대 행성(질량80)은 약 6~7 정도의 속도만 얻어 살짝 끌려옴
-                    const baseForce = 300; 
+                    const baseForce = 200 + (lvl * 20); // Power increases with level
                     const massFactor = e.mass + 10;
                     const pullPower = baseForce / massFactor;
 
@@ -1475,27 +1525,69 @@
             }
             if (type === 'stasis') {
                 if (GAME.skills.stasis.cd > 0) return;
-                GAME.skills.stasis.cd = GAME.skills.stasis.max * (1 - mastery);
-                GAME.skills.stasis.dur = 5.0;
+                const baseCd = GAME.skills.stasis.max;
+                const reducedCd = baseCd * (1 - (lvl * 0.03));
+                GAME.skills.stasis.cd = Math.max(10, reducedCd) * (1 - mastery);
+                GAME.skills.stasis.dur = 5.0 + (lvl * 0.5); // Duration increases
                 audio.playSkill();
             }
             if (type === 'surge') {
                 if (GAME.skills.surge.cd > 0) return;
-                GAME.skills.surge.cd = GAME.skills.surge.max * (1 - mastery);
-                GAME.skills.surge.dur = 8.0;
+                const baseCd = GAME.skills.surge.max;
+                const reducedCd = baseCd * (1 - (lvl * 0.03));
+                GAME.skills.surge.cd = Math.max(20, reducedCd) * (1 - mastery);
+                GAME.skills.surge.dur = 8.0 + (lvl * 0.8); // Duration increases
                 audio.playSkill();
+            }
+            if (type === 'storm') {
+                if (GAME.skills.storm.cd > 0) return;
+                const baseCd = GAME.skills.storm.max;
+                const reducedCd = baseCd * (1 - (lvl * 0.03));
+                GAME.skills.storm.cd = Math.max(15, reducedCd) * (1 - mastery);
+                audio.playSkill();
+                
+                // Storm Logic: Random Lightning Strikes
+                const strikeCount = 5 + lvl;
+                for(let i=0; i<strikeCount; i++) {
+                    setTimeout(() => {
+                        if(entities.length > 0) {
+                            const target = entities[Math.floor(Math.random()*entities.length)];
+                            // Create visual bolt from random sky position
+                            const skyX = (Math.random()-0.5) * GAME.width;
+                            const skyY = (Math.random()-0.5) * GAME.height;
+                            bolts.push(new LightningBolt(skyX, skyY, target.x, target.y));
+                            // Apply force towards center
+                            const force = 100 + (lvl * 10);
+                            const dist = Math.sqrt(target.x*target.x + target.y*target.y);
+                            target.vx += (-target.x/dist) * (force/target.mass);
+                            target.vy += (-target.y/dist) * (force/target.mass);
+                            particles.push(new EffectParticle(target.x, target.y, '#facc15', 'spark'));
+                        }
+                    }, i * 100);
+                }
+                GAME.shakeTime = 0.5; GAME.shakeAmount = 15;
             }
         }
 
         function updateSkillUI() {
             const mastery = getUpgrade('skill_mastery').val / 100;
 
-            // Update Cooldowns Visuals
-            const updateSlot = (key, slotEl, cdEl, glowEl) => {
+            const updateSlot = (key, slotEl, cdEl, glowEl, uId, lvlEl) => {
                 const s = GAME.skills[key];
-                const max = s.max * (1 - mastery);
+                const u = getUpgrade(uId);
+                const lvl = u ? u.level : 0;
+                
+                // Calculate max CD dynamically based on level
+                let baseMax = s.max;
+                if(key === 'bomb') baseMax = s.max * (1 - (lvl * 0.05));
+                if(key === 'stasis') baseMax = s.max * (1 - (lvl * 0.03));
+                if(key === 'surge') baseMax = s.max * (1 - (lvl * 0.03));
+                if(key === 'storm') baseMax = s.max * (1 - (lvl * 0.03));
+                
+                const realMax = Math.max(5, baseMax) * (1 - mastery);
+
                 if (s.cd > 0) {
-                    const pct = (s.cd / max) * 100;
+                    const pct = (s.cd / realMax) * 100;
                     cdEl.style.height = pct + "%";
                     slotEl.style.filter = "grayscale(1)";
                 } else {
@@ -1505,11 +1597,22 @@
                 
                 if (s.dur && s.dur > 0) glowEl.style.opacity = 1;
                 else glowEl.style.opacity = 0;
+
+                // Update Level Text
+                if(lvlEl) {
+                    if (lvl > 0) {
+                        lvlEl.style.display = 'flex';
+                        lvlEl.innerText = lvl;
+                    } else {
+                        lvlEl.style.display = 'none';
+                    }
+                }
             };
 
-            updateSlot('bomb', slotBomb, cdBomb, glowBomb);
-            updateSlot('stasis', slotStasis, cdStasis, glowStasis);
-            updateSlot('surge', slotSurge, cdSurge, glowSurge);
+            updateSlot('bomb', slotBomb, cdBomb, glowBomb, 'unlock_bomb', lvlBombEl);
+            updateSlot('stasis', slotStasis, cdStasis, glowStasis, 'unlock_stasis', lvlStasisEl);
+            updateSlot('surge', slotSurge, cdSurge, glowSurge, 'unlock_surge', lvlSurgeEl);
+            updateSlot('storm', slotStorm, cdStorm, glowStorm, 'unlock_storm', lvlStormEl);
         }
 
         // Render Upgrades Logic
@@ -1566,7 +1669,7 @@
                     // Special descriptions for skills & Increment display
                     let statText = `현재: ${valStr}`;
                     if(u.type === 'skill') {
-                        statText = isMax ? "습득 완료" : "미습득";
+                        statText = isMax ? "MAX LVL" : `Lv.${u.level} -> ${u.level+1}`;
                     } else {
                         let incDisplay = u.inc;
                         if(typeof u.inc === 'number' && !Number.isInteger(u.inc)) incDisplay = u.inc.toFixed(2);
@@ -1598,6 +1701,7 @@
             if(getUpgrade('unlock_bomb').level > 0) slotBomb.classList.add('unlocked');
             if(getUpgrade('unlock_stasis').level > 0) slotStasis.classList.add('unlocked');
             if(getUpgrade('unlock_surge').level > 0) slotSurge.classList.add('unlocked');
+            if(getUpgrade('unlock_storm').level > 0) slotStorm.classList.add('unlocked');
         }
 
         function buyUpgrade(id) {
