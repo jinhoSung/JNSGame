@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Void Harvester: Planetary Devourer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050814;
+            color: #e2e8f0;
+            font-family: 'Pretendard', sans-serif;
+            user-select: none;
+            touch-action: none;
+        }
+
+        #gameCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #ingame-ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .top-row {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        .timer-box {
+            display: flex;
+            align-items: center;
+            font-size: 3rem;
+            font-weight: 800;
+            color: #f8fafc;
+            text-shadow: 0 0 15px rgba(56, 189, 248, 0.5);
+        }
+        
+        .timer-warn { color: #ef4444; text-shadow: 0 0 15px rgba(239, 68, 68, 0.6); animation: pulse 0.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+        .score-val {
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: #fbbf24;
+            text-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
+        }
+
+        .combo-box {
+            align-self: center;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .combo-val {
+            font-size: 4rem; font-weight: 900; 
+            background: linear-gradient(to bottom, #fcd34d, #f59e0b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-style: italic;
+        }
+        .combo-label { font-size: 1.2rem; color: #fbbf24; font-weight: 700; letter-spacing: 2px; }
+
+        #skill-bar {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .skill-slot {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            opacity: 0.3;
+            filter: grayscale(1);
+            transition: all 0.3s;
+            pointer-events: auto;
+            cursor: pointer;
+        }
+
+        .skill-slot.unlocked {
+            opacity: 1;
+            filter: grayscale(0);
+        }
+        
+        .skill-icon {
+            width: 60px; height: 60px;
+            border-radius: 16px;
+            background: #1e293b;
+            border: 2px solid #475569;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; color: white;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .skill-slot.unlocked .skill-icon {
+            background: #4f46e5;
+            border-color: #818cf8;
+            box-shadow: 0 0 15px rgba(79, 70, 229, 0.5);
+        }
+        
+        .skill-overlay {
+            position: absolute;
+            bottom: 0; left: 0; width: 100%; height: 0%;
+            background: rgba(0, 0, 0, 0.7);
+            transition: height 0.1s linear;
+        }
+
+        .skill-active-glow {
+            position: absolute; top:0; left:0; width:100%; height:100%;
+            border: 3px solid #facc15;
+            border-radius: 16px;
+            box-shadow: 0 0 15px #facc15;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .skill-key {
+            margin-top: 5px;
+            font-size: 0.8rem; font-weight: bold; color: #cbd5e1;
+            background: rgba(0,0,0,0.5); padding: 2px 8px; border-radius: 10px;
+        }
+        
+        #mute-btn {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(30, 41, 59, 0.8);
+            color: white;
+            border: 1px solid #475569;
+            border-radius: 50%;
+            width: 40px; height: 40px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: all 0.2s;
+        }
+        #mute-btn:hover { background: #334155; }
+
+        #upgrade-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(11, 16, 38, 0.98); 
+            z-index: 20;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 0;
+            box-sizing: border-box;
+        }
+
+        .upgrade-header {
+            text-align: center;
+            margin-bottom: 10px;
+            flex-shrink: 0;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .screen-title { font-size: 2rem; font-weight: 900; color: #f1f5f9; margin: 0; text-shadow: 0 0 20px rgba(124, 58, 237, 0.5); }
+        .screen-subtitle { font-size: 0.9rem; color: #94a3b8; margin-bottom: 5px; }
+        
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1e293b;
+            padding: 10px 20px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            width: 90%;
+            margin-bottom: 15px;
+        }
+
+        .money-badge { font-size: 1.2rem; font-weight: 800; color: #fbbf24; }
+        .level-badge { font-size: 1rem; font-weight: 700; color: #818cf8; }
+        
+        .reset-data-btn {
+            font-size: 0.7rem; color: #64748b; text-decoration: underline; cursor: pointer;
+            transition: color 0.2s;
+        }
+        .reset-data-btn:hover { color: #94a3b8; }
+
+        .tree-scroll-area {
+            flex-grow: 1;
+            width: 100%;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0 20px 100px 20px;
+            scrollbar-width: thin;
+            scrollbar-color: #475569 #0f172a;
+        }
+
+        .tier-section { width: 100%; max-width: 1000px; margin-bottom: 40px; position: relative; }
+        .tier-header { display: flex; align-items: center; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 2px solid #334155; }
+        .tier-title { font-size: 1.2rem; font-weight: 800; color: #e2e8f0; margin-right: 15px; }
+        .tier-lock-msg { font-size: 0.9rem; color: #f87171; font-weight: 600; background: rgba(239, 68, 68, 0.1); padding: 2px 8px; border-radius: 4px; }
+        .tier-unlock-msg { font-size: 0.9rem; color: #34d399; font-weight: 600; background: rgba(16, 185, 129, 0.1); padding: 2px 8px; border-radius: 4px; }
+        .tier-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
+        
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            display: flex; flex-direction: column; position: relative; min-height: 140px;
+        }
+        .card:hover:not(.disabled):not(.locked) { transform: translateY(-3px); box-shadow: 0 10px 15px rgba(0,0,0,0.3); border-color: #8b5cf6; background: #273549; }
+        .card.disabled { opacity: 0.6; filter: grayscale(0.8); }
+        .card.locked { background: #0f172a; border: 1px dashed #334155; cursor: not-allowed; opacity: 0.7; align-items: center; justify-content: center; color: #64748b; }
+        .card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+        .card-icon { font-size: 24px; }
+        .card-name { font-weight: 800; font-size: 0.85rem; color: #f1f5f9; line-height: 1.2; }
+        .card-desc { font-size: 0.7rem; color: #94a3b8; margin-bottom: 8px; flex-grow: 1; line-height: 1.3; }
+        .card-footer { margin-top: auto; border-top: 1px solid #334155; padding-top: 8px; }
+        .card-stat { font-size: 0.7rem; color: #a78bfa; font-weight: 600; margin-bottom: 2px; }
+        .card-cost { font-weight: 700; color: #60a5fa; font-size: 0.95rem; }
+        .card-lvl { position: absolute; top: 10px; right: 10px; font-size: 0.7rem; font-weight: 800; color: #cbd5e1; background: #334155; padding: 2px 6px; border-radius: 4px; }
+        .max-lvl { color: #6ee7b7; background: rgba(16, 185, 129, 0.2); }
+
+        .bottom-bar {
+            position: absolute; bottom: 0; left: 0; width: 100%; padding: 20px;
+            background: linear-gradient(to top, #0b1026, rgba(11, 16, 38, 0));
+            display: flex; justify-content: center; pointer-events: none;
+        }
+        
+        .btn-action {
+            pointer-events: auto;
+            background: linear-gradient(135deg, #7c3aed, #2563eb);
+            color: white; padding: 15px 80px; border-radius: 50px; font-size: 1.2rem; font-weight: 800; border: none;
+            cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 0 20px rgba(124, 58, 237, 0.4);
+        }
+        .btn-action:hover { transform: scale(1.05); box-shadow: 0 0 30px rgba(124, 58, 237, 0.6); }
+
+        #start-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #0b1026; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; transition: opacity 0.5s; color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- 인게임 UI -->
+    <div id="ingame-ui">
+        <div class="top-row">
+            <div class="timer-box">
+                <span id="timer-display">10.0</span>s
+            </div>
+            <div class="score-val" id="score-display">$0</div>
+        </div>
+        
+        <div class="combo-box" id="combo-box">
+            <div class="combo-val" id="combo-val">x1.0</div>
+            <div class="combo-label">COMBO!</div>
+        </div>
+    </div>
+    
+    <div id="skill-bar">
+        <div class="skill-slot" id="slot-bomb" onclick="if(window.activateSkill) window.activateSkill('bomb')">
+            <div class="skill-icon">💣<div class="skill-overlay" id="cd-bomb"></div><div class="skill-active-glow" id="glow-bomb"></div></div>
+            <div class="skill-key">Q</div>
+        </div>
+        <div class="skill-slot" id="slot-stasis" onclick="if(window.activateSkill) window.activateSkill('stasis')">
+            <div class="skill-icon">❄️<div class="skill-overlay" id="cd-stasis"></div><div class="skill-active-glow" id="glow-stasis"></div></div>
+            <div class="skill-key">W</div>
+        </div>
+        <div class="skill-slot" id="slot-surge" onclick="if(window.activateSkill) window.activateSkill('surge')">
+            <div class="skill-icon">⚛️<div class="skill-overlay" id="cd-surge"></div><div class="skill-active-glow" id="glow-surge"></div></div>
+            <div class="skill-key">E</div>
+        </div>
+    </div>
+    
+    <button id="mute-btn" onclick="if(window.toggleMute) window.toggleMute()">🔊</button>
+
+    <!-- 업그레이드 화면 -->
+    <div id="upgrade-screen">
+        <div class="upgrade-header">
+            <h1 class="screen-title">RESEARCH LAB</h1>
+            <p class="screen-subtitle">우주의 힘을 연구하여 블랙홀을 진화시키세요.</p>
+        </div>
+
+        <div class="status-bar">
+            <div class="level-badge" id="total-level-display">총 연구 레벨: 0</div>
+            <div class="money-badge" id="upgrade-money">$0</div>
+        </div>
+        
+        <div style="margin-bottom: 10px;">
+             <span class="reset-data-btn" onclick="if(window.resetSaveData) window.resetSaveData()">[데이터 초기화]</span>
+        </div>
+
+        <div class="tree-scroll-area" id="tree-container"></div>
+
+        <div class="bottom-bar">
+            <button class="btn-action" onclick="if(window.startGame) window.startGame()">Start Loop</button>
+        </div>
+    </div>
+
+    <div id="start-overlay">
+        <h1 class="text-5xl font-black mb-2 text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-500">Void Harvester:<br>Planetary Devourer</h1>
+        <p class="text-gray-400 mb-8 text-xl">행성을 파괴하고 흡수하여 끝없이 성장하세요.</p>
+        <button class="btn-action" onclick="if(window.firstStart) window.firstStart()">게임 시작</button>
+    </div>
+
+    <script>
+        // --- 1. GLOBAL VARIABLES ---
+        let canvas, ctx;
+        let scoreEl, timerEl, upgradeScreen, upgradeMoneyEl, totalLevelEl, treeContainer, startOverlay, ingameUi, comboBox, comboValEl;
+        let slotBomb, slotStasis, slotSurge;
+        let cdBomb, cdStasis, cdSurge;
+        let glowBomb, glowStasis, glowSurge;
+
+        const VALUE_MULTIPLIER = 0.3; 
+        // 0~20티어 해금 조건 (연구 레벨 합계)
+        const TIER_UNLOCKS = [0, 4, 12, 24, 40, 60, 90, 130, 180, 240, 310, 390, 480, 580, 700, 850, 1050, 1300, 1600, 2000, 2500];
+
+        const UPGRADES = [
+            // Tier 0
+            { id: 'force', name: '중력장 강도', desc: '파편을 당기는 힘.', icon: '🧲', tier: 0, level: 1, maxLevel: 99, baseCost: 50, mult: 1.4, val: 0.08, inc: 0.03 },
+            { id: 'radius', name: '사건의 지평선', desc: '영향 범위 확장.', icon: '⭕', tier: 0, level: 1, maxLevel: 99, baseCost: 50, mult: 1.4, val: 40, inc: 4 },
+            { id: 'friction', name: '공간 점성', desc: '파편이 덜 미끄러짐.', icon: '🕸️', tier: 0, level: 1, maxLevel: 10, baseCost: 100, mult: 1.5, val: 0.94, inc: -0.01 },
+
+            // Tier 1
+            { id: 'density', name: '초기 밀도', desc: '시작 행성 수 증가.', icon: '🌌', tier: 1, level: 0, maxLevel: 20, baseCost: 200, mult: 1.5, val: 30, inc: 10 },
+            { id: 'respawn', name: '행성 번식', desc: '흡수 시 재생성 확률.', icon: '🌱', tier: 1, level: 0, maxLevel: 20, baseCost: 300, mult: 1.5, val: 0, inc: 5 },
+            { id: 'time', name: '시간 왜곡', desc: '제한 시간 증가.', icon: '⏳', tier: 1, level: 0, maxLevel: 50, baseCost: 400, mult: 1.5, val: 10, inc: 1.5 },
+
+            // Tier 2
+            { id: 'value', name: '채굴 효율', desc: '행성 가치 상승.', icon: '💎', tier: 2, level: 0, maxLevel: 99, baseCost: 600, mult: 1.5, val: 1.0, inc: 0.5 },
+            { id: 'unlock_bomb', name: '중력 폭탄 [Skill]', desc: '[Q] 주변 행성 당기기.', icon: '💣', type: 'skill', tier: 2, level: 0, maxLevel: 1, baseCost: 1000, mult: 1, val: 0, inc: 1 },
+            { id: 'heavy', name: '고중력', desc: '무거운 행성 무게 무시.', icon: '⚓', tier: 2, level: 0, maxLevel: 20, baseCost: 700, mult: 1.5, val: 1.0, inc: 0.2 },
+            { id: 'auto', name: '자동 인력', desc: '클릭 없이도 당김.', icon: '🌀', tier: 2, level: 0, maxLevel: 10, baseCost: 1000, mult: 2.0, val: 0, inc: 0.1 },
+
+            // Tier 3
+            { id: 'attract_range', name: '자연 중력', desc: '블랙홀 기본 흡입 범위.', icon: '🌑', tier: 3, level: 0, maxLevel: 20, baseCost: 800, mult: 1.5, val: 150, inc: 20 },
+            { id: 'tier_unlock', name: '심우주 탐사', desc: '더 높은 등급 행성 발견.', icon: '🔭', tier: 3, level: 0, maxLevel: 5, baseCost: 2000, mult: 3.0, val: 1, inc: 1 },
+            { id: 'lightning_unlock', name: '뇌전 행성', desc: '체인 라이트닝 행성 등장.', icon: '⚡', tier: 3, level: 0, maxLevel: 1, baseCost: 3000, mult: 1, val: 0, inc: 1 },
+            
+            // Tier 4
+            { id: 'unlock_stasis', name: '시간 정지 [Skill]', desc: '[W] 5초간 시간/이동 멈춤.', icon: '❄️', type: 'skill', tier: 4, level: 0, maxLevel: 1, baseCost: 8000, mult: 1, val: 0, inc: 1 },
+            { id: 'crit', name: '행성 붕괴', desc: '가치 2배 크리티컬 확률.', icon: '💥', tier: 4, level: 0, maxLevel: 20, baseCost: 2500, mult: 1.5, val: 0, inc: 2 },
+            { id: 'l_range', name: '전이 범위', desc: '체인 라이트닝 거리.', icon: '📡', tier: 4, level: 0, maxLevel: 10, baseCost: 4000, mult: 1.6, val: 60, inc: 15 },
+            { id: 'l_count', name: '과부하', desc: '체인 라이트닝 타겟 수.', icon: '🔗', tier: 4, level: 0, maxLevel: 10, baseCost: 4500, mult: 1.8, val: 3, inc: 1 },
+
+            // Tier 5
+            { id: 'unlock_surge', name: '특이점 폭주 [Skill]', desc: '[E] 8초간 초강력 흡입.', icon: '⚛️', type: 'skill', tier: 5, level: 0, maxLevel: 1, baseCost: 25000, mult: 1, val: 0, inc: 1 },
+            { id: 'luck', name: '행운의 별', desc: '희귀 행성 확률 증가.', icon: '🍀', tier: 5, level: 0, maxLevel: 10, baseCost: 5000, mult: 1.6, val: 1.0, inc: 0.2 },
+            { id: 'blackhole_size', name: '거대 블랙홀', desc: '블랙홀 크기 증가.', icon: '⚫', tier: 5, level: 0, maxLevel: 10, baseCost: 10000, mult: 2.5, val: 35, inc: 3 },
+            
+            // Tier 6
+            { id: 'expansion', name: '우주 확장', desc: '시야를 넓혀 거대 행성 발견.', icon: '🔭', tier: 6, level: 0, maxLevel: 10, baseCost: 30000, mult: 2.0, val: 1.0, inc: 0.1 },
+            { id: 'siphon', name: '시간 흡수', desc: '흡수 시 시간 연장 확률.', icon: '⏳', tier: 6, level: 0, maxLevel: 20, baseCost: 30000, mult: 1.8, val: 0, inc: 2 },
+            { id: 'frenzy', name: '코스믹 프렌지', desc: '3초 이하일 때 중력 2배.', icon: '🔥', tier: 6, level: 0, maxLevel: 1, baseCost: 50000, mult: 1, val: 0, inc: 1 },
+
+            // Tier 7
+            { id: 'unlock_ring', name: '고리 행성', desc: '거대한 고리 행성 발견.', icon: '🪐', tier: 7, level: 0, maxLevel: 1, baseCost: 100000, mult: 1, val: 0, inc: 1 },
+            { id: 'interest', name: '암흑 물질 반응', desc: '라운드 종료 시 보유금 이자.', icon: '📈', tier: 7, level: 0, maxLevel: 10, baseCost: 15000, mult: 2.0, val: 0, inc: 1 },
+            { id: 'singularity', name: '특이점', desc: '화면 전체 약한 지속 데미지.', icon: '⚛️', tier: 7, level: 0, maxLevel: 5, baseCost: 80000, mult: 3.0, val: 0, inc: 1 },
+
+            // Tier 8 ~ 20 (Expanded)
+            { id: 'neutron_unlock', name: '중성자별', desc: '초고밀도 행성 발견.', icon: '🌟', tier: 8, level: 0, maxLevel: 1, baseCost: 200000, mult: 1, val: 0, inc: 1 },
+            { id: 'gravity_lens', name: '중력 렌즈', desc: '흡입 범위 추가 확장.', icon: '🔍', tier: 8, level: 0, maxLevel: 20, baseCost: 120000, mult: 1.8, val: 1.0, inc: 0.1 },
+
+            { id: 'chrono_battery', name: '크로노 배터리', desc: '최대 시간 증가.', icon: '🔋', tier: 9, level: 0, maxLevel: 20, baseCost: 250000, mult: 1.6, val: 5, inc: 1 },
+            { id: 'skill_mastery', name: '스킬 마스터리', desc: '스킬 쿨타임 감소.', icon: '🎓', tier: 9, level: 0, maxLevel: 10, baseCost: 300000, mult: 2.0, val: 0, inc: 5 }, // %
+
+            { id: 'star_unlock', name: '항성 발견', desc: '스스로 빛나는 별 발견.', icon: '☀️', tier: 10, level: 0, maxLevel: 1, baseCost: 500000, mult: 1, val: 0, inc: 1 },
+            { id: 'nucleosynthesis', name: '핵융합', desc: '모든 행성 가치 대폭 증가.', icon: '☢️', tier: 10, level: 0, maxLevel: 50, baseCost: 400000, mult: 1.5, val: 1.0, inc: 0.5 },
+
+            { id: 'void_hunger', name: '공허의 굶주림', desc: '자동 인력 강화.', icon: '👿', tier: 11, level: 0, maxLevel: 10, baseCost: 600000, mult: 2.0, val: 0, inc: 0.2 },
+            { id: 'event_horizon_ex', name: '사건의 지평선 II', desc: '블랙홀 크기 추가 확장.', icon: '⚫', tier: 11, level: 0, maxLevel: 10, baseCost: 700000, mult: 2.0, val: 0, inc: 5 },
+
+            { id: 'antimatter', name: '반물질 생성', desc: '크리티컬 확률 추가.', icon: '💠', tier: 12, level: 0, maxLevel: 20, baseCost: 800000, mult: 1.6, val: 0, inc: 2 },
+            { id: 'warp_drive', name: '워프 드라이브', desc: '마찰력 추가 감소.', icon: '🚀', tier: 12, level: 0, maxLevel: 10, baseCost: 900000, mult: 2.0, val: 0, inc: 0.005 },
+
+            { id: 'federation', name: '은하 연합', desc: '행성 밀도 대폭 증가.', icon: '🛸', tier: 13, level: 0, maxLevel: 10, baseCost: 1200000, mult: 1.8, val: 0, inc: 20 },
+            { id: 'dyson_sphere', name: '다이슨 스피어', desc: '라운드 종료 이자 증가.', icon: '🌐', tier: 13, level: 0, maxLevel: 10, baseCost: 1500000, mult: 2.0, val: 0, inc: 2 },
+
+            { id: 'dark_energy', name: '암흑 에너지', desc: '중력장 힘 극대화.', icon: '🟣', tier: 14, level: 0, maxLevel: 20, baseCost: 2000000, mult: 1.6, val: 1.0, inc: 0.2 },
+            { id: 'expansion_2', name: '우주 확장 II', desc: '시야 추가 확장 (줌아웃).', icon: '🔭', tier: 14, level: 0, maxLevel: 5, baseCost: 2500000, mult: 3.0, val: 0, inc: 0.1 },
+
+            { id: 'quasar_unlock', name: '퀘이사 파편', desc: '전설적인 물질 발견.', icon: '✨', tier: 18, level: 0, maxLevel: 1, baseCost: 10000000, mult: 1, val: 0, inc: 1 },
+            { id: 'gamma_ray', name: '감마선 폭발', desc: '스킬 효과 증폭.', icon: '🔆', tier: 15, level: 0, maxLevel: 5, baseCost: 3000000, mult: 2.5, val: 1.0, inc: 0.2 },
+
+            { id: 'multiverse', name: '다중우주 채굴', desc: '가치 극대화.', icon: '🌌', tier: 16, level: 0, maxLevel: 20, baseCost: 4000000, mult: 1.7, val: 1.0, inc: 1.0 },
+            { id: 'reality_anchor', name: '현실 고정', desc: '시간 왜곡 효율 증가.', icon: '⚓', tier: 16, level: 0, maxLevel: 10, baseCost: 5000000, mult: 2.0, val: 0, inc: 2.0 },
+
+            { id: 'supermassive', name: '초거대 질량', desc: '고중력 효과 강화.', icon: '🏋️', tier: 17, level: 0, maxLevel: 10, baseCost: 7000000, mult: 2.0, val: 1.0, inc: 0.5 },
+            
+            { id: 'time_dilation', name: '시간 지연', desc: '행성 속도 감소 (잡기 쉬움).', icon: '🐌', tier: 18, level: 0, maxLevel: 5, baseCost: 9000000, mult: 2.0, val: 1.0, inc: 0.1 },
+
+            { id: 'omega_point', name: '오메가 포인트', desc: '모든 능력치 소폭 증가.', icon: 'Ω', tier: 19, level: 0, maxLevel: 50, baseCost: 15000000, mult: 1.4, val: 0, inc: 0.05 },
+            
+            { id: 'big_bang', name: '빅뱅', desc: '궁극의 힘.', icon: '💥', tier: 20, level: 0, maxLevel: 1, baseCost: 100000000, mult: 1, val: 0, inc: 1 },
+        ];
+
+        const SHARD_TYPES = [
+            { id: 'blue',   color: '#3b82f6', minR: 6,  maxR: 10, mass: 1,   valMult: 1,  weight: 60 },
+            { id: 'green',  color: '#10b981', minR: 12, maxR: 16, mass: 5,   valMult: 3,  weight: 30 }, 
+            { id: 'orange', color: '#f59e0b', minR: 18, maxR: 24, mass: 15,  valMult: 8,  weight: 15 }, 
+            { id: 'purple', color: '#8b5cf6', minR: 28, maxR: 35, mass: 40,  valMult: 20, weight: 5 },
+            { id: 'electric', color: '#facc15', minR: 15, maxR: 20, mass: 10, valMult: 15, weight: 0, isLightning: true },
+            { id: 'giant',    color: '#ef4444', minR: 40, maxR: 60, mass: 80,  valMult: 50, weight: 0 },
+            { id: 'ringed',   color: '#d97706', minR: 50, maxR: 70, mass: 150, valMult: 100, weight: 0, hasRings: true },
+            // New Types
+            { id: 'neutron',  color: '#ffffff', minR: 8,  maxR: 12, mass: 200, valMult: 300, weight: 0, glow: '#0ea5e9' },
+            { id: 'star',     color: '#f59e0b', minR: 80, maxR: 120, mass: 500, valMult: 200, weight: 0, isStar: true },
+            { id: 'quasar',   color: '#ec4899', minR: 30, maxR: 40, mass: 300, valMult: 500, weight: 0, pulse: true }
+        ];
+
+        // Global State
+        let GAME = {
+            running: false, phase: 'start', money: 0, scoreInRound: 0, timeLeft: 10.0,
+            width: 0, height: 0, centerX: 0, centerY: 0, lastTime: 0,
+            combo: 0, comboTimer: 0, shakeX: 0, shakeY: 0, shakeTime: 0,
+            zoom: 1.0, 
+            skills: { bomb: { cd: 0, max: 15 }, stasis: { cd: 0, max: 30, dur: 0 }, surge: { cd: 0, max: 60, dur: 0 } }
+        };
+
+        const INPUT = { x: 0, y: 0, isDown: false };
+        let entities = [];
+        let texts = [];
+        let particles = []; 
+        let bolts = []; 
+        const blackHole = { radius: 35, angle: 0 };
+
+        // -----------------------------------------------------
+        // 2. HELPER FUNCTIONS
+        // -----------------------------------------------------
+
+        function getUpgrade(id) { return UPGRADES.find(u => u.id === id); }
+        function getTotalLevels() { 
+            return UPGRADES.reduce((sum, u) => {
+                if(u.tier === 0) return sum + Math.max(0, u.level - 1);
+                return sum + u.level;
+            }, 0); 
+        } 
+        function rand(min, max) { return Math.random() * (max - min) + min; }
+
+        function saveGame() {
+            const data = { money: GAME.money, upgrades: UPGRADES.map(u => ({ id: u.id, level: u.level })) };
+            localStorage.setItem('void_harvester_save_v5', JSON.stringify(data));
+        }
+
+        function loadGame() {
+            const str = localStorage.getItem('void_harvester_save_v5');
+            if(!str) return;
+            try {
+                const data = JSON.parse(str);
+                GAME.money = data.money || 0;
+                if(data.upgrades) {
+                    data.upgrades.forEach(saved => {
+                        const u = UPGRADES.find(x => x.id === saved.id);
+                        if(u) {
+                            u.level = saved.level;
+                            const startLvl = u.tier === 0 ? 1 : 0;
+                            const gained = Math.max(0, u.level - startLvl);
+                            if(gained > 0) {
+                                u.val += u.inc * gained;
+                                if(!Number.isInteger(u.val)) u.val = parseFloat(u.val.toFixed(2));
+                            }
+                        }
+                    });
+                }
+            } catch(e) { console.error("Save load failed", e); }
+        }
+
+        function resetSaveData() {
+            if(confirm("모든 데이터를 초기화하시겠습니까?")) {
+                localStorage.removeItem('void_harvester_save_v5');
+                location.reload();
+            }
+        }
+
+        // 3. CLASSES
+        class SoundManager {
+            constructor() { this.ctx = null; this.muted = false; this.osc = null; }
+            init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+            playTone(freq, type, duration, vol=0.1) {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                osc.connect(gain); gain.connect(this.ctx.destination); osc.start(); osc.stop(this.ctx.currentTime + duration);
+            }
+            playPop() {
+                if (this.muted || !this.ctx) return;
+                const t = this.ctx.currentTime;
+                const osc1 = this.ctx.createOscillator(); const gain1 = this.ctx.createGain();
+                const baseFreq = 300 + Math.random() * 200; 
+                osc1.frequency.setValueAtTime(baseFreq, t); osc1.frequency.exponentialRampToValueAtTime(50, t + 0.15);
+                gain1.gain.setValueAtTime(0.15, t); gain1.gain.linearRampToValueAtTime(0, t + 0.15);
+                const osc2 = this.ctx.createOscillator(); const gain2 = this.ctx.createGain();
+                osc2.type = 'triangle'; osc2.frequency.setValueAtTime(baseFreq * 2, t); osc2.frequency.exponentialRampToValueAtTime(baseFreq, t + 0.05);
+                gain2.gain.setValueAtTime(0.05, t); gain2.gain.linearRampToValueAtTime(0, t + 0.05);
+                osc1.connect(gain1); gain1.connect(this.ctx.destination); osc2.connect(gain2); gain2.connect(this.ctx.destination);
+                osc1.start(); osc1.stop(t + 0.15); osc2.start(); osc2.stop(t + 0.05);
+            }
+            playSkill(type) {
+                if (this.muted || !this.ctx) return;
+                const t = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                if(type === 'bomb') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, t); osc.frequency.linearRampToValueAtTime(600, t + 0.2); gain.gain.setValueAtTime(0.3, t); osc.start(); osc.stop(t+0.6); }
+                else if(type === 'stasis') { osc.type = 'sine'; osc.frequency.setValueAtTime(800, t); osc.frequency.linearRampToValueAtTime(200, t + 1.0); gain.gain.setValueAtTime(0.2, t); osc.start(); osc.stop(t+1.0); }
+                else if(type === 'surge') { osc.type = 'square'; osc.frequency.setValueAtTime(50, t); osc.frequency.linearRampToValueAtTime(100, t + 2.0); gain.gain.setValueAtTime(0.1, t); osc.start(); osc.stop(t+2.0); }
+                osc.connect(gain); gain.connect(this.ctx.destination);
+            }
+            playBuy() { this.playTone(1200, 'sine', 0.1, 0.1); setTimeout(() => this.playTone(1600, 'sine', 0.3, 0.1), 50); }
+            playStart() { this.playTone(100, 'sawtooth', 1.0, 0.1); }
+            startGravityHum() {
+                if (this.muted || !this.ctx || this.osc) return;
+                this.osc = this.ctx.createOscillator(); this.osc.type = 'sawtooth'; this.osc.frequency.value = 60; 
+                this.lfo = this.ctx.createOscillator(); this.lfo.type = 'sine'; this.lfo.frequency.value = 8; 
+                const lfoGain = this.ctx.createGain(); lfoGain.gain.value = 300; 
+                this.filter = this.ctx.createBiquadFilter(); this.filter.type = "lowpass"; this.filter.frequency.value = 400;
+                this.oscGain = this.ctx.createGain(); this.oscGain.gain.value = 0.05; 
+                this.lfo.connect(lfoGain); lfoGain.connect(this.filter.frequency);
+                this.osc.connect(this.filter); this.filter.connect(this.oscGain); this.oscGain.connect(this.ctx.destination);
+                this.osc.start(); this.lfo.start();
+            }
+            stopGravityHum() {
+                if (this.osc) {
+                    const t = this.ctx.currentTime; this.oscGain.gain.cancelScheduledValues(t); this.oscGain.gain.linearRampToValueAtTime(0, t + 0.1);
+                    const oldOsc = this.osc; const oldLfo = this.lfo;
+                    setTimeout(() => { if(oldOsc) { oldOsc.stop(); oldOsc.disconnect(); } if(oldLfo) { oldLfo.stop(); oldLfo.disconnect(); } }, 100);
+                    this.osc = null; this.lfo = null;
+                }
+            }
+        }
+        
+        // ** Initialize Audio Manager **
+        const audio = new SoundManager();
+
+        class EffectParticle {
+            constructor(x, y, color, type) {
+                this.x = x; this.y = y; this.color = color; this.type = type; this.life = 1.0;
+                if (type === 'explode') {
+                    const angle = Math.random() * Math.PI * 2; const speed = Math.random() * 3 + 1;
+                    this.vx = Math.cos(angle) * speed; this.vy = Math.sin(angle) * speed;
+                    this.decay = 0.05; this.size = Math.random() * 3 + 1;
+                } else if (type === 'gravity_suck') {
+                    this.vx = 0; this.vy = 0; this.decay = 0.05; this.size = Math.random() * 2 + 1;
+                } else if (type === 'trail') {
+                    this.vx = 0; this.vy = 0; this.decay = 0.05; this.size = Math.random() * 2 + 2; 
+                } else if (type === 'time_bonus') {
+                    this.vx = 0; this.vy = -2; this.decay = 0.03; this.size = 0; 
+                }
+            }
+            update(dt) {
+                const timeScale = dt * 60;
+                if (this.type === 'gravity_suck') {
+                    const dx = GAME.centerX - this.x; const dy = GAME.centerY - this.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const force = 500 / (dist + 10); 
+                    const angle = Math.atan2(dy, dx);
+                    this.vx += Math.cos(angle) * force * 0.1; this.vy += Math.sin(angle) * force * 0.1;
+                    this.x += this.vx * timeScale; this.y += this.vy * timeScale;
+                    this.life -= this.decay * timeScale;
+                    if(dist < 20) this.life = 0;
+                } else {
+                    this.x += this.vx * timeScale; this.y += this.vy * timeScale;
+                    this.life -= this.decay * timeScale;
+                }
+            }
+            draw(ctx) {
+                if (this.type === 'time_bonus') {
+                    ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = '#60a5fa'; 
+                    ctx.font = 'bold 16px "Pretendard"'; ctx.fillText("+0.5s", this.x, this.y); ctx.globalAlpha = 1.0; return;
+                }
+                ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = this.color;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1.0;
+            }
+        }
+
+        class PopText {
+            constructor(x, y, val, isCrit) {
+                this.x = x; this.y = y; this.text = "+$" + val; this.life = 1.0; this.vy = -1; this.isCrit = isCrit;
+            }
+            update(dt) {
+                const timeScale = dt * 60;
+                this.y += this.vy * timeScale; 
+                this.life -= 0.03 * timeScale; 
+            }
+            draw() {
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = this.isCrit ? '#ef4444' : '#4ade80'; 
+                ctx.font = this.isCrit ? '900 20px "Pretendard"' : '800 14px "Pretendard"';
+                if(this.isCrit && !this.text.includes('!')) this.text += "!";
+                ctx.fillText(this.text, this.x, this.y);
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        class LightningBolt {
+            constructor(x1, y1, x2, y2) {
+                this.x1 = x1; this.y1 = y1; this.x2 = x2; this.y2 = y2;
+                this.life = 1.0;
+            }
+            update(dt) { 
+                const timeScale = dt * 60;
+                this.life -= 0.1 * timeScale; 
+            }
+            draw() {
+                if(this.life <= 0) return;
+                ctx.globalAlpha = this.life;
+                ctx.beginPath();
+                ctx.moveTo(this.x1, this.y1);
+                ctx.lineTo(this.x2, this.y2);
+                ctx.strokeStyle = '#facc15';
+                ctx.lineWidth = 2;
+                ctx.shadowColor = '#facc15';
+                ctx.shadowBlur = 10;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        class Shard {
+            constructor() {
+                const expansion = getUpgrade('expansion').val + (getUpgrade('expansion_2') ? getUpgrade('expansion_2').val : 0);
+                GAME.zoom = 1 / Math.max(1, expansion);
+
+                const angle = Math.random() * Math.PI * 2;
+                const minDist = (Math.min(GAME.width, GAME.height)/2) / GAME.zoom;
+                const dist = minDist + Math.random() * 300;
+                
+                this.x = GAME.centerX + Math.cos(angle) * dist;
+                this.y = GAME.centerY + Math.sin(angle) * dist;
+                
+                const speedBase = 0.003; 
+                this.orbitSpeed = (speedBase * (150/dist)) * (Math.random() < 0.5 ? 1 : -1);
+
+                const tierLvl = getUpgrade('tier_unlock').val; 
+                const lightningUnlocked = getUpgrade('lightning_unlock').level > 0;
+                const ringUnlocked = getUpgrade('unlock_ring').level > 0;
+                const neutronUnlocked = getUpgrade('neutron_unlock') && getUpgrade('neutron_unlock').level > 0;
+                const starUnlocked = getUpgrade('star_unlock') && getUpgrade('star_unlock').level > 0;
+                const quasarUnlocked = getUpgrade('quasar_unlock') && getUpgrade('quasar_unlock').level > 0;
+                const luckBonus = getUpgrade('luck') ? getUpgrade('luck').val : 1;
+
+                let available = [SHARD_TYPES[0]]; 
+                if (tierLvl >= 2) available.push(SHARD_TYPES[1]);
+                if (tierLvl >= 3) available.push(SHARD_TYPES[2]);
+                if (tierLvl >= 4) available.push(SHARD_TYPES[3]);
+                
+                if (expansion >= 1.2) available.push(SHARD_TYPES[5]); // Giant
+                if (ringUnlocked && expansion >= 1.4) available.push(SHARD_TYPES[6]); // Ringed
+                if (neutronUnlocked && expansion >= 1.6) available.push(SHARD_TYPES[7]);
+                if (starUnlocked && expansion >= 2.0) available.push(SHARD_TYPES[8]);
+                if (quasarUnlocked && expansion >= 2.5) available.push(SHARD_TYPES[9]);
+
+                let type = null;
+                // Special checks
+                if (lightningUnlocked && Math.random() < 0.05 * luckBonus) type = SHARD_TYPES[4];
+                else {
+                    const totalW = available.reduce((a,b)=>a+(b.weight || 10), 0); 
+                    let r = Math.random() * totalW;
+                    type = available[0];
+                    for(let t of available){
+                        if(r < (t.weight || 10)) { type = t; break; }
+                        r -= (t.weight || 10);
+                    }
+                }
+
+                this.type = type;
+                this.color = type.color;
+                this.radius = rand(type.minR, type.maxR);
+                this.mass = type.mass;
+                this.sides = type.isLightning ? 3 : Math.floor(rand(4, 7)); 
+                
+                const valueBonus = getUpgrade('value').val 
+                                 + (getUpgrade('nucleosynthesis') ? getUpgrade('nucleosynthesis').val : 0)
+                                 + (getUpgrade('multiverse') ? getUpgrade('multiverse').val : 0);
+
+                this.value = Math.floor(this.radius * 2 * type.valMult * valueBonus * VALUE_MULTIPLIER);
+                
+                this.vx = 0; this.vy = 0;
+                
+                let frictionBase = getUpgrade('friction').val;
+                if(getUpgrade('warp_drive')) frictionBase -= getUpgrade('warp_drive').val;
+                this.friction = frictionBase;
+            }
+
+            update(dt) {
+                const timeScale = dt * 60;
+                let globalSpeed = 1.0;
+                if (GAME.skills.stasis.dur > 0) globalSpeed = 0.1;
+                
+                // Tier 18 Time Dilation Effect
+                const dilation = getUpgrade('time_dilation') ? getUpgrade('time_dilation').val : 1.0;
+                globalSpeed /= dilation;
+
+                const speedSq = this.vx*this.vx + this.vy*this.vy;
+                if(speedSq > 2 && Math.random() < 0.4) {
+                    particles.push(new EffectParticle(this.x, this.y, this.color, 'trail'));
+                }
+
+                const currentOrbitSpeed = this.orbitSpeed * timeScale * globalSpeed;
+                const dx0 = this.x - GAME.centerX;
+                const dy0 = this.y - GAME.centerY;
+                const cos = Math.cos(currentOrbitSpeed);
+                const sin = Math.sin(currentOrbitSpeed);
+                this.x = GAME.centerX + (dx0 * cos - dy0 * sin);
+                this.y = GAME.centerY + (dx0 * sin + dy0 * cos);
+
+                const dx = GAME.centerX - this.x;
+                const dy = GAME.centerY - this.y;
+                const distSq = dx*dx + dy*dy;
+                const dist = Math.sqrt(distSq);
+
+                let naturalRange = getUpgrade('attract_range').val / GAME.zoom; 
+                if (getUpgrade('gravity_lens')) naturalRange += (getUpgrade('gravity_lens').val / GAME.zoom);
+                
+                let naturalG = 1000;
+                if (GAME.skills.surge.dur > 0) { naturalRange *= 3; naturalG *= 5; }
+
+                if (dist < naturalRange) {
+                    const g = naturalG / distSq;
+                    const force = g / this.mass;
+                    this.vx += (dx/dist) * force * timeScale * globalSpeed;
+                    this.vy += (dy/dist) * force * timeScale * globalSpeed;
+                }
+
+                const autoRate = getUpgrade('auto').val + (getUpgrade('void_hunger') ? getUpgrade('void_hunger').val : 0) + (getUpgrade('gravity_well') ? getUpgrade('gravity_well').val : 0);
+                if (autoRate > 0 && dist < 600 / GAME.zoom) {
+                     const force = getUpgrade('force').val * autoRate * 0.5;
+                     const accel = force / this.mass;
+                     this.vx += (dx/dist) * accel * timeScale * globalSpeed;
+                     this.vy += (dy/dist) * accel * timeScale * globalSpeed;
+                }
+
+                if (INPUT.isDown) {
+                    const radius = getUpgrade('radius').val / GAME.zoom;
+                    let power = getUpgrade('force').val;
+                    if(getUpgrade('dark_energy')) power *= getUpgrade('dark_energy').val;
+                    
+                    const heavyBonus = getUpgrade('heavy').val + (getUpgrade('supermassive') ? getUpgrade('supermassive').val : 0);
+                    
+                    const frenzy = getUpgrade('frenzy') && getUpgrade('frenzy').level > 0;
+                    if(frenzy && GAME.timeLeft <= 3.0) power *= 2;
+
+                    const worldMouseX = (INPUT.x - GAME.centerX) / GAME.zoom + GAME.centerX;
+                    const worldMouseY = (INPUT.y - GAME.centerY) / GAME.zoom + GAME.centerY;
+
+                    const mdx = worldMouseX - this.x;
+                    const mdy = worldMouseY - this.y;
+                    const mDist = Math.sqrt(mdx*mdx + mdy*mdy);
+
+                    if (mDist < radius) {
+                        const pushX = GAME.centerX - this.x;
+                        const pushY = GAME.centerY - this.y;
+                        const pushLen = Math.sqrt(pushX*pushX + pushY*pushY);
+                        
+                        let effectiveMass = this.mass;
+                        if(effectiveMass > 8) effectiveMass /= heavyBonus; 
+
+                        const accel = (2.0 * power) / effectiveMass;
+
+                        this.vx += (pushX / pushLen) * accel * timeScale;
+                        this.vy += (pushY / pushLen) * accel * timeScale;
+                        
+                        const gatherForce = 0.2 / effectiveMass;
+                        this.vx += (mdx / mDist) * gatherForce * timeScale;
+                        this.vy += (mdy / mDist) * gatherForce * timeScale;
+                    }
+                }
+
+                const singularityLvl = getUpgrade('singularity') ? getUpgrade('singularity').level : 0;
+                if(singularityLvl > 0) {
+                    const sForce = singularityLvl * 0.05 / this.mass;
+                    this.vx += (dx/dist) * sForce * timeScale * globalSpeed;
+                    this.vy += (dy/dist) * sForce * timeScale * globalSpeed;
+                }
+
+                this.x += this.vx * timeScale * globalSpeed;
+                this.y += this.vy * timeScale * globalSpeed;
+                
+                this.vx *= Math.pow(this.friction, timeScale);
+                this.vy *= Math.pow(this.friction, timeScale);
+                
+                this.rotation = (this.rotation || 0) + (this.vx + this.vy) * 0.1 * timeScale + this.orbitSpeed * 3 * timeScale;
+
+                let bhSize = (blackHole.radius + (getUpgrade('blackhole_size').val - 35));
+                if (getUpgrade('event_horizon_ex')) bhSize += getUpgrade('event_horizon_ex').val;
+                
+                if (dist < bhSize) return true;
+                return false;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                
+                ctx.beginPath();
+                if(this.type.isLightning) {
+                    ctx.shadowColor = '#facc15'; ctx.shadowBlur = 10;
+                    ctx.moveTo(this.radius, 0); ctx.lineTo(-this.radius/2, this.radius); ctx.lineTo(-this.radius/2, -this.radius);
+                } else if (this.type.isStar) {
+                    ctx.shadowColor = this.color; ctx.shadowBlur = 30;
+                    ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                } else if (this.type.pulse) {
+                    ctx.shadowColor = this.color; ctx.shadowBlur = 15;
+                    ctx.arc(0, 0, this.radius * (0.9 + Math.random()*0.2), 0, Math.PI * 2);
+                } else if (this.type.glow) {
+                    ctx.shadowColor = this.type.glow; ctx.shadowBlur = 15;
+                    ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                } else {
+                    ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                }
+                ctx.closePath();
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                
+                if (this.type.hasRings) {
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, this.radius * 2.2, this.radius * 0.6, -0.2, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'rgba(200, 200, 200, 0.6)';
+                    ctx.lineWidth = this.radius * 0.3;
+                    ctx.stroke();
+                }
+
+                ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+                ctx.restore();
+            }
+        }
+
+        // 4. GAME LOGIC FUNCTIONS
+        function triggerChainLightning(sourceShard) {
+            const range = getUpgrade('l_range').val / GAME.zoom; 
+            const count = getUpgrade('l_count').val;
+            
+            let candidates = [];
+            for(let other of entities) {
+                if(other === sourceShard) continue;
+                const dx = other.x - sourceShard.x;
+                const dy = other.y - sourceShard.y;
+                if(dx*dx + dy*dy < range*range) {
+                    candidates.push(other);
+                }
+            }
+            
+            const targets = [];
+            for(let i=0; i<count; i++) {
+                if(candidates.length === 0) break;
+                const idx = Math.floor(Math.random() * candidates.length);
+                targets.push(candidates[idx]);
+                candidates.splice(idx, 1);
+            }
+
+            targets.forEach(e => {
+                bolts.push(new LightningBolt(sourceShard.x, sourceShard.y, e.x, e.y));
+                const pushX = GAME.centerX - e.x;
+                const pushY = GAME.centerY - e.y;
+                const len = Math.sqrt(pushX*pushX + pushY*pushY);
+                const force = 40; 
+                e.vx += (pushX/len) * force;
+                e.vy += (pushY/len) * force;
+            });
+        }
+
+        function updateGame(dt) {
+            let timeFlow = 1.0;
+            if (GAME.skills.stasis.dur > 0) {
+                timeFlow = 0.0; 
+                GAME.skills.stasis.dur -= dt;
+                if(glowStasis) glowStasis.style.opacity = 1;
+            } else {
+                if(glowStasis) glowStasis.style.opacity = 0;
+            }
+
+            if (GAME.skills.surge.dur > 0) {
+                GAME.skills.surge.dur -= dt;
+                if(glowSurge) glowSurge.style.opacity = 1;
+            } else {
+                if(glowSurge) glowSurge.style.opacity = 0;
+            }
+            
+            if(glowBomb) glowBomb.style.opacity = GAME.skills.bomb.cd > 14.5 ? 1 : 0;
+
+            GAME.timeLeft -= dt * timeFlow; 
+            if (GAME.timeLeft <= 0) {
+                GAME.timeLeft = 0;
+                endGame();
+                return;
+            }
+
+            // Skill Cooldown Reductions
+            const mastery = getUpgrade('skill_mastery') ? getUpgrade('skill_mastery').val : 0; // %
+            const cdMult = 1.0 + (mastery / 100);
+
+            for(let key in GAME.skills) {
+                if(GAME.skills[key].cd > 0) {
+                    GAME.skills[key].cd -= dt * cdMult;
+                    if(GAME.skills[key].cd < 0) GAME.skills[key].cd = 0;
+                    const el = document.getElementById('cd-' + key);
+                    if(el) {
+                        const pct = (GAME.skills[key].cd / GAME.skills[key].max) * 100;
+                        el.style.height = `${pct}%`;
+                    }
+                }
+            }
+
+            if (GAME.combo > 0) {
+                GAME.comboTimer -= dt * timeFlow;
+                if (GAME.comboTimer <= 0) {
+                    GAME.combo = 0;
+                    if(comboBox) comboBox.style.opacity = 0;
+                }
+            }
+            
+            if(timerEl) {
+                timerEl.innerText = GAME.timeLeft.toFixed(1);
+                if(GAME.timeLeft <= 3) timerEl.parentElement.classList.add('timer-warn');
+                else timerEl.parentElement.classList.remove('timer-warn');
+            }
+
+            for(let i=bolts.length-1; i>=0; i--) {
+                bolts[i].update(dt);
+                if(bolts[i].life <= 0) bolts.splice(i, 1);
+            }
+
+            for(let i=particles.length-1; i>=0; i--) {
+                particles[i].update(dt);
+                if(particles[i].life <= 0) particles.splice(i, 1);
+            }
+
+            let critChance = getUpgrade('crit').val + (getUpgrade('antimatter') ? getUpgrade('antimatter').val : 0);
+            const respawnChance = getUpgrade('respawn').val + (getUpgrade('entropy_reversal') ? getUpgrade('entropy_reversal').val : 0);
+
+            if (entities.length < 5) entities.push(new Shard());
+
+            if(INPUT.isDown) {
+                const radius = getUpgrade('radius').val / GAME.zoom;
+                for(let i=0; i<2; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = Math.random() * radius;
+                    
+                    const worldMouseX = (INPUT.x - GAME.centerX) / GAME.zoom + GAME.centerX;
+                    const worldMouseY = (INPUT.y - GAME.centerY) / GAME.zoom + GAME.centerY;
+
+                    const px = worldMouseX + Math.cos(angle) * dist;
+                    const py = worldMouseY + Math.sin(angle) * dist;
+                    particles.push(new EffectParticle(px, py, '#22d3ee', 'gravity_suck'));
+                }
+            }
+
+            for (let i = entities.length - 1; i >= 0; i--) {
+                const e = entities[i];
+                if (e.update(dt)) { 
+                    if(e.type.isLightning) triggerChainLightning(e);
+                    if (Math.random() * 100 < respawnChance) entities.push(new Shard());
+
+                    const siphon = getUpgrade('siphon') ? getUpgrade('siphon').val : 0; 
+                    if (siphon > 0 && Math.random() * 100 < siphon) {
+                        GAME.timeLeft += 0.5;
+                        particles.push(new EffectParticle(GAME.centerX, GAME.centerY - 50, null, 'time_bonus'));
+                    }
+
+                    GAME.combo++;
+                    GAME.comboTimer = 2.0; 
+                    const comboMult = Math.min(5, 1 + (GAME.combo * 0.05));
+                    
+                    if(comboBox) {
+                        comboBox.style.opacity = 1;
+                        comboBox.style.transform = `scale(${1 + Math.min(0.5, GAME.combo*0.01)})`;
+                        comboValEl.innerText = `x${comboMult.toFixed(1)}`;
+                    }
+
+                    let finalVal = Math.floor(e.value * comboMult);
+                    let isCrit = false;
+                    if(Math.random() * 100 < critChance) {
+                        finalVal *= 2;
+                        isCrit = true;
+                    }
+
+                    GAME.scoreInRound += finalVal;
+                    GAME.money += finalVal; 
+                    
+                    texts.push(new PopText(GAME.centerX, GAME.centerY - 30, finalVal, isCrit));
+                    for(let k=0; k<5; k++) {
+                        particles.push(new EffectParticle(e.x, e.y, e.color, 'explode'));
+                    }
+                    if (finalVal > 100) shakeScreen(5);
+                    audio.playPop();
+                    entities.splice(i, 1);
+                }
+            }
+            if(scoreEl) scoreEl.innerText = '$' + GAME.scoreInRound.toLocaleString();
+
+            for (let i = texts.length - 1; i >= 0; i--) {
+                texts[i].update(dt);
+                if (texts[i].life <= 0) texts.splice(i, 1);
+            }
+        }
+
+        function drawGame(dt) {
+            ctx.clearRect(0, 0, GAME.width, GAME.height);
+            ctx.save();
+            if (GAME.shakeTime > 0) {
+                GAME.shakeTime -= dt;
+                const dx = (Math.random() - 0.5) * GAME.shakeAmount;
+                const dy = (Math.random() - 0.5) * GAME.shakeAmount;
+                ctx.translate(dx, dy);
+            }
+            ctx.translate(GAME.centerX, GAME.centerY);
+            ctx.scale(GAME.zoom, GAME.zoom);
+            ctx.translate(-GAME.centerX, -GAME.centerY);
+
+            if (GAME.skills.stasis.dur > 0) {
+                ctx.fillStyle = 'rgba(100, 200, 255, 0.1)';
+                ctx.fillRect(GAME.centerX - 5000, GAME.centerY - 5000, 10000, 10000);
+            }
+
+            let bhSize = blackHole.radius + (getUpgrade('blackhole_size').val - 35);
+            if (getUpgrade('event_horizon_ex')) bhSize += getUpgrade('event_horizon_ex').val;
+            if (GAME.skills.surge.dur > 0) bhSize *= 1.5; 
+
+            const glow = ctx.createRadialGradient(GAME.centerX, GAME.centerY, bhSize, GAME.centerX, GAME.centerY, bhSize * 5);
+            glow.addColorStop(0, GAME.skills.surge.dur > 0 ? "rgba(255, 50, 50, 0.4)" : "rgba(80, 0, 120, 0.4)"); 
+            glow.addColorStop(1, "rgba(0,0,0,0)");
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(GAME.centerX, GAME.centerY, bhSize * 5, 0, Math.PI*2);
+            ctx.fill();
+
+            const innerGlow = ctx.createRadialGradient(GAME.centerX, GAME.centerY, bhSize*0.5, GAME.centerX, GAME.centerY, bhSize*1.2);
+            innerGlow.addColorStop(0, "black");
+            innerGlow.addColorStop(0.8, GAME.skills.surge.dur > 0 ? "rgba(255, 100, 100, 0.8)" : "rgba(100, 50, 200, 0.8)");
+            innerGlow.addColorStop(1, "rgba(0,0,0,0)");
+            ctx.fillStyle = innerGlow;
+            ctx.beginPath();
+            ctx.arc(GAME.centerX, GAME.centerY, bhSize*1.2, 0, Math.PI*2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(GAME.centerX, GAME.centerY, bhSize * 0.9, 0, Math.PI * 2);
+            ctx.fillStyle = '#000000';
+            ctx.fill();
+            
+            particles.forEach(p => p.draw(ctx));
+
+            if (INPUT.isDown && GAME.phase === 'playing') {
+                const radius = getUpgrade('radius').val / GAME.zoom;
+                const worldMouseX = (INPUT.x - GAME.centerX) / GAME.zoom + GAME.centerX;
+                const worldMouseY = (INPUT.y - GAME.centerY) / GAME.zoom + GAME.centerY;
+
+                ctx.beginPath();
+                ctx.arc(worldMouseX, worldMouseY, radius, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(34, 211, 238, 0.3)';
+                ctx.setLineDash([8, 8]);
+                ctx.lineWidth = 1 / GAME.zoom;
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            entities.forEach(e => e.draw(ctx));
+            bolts.forEach(b => b.draw(ctx));
+            texts.forEach(t => t.draw(ctx));
+            ctx.restore(); 
+        }
+
+        // 5. GLOBAL INTERFACE
+        function activateSkill(type) {
+            const skill = GAME.skills[type];
+            const unlockId = 'unlock_' + type;
+            const upgrade = getUpgrade(unlockId);
+            if(!upgrade || upgrade.level === 0) return;
+            if(skill.cd > 0) return;
+            
+            if(type === 'bomb') {
+                skill.cd = skill.max;
+                shakeScreen(15);
+                audio.playSkill('bomb');
+                for(let i=0; i<20; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = Math.random() * 500;
+                    particles.push(new EffectParticle(GAME.centerX + Math.cos(angle)*dist, GAME.centerY + Math.sin(angle)*dist, '#818cf8', 'gravity_suck'));
+                }
+                entities.forEach(e => {
+                    const dx = GAME.centerX - e.x; const dy = GAME.centerY - e.y;
+                    const len = Math.sqrt(dx*dx + dy*dy);
+                    e.vx += (dx/len) * 12; e.vy += (dy/len) * 12;
+                });
+            } 
+            else if (type === 'stasis') {
+                skill.cd = skill.max; skill.dur = 5.0; 
+                if(getUpgrade('gamma_ray')) skill.dur *= getUpgrade('gamma_ray').val;
+
+                audio.playSkill('stasis'); shakeScreen(5);
+            }
+            else if (type === 'surge') {
+                skill.cd = skill.max; skill.dur = 8.0; 
+                if(getUpgrade('gamma_ray')) skill.dur *= getUpgrade('gamma_ray').val;
+                
+                audio.playSkill('surge'); shakeScreen(10);
+            }
+        }
+
+        function shakeScreen(amount) {
+            GAME.shakeTime = 0.5; GAME.shakeAmount = amount;
+        }
+
+        function buyUpgrade(id) {
+            const u = UPGRADES.find(x => x.id === id);
+            if (u.level >= u.maxLevel) return;
+            const cost = getCost(u);
+            if (GAME.money >= cost) {
+                GAME.money -= cost;
+                u.level++;
+                u.val += u.inc;
+                if(!Number.isInteger(u.val)) u.val = parseFloat(u.val.toFixed(2));
+                audio.playBuy();
+                saveGame();
+                renderUpgrades();
+            }
+        }
+
+        function getCost(u) { return Math.floor(u.baseCost * Math.pow(u.mult, u.level - 1)); }
+
+        function renderUpgrades() {
+            if(upgradeMoneyEl) upgradeMoneyEl.innerText = '$' + GAME.money.toLocaleString();
+            const totalLevels = getTotalLevels(); 
+            if(totalLevelEl) totalLevelEl.innerText = `연구 레벨: ${totalLevels}`;
+            if(treeContainer) treeContainer.innerHTML = '';
+            else return;
+
+            const tiers = {};
+            UPGRADES.forEach(u => {
+                if(!tiers[u.tier]) tiers[u.tier] = [];
+                tiers[u.tier].push(u);
+            });
+            const maxTier = Math.max(...Object.keys(tiers).map(Number));
+
+            for (let t = 0; t <= maxTier; t++) {
+                if (!tiers[t]) continue;
+                const reqLevels = TIER_UNLOCKS[t] || 0;
+                const isTierUnlocked = totalLevels >= reqLevels;
+                const tierSection = document.createElement('div');
+                tierSection.className = 'tier-section';
+                const header = document.createElement('div');
+                header.className = 'tier-header';
+                const title = document.createElement('div');
+                title.className = 'tier-title';
+                title.innerText = `TIER ${t}`;
+                header.appendChild(title);
+                if(!isTierUnlocked) {
+                    const msg = document.createElement('div');
+                    msg.className = 'tier-lock-msg';
+                    msg.innerText = `🔒 잠김 (필요 연구 레벨: ${reqLevels})`;
+                    header.appendChild(msg);
+                } else if (reqLevels > 0) {
+                     const msg = document.createElement('div');
+                     msg.className = 'tier-unlock-msg';
+                     msg.innerText = `✓ 해금됨`;
+                     header.appendChild(msg);
+                }
+                tierSection.appendChild(header);
+                const grid = document.createElement('div');
+                grid.className = 'tier-grid';
+                tiers[t].forEach(u => {
+                    const cost = getCost(u);
+                    const canBuy = GAME.money >= cost;
+                    const isMax = u.level >= u.maxLevel;
+                    const card = document.createElement('div');
+                    if (isTierUnlocked) {
+                        card.className = `card ${canBuy && !isMax ? '' : 'disabled'}`;
+                        if (!isMax && canBuy) card.onclick = () => buyUpgrade(u.id);
+                        let statText = '';
+                        if(u.type === 'skill' || u.id.includes('unlock')) statText = u.level > 0 ? "보유중" : "미보유";
+                        else if(u.id === 'radius' || u.id === 'l_range') statText = `${Math.floor(u.val)}px`;
+                        else if(u.id === 'time') statText = `${u.val.toFixed(1)}s`;
+                        else if(u.id === 'crit' || u.id === 'respawn' || u.id === 'interest' || u.id === 'siphon') statText = `${u.val}%`;
+                        else if(u.id === 'friction') statText = `${(1-u.val).toFixed(2)} 마찰`;
+                        else statText = `x${u.val.toFixed(2)}`;
+                        let incText = '';
+                        if(isMax) incText = '(MAX)';
+                        else if(u.inc > 0) incText = `(+${u.inc})`;
+                        else incText = `(${u.inc})`;
+                        card.innerHTML = `
+                            <div class="card-lvl ${isMax ? 'max-lvl' : ''}">${isMax ? 'MAX' : 'Lv.' + u.level}</div>
+                            <div class="card-header"><div class="card-icon">${u.icon}</div><div class="card-name">${u.name}</div></div>
+                            <div class="card-desc">${u.desc}</div>
+                            <div class="card-footer"><div class="card-stat">${statText} <span class="text-gray-400 text-xs">${incText}</span></div><div class="card-cost">${isMax ? '-' : '$' + cost.toLocaleString()}</div></div>
+                        `;
+                    } else {
+                        card.className = 'card locked';
+                        card.innerHTML = `<div class="card-icon">🔒</div><div style="font-size:0.8rem; font-weight:bold; margin-top:5px;">연구 필요</div>`;
+                    }
+                    grid.appendChild(card);
+                });
+                tierSection.appendChild(grid);
+                treeContainer.appendChild(tierSection);
+            }
+        }
+
+        function firstStart() {
+            if(startOverlay) startOverlay.style.display = 'none';
+            audio.init();
+            startGame();
+        }
+
+        function startGame() {
+            audio.playStart();
+            if(upgradeScreen) upgradeScreen.style.display = 'none';
+            if(ingameUi) ingameUi.style.display = 'flex';
+            updateSkillUI();
+            GAME.running = true;
+            GAME.phase = 'playing';
+            GAME.scoreInRound = 0;
+            if(scoreEl) scoreEl.innerText = "$0";
+            GAME.combo = 0;
+            GAME.comboTimer = 0;
+            GAME.shakeTime = 0;
+            GAME.skills.bomb.cd = 0;
+            GAME.skills.stasis.cd = 0;
+            GAME.skills.stasis.dur = 0;
+            GAME.skills.surge.cd = 0;
+            GAME.skills.surge.dur = 0;
+            
+            const timeBase = getUpgrade('time').val + (getUpgrade('chrono_battery') ? getUpgrade('chrono_battery').val : 0);
+            GAME.timeLeft = timeBase; 
+            
+            entities = [];
+            bolts = [];
+            particles = [];
+            const initCount = getUpgrade('density').val;
+            for(let i=0; i<initCount; i++) entities.push(new Shard());
+            GAME.lastTime = performance.now();
+        }
+
+        function updateSkillUI() {
+            document.getElementById('skill-bar').style.display = 'flex';
+            const uBomb = getUpgrade('unlock_bomb').level > 0;
+            const uStasis = getUpgrade('unlock_stasis').level > 0;
+            const uSurge = getUpgrade('unlock_surge').level > 0;
+            if(slotBomb) slotBomb.classList.toggle('unlocked', uBomb);
+            if(slotStasis) slotStasis.classList.toggle('unlocked', uStasis);
+            if(slotSurge) slotSurge.classList.toggle('unlocked', uSurge);
+        }
+
+        function endGame() {
+            audio.stopGravityHum();
+            GAME.phase = 'upgrade';
+            GAME.running = false;
+            let interestRate = getUpgrade('interest') ? getUpgrade('interest').val : 0; 
+            if(getUpgrade('dyson_sphere')) interestRate += getUpgrade('dyson_sphere').val;
+
+            if(interestRate > 0) {
+                const interest = Math.floor(GAME.money * (interestRate / 100));
+                if(interest > 0) GAME.money += interest;
+            }
+            saveGame();
+            if(ingameUi) ingameUi.style.display = 'none';
+            document.getElementById('skill-bar').style.display = 'none';
+            if(upgradeScreen) upgradeScreen.style.display = 'flex';
+            renderUpgrades();
+        }
+
+        function toggleMute() { 
+            audio.muted = !audio.muted; 
+            document.getElementById('mute-btn').innerText = audio.muted ? '🔇' : '🔊'; 
+        }
+
+        // Init function
+        function init() {
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+            scoreEl = document.getElementById('score-display');
+            timerEl = document.getElementById('timer-display');
+            upgradeScreen = document.getElementById('upgrade-screen');
+            upgradeMoneyEl = document.getElementById('upgrade-money');
+            totalLevelEl = document.getElementById('total-level-display');
+            treeContainer = document.getElementById('tree-container');
+            startOverlay = document.getElementById('start-overlay');
+            ingameUi = document.getElementById('ingame-ui');
+            comboBox = document.getElementById('combo-box');
+            comboValEl = document.getElementById('combo-val');
+            slotBomb = document.getElementById('slot-bomb');
+            slotStasis = document.getElementById('slot-stasis');
+            slotSurge = document.getElementById('slot-surge');
+            cdBomb = document.getElementById('cd-bomb');
+            cdStasis = document.getElementById('cd-stasis');
+            cdSurge = document.getElementById('cd-surge');
+            glowBomb = document.getElementById('glow-bomb');
+            glowStasis = document.getElementById('glow-stasis');
+            glowSurge = document.getElementById('glow-surge');
+
+            window.addEventListener('resize', resize);
+            resize();
+            canvas.addEventListener('mousedown', (e) => { INPUT.isDown = true; move(e); audio.init(); audio.startGravityHum(); });
+            canvas.addEventListener('mousemove', move);
+            window.addEventListener('mouseup', () => { INPUT.isDown = false; audio.stopGravityHum(); });
+            canvas.addEventListener('touchstart', (e) => { INPUT.isDown = true; move(e.touches[0]); e.preventDefault(); audio.init(); audio.startGravityHum(); }, {passive:false});
+            canvas.addEventListener('touchmove', (e) => { move(e.touches[0]); e.preventDefault(); }, {passive:false});
+            window.addEventListener('touchend', () => { INPUT.isDown = false; audio.stopGravityHum(); });
+
+            window.addEventListener('keydown', (e) => {
+                if (GAME.phase === 'playing') {
+                    if (e.code === 'KeyQ') activateSkill('bomb');
+                    if (e.code === 'KeyW') activateSkill('stasis');
+                    if (e.code === 'KeyE') activateSkill('surge');
+                }
+            });
+
+            loadGame();
+            GAME.lastTime = performance.now();
+            requestAnimationFrame(loop);
+        }
+
+        function resize() {
+            if(!canvas) return;
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            GAME.width = canvas.width;
+            GAME.height = canvas.height;
+            GAME.centerX = canvas.width / 2;
+            GAME.centerY = canvas.height / 2;
+        }
+        function move(e) { INPUT.x = e.clientX; INPUT.y = e.clientY; }
+
+        function loop(timestamp) {
+            let dt = (timestamp - GAME.lastTime) / 1000;
+            GAME.lastTime = timestamp;
+            if (dt > 0.1) dt = 0.1;
+            if (GAME.phase === 'playing') updateGame(dt);
+            if(ctx) drawGame(dt);
+            requestAnimationFrame(loop);
+        }
+
+        window.firstStart = firstStart;
+        window.startGame = startGame;
+        window.resetSaveData = resetSaveData;
+        window.toggleMute = toggleMute;
+        window.activateSkill = activateSkill;
+
+        window.onload = init;
+    </script>
+</body>
+</html>
