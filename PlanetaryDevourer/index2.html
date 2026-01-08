@@ -516,7 +516,7 @@
             running: false, paused: false, phase: 'start', money: 0, scoreInRound: 0, timeLeft: 10.0, maxTime: 10.0,
             width: 0, height: 0, centerX: 0, centerY: 0, lastTime: 0,
             combo: 0, comboTimer: 0, shakeX: 0, shakeY: 0, shakeTime: 0,
-            zoom: 1.0, bhAngle: 0,
+            zoom: 1.0, bhAngle: 0, bhPulse: 0,
             skills: { bomb: { cd: 0, max: 15 }, stasis: { cd: 0, max: 30, dur: 0 }, surge: { cd: 0, max: 60, dur: 0 } },
             bgStars: [], nebulae: [], pixelScale: 1.0,
             stats: { totalAbsorbed: 0, totalMoney: 0, maxCombo: 0, achievements: [] } 
@@ -683,6 +683,15 @@
                     this.speed = Math.random() * 0.1 + 0.05;
                     this.size = Math.random() * 2 + 1;
                     this.decay = 0.05;
+                } else if (type === 'shockwave') {
+                    this.vx = 0; this.vy = 0; this.decay = 0.02; this.size = 10;
+                    this.maxSize = 300; 
+                } else if (type === 'spark') {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 5 + 5;
+                    this.vx = Math.cos(angle) * speed;
+                    this.vy = Math.sin(angle) * speed;
+                    this.decay = 0.1; this.size = Math.random() * 2 + 1;
                 }
             }
             update(dt) {
@@ -698,30 +707,57 @@
                     this.x = Math.cos(this.angle) * this.dist;
                     this.y = Math.sin(this.angle) * this.dist;
                     if(this.dist <= 0) this.life = 0;
+                } else if (this.type === 'shockwave') {
+                    this.size += 15 * timeScale;
+                    if (this.size > this.maxSize) this.life = 0;
                 } else {
                     this.x += this.vx * timeScale; this.y += this.vy * timeScale;
                 }
                 this.life -= this.decay * timeScale;
             }
             draw(ctx) {
-                ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = this.color;
-                if(this.type === 'time_bonus') { ctx.font = 'bold 16px sans-serif'; ctx.fillText("+0.5s", this.x, this.y); }
-                else { ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); }
+                ctx.globalAlpha = Math.max(0, this.life); 
+                if(this.type === 'time_bonus') { 
+                    ctx.fillStyle = this.color;
+                    ctx.font = 'bold 16px sans-serif'; ctx.fillText("+0.5s", this.x, this.y); 
+                } else if (this.type === 'shockwave') {
+                    ctx.strokeStyle = this.color || 'white';
+                    ctx.lineWidth = 5 * this.life;
+                    ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.stroke();
+                } else { 
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); 
+                }
                 ctx.globalAlpha = 1.0;
             }
         }
 
         class PopText {
             constructor(x, y, val, isCrit) {
-                this.x = x; this.y = y; this.text = "+$" + val; this.life = 1.0; this.vy = -1; this.isCrit = isCrit;
+                this.x = x; this.y = y; this.text = "+$" + val; this.life = 1.0; this.vy = -1.5; this.isCrit = isCrit;
+                this.vx = (Math.random() - 0.5) * 1;
             }
-            update(dt) { this.y += this.vy * dt * 60; this.life -= 0.03 * dt * 60; }
+            update(dt) { 
+                this.x += this.vx * dt * 60;
+                this.y += this.vy * dt * 60; 
+                this.life -= 0.02 * dt * 60; 
+                this.vy *= 0.95; // Friction
+            }
             draw() {
                 ctx.globalAlpha = Math.max(0, this.life);
                 ctx.fillStyle = this.isCrit ? '#ef4444' : '#4ade80';
                 if(parseInt(this.text.substring(2)) > 1000) ctx.fillStyle = '#facc15'; 
-                ctx.font = this.isCrit ? '900 20px "Pretendard"' : '800 14px "Pretendard"';
-                ctx.fillText(this.text, this.x, this.y); ctx.globalAlpha = 1.0;
+                ctx.font = this.isCrit ? '900 24px "Pretendard"' : '800 16px "Pretendard"';
+                
+                // Scale effect for pop text
+                const scale = this.life > 0.8 ? 1.2 : 1.0;
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.scale(scale, scale);
+                ctx.fillText(this.text, 0, 0); 
+                ctx.restore();
+                
+                ctx.globalAlpha = 1.0;
             }
         }
 
@@ -909,6 +945,10 @@
                  const idx = Math.floor(Math.random()*candidates.length);
                  const e = candidates[idx]; candidates.splice(idx,1);
                  bolts.push(new LightningBolt(source.x, source.y, e.x, e.y));
+                 
+                 // Spawn Sparks
+                 for(let k=0; k<3; k++) particles.push(new EffectParticle(e.x, e.y, '#facc15', 'spark'));
+
                  const force = 40 / e.mass; 
                  e.vx += (-e.x / Math.sqrt(e.x*e.x+e.y*e.y)) * force;
                  e.vy += (-e.y / Math.sqrt(e.x*e.x+e.y*e.y)) * force;
@@ -919,6 +959,7 @@
             if (GAME.paused) return;
 
             GAME.bhAngle += dt; // Spin the black hole
+            GAME.bhPulse += dt * 2; // Pulse effect
 
             if (GAME.skills.stasis.dur > 0) GAME.skills.stasis.dur -= dt;
             if (GAME.skills.surge.dur > 0) GAME.skills.surge.dur -= dt;
@@ -977,6 +1018,12 @@
                         // Spawn suck-in particles
                         for(let k=0; k<3; k++) particles.push(new EffectParticle(0,0, e.color, 'spiral_in'));
 
+                        // Giant Shockwave
+                        if(e.type.id === 'giant' || e.type.id === 'star' || e.type.id === 'quasar') {
+                             particles.push(new EffectParticle(0,0, e.color, 'shockwave'));
+                             GAME.shakeTime = 0.3; GAME.shakeAmount = 10;
+                        }
+
                         GAME.stats.totalAbsorbed++;
                         GAME.stats.totalMoney += e.value;
                         checkAchievements();
@@ -1009,8 +1056,11 @@
         }
 
         function drawBlackHole(ctx, dt) {
-            const bhSize = blackHole.radius + (getUpgrade('blackhole_size') ? getUpgrade('blackhole_size').val : 0) + (getUpgrade('event_horizon_ex') ? getUpgrade('event_horizon_ex').val : 0);
+            let bhSize = blackHole.radius + (getUpgrade('blackhole_size') ? getUpgrade('blackhole_size').val : 0) + (getUpgrade('event_horizon_ex') ? getUpgrade('event_horizon_ex').val : 0);
             
+            // Pulse Effect
+            bhSize += Math.sin(GAME.bhPulse) * 2;
+
             // Accretion Disk (Swirls)
             ctx.save();
             ctx.rotate(GAME.bhAngle);
@@ -1314,6 +1364,9 @@
                 GAME.skills.bomb.cd = GAME.skills.bomb.max * (1 - mastery);
                 audio.playSkill();
                 
+                // Spawn Shockwave
+                particles.push(new EffectParticle(0,0, '#ef4444', 'shockwave'));
+
                 // Pull everyone
                 entities.forEach(e => {
                     const dx = 0 - e.x; const dy = 0 - e.y;
