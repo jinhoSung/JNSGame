@@ -40,6 +40,12 @@
             text-align: left;
         }
 
+        .right-controls {
+            display: flex;
+            gap: 10px;
+            pointer-events: auto; /* 버튼 클릭 가능 */
+        }
+
         h1 {
             margin: 0;
             font-size: 24px;
@@ -54,6 +60,31 @@
             text-shadow: 0 0 10px #000;
         }
 
+        /* 속도 및 고도 UI 스타일 */
+        .status-info {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 14px;
+            margin-top: 5px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .status-label {
+            color: #aaa;
+            font-size: 12px;
+            width: 50px;
+        }
+        .status-value {
+            font-weight: bold;
+        }
+        #speed-val { color: #0ff; }
+        #height-val { color: #f0f; }
+
         #combo-display {
             font-size: 24px;
             color: #ff0;
@@ -63,9 +94,8 @@
             transition: opacity 0.3s;
         }
 
-        /* 랭킹 버튼 스타일 */
-        #btn-show-ranking {
-            pointer-events: auto;
+        /* 공통 버튼 스타일 */
+        .ui-btn {
             background: rgba(0, 0, 0, 0.5);
             border: 2px solid #ffd700;
             color: #ffd700;
@@ -79,16 +109,28 @@
             transition: all 0.2s;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 5px;
         }
 
-        #btn-show-ranking:hover {
+        .ui-btn:hover {
             background: rgba(255, 215, 0, 0.2);
             transform: scale(1.05);
         }
 
-        #btn-show-ranking:active {
+        .ui-btn:active {
             transform: scale(0.95);
+        }
+
+        /* 전체화면 버튼 스타일 (아이콘만) */
+        #btn-fullscreen {
+            padding: 8px 12px;
+            border-color: #0ff;
+            color: #0ff;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+        }
+        #btn-fullscreen:hover {
+            background: rgba(0, 255, 255, 0.2);
         }
 
         #center-ui {
@@ -254,10 +296,28 @@
         <div class="score-box">
             <h1>NEON LAUNCHER</h1>
             <div>Distance: <span id="score-display">0</span> m</div>
+            
+            <!-- 속도 및 높이 표시 UI 추가 -->
+            <div class="status-info">
+                <div class="status-item">
+                    <span class="status-label">SPEED</span>
+                    <span id="speed-val" class="status-value">0</span> km/h
+                </div>
+                <div class="status-item">
+                    <span class="status-label">HEIGHT</span>
+                    <span id="height-val" class="status-value">0</span> m
+                </div>
+            </div>
+
             <div id="combo-display">COMBO x0</div>
             <div style="font-size: 14px; color: #fff; margin-top: 5px;">Best: <span id="best-score">0</span> m</div>
         </div>
-        <button id="btn-show-ranking">🏆 랭킹 보기</button>
+        
+        <div class="right-controls">
+            <!-- 전체화면 버튼 추가 -->
+            <button id="btn-fullscreen" class="ui-btn" title="전체화면">⛶</button>
+            <button id="btn-show-ranking" class="ui-btn">🏆 랭킹</button>
+        </div>
     </div>
 
     <div id="hit-feedback">PERFECT!</div>
@@ -439,6 +499,10 @@
         const uiBest = document.getElementById('best-score');
         const uiMsg = document.getElementById('status-msg');
         const uiFeedback = document.getElementById('hit-feedback');
+        // 신규 UI 요소
+        const uiSpeed = document.getElementById('speed-val');
+        const uiHeight = document.getElementById('height-val');
+        const btnFullscreen = document.getElementById('btn-fullscreen');
         
         const modal = document.getElementById('ranking-modal');
         const modalTitle = document.getElementById('modal-title');
@@ -480,6 +544,19 @@
         let skyManager = null;
 
         // UI Event Listeners
+        // 전체화면 토글
+        btnFullscreen.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log(`Error attempting to enable fullscreen: ${err.message}`);
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        });
+
         btnSubmit.addEventListener('click', async () => {
             const name = playerNameInput.value.trim();
             if (!name) { alert("이름을 입력해주세요."); return; }
@@ -1036,12 +1113,13 @@
         function init() {
             resize(); window.addEventListener('resize', resize);
             const inputHandler = (e) => {
-                if(e.target.closest('#ranking-modal') || e.target.closest('#btn-show-ranking')) return;
+                // 클릭 방지 예외 처리 추가
+                if(e.target.closest('#ranking-modal') || e.target.closest('#btn-show-ranking') || e.target.closest('#btn-fullscreen')) return;
                 Sound.init(); handleInput();
             };
             window.addEventListener('mousedown', inputHandler);
             window.addEventListener('touchstart', (e) => {
-                 if(!e.target.closest('#ranking-modal') && !e.target.closest('#btn-show-ranking')) e.preventDefault();
+                 if(!e.target.closest('#ranking-modal') && !e.target.closest('#btn-show-ranking') && !e.target.closest('#btn-fullscreen')) e.preventDefault();
                  Sound.init(); handleInput();
             }, {passive: false});
 
@@ -1066,19 +1144,16 @@
 
         function addBoosters(count) {
              for(let i=0; i<count; i++) {
-                // [수정됨] 아이템 간격을 대폭 줄임 (기존 150~450 -> 50~200)
                 let gap = (50 + Math.random() * 150) * scaleFactor;
                 lastBoosterX += gap;
                 let by = height - 100 - (Math.random() * 2000 * scaleFactor); 
                 
-                // [수정됨] 장애물 확률 감소 (10% -> 5%) 아이템이 많으니 방해물 빈도 낮춤
                 if (Math.random() > 0.95) {
                     obstacles.push(new Obstacle(lastBoosterX, by));
                 } else {
                     let rand = Math.random();
                     let type = 'speed'; 
-                    // [수정됨] 고급 아이템 확률 미세 조정
-                    if (rand > 0.85) type = 'blast';  // 블라스트 확률 증가
+                    if (rand > 0.85) type = 'blast';  
                     else if (rand > 0.70) type = 'shield'; 
                     else if (rand > 0.55) type = 'float';
                     else if (rand > 0.30) type = 'jump'; 
@@ -1209,9 +1284,19 @@
 
             if (gameState === STATE.FLYING) {
                 let targetCamX = ball.x - width * 0.2; if (targetCamX < 0) targetCamX = 0;
-                camera.x += (targetCamX - camera.x) * 0.1 * dt;
+                
+                // [수정됨] 카메라 추적 로직 개선 (공이 화면 밖으로 나가지 않도록)
+                // 1. 추적 속도 증가 (0.1 -> 0.15)
+                camera.x += (targetCamX - camera.x) * 0.15 * dt;
+                
+                // 2. 공이 화면 오른쪽 70% 지점을 넘어가면 카메라를 강제로 이동 (Hard Clamp)
+                if (ball.x - camera.x > width * 0.7) {
+                    camera.x = ball.x - width * 0.7;
+                }
+
                 let targetCamY = ball.y - height * 0.5; if (targetCamY > 0) targetCamY = 0; 
                 camera.y += (targetCamY - camera.y) * 0.1 * dt;
+                
                 if (ball.x > lastBoosterX - width * 2) addBoosters(10); 
                 
                 if (boosters.length > 50) { while(boosters.length > 0 && boosters[0].x < ball.x - width * 2) boosters.shift(); }
@@ -1221,8 +1306,19 @@
             for (let i = particles.length - 1; i >= 0; i--) { particles[i].update(dt); if (particles[i].life <= 0) particles.splice(i, 1); }
             for (let i = shockwaves.length - 1; i >= 0; i--) { shockwaves[i].update(dt); if (shockwaves[i].alpha <= 0) shockwaves.splice(i, 1); }
             const ballSpeed = Math.abs(ball.vx); speedLines.forEach(l => l.update(ballSpeed));
+            
+            // [추가] 속도 및 고도 업데이트
             if (gameState === STATE.FLYING || gameState === STATE.STOPPED) {
                 let dist = Math.floor((ball.x - 200 * scaleFactor) / scaleFactor); if (dist < 0) dist = 0; uiScore.innerText = dist;
+                
+                // 속도 (단순 픽셀 단위를 적절한 수치로 변환하여 표시)
+                let speedKmh = Math.floor(Math.sqrt(ball.vx*ball.vx + ball.vy*ball.vy) * 2);
+                uiSpeed.innerText = speedKmh;
+
+                // 고도 (바닥 기준)
+                let altitude = Math.floor((height - 50 - ball.y) / scaleFactor);
+                if (altitude < 0) altitude = 0;
+                uiHeight.innerText = altitude;
             }
         }
 
