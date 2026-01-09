@@ -578,7 +578,13 @@
             { id: 'quasar',   color: '#ec4899', minR: 30, maxR: 40, mass: 300, valMult: 500, weight: 0, pulse: true },
             { id: 'comet', color: '#fbbf24', minR: 15, maxR: 20, mass: 20, valMult: 100, weight: 0, isComet: true },
             { id: 'flux', color: '#3b82f6', minR: 15, maxR: 20, mass: 10, valMult: 10, weight: 0, isFlux: true },
-            { id: 'magnet', color: '#94a3b8', minR: 15, maxR: 20, mass: 30, valMult: 20, weight: 0, isMagnet: true },
+            // 자성 행성 등장 확률 대폭 하향 (weight: 0, unlock_magnet 업그레이드 후 별도 확률 적용)
+            // 아래 Shard 생성 로직에서 별도 처리되므로 여기선 weight를 낮추거나 로직을 수정해야 함.
+            // 현재 코드 구조상 available 배열에 추가되는 방식이므로, 
+            // unlock_magnet 업그레이드가 활성화되면 available에 추가되는데, 
+            // 이때 weight가 없으면(undefined) 기본값 10이 적용됨.
+            // 따라서 명시적으로 weight를 낮게 설정해야 함.
+            { id: 'magnet', color: '#94a3b8', minR: 15, maxR: 20, mass: 30, valMult: 20, weight: 2, isMagnet: true }, // weight 10 -> 2 (1/5 수준)
             { id: 'nova', color: '#f97316', minR: 20, maxR: 25, mass: 50, valMult: 40, weight: 0, isNova: true }
         ];
 
@@ -1016,12 +1022,13 @@
                 let type = null;
                 if (lightningUnlocked && Math.random() < 0.05 * luckBonus) type = SHARD_TYPES[4];
                 else {
-                    const totalW = available.reduce((a,b)=>a+(b.weight || 10), 0);
+                    const totalW = available.reduce((a,b)=>a+(b.weight || 10), 0); // weight가 없으면 기본 10
                     let r = Math.random() * totalW;
                     type = available[0];
                     for(let t of available){
-                        if(r < (t.weight || 10)) { type = t; break; }
-                        r -= (t.weight || 10);
+                        const w = t.weight !== undefined ? t.weight : 10;
+                        if(r < w) { type = t; break; }
+                        r -= w;
                     }
                 }
                 
@@ -1692,7 +1699,7 @@
             else if (id === 'storm') {
                 // Destroy random targets
                 // 버프: 기본 횟수 15->40, 레벨당 +5회로 대폭 상향 (지속시간 증가 효과)
-                const count = (40 + upgrade.level * 5) * gamma; 
+                const count = (40 + upgrade.level * 10) * gamma; 
                 for(let i=0; i<count; i++) {
                     setTimeout(() => {
                          // Fix: Check if entities array has elements before accessing
