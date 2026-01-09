@@ -46,6 +46,30 @@
             pointer-events: auto; /* 버튼 클릭 가능 */
         }
 
+        /* 상단 중앙 UI (Best Score) */
+        #center-top-ui {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .best-score-badge {
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid #ffd700;
+            color: #ffd700;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: bold;
+            font-size: 18px;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+            text-shadow: 0 0 5px #ffd700;
+        }
+
         h1 {
             margin: 0;
             font-size: 24px;
@@ -60,30 +84,32 @@
             text-shadow: 0 0 10px #000;
         }
 
-        /* 속도 및 고도 UI 스타일 */
+        /* 속도 및 고도 UI 스타일 (크기 확대) */
         .status-info {
             font-family: 'Orbitron', sans-serif;
-            font-size: 14px;
-            margin-top: 5px;
+            font-size: 18px; /* 14px -> 18px */
+            margin-top: 10px;
             display: flex;
             flex-direction: column;
-            gap: 2px;
+            gap: 5px;
         }
         .status-item {
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 8px;
         }
         .status-label {
             color: #aaa;
-            font-size: 12px;
-            width: 50px;
+            font-size: 14px; /* 12px -> 14px */
+            width: 70px; /* 50px -> 70px */
+            text-transform: uppercase;
         }
         .status-value {
             font-weight: bold;
+            font-size: 20px;
         }
-        #speed-val { color: #0ff; }
-        #height-val { color: #f0f; }
+        #speed-val { color: #0ff; text-shadow: 0 0 5px #0ff; }
+        #height-val { color: #f0f; text-shadow: 0 0 5px #f0f; }
 
         #combo-display {
             font-size: 24px;
@@ -292,25 +318,28 @@
 </head>
 <body>
 
+    <div id="center-top-ui">
+        <div class="best-score-badge">BEST: <span id="best-score">0</span> m</div>
+    </div>
+
     <div id="ui-layer">
         <div class="score-box">
             <h1>NEON LAUNCHER</h1>
             <div>Distance: <span id="score-display">0</span> m</div>
             
-            <!-- 속도 및 높이 표시 UI 추가 -->
+            <!-- 속도 및 높이 표시 UI 추가 (크기 확대됨) -->
             <div class="status-info">
                 <div class="status-item">
                     <span class="status-label">SPEED</span>
-                    <span id="speed-val" class="status-value">0</span> km/h
+                    <span id="speed-val" class="status-value">0</span> <span style="font-size:14px; color:#888;">km/h</span>
                 </div>
                 <div class="status-item">
                     <span class="status-label">HEIGHT</span>
-                    <span id="height-val" class="status-value">0</span> m
+                    <span id="height-val" class="status-value">0</span> <span style="font-size:14px; color:#888;">m</span>
                 </div>
             </div>
 
             <div id="combo-display">COMBO x0</div>
-            <div style="font-size: 14px; color: #fff; margin-top: 5px;">Best: <span id="best-score">0</span> m</div>
         </div>
         
         <div class="right-controls">
@@ -776,20 +805,68 @@
             }
         }
 
-        class BreathEffect {
-            constructor() { this.active = true; this.life = 1.0; this.text = "네온의 호흡... 제1형..."; this.subText = "벽력일섬 (霹靂一閃) ⚡"; }
+        // [수정] 랜덤 컷신 효과 클래스
+        class CutsceneEffect {
+            constructor() { 
+                this.active = true; 
+                this.life = 1.0;
+                
+                // 다양한 컷신 타입 정의
+                const types = [
+                    { 
+                        text: "네온의 호흡... 제1형...", 
+                        sub: "벽력일섬 (霹靂一閃) ⚡",
+                        textColor: "#fff",
+                        subColor: "#ffff00",
+                        bgColor: `rgba(0, 0, 0, ` 
+                    },
+                    { 
+                        text: "한계를 넘어선 힘...", 
+                        sub: "초신성 폭발 (Supernova) 💥",
+                        textColor: "#ffaa00",
+                        subColor: "#ff5500",
+                        bgColor: `rgba(50, 10, 0, ` 
+                    },
+                    { 
+                        text: "차원을 가르는 일격...", 
+                        sub: "공간 절단 (Dimension Cut) ⚔️",
+                        textColor: "#00ffff",
+                        subColor: "#0088ff",
+                        bgColor: `rgba(0, 10, 50, ` 
+                    }
+                ];
+                
+                this.type = types[Math.floor(Math.random() * types.length)];
+            }
             update(dt) { this.life -= 0.02 * dt; if (this.life <= 0) this.active = false; }
             draw() {
                 if (!this.active) return;
-                ctx.save(); ctx.fillStyle = `rgba(0, 0, 0, ${this.life * 0.7})`; ctx.fillRect(0, 0, width, height);
+                ctx.save(); 
+                // 배경색을 타입에 따라 다르게 적용
+                ctx.fillStyle = `${this.type.bgColor}${this.life * 0.7})`; 
+                ctx.fillRect(0, 0, width, height);
+                
                 const slashWidth = width * 1.5;
                 ctx.translate(width/2, height/2); ctx.rotate(-Math.PI / 6); 
-                ctx.shadowBlur = 50; ctx.shadowColor = '#ffff00'; ctx.fillStyle = '#fff'; ctx.globalAlpha = this.life;
+                
+                // 중앙선 효과
+                ctx.shadowBlur = 50; ctx.shadowColor = this.type.subColor; ctx.fillStyle = '#fff'; ctx.globalAlpha = this.life;
                 ctx.beginPath(); ctx.moveTo(-slashWidth/2, 0); ctx.lineTo(slashWidth/2, 0); ctx.lineWidth = 10 * scaleFactor; ctx.strokeStyle = '#fff'; ctx.stroke();
+                
                 ctx.rotate(Math.PI / 6); 
-                ctx.shadowBlur = 20; ctx.shadowColor = '#00ffff'; ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-                ctx.font = `bold ${40 * scaleFactor}px 'Noto Sans KR', sans-serif`; ctx.fillText(this.text, 0, -50 * scaleFactor);
-                ctx.fillStyle = '#ffff00'; ctx.shadowColor = '#ff0000'; ctx.font = `900 ${60 * scaleFactor}px 'Noto Sans KR', sans-serif`; ctx.fillText(this.subText, 0, 50 * scaleFactor);
+                ctx.shadowBlur = 20; ctx.shadowColor = this.type.subColor; 
+                ctx.textAlign = 'center';
+                
+                // 텍스트 출력
+                ctx.fillStyle = this.type.textColor;
+                ctx.font = `bold ${40 * scaleFactor}px 'Noto Sans KR', sans-serif`; 
+                ctx.fillText(this.type.text, 0, -50 * scaleFactor);
+                
+                ctx.fillStyle = this.type.subColor; 
+                ctx.shadowColor = '#fff'; 
+                ctx.font = `900 ${60 * scaleFactor}px 'Noto Sans KR', sans-serif`; 
+                ctx.fillText(this.type.sub, 0, 50 * scaleFactor);
+                
                 ctx.restore();
             }
         }
@@ -1189,7 +1266,7 @@
                 if (Math.abs(distY) < 20 * scaleFactor) {
                     isPerfect = true;
                     hitFreeze = 45; 
-                    specialEffects.push(new BreathEffect());
+                    specialEffects.push(new CutsceneEffect()); // [수정] BreathEffect -> CutsceneEffect 교체
                     Sound.playBreath();
                 }
 
