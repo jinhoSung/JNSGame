@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini City Traffic - Advanced Simulation</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #e0e5ec;
+            font-family: 'Noto Sans KR', sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            overflow: hidden;
+            background-color: #fdfdfd;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+        }
+
+        .score-board {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            backdrop-filter: blur(4px);
+        }
+
+        .score-row {
+            display: flex;
+            justify-content: space-between;
+            min-width: 120px;
+        }
+
+        /* 팁 버튼 스타일 */
+        #tip-btn {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background: #FF9800;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            z-index: 100;
+            pointer-events: auto;
+            transition: transform 0.2s, background 0.2s;
+        }
+        
+        #tip-btn:hover {
+            transform: scale(1.1);
+            background: #F57C00;
+        }
+
+        /* 설명창 */
+        .instruction {
+            position: absolute;
+            bottom: 70px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 13px;
+            pointer-events: none;
+            text-align: left;
+            line-height: 1.6;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            width: 280px;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        .instruction.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .key-highlight {
+            color: #ffeb3b;
+            font-weight: bold;
+        }
+        
+        .title-text {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #ffeb3b;
+            display: block;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="ui-layer">
+        <div class="score-board">
+            <div class="score-row">
+                <span>배달:</span>
+                <span id="scoreDisplay">0</span>
+            </div>
+            <div class="score-row">
+                <span>타일:</span>
+                <span id="tilesDisplay">100</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tip 버튼 -->
+    <div id="tip-btn" onclick="toggleInstruction()">?</div>
+
+    <!-- 설명창 -->
+    <div class="instruction" id="instruction">
+        <span class="title-text">🎮 조작 방법</span>
+        <span class="key-highlight">드래그</span>: 자유로운 직선 도로 건설<br>
+        <span class="key-highlight">우클릭 드래그</span>: 도로 삭제<br>
+        <span class="key-highlight">클릭</span>: 건물 회전<br>
+        <br>
+        💡 <strong>업데이트:</strong><br>
+        - <strong>우측 통행</strong> 시스템 적용<br>
+        - 교차로 순차 진입 (꼬리물기 방지)<br>
+        - 앞차 간격 유지 및 직사각형 차량 모델
+    </div>
+</div>
+
+<script>
+    function toggleInstruction() {
+        const el = document.getElementById('instruction');
+        el.classList.toggle('show');
+    }
+
+    const TILE_SIZE = 40;
+    const GRID_WIDTH = 24;
+    const GRID_HEIGHT = 18;
+    
+    const TYPE = {
+        EMPTY: 0,
+        ROAD: 1,
+        HOUSE: 2,
+        DESTINATION: 3
+    };
+
+    const COLORS = {
+        RED: '#ef5350',
+        BLUE: '#42a5f5',
+        YELLOW: '#ffee58',
+        ROAD: '#546e7a',
+        ROAD_Preview: 'rgba(84, 110, 122, 0.5)',
+        ROAD_LINE: '#cfd8dc'
+    };
+
+    const COLOR_KEYS = ['RED', 'BLUE', 'YELLOW'];
+
+    // 8방향 (시계방향: 상, 우상, 우, 우하, 하, 좌하, 좌, 좌상)
+    const DIRS = [
+        { dx: 0, dy: -1 },  // 0: N
+        { dx: 1, dy: -1 },  // 1: NE
+        { dx: 1, dy: 0 },   // 2: E
+        { dx: 1, dy: 1 },   // 3: SE
+        { dx: 0, dy: 1 },   // 4: S
+        { dx: -1, dy: 1 },  // 5: SW
+        { dx: -1, dy: 0 },  // 6: W
+        { dx: -1, dy: -1 }  // 7: NW
+    ];
+
+    // 건물 회전용 (0, 1, 2, 3) -> DIRS 인덱스 매핑 (0, 2, 4, 6)
+    const ROTATION_TO_DIR = [0, 2, 4, 6];
+
+    class Game {
+        constructor(canvasId) {
+            this.canvas = document.getElementById(canvasId);
+            this.ctx = this.canvas.getContext('2d');
+            
+            this.canvas.width = GRID_WIDTH * TILE_SIZE;
+            this.canvas.height = GRID_HEIGHT * TILE_SIZE;
+
+            this.grid = []; 
+            this.cars = []; 
+            this.buildings = []; 
+            this.particles = []; 
+
+            this.score = 0;
+            this.roadTiles = 100;
+            
+            // 드래그 관련 상태
+            this.isDragging = false;
+            this.dragStart = null; 
+            this.dragEnd = null;   
+            this.dragPath = [];    
+            this.isErasing = false;
+
+            this.tickCount = 0;
+            
+            this.init();
+            this.addEventListeners();
+            this.loop();
+        }
+
+        init() {
+            // 그리드 초기화
+            for (let x = 0; x < GRID_WIDTH; x++) {
+                this.grid[x] = [];
+                for (let y = 0; y < GRID_HEIGHT; y++) {
+                    this.grid[x][y] = { 
+                        type: TYPE.EMPTY, 
+                        color: null, 
+                        rotation: 0,
+                        connections: new Array(8).fill(false)
+                    };
+                }
+            }
+            // 초기 건물
+            this.spawnBuilding('RED', TYPE.HOUSE);
+            this.spawnBuilding('RED', TYPE.DESTINATION);
+        }
+
+        spawnBuilding(colorKey, type) {
+            let placed = false;
+            let attempts = 0;
+            while (!placed && attempts < 100) {
+                attempts++;
+                const x = Math.floor(Math.random() * (GRID_WIDTH - 2)) + 1;
+                const y = Math.floor(Math.random() * (GRID_HEIGHT - 2)) + 1;
+
+                if (this.grid[x][y].type === TYPE.EMPTY) {
+                    const rotation = Math.floor(Math.random() * 4); // 0~3
+
+                    this.grid[x][y] = { 
+                        type: type, 
+                        color: COLORS[colorKey], 
+                        colorKey: colorKey,
+                        rotation: rotation,
+                        connections: new Array(8).fill(false)
+                    };
+                    
+                    this.buildings.push({ 
+                        x, y, type, 
+                        color: COLORS[colorKey], 
+                        colorKey: colorKey, 
+                        spawnTimer: 0,
+                        rotation: rotation
+                    });
+                    
+                    placed = true;
+                    this.createParticles(x * TILE_SIZE + TILE_SIZE/2, y * TILE_SIZE + TILE_SIZE/2, COLORS[colorKey]);
+                    this.recalculateAllTraffic();
+                }
+            }
+        }
+
+        addEventListeners() {
+            this.canvas.addEventListener('mousedown', (e) => {
+                const pos = this.getGridPos(e);
+                if (!pos) return;
+
+                // 건물 클릭 (회전)
+                if (e.button === 0 && (this.grid[pos.x][pos.y].type === TYPE.HOUSE || this.grid[pos.x][pos.y].type === TYPE.DESTINATION)) {
+                    this.rotateBuilding(pos.x, pos.y);
+                    return;
+                }
+
+                this.isDragging = true;
+                this.isErasing = e.button === 2; // 우클릭은 삭제
+                this.dragStart = pos;
+                this.dragEnd = pos;
+                this.updateDragPath();
+            });
+
+            this.canvas.addEventListener('mousemove', (e) => {
+                if (this.isDragging) {
+                    const pos = this.getGridPos(e);
+                    if (pos) {
+                        this.dragEnd = pos;
+                        this.updateDragPath();
+                    }
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (this.isDragging) {
+                    this.applyDragPath();
+                    this.isDragging = false;
+                    this.dragPath = [];
+                    this.dragStart = null;
+                    this.dragEnd = null;
+                }
+            });
+
+            this.canvas.addEventListener('contextmenu', e => e.preventDefault());
+        }
+
+        getGridPos(e) {
+            const rect = this.canvas.getBoundingClientRect();
+            const x = Math.floor((e.clientX - rect.left) / TILE_SIZE);
+            const y = Math.floor((e.clientY - rect.top) / TILE_SIZE);
+            if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) return {x, y};
+            return null;
+        }
+
+        rotateBuilding(x, y) {
+            const cell = this.grid[x][y];
+            cell.rotation = (cell.rotation + 1) % 4;
+            const b = this.buildings.find(b => b.x === x && b.y === y);
+            if(b) b.rotation = cell.rotation;
+            this.recalculateAllTraffic();
+        }
+
+        // 드래그 경로 계산 (직선 보간)
+        updateDragPath() {
+            this.dragPath = [];
+            if (!this.dragStart || !this.dragEnd) return;
+
+            const x0 = this.dragStart.x;
+            const y0 = this.dragStart.y;
+            const x1 = this.dragEnd.x;
+            const y1 = this.dragEnd.y;
+
+            const dx = x1 - x0;
+            const dy = y1 - y0;
+            const distance = Math.max(Math.abs(dx), Math.abs(dy));
+
+            if (distance === 0) {
+                this.dragPath.push({x: x0, y: y0});
+                return;
+            }
+
+            for (let i = 0; i <= distance; i++) {
+                const t = i / distance;
+                const tx = Math.round(x0 + dx * t);
+                const ty = Math.round(y0 + dy * t);
+                
+                if (this.dragPath.length > 0) {
+                    const last = this.dragPath[this.dragPath.length - 1];
+                    if (last.x === tx && last.y === ty) continue;
+                }
+                
+                if (this.isValid(tx, ty)) {
+                    this.dragPath.push({x: tx, y: ty});
+                }
+            }
+        }
+
+        applyDragPath() {
+            if (this.dragPath.length < 1) return;
+
+            let changed = false;
+
+            for (let i = 0; i < this.dragPath.length; i++) {
+                const curr = this.dragPath[i];
+                const cell = this.grid[curr.x][curr.y];
+
+                if (this.isErasing) {
+                    if (cell.type === TYPE.ROAD) {
+                        cell.type = TYPE.EMPTY;
+                        cell.connections.fill(false);
+                        this.roadTiles++;
+                        for(let d=0; d<8; d++) {
+                            const nx = curr.x + DIRS[d].dx;
+                            const ny = curr.y + DIRS[d].dy;
+                            if(this.isValid(nx, ny) && this.grid[nx][ny].type === TYPE.ROAD) {
+                                const opposite = (d + 4) % 8;
+                                this.grid[nx][ny].connections[opposite] = false;
+                            }
+                        }
+                        changed = true;
+                    }
+                } else {
+                    if (cell.type === TYPE.EMPTY && this.roadTiles > 0) {
+                        cell.type = TYPE.ROAD;
+                        this.roadTiles--;
+                        changed = true;
+                    }
+
+                    if (i > 0 && cell.type === TYPE.ROAD) {
+                        const prev = this.dragPath[i-1];
+                        const prevCell = this.grid[prev.x][prev.y];
+                        
+                        if (prevCell.type === TYPE.ROAD) {
+                            const dx = curr.x - prev.x;
+                            const dy = curr.y - prev.y;
+                            
+                            let dirIndex = -1;
+                            for (let d = 0; d < 8; d++) {
+                                if (DIRS[d].dx === dx && DIRS[d].dy === dy) {
+                                    dirIndex = d;
+                                    break;
+                                }
+                            }
+
+                            if (dirIndex !== -1) {
+                                const opposite = (dirIndex + 4) % 8;
+                                prevCell.connections[dirIndex] = true;
+                                cell.connections[opposite] = true;
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (changed) {
+                this.updateUI();
+                this.recalculateAllTraffic();
+            }
+        }
+
+        isValid(x, y) {
+            return x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT;
+        }
+
+        updateUI() {
+            document.getElementById('scoreDisplay').innerText = this.score;
+            document.getElementById('tilesDisplay').innerText = this.roadTiles;
+            document.getElementById('tilesDisplay').style.color = this.roadTiles <= 0 ? '#ef5350' : '#333';
+        }
+
+        recalculateAllTraffic() {
+            this.cars.forEach(car => {
+                const startX = Math.round(car.x);
+                const startY = Math.round(car.y);
+                const newPath = this.findPath(startX, startY, TYPE.DESTINATION, car.colorKey);
+                
+                if (newPath) {
+                    car.path = newPath;
+                    car.targetIndex = 0; 
+                }
+            });
+        }
+
+        // 경로 탐색
+        findPath(startX, startY, targetType, targetColorKey) {
+            if (!this.isValid(startX, startY)) return null;
+
+            const queue = [{ x: startX, y: startY, path: [{x: startX, y: startY}], cost: 0 }];
+            const visited = Array.from({ length: GRID_WIDTH }, () => Array(GRID_HEIGHT).fill(Infinity));
+            visited[startX][startY] = 0;
+
+            let bestPath = null;
+            let minCost = Infinity;
+
+            while (queue.length > 0) {
+                queue.sort((a, b) => a.cost - b.cost);
+                const current = queue.shift();
+                const { x, y, path, cost } = current;
+
+                if (cost > minCost) continue;
+
+                const currentCell = this.grid[x][y];
+
+                // 목적지 체크
+                for(let b of this.buildings) {
+                    if (b.type === targetType && b.colorKey === targetColorKey) {
+                        const dirIdx = ROTATION_TO_DIR[b.rotation];
+                        const entX = b.x + DIRS[dirIdx].dx;
+                        const entY = b.y + DIRS[dirIdx].dy;
+                        if (x === entX && y === entY) {
+                            if (cost < minCost) {
+                                minCost = cost;
+                                bestPath = path;
+                            }
+                        }
+                    }
+                }
+
+                for (let i = 0; i < 8; i++) {
+                    let canGo = false;
+                    
+                    if (currentCell.type === TYPE.ROAD) {
+                        if (currentCell.connections[i]) canGo = true;
+                    } else {
+                        const building = this.buildings.find(b => b.x === x && b.y === y);
+                        if (building && ROTATION_TO_DIR[building.rotation] === i) canGo = true;
+                        if (!building && path.length === 1) canGo = true; 
+                    }
+
+                    if (canGo) {
+                        const nx = x + DIRS[i].dx;
+                        const ny = y + DIRS[i].dy;
+
+                        if (this.isValid(nx, ny)) {
+                            const nextCell = this.grid[nx][ny];
+                            
+                            if (nextCell.type === TYPE.ROAD || nextCell.type === targetType) {
+                                const stepCost = (i % 2 !== 0) ? 1.414 : 1;
+                                // 트래픽 패널티 감소 (우회보다는 대기가 나을 수 있음)
+                                const carsOnTile = this.cars.filter(c => Math.round(c.x) === nx && Math.round(c.y) === ny).length;
+                                const trafficPenalty = carsOnTile * 1.5; 
+
+                                const newCost = cost + stepCost + trafficPenalty;
+
+                                if (newCost < visited[nx][ny]) {
+                                    visited[nx][ny] = newCost;
+                                    queue.push({ x: nx, y: ny, path: [...path, { x: nx, y: ny }], cost: newCost });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return bestPath;
+        }
+
+        update() {
+            this.tickCount++;
+
+            if (this.tickCount % 300 === 0) {
+                const randomColorKey = COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)];
+                if(Math.random() > 0.4) this.spawnBuilding(randomColorKey, TYPE.HOUSE);
+                else this.spawnBuilding(randomColorKey, TYPE.DESTINATION);
+                this.roadTiles += 5;
+                this.updateUI();
+            }
+
+            // 건물에서 차 생성
+            this.buildings.forEach(b => {
+                if (b.type === TYPE.HOUSE) {
+                    b.spawnTimer++;
+                    if (b.spawnTimer > 180) { 
+                        const path = this.findPath(b.x, b.y, TYPE.DESTINATION, b.colorKey);
+                        if (path) {
+                            this.cars.push({
+                                x: b.x, y: b.y, // 초기 위치는 건물 센터
+                                path: path,
+                                targetIndex: 0,
+                                color: b.color,
+                                colorKey: b.colorKey,
+                                finished: false,
+                                speed: 0,
+                                maxSpeed: 0.05 + Math.random() * 0.02,
+                                angle: 0,
+                                // 실제 렌더링 좌표 (부드러운 이동용)
+                                displayX: b.x,
+                                displayY: b.y
+                            });
+                            b.spawnTimer = 0;
+                        }
+                    }
+                }
+            });
+
+            // 차량 업데이트
+            for (let i = this.cars.length - 1; i >= 0; i--) {
+                const car = this.cars[i];
+                if (!car.path || car.path.length === 0) continue;
+
+                if (car.targetIndex === 0 && car.path.length > 1) car.targetIndex = 1;
+
+                if (car.targetIndex >= car.path.length) {
+                    car.finished = true;
+                } else {
+                    // 우측 통행을 위한 타겟 좌표 계산
+                    const currentTile = car.path[car.targetIndex - 1] || car.path[0];
+                    const nextTile = car.path[car.targetIndex];
+                    
+                    // 기본 방향 벡터
+                    let dx = nextTile.x - currentTile.x;
+                    let dy = nextTile.y - currentTile.y;
+                    const distTotal = Math.hypot(dx, dy);
+                    
+                    // 정규화
+                    let dirX = dx / (distTotal || 1);
+                    let dirY = dy / (distTotal || 1);
+
+                    // 우측 벡터 (90도 회전: x,y -> -y,x)
+                    // 화면 좌표계: x+ 우, y+ 하.
+                    // (1,0) -> (0,1) : 우측 ok
+                    // (0,1) -> (-1,0) : 우측 ok
+                    let rightX = -dirY;
+                    let rightY = dirX;
+
+                    // 우측 통행 오프셋 (도로 폭의 약 20%)
+                    const offsetAmount = 0.25; 
+                    
+                    // 실제 목표 지점 (타일 중심 + 우측 오프셋)
+                    const targetX = nextTile.x + rightX * offsetAmount;
+                    const targetY = nextTile.y + rightY * offsetAmount;
+
+                    // 현재 차의 실제 위치(타일 좌표계 + 오프셋)에서 목표까지의 거리
+                    const curDx = targetX - car.x;
+                    const curDy = targetY - car.y;
+                    const distRemaining = Math.hypot(curDx, curDy);
+
+                    // --- 안전 거리 유지 로직 ---
+                    let blocked = false;
+                    let blockingCar = null;
+
+                    // 1. 앞차와의 거리 확인
+                    for (let other of this.cars) {
+                        if (car === other) continue;
+                        
+                        // 물리적 거리 (렌더링 좌표 기준이 아니라 논리 좌표 기준)
+                        const d = Math.hypot(car.x - other.x, car.y - other.y);
+                        
+                        // 감지 범위 (약 0.8타일)
+                        if (d < 0.9) {
+                            // 내 진행 방향에 있는지 확인 (내적)
+                            const toOtherX = other.x - car.x;
+                            const toOtherY = other.y - car.y;
+                            const dot = dirX * toOtherX + dirY * toOtherY;
+                            
+                            // 내 앞쪽(dot > 0)에 있고 가까우면 정체로 판단
+                            // 우측통행이므로 반대편 차선 차량은 무시해야 함 (dot product가 도와줌)
+                            // dot > 0.5 (확실히 전방)
+                            if (dot > 0.5) {
+                                blocked = true;
+                                blockingCar = other;
+                                break;
+                            }
+                        }
+                    }
+
+                    // --- 교차로(타일) 진입 제어 ---
+                    // 내가 진입하려는 타일(nextTile)에 다른 차가 있는가? (순차 통과)
+                    // 단, 나랑 같은 방향으로 가는 차는 '앞차 거리' 로직으로 처리됨.
+                    // 나랑 다른 방향(교차하는) 차가 있을 때만 멈춰야 함.
+                    // 타일 진입 직전 (거리 0.5 미만 남았을 때) 검사
+                    if (distRemaining < 0.8 && !blocked) {
+                        for (let other of this.cars) {
+                            if (car === other) continue;
+                            
+                            // 상대방이 내가 가려는 타일(nextTile) 근처에 있는가?
+                            const distToNext = Math.hypot(other.x - nextTile.x, other.y - nextTile.y);
+                            
+                            // 교차로 점유 판단 (중심부 0.6 이내)
+                            if (distToNext < 0.6) {
+                                // 상대방의 진행 방향 확인
+                                // nextTile이 other의 path에 포함되어 있는지 등으로 판단 가능하지만,
+                                // 간단하게: 상대방이 내가 가는 방향과 "크게 다르면" 멈춤 (교차 차량)
+                                // 혹은 단순히 "교차로 안에 누군가 있으면 진입 금지" (가장 안전)
+                                
+                                // 예외: 같은 라인에서 따라가는 경우 (거리두기로 처리됨)
+                                const otherNextIndex = other.targetIndex;
+                                if (other.path && otherNextIndex < other.path.length) {
+                                    const oNext = other.path[otherNextIndex];
+                                    if (oNext.x === nextTile.x && oNext.y === nextTile.y) {
+                                        // 같은 타일을 향해 가고 있음 -> 순서 양보
+                                        // 거리가 더 가까운 차가 우선
+                                        const otherDistRem = Math.hypot(nextTile.x - other.x, nextTile.y - other.y);
+                                        if (otherDistRem < distRemaining) {
+                                            blocked = true;
+                                            break;
+                                        }
+                                    } else {
+                                        // 이미 타일 안에 있거나 다른 곳에서 진입 중
+                                        blocked = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (blocked) {
+                        // 감속
+                        car.speed *= 0.9;
+                    } else {
+                        // 가속
+                        if (car.speed < car.maxSpeed) car.speed += 0.002;
+                    }
+
+                    // 이동 실행
+                    if (distRemaining <= car.speed) {
+                        car.x = targetX;
+                        car.y = targetY;
+                        car.targetIndex++;
+                    } else {
+                        // 이동 벡터
+                        car.x += (curDx / distRemaining) * car.speed;
+                        car.y += (curDy / distRemaining) * car.speed;
+                        
+                        // 회전 각도 계산
+                        car.angle = Math.atan2(curDy, curDx);
+                    }
+                    
+                    // 디스플레이 좌표 업데이트 (보간 없이 직접 사용)
+                    car.displayX = car.x;
+                    car.displayY = car.y;
+                }
+
+                if (car.finished) {
+                    this.score++;
+                    this.updateUI();
+                    this.createParticles(car.x * TILE_SIZE + TILE_SIZE/2, car.y * TILE_SIZE + TILE_SIZE/2, car.color);
+                    this.cars.splice(i, 1);
+                }
+            }
+            
+            for (let i = this.particles.length - 1; i >= 0; i--) {
+                const p = this.particles[i];
+                p.life--;
+                p.x += p.vx;
+                p.y += p.vy;
+                if(p.life <= 0) this.particles.splice(i, 1);
+            }
+        }
+
+        createParticles(x, y, color) {
+            for(let i=0; i<8; i++) {
+                this.particles.push({
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: (Math.random() - 0.5) * 4,
+                    life: 20 + Math.random() * 20,
+                    color: color
+                });
+            }
+        }
+
+        draw() {
+            this.ctx.fillStyle = '#fdfdfd';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+            // 그리드 선
+            this.ctx.strokeStyle = '#f0f0f0';
+            this.ctx.lineWidth = 1;
+            this.ctx.beginPath();
+            for(let x=0; x<=GRID_WIDTH; x++) {
+                this.ctx.moveTo(x*TILE_SIZE, 0);
+                this.ctx.lineTo(x*TILE_SIZE, this.canvas.height);
+            }
+            for(let y=0; y<=GRID_HEIGHT; y++) {
+                this.ctx.moveTo(0, y*TILE_SIZE);
+                this.ctx.lineTo(this.canvas.width, y*TILE_SIZE);
+            }
+            this.ctx.stroke();
+
+            // 도로 그리기
+            for (let x = 0; x < GRID_WIDTH; x++) {
+                for (let y = 0; y < GRID_HEIGHT; y++) {
+                    if (this.grid[x][y].type === TYPE.ROAD) {
+                        this.drawRoadTile(x, y);
+                    }
+                }
+            }
+
+            // 드래그 미리보기
+            if (this.isDragging && this.dragPath.length > 0) {
+                this.ctx.fillStyle = this.isErasing ? 'rgba(239, 83, 80, 0.5)' : COLORS.ROAD_Preview;
+                for (let p of this.dragPath) {
+                    this.ctx.fillRect(p.x * TILE_SIZE, p.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
+                this.ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                if (this.dragPath.length > 0) {
+                     const start = this.dragPath[0];
+                     this.ctx.moveTo(start.x*TILE_SIZE + TILE_SIZE/2, start.y*TILE_SIZE + TILE_SIZE/2);
+                     for(let i=1; i<this.dragPath.length; i++) {
+                         const p = this.dragPath[i];
+                         this.ctx.lineTo(p.x*TILE_SIZE + TILE_SIZE/2, p.y*TILE_SIZE + TILE_SIZE/2);
+                     }
+                }
+                this.ctx.stroke();
+            }
+
+            // 건물 그리기
+            this.buildings.forEach(b => {
+                const cx = b.x * TILE_SIZE + TILE_SIZE / 2;
+                const cy = b.y * TILE_SIZE + TILE_SIZE / 2;
+                
+                this.ctx.fillStyle = b.color;
+                
+                if (b.type === TYPE.HOUSE) {
+                    this.ctx.fillRect(cx - 14, cy - 14, 28, 28);
+                    this.ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(cx - 14, cy - 14);
+                    this.ctx.lineTo(cx + 14, cy + 14);
+                    this.ctx.lineTo(cx - 14, cy + 14);
+                    this.ctx.fill();
+
+                } else {
+                    this.ctx.beginPath();
+                    this.ctx.arc(cx, cy, 16, 0, Math.PI*2);
+                    this.ctx.fill();
+                    this.ctx.strokeStyle = '#fff';
+                    this.ctx.lineWidth = 3;
+                    this.ctx.stroke();
+                }
+
+                // 화살표
+                const dirIdx = ROTATION_TO_DIR[b.rotation];
+                const dir = DIRS[dirIdx];
+                const arrowX = cx + dir.dx * 16;
+                const arrowY = cy + dir.dy * 16;
+                
+                this.ctx.fillStyle = '#333';
+                this.ctx.beginPath();
+                const perpX = -dir.dy; 
+                const perpY = dir.dx;
+                this.ctx.moveTo(arrowX, arrowY);
+                this.ctx.lineTo(arrowX - dir.dx*6 + perpX*4, arrowY - dir.dy*6 + perpY*4);
+                this.ctx.lineTo(arrowX - dir.dx*6 - perpX*4, arrowY - dir.dy*6 - perpY*4);
+                this.ctx.fill();
+            });
+
+            // 자동차 그리기 (직사각형 차량)
+            this.cars.forEach(car => {
+                const cx = car.displayX * TILE_SIZE + TILE_SIZE / 2;
+                const cy = car.displayY * TILE_SIZE + TILE_SIZE / 2;
+
+                this.ctx.save();
+                this.ctx.translate(cx, cy);
+                this.ctx.rotate(car.angle);
+
+                // 차체 (직사각형)
+                this.ctx.fillStyle = car.color;
+                // 길이 14, 너비 8
+                const len = 14;
+                const wid = 8;
+                this.ctx.fillRect(-len/2, -wid/2, len, wid);
+
+                // 앞유리 (검정)
+                this.ctx.fillStyle = '#333';
+                this.ctx.fillRect(0, -wid/2 + 1, 4, wid - 2);
+
+                // 헤드라이트 (노랑)
+                this.ctx.fillStyle = '#ffeb3b';
+                this.ctx.fillRect(len/2 - 2, -wid/2 + 1, 2, 2);
+                this.ctx.fillRect(len/2 - 2, wid/2 - 3, 2, 2);
+
+                // 후미등 (빨강)
+                this.ctx.fillStyle = '#f44336';
+                this.ctx.fillRect(-len/2, -wid/2 + 1, 2, 2);
+                this.ctx.fillRect(-len/2, wid/2 - 3, 2, 2);
+
+                this.ctx.restore();
+            });
+
+            this.particles.forEach(p => {
+                this.ctx.fillStyle = p.color;
+                this.ctx.globalAlpha = p.life / 20;
+                this.ctx.beginPath();
+                this.ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                this.ctx.fill();
+                this.ctx.globalAlpha = 1.0;
+            });
+        }
+
+        drawRoadTile(x, y) {
+            const cx = x * TILE_SIZE + TILE_SIZE / 2;
+            const cy = y * TILE_SIZE + TILE_SIZE / 2;
+            const cell = this.grid[x][y];
+            
+            this.ctx.fillStyle = COLORS.ROAD;
+            this.ctx.strokeStyle = COLORS.ROAD;
+            // 도로 폭 확장 (0.5 -> 0.75)
+            this.ctx.lineWidth = TILE_SIZE * 0.75; 
+            this.ctx.lineCap = 'round';
+            this.ctx.lineJoin = 'round';
+
+            this.ctx.beginPath();
+            this.ctx.moveTo(cx, cy);
+
+            for(let i=0; i<8; i++) {
+                if(cell.connections[i]) {
+                    this.ctx.moveTo(cx, cy);
+                    if (i % 2 !== 0) {
+                        this.ctx.lineTo(cx + DIRS[i].dx * TILE_SIZE * 0.5, cy + DIRS[i].dy * TILE_SIZE * 0.5);
+                    } else {
+                        this.ctx.lineTo(cx + DIRS[i].dx * TILE_SIZE * 0.5, cy + DIRS[i].dy * TILE_SIZE * 0.5);
+                    }
+                }
+            }
+            
+            if (!cell.connections.includes(true)) {
+                 this.ctx.arc(cx, cy, TILE_SIZE * 0.25, 0, Math.PI*2);
+            }
+
+            this.ctx.stroke();
+
+            // 중앙 원 (교차로)
+            this.ctx.beginPath();
+            this.ctx.arc(cx, cy, TILE_SIZE * 0.35, 0, Math.PI*2);
+            this.ctx.fill();
+
+            // 차선 (중앙선) - 노란색 점선 등으로 변경하거나 얇은 실선
+            this.ctx.strokeStyle = 'rgba(255, 235, 59, 0.4)'; // 노란색 중앙선 느낌
+            this.ctx.lineWidth = 1;
+            this.ctx.beginPath();
+            for(let i=0; i<8; i++) {
+                if(cell.connections[i]) {
+                    this.ctx.moveTo(cx, cy);
+                    this.ctx.lineTo(cx + DIRS[i].dx * TILE_SIZE * 0.5, cy + DIRS[i].dy * TILE_SIZE * 0.5);
+                }
+            }
+            this.ctx.stroke();
+        }
+
+        loop() {
+            this.update();
+            this.draw();
+            requestAnimationFrame(() => this.loop());
+        }
+    }
+
+    window.onload = () => {
+        const game = new Game('gameCanvas');
+    };
+
+</script>
+
+</body>
+</html>
