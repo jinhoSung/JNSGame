@@ -143,6 +143,33 @@
             z-index: 10;
         }
 
+        /* 자동 스킬 버튼 */
+        #auto-skill-btn {
+            position: absolute;
+            bottom: 110px; /* 스킬바 위쪽 */
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.8);
+            color: #94a3b8;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-weight: 800;
+            font-size: 0.9rem;
+            border: 1px solid #475569;
+            cursor: pointer;
+            z-index: 10;
+            pointer-events: auto;
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+        #auto-skill-btn.active {
+            background: linear-gradient(135deg, #4f46e5, #8b5cf6);
+            color: white;
+            border-color: #a78bfa;
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.6);
+        }
+        #auto-skill-btn:hover { transform: translateX(-50%) scale(1.05); }
+
         .skill-slot {
             display: flex;
             flex-direction: column;
@@ -399,6 +426,8 @@
         <div id="achievement-container"></div>
     </div>
     
+    <div id="auto-skill-btn" onclick="toggleAutoSkill()">AUTO: OFF</div>
+
     <div id="skill-bar">
         <div class="skill-slot" id="slot-bomb" onclick="activateSkill('bomb')">
             <div class="skill-icon">💣<div class="skill-overlay" id="cd-bomb"></div><div class="skill-active-glow" id="glow-bomb"></div></div>
@@ -457,6 +486,7 @@
         // --- 1. GLOBAL VARIABLES ---
         let canvas, ctx;
         let scoreEl, timerEl, upgradeScreen, upgradeMoneyEl, totalLevelEl, treeContainer, startOverlay, ingameUi, comboBox, comboValEl, passiveStatsEl, pauseOverlay;
+        let autoSkillBtn; // Auto Skill Button
         let slotBomb, slotStasis, slotSurge, slotStorm;
         let cdBomb, cdStasis, cdSurge, cdStorm;
         let glowBomb, glowStasis, glowSurge, glowStorm;
@@ -478,13 +508,16 @@
             { id: 'time', name: '시간 왜곡', desc: '제한 시간 증가.', icon: '⏳', tier: 1, level: 0, maxLevel: 50, baseCost: 200, mult: 1.5, val: 10, inc: 1.5 }, // 시간 기본값 10초
 
             // Tier 2
-            { id: 'value', name: '채굴 효율', desc: '행성 가치 상승.', icon: '💎', tier: 2, level: 0, maxLevel: 99, baseCost: 300, mult: 1.5, val: 1.0, inc: 0.5 },
+            // 버프: 가치 증가량 1.0 -> 5.0 (5배 상향)
+            { id: 'value', name: '채굴 효율', desc: '행성 가치 상승.', icon: '💎', tier: 2, level: 0, maxLevel: 99, baseCost: 300, mult: 1.5, val: 1.0, inc: 5.0 }, 
             // Skill Bomb: Levelable
             { id: 'unlock_bomb', name: '중력 폭탄 [Skill]', desc: '[Q] 주변 행성 당기기. 레벨업 시 위력 증가/쿨타임 감소.', icon: '💣', type: 'skill', tier: 2, level: 0, maxLevel: 50, baseCost: 1000, mult: 1.5, val: 0, inc: 0.3 },
             { id: 'heavy', name: '고중력', desc: '무거운 행성 무게 무시.', icon: '⚓', tier: 2, level: 0, maxLevel: 20, baseCost: 350, mult: 1.5, val: 1.0, inc: 0.2 },
 
             // Tier 3
             { id: 'attract_range', name: '자연 중력', desc: '블랙홀 기본 흡입 범위.', icon: '🌑', tier: 3, level: 0, maxLevel: 20, baseCost: 800, mult: 1.5, val: 150, inc: 20 },
+            // New Upgrade: Planetary Scanner (Increase rare spawn chance)
+            { id: 'planetary_scanner', name: '행성 스캐너', desc: '고급 행성 등장 확률 증가.', icon: '📡', tier: 3, level: 0, maxLevel: 20, baseCost: 2500, mult: 2.0, val: 0, inc: 10 }, // % increase
             { id: 'tier_unlock', name: '심우주 탐사', desc: '더 높은 등급 행성 발견.', icon: '🔭', tier: 3, level: 0, maxLevel: 5, baseCost: 2000, mult: 3.0, val: 1, inc: 1 },
             { id: 'lightning_unlock', name: '뇌전 행성', desc: '체인 라이트닝 행성 등장.', icon: '⚡', tier: 3, level: 0, maxLevel: 1, baseCost: 3000, mult: 1, val: 0, inc: 1 },
             
@@ -494,8 +527,8 @@
             // 버프: 당기는 힘 대폭 상향 (40 -> 150)
             { id: 'l_force', name: '전자기장', desc: '체인 라이트닝의 당기는 힘 증가.', icon: '🧲', tier: 4, level: 0, maxLevel: 20, baseCost: 5000, mult: 1.5, val: 150, inc: 30 },
             { id: 'crit', name: '행성 붕괴', desc: '가치 2배 크리티컬 확률.', icon: '💥', tier: 4, level: 0, maxLevel: 20, baseCost: 2500, mult: 1.5, val: 0, inc: 2 },
-            { id: 'l_range', name: '전이 범위', desc: '체인 라이트닝 거리.', icon: '📡', tier: 4, level: 0, maxLevel: 20, baseCost: 4000, mult: 1.6, val: 150, inc: 10 }, 
-            { id: 'l_count', name: '과부하', desc: '체인 라이트닝 타겟 수.', icon: '🔗', tier: 4, level: 0, maxLevel: 10, baseCost: 4500, mult: 1.8, val: 3, inc: 1.5 },
+            { id: 'l_range', name: '전이 범위', desc: '체인 라이트닝 거리.', icon: '📡', tier: 4, level: 0, maxLevel: 10, baseCost: 4000, mult: 1.6, val: 150, inc: 10 }, 
+            { id: 'l_count', name: '과부하', desc: '체인 라이트닝 타겟 수.', icon: '🔗', tier: 4, level: 0, maxLevel: 10, baseCost: 4500, mult: 1.8, val: 1, inc: 1 },
 
             // Tier 5
             // Skill Surge: Levelable
@@ -526,7 +559,8 @@
             { id: 'skill_mastery', name: '스킬 마스터리', desc: '모든 스킬 쿨타임 감소.', icon: '🎓', tier: 10, level: 0, maxLevel: 20, baseCost: 300000, mult: 2.0, val: 0, inc: 5 }, // %
             { id: 'star_unlock', name: '항성 발견', desc: '스스로 빛나는 별 발견.', icon: '☀️', tier: 10, level: 0, maxLevel: 1, baseCost: 500000, mult: 1, val: 0, inc: 1 },
             
-            { id: 'nucleosynthesis', name: '핵융합', desc: '모든 행성 가치 대폭 증가.', icon: '☢️', tier: 11, level: 0, maxLevel: 50, baseCost: 400000, mult: 1.5, val: 1.0, inc: 0.5 },
+            // 버프: 핵융합 증가량 0.5 -> 10.0 (20배 상향)
+            { id: 'nucleosynthesis', name: '핵융합', desc: '모든 행성 가치 대폭 증가.', icon: '☢️', tier: 11, level: 0, maxLevel: 50, baseCost: 400000, mult: 1.5, val: 1.0, inc: 10.0 },
             { id: 'void_hunger', name: '중력 우물', desc: '자연 중력 흡입력 강화.', icon: '👿', tier: 11, level: 0, maxLevel: 10, baseCost: 600000, mult: 2.0, val: 1.0, inc: 0.5 },
             
             { id: 'event_horizon_ex', name: '사건의 지평선 II', desc: '블랙홀 크기 추가 확장.', icon: '⚫', tier: 12, level: 0, maxLevel: 10, baseCost: 700000, mult: 2.0, val: 0, inc: 5 },
@@ -602,6 +636,7 @@
             width: 0, height: 0, centerX: 0, centerY: 0, lastTime: 0,
             combo: 0, comboTimer: 0, shakeX: 0, shakeY: 0, shakeTime: 0, shakeAmount: 0,
             zoom: 1.0, bhAngle: 0, bhPulse: 0,
+            autoSkill: false, // New: Auto skill toggle
             skills: { 
                 bomb: { cd: 0, max: 15 }, 
                 stasis: { cd: 0, max: 30, dur: 0 }, 
@@ -732,6 +767,18 @@
                 }
             });
             return { mult, add };
+        }
+
+        function toggleAutoSkill() {
+            GAME.autoSkill = !GAME.autoSkill;
+            const btn = document.getElementById('auto-skill-btn');
+            if (GAME.autoSkill) {
+                btn.classList.add('active');
+                btn.innerText = "AUTO: ON";
+            } else {
+                btn.classList.remove('active');
+                btn.innerText = "AUTO: OFF";
+            }
         }
 
         // 3. CLASSES 
@@ -1026,15 +1073,26 @@
                 if (novaUnlocked) available.push(SHARD_TYPES[13]);
 
                 const luckBonus = getUpgrade('luck') ? getUpgrade('luck').val : 1;
+                // New Scanner Bonus
+                const scanner = getUpgrade('planetary_scanner');
+                const scannerBonus = (scanner && scanner.level > 0) ? (1 + scanner.val/100) : 1;
 
                 let type = null;
                 if (lightningUnlocked && Math.random() < 0.05 * luckBonus) type = SHARD_TYPES[4];
                 else {
-                    const totalW = available.reduce((a,b)=>a+(b.weight || 10), 0); // weight가 없으면 기본 10
+                    const totalW = available.reduce((a,b)=> {
+                        let w = b.weight !== undefined ? b.weight : 10;
+                        // Apply scanner bonus to rare planets (weight < 50)
+                        if(w < 50) w *= scannerBonus;
+                        return a + w;
+                    }, 0); 
+                    
                     let r = Math.random() * totalW;
                     type = available[0];
                     for(let t of available){
-                        const w = t.weight !== undefined ? t.weight : 10;
+                        let w = t.weight !== undefined ? t.weight : 10;
+                        if(w < 50) w *= scannerBonus;
+                        
                         if(r < w) { type = t; break; }
                         r -= w;
                     }
@@ -1242,6 +1300,19 @@
 
         function updateGame(dt) {
             if (GAME.paused) return;
+            
+            // Auto Skill Use Logic
+            if (GAME.autoSkill) {
+                const list = ['bomb', 'stasis', 'surge', 'storm'];
+                list.forEach(id => {
+                    const upgrade = UPGRADES.find(u => u.id === `unlock_${id}`);
+                    const skillData = GAME.skills[id];
+                    // 스킬이 해금되었고, 쿨타임이 0이면 자동 사용
+                    if (upgrade && upgrade.level > 0 && skillData.cd <= 0) {
+                        activateSkill(id);
+                    }
+                });
+            }
 
             GAME.bhAngle += dt; // Spin the black hole
             GAME.bhPulse += dt * 2; // Pulse effect
@@ -1297,13 +1368,9 @@
                         particles.push(new EffectParticle(0,0, '#94a3b8', 'shockwave'));
                         entities.forEach(target => {
                              const dist = Math.sqrt(target.x*target.x + target.y*target.y);
-                             
-                             // ** 수정됨: 질량 비례 힘 적용 ** // 가벼운 것은 아주 세게(1500/1 = 1500), 무거운 것은 약하게(1500/500 = 3) 당김
-                             // 이를 통해 자성 행성끼리의 무한 연쇄 폭발(Infinite Suction Bug)을 방지함
-                             const pullForce = 1500 / target.mass;
-                             
-                             target.vx += (-target.x/dist) * pullForce;
-                             target.vy += (-target.y/dist) * pullForce;
+                             // 200 -> 20 (too weak) -> 60 (Adjusted)
+                             target.vx += (-target.x/dist) * 60;
+                             target.vy += (-target.y/dist) * 60;
                         });
                     }
 
