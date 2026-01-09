@@ -651,21 +651,25 @@
             { id: 'orange', color: '#f59e0b', minR: 18, maxR: 24, mass: 15,  valMult: 8,  weight: 15 }, 
             { id: 'purple', color: '#8b5cf6', minR: 28, maxR: 35, mass: 40,  valMult: 20, weight: 5 },
             { id: 'electric', color: '#facc15', minR: 15, maxR: 20, mass: 30, valMult: 15, weight: 0, isLightning: true },
-            { id: 'giant',    color: '#ef4444', minR: 40, maxR: 60, mass: 80,  valMult: 50, weight: 0 },
-            { id: 'ringed',   color: '#d97706', minR: 50, maxR: 70, mass: 150, valMult: 100, weight: 0, hasRings: true },
-            { id: 'neutron',  color: '#ffffff', minR: 8,  maxR: 12, mass: 200, valMult: 300, weight: 0, glow: '#0ea5e9' },
-            { id: 'star',     color: '#f59e0b', minR: 80, maxR: 120, mass: 500, valMult: 200, weight: 0, isStar: true },
-            { id: 'quasar',   color: '#ec4899', minR: 30, maxR: 40, mass: 300, valMult: 500, weight: 0, pulse: true },
-            { id: 'comet', color: '#fbbf24', minR: 15, maxR: 20, mass: 20, valMult: 100, weight: 0, isComet: true },
-            { id: 'flux', color: '#3b82f6', minR: 15, maxR: 20, mass: 10, valMult: 10, weight: 0, isFlux: true },
-            // 자성 행성 등장 확률 대폭 하향 (weight: 0, unlock_magnet 업그레이드 후 별도 확률 적용)
-            // 아래 Shard 생성 로직에서 별도 처리되므로 여기선 weight를 낮추거나 로직을 수정해야 함.
-            // 현재 코드 구조상 available 배열에 추가되는 방식이므로, 
-            // unlock_magnet 업그레이드가 활성화되면 available에 추가되는데, 
-            // 이때 weight가 없으면(undefined) 기본값 10이 적용됨.
-            // 따라서 명시적으로 weight를 낮게 설정해야 함.
-            { id: 'magnet', color: '#94a3b8', minR: 15, maxR: 20, mass: 30, valMult: 20, weight: 2, isMagnet: true }, // weight 10 -> 2 (1/5 수준)
-            { id: 'nova', color: '#f97316', minR: 20, maxR: 25, mass: 50, valMult: 40, weight: 0, isNova: true }
+            
+            // weight 0 -> 5~20 으로 상향 (확률 버그 수정)
+            { id: 'giant',    color: '#ef4444', minR: 40, maxR: 60, mass: 80,  valMult: 50, weight: 20 },
+            { id: 'ringed',   color: '#d97706', minR: 50, maxR: 70, mass: 150, valMult: 100, weight: 15, hasRings: true },
+            { id: 'neutron',  color: '#ffffff', minR: 8,  maxR: 12, mass: 200, valMult: 300, weight: 10, glow: '#0ea5e9' },
+            { id: 'star',     color: '#f59e0b', minR: 80, maxR: 120, mass: 500, valMult: 200, weight: 8, isStar: true },
+            { id: 'black_dwarf', color: '#1f2937', minR: 100, maxR: 140, mass: 800, valMult: 400, weight: 5, isBlackDwarf: true },
+            { id: 'wormhole', color: '#8b5cf6', minR: 40, maxR: 50, mass: 100, valMult: 1000, weight: 3, isWormhole: true, glow: '#c084fc' },
+            { id: 'dark_matter', color: '#000000', minR: 20, maxR: 30, mass: 1000, valMult: 2000, weight: 2, stroke: '#6366f1' },
+            
+            // 신규 초월 행성 추가
+            { id: 'cosmic_cube', color: '#3b82f6', minR: 30, maxR: 40, mass: 500, valMult: 5000, weight: 1, isCube: true, glow: '#60a5fa' },
+            { id: 'void_heart', color: '#ef4444', minR: 25, maxR: 35, mass: 300, valMult: 10000, weight: 0.5, isHeart: true, pulse: true },
+
+            { id: 'quasar',   color: '#ec4899', minR: 30, maxR: 40, mass: 300, valMult: 500, weight: 5, pulse: true },
+            { id: 'comet', color: '#fbbf24', minR: 15, maxR: 20, mass: 20, valMult: 100, weight: 5, isComet: true },
+            { id: 'flux', color: '#3b82f6', minR: 15, maxR: 20, mass: 10, valMult: 10, weight: 5, isFlux: true },
+            { id: 'magnet', color: '#94a3b8', minR: 15, maxR: 20, mass: 30, valMult: 20, weight: 2, isMagnet: true },
+            { id: 'nova', color: '#f97316', minR: 20, maxR: 25, mass: 50, valMult: 40, weight: 5, isNova: true }
         ];
 
         // Global State
@@ -1127,6 +1131,8 @@
                 if (expansion >= 1.0) available.push(SHARD_TYPES[14]); // Black Dwarf (New)
                 if (expansion >= 1.2) available.push(SHARD_TYPES[15]); // Wormhole (New)
                 if (expansion >= 1.4) available.push(SHARD_TYPES[16]); // Dark Matter (New)
+                if (expansion >= 1.6) available.push(SHARD_TYPES[17]); // Cosmic Cube (New)
+                if (expansion >= 2.0) available.push(SHARD_TYPES[18]); // Void Heart (New)
 
                 const luckBonus = getUpgrade('luck') ? getUpgrade('luck').val : 1;
                 // New Scanner Bonus
@@ -1159,14 +1165,18 @@
                 
                 // 모양 랜덤화 (0: 원, 3: 삼각형, 4: 사각형, 5: 오각형, 6: 육각형)
                 this.sides = 0;
-                if(['blue', 'green', 'orange', 'purple', 'electric', 'giant', 'dark_matter'].includes(this.type.id)) {
-                    const shapes = [0, 3, 4, 5, 6]; 
-                    this.sides = shapes[Math.floor(Math.random() * shapes.length)];
+                if(['blue', 'green', 'orange', 'purple', 'electric', 'giant', 'dark_matter', 'cosmic_cube'].includes(this.type.id)) {
+                    if (this.type.id === 'cosmic_cube') this.sides = 4; // 큐브는 사각형 고정
+                    else {
+                        const shapes = [0, 3, 4, 5, 6]; 
+                        this.sides = shapes[Math.floor(Math.random() * shapes.length)];
+                    }
                 }
                 
                 // 자전 설정
                 this.rotation = Math.random() * Math.PI * 2;
                 this.spin = (Math.random() - 0.5) * 0.15; // 자전 속도
+                if (this.type.isCube) this.spin *= 2; // 큐브는 더 빨리 돎
 
                 const valueBonus = getUpgrade('value').val;
                 this.value = Math.floor(this.radius * 2 * type.valMult * valueBonus * VALUE_MULTIPLIER);
@@ -1340,6 +1350,19 @@
                         if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
                     }
                     ctx.closePath(); ctx.fill(); ctx.stroke();
+                } else if (this.type.isHeart) { // Void Heart
+                    ctx.shadowColor = '#ef4444'; ctx.shadowBlur = 40;
+                    const pulse = Math.sin(Date.now()/200)*0.2 + 1.0;
+                    ctx.scale(pulse, pulse);
+                    ctx.fillStyle = '#ef4444';
+                    ctx.beginPath();
+                    // Heart shape logic
+                    const r = this.radius;
+                    ctx.moveTo(0, r*0.3);
+                    ctx.bezierCurveTo(r*0.5, -r*0.5, r*1.5, r*0.5, 0, r*1.5);
+                    ctx.bezierCurveTo(-r*1.5, r*0.5, -r*0.5, -r*0.5, 0, r*0.3);
+                    ctx.fill();
+                    ctx.scale(1/pulse, 1/pulse);
                 } else {
                     // 다각형 그리기 로직
                     ctx.beginPath();
@@ -1471,7 +1494,7 @@
                         // 자성 행성 흡입력 조정 (무게 비례)
                         const magnetUpgrade = UPGRADES.find(u => u.id === 'unlock_magnet');
                         // 기본 힘 600, 레벨당 20 증가
-                        const magnetForce = 200 + ((magnetUpgrade ? magnetUpgrade.level : 0) * 15);
+                        const magnetForce = 600 + ((magnetUpgrade ? magnetUpgrade.level : 0) * 20);
 
                         entities.forEach(target => {
                              const dist = Math.sqrt(target.x*target.x + target.y*target.y);
