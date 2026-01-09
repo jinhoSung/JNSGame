@@ -655,14 +655,15 @@
             { id: 'ringed',   color: '#d97706', minR: 50, maxR: 70, mass: 150, valMult: 100, weight: 0, hasRings: true },
             { id: 'neutron',  color: '#ffffff', minR: 8,  maxR: 12, mass: 200, valMult: 300, weight: 0, glow: '#0ea5e9' },
             { id: 'star',     color: '#f59e0b', minR: 80, maxR: 120, mass: 500, valMult: 200, weight: 0, isStar: true },
-            // 신규 초고등급 행성 추가
-            { id: 'black_dwarf', color: '#1f2937', minR: 100, maxR: 140, mass: 800, valMult: 400, weight: 0, isBlackDwarf: true }, // 블랙 드워프
-            { id: 'wormhole', color: '#8b5cf6', minR: 40, maxR: 50, mass: 100, valMult: 1000, weight: 0, isWormhole: true, glow: '#c084fc' }, // 웜홀 파편
-            { id: 'dark_matter', color: '#000000', minR: 20, maxR: 30, mass: 1000, valMult: 2000, weight: 0, stroke: '#6366f1' }, // 다크 매터
-
             { id: 'quasar',   color: '#ec4899', minR: 30, maxR: 40, mass: 300, valMult: 500, weight: 0, pulse: true },
             { id: 'comet', color: '#fbbf24', minR: 15, maxR: 20, mass: 20, valMult: 100, weight: 0, isComet: true },
             { id: 'flux', color: '#3b82f6', minR: 15, maxR: 20, mass: 10, valMult: 10, weight: 0, isFlux: true },
+            // 자성 행성 등장 확률 대폭 하향 (weight: 0, unlock_magnet 업그레이드 후 별도 확률 적용)
+            // 아래 Shard 생성 로직에서 별도 처리되므로 여기선 weight를 낮추거나 로직을 수정해야 함.
+            // 현재 코드 구조상 available 배열에 추가되는 방식이므로, 
+            // unlock_magnet 업그레이드가 활성화되면 available에 추가되는데, 
+            // 이때 weight가 없으면(undefined) 기본값 10이 적용됨.
+            // 따라서 명시적으로 weight를 낮게 설정해야 함.
             { id: 'magnet', color: '#94a3b8', minR: 15, maxR: 20, mass: 30, valMult: 20, weight: 2, isMagnet: true }, // weight 10 -> 2 (1/5 수준)
             { id: 'nova', color: '#f97316', minR: 20, maxR: 25, mass: 50, valMult: 40, weight: 0, isNova: true }
         ];
@@ -1137,10 +1138,6 @@
                 else {
                     const totalW = available.reduce((a,b)=> {
                         let w = b.weight !== undefined ? b.weight : 10;
-                        // Tier unlock bonus for higher tiers
-                        if (tierLvl >= 5 && (b.id === 'giant' || b.id === 'ringed')) w += 5;
-                        if (tierLvl >= 10 && (b.id === 'neutron' || b.id === 'star')) w += 5;
-
                         // Apply scanner bonus to rare planets (weight < 50)
                         if(w < 50) w *= scannerBonus;
                         return a + w;
@@ -1150,9 +1147,6 @@
                     type = available[0];
                     for(let t of available){
                         let w = t.weight !== undefined ? t.weight : 10;
-                        if (tierLvl >= 5 && (t.id === 'giant' || t.id === 'ringed')) w += 5;
-                        if (tierLvl >= 10 && (t.id === 'neutron' || t.id === 'star')) w += 5;
-
                         if(w < 50) w *= scannerBonus;
                         
                         if(r < w) { type = t; break; }
@@ -1473,11 +1467,21 @@
                         audio.playSkill('bomb'); // Use bomb sound
                         GAME.shakeTime = 0.5; GAME.shakeAmount = 15;
                         particles.push(new EffectParticle(0,0, '#94a3b8', 'shockwave'));
+                        
+                        // 자성 행성 흡입력 조정 (무게 비례)
+                        const magnetUpgrade = UPGRADES.find(u => u.id === 'unlock_magnet');
+                        // 기본 힘 600, 레벨당 20 증가
+                        const magnetForce = 600 + ((magnetUpgrade ? magnetUpgrade.level : 0) * 20);
+
                         entities.forEach(target => {
                              const dist = Math.sqrt(target.x*target.x + target.y*target.y);
-                             // 200 -> 20 (too weak) -> 60 (Adjusted)
-                             target.vx += (-target.x/dist) * 60;
-                             target.vy += (-target.y/dist) * 60;
+                             
+                             // ** 수정됨: 질량 비례 힘 적용 ** // 가벼운 것은 아주 세게, 무거운 것은 약하게 당김
+                             // 이를 통해 자성 행성끼리의 무한 연쇄 폭발(Infinite Suction Bug)을 방지함
+                             const pullForce = magnetForce / target.mass;
+                             
+                             target.vx += (-target.x/dist) * pullForce;
+                             target.vy += (-target.y/dist) * pullForce;
                         });
                     }
 
@@ -1863,8 +1867,8 @@
                 GAME.shakeTime = 0.5; GAME.shakeAmount = 20;
                 particles.push(new EffectParticle(0,0, '#ef4444', 'shockwave'));
                 
-                // 밸런스 조정: 초기 위력 50, 레벨당 +15 (기존 150 고정에서 변경)
-                const baseForce = 30 + (upgrade.level * 5);
+                // 밸런스 조정: 초기 위력 50, 레벨당 +2 (기존 레벨당 +5에서 변경)
+                const baseForce = 30 + (upgrade.level * 2);
                 const finalForce = baseForce * gamma;
 
                 entities.forEach(e => {
