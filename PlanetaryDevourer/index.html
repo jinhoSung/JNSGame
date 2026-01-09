@@ -798,12 +798,12 @@
                 const timeScale = dt * 60;
                 if(this.type === 'gravity_suck') {
                     const dist = Math.sqrt(this.x*this.x + this.y*this.y);
-                    const speed = 10 * timeScale; // Constant suction speed
+                    const speed = 15 * timeScale; // 속도 약간 상향
                     
-                    if (dist < 20 || dist < speed) { // Reached center (approx blackhole radius)
+                    // 블랙홀 중심에 도달하거나 지나치면 즉시 소멸
+                    if (dist < 10 || dist < speed) { 
                         this.life = 0;
                     } else {
-                        // Direct movement towards center without momentum overshoot
                         const angle = Math.atan2(0 - this.y, 0 - this.x);
                         this.x += Math.cos(angle) * speed;
                         this.y += Math.sin(angle) * speed;
@@ -1282,9 +1282,13 @@
                         particles.push(new EffectParticle(0,0, '#94a3b8', 'shockwave'));
                         entities.forEach(target => {
                              const dist = Math.sqrt(target.x*target.x + target.y*target.y);
-                             // 200 -> 20 (too weak) -> 60 (Adjusted)
-                             target.vx += (-target.x/dist) * 60;
-                             target.vy += (-target.y/dist) * 60;
+                             
+                             // ** 수정됨: 질량 비례 힘 적용 ** // 가벼운 것은 아주 세게(1500/1 = 1500), 무거운 것은 약하게(1500/500 = 3) 당김
+                             // 이를 통해 자성 행성끼리의 무한 연쇄 폭발(Infinite Suction Bug)을 방지함
+                             const pullForce = 1500 / target.mass;
+                             
+                             target.vx += (-target.x/dist) * pullForce;
+                             target.vy += (-target.y/dist) * pullForce;
                         });
                     }
 
