@@ -643,6 +643,7 @@
             { id: 'archmage2', name: '초월적 지성2', desc: '총 연구 레벨 1000 달성', req: { type: 'level', val: 1000 }, bonus: 'value', amount: 2.0 },
             { id: 'archmage3', name: '초월적 지성3', desc: '총 연구 레벨 1500 달성', req: { type: 'level', val: 1500 }, bonus: 'force', amount: 0.5 },
             { id: 'archmage4', name: '초월적 지성4', desc: '총 연구 레벨 2000 달성', req: { type: 'level', val: 2000 }, bonus: 'crit', amount: 50 },
+
         ];
 
         const SHARD_TYPES = [
@@ -1144,8 +1145,15 @@
                 else {
                     const totalW = available.reduce((a,b)=> {
                         let w = b.weight !== undefined ? b.weight : 10;
+                        
+                        // **고위 행성 확률 보정 (대폭 상향)**
+                        // 해금된 고위 행성들이 확실하게 등장하도록 가중치를 높임
+                        if (tierLvl >= 5 && (b.id === 'giant' || b.id === 'ringed')) w += 40; // 기존 5 -> 40
+                        if (tierLvl >= 10 && (b.id === 'neutron' || b.id === 'star')) w += 50; // 기존 5 -> 50
+                        if (expansion >= 1.0 && (b.id === 'black_dwarf' || b.id === 'wormhole')) w += 60; // 신규
+
                         // Apply scanner bonus to rare planets (weight < 50)
-                        if(w < 50) w *= scannerBonus;
+                        if(w < 100) w *= scannerBonus; // 기준값 상향 (50 -> 100)
                         return a + w;
                     }, 0); 
                     
@@ -1153,7 +1161,13 @@
                     type = available[0];
                     for(let t of available){
                         let w = t.weight !== undefined ? t.weight : 10;
-                        if(w < 50) w *= scannerBonus;
+                        
+                        // 확률 보정 로직 동일하게 적용
+                        if (tierLvl >= 5 && (t.id === 'giant' || t.id === 'ringed')) w += 40;
+                        if (tierLvl >= 10 && (t.id === 'neutron' || t.id === 'star')) w += 50;
+                        if (expansion >= 1.0 && (t.id === 'black_dwarf' || t.id === 'wormhole')) w += 60;
+
+                        if(w < 100) w *= scannerBonus;
                         
                         if(r < w) { type = t; break; }
                         r -= w;
