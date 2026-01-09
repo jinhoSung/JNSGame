@@ -339,6 +339,15 @@
         .card:hover:not(.disabled):not(.locked) { transform: translateY(-3px); box-shadow: 0 10px 15px rgba(0,0,0,0.3); border-color: #8b5cf6; background: #273549; }
         .card.disabled { opacity: 0.6; filter: grayscale(0.8); }
         .card.locked { background: #0f172a; border: 1px dashed #334155; cursor: not-allowed; opacity: 0.7; align-items: center; justify-content: center; color: #64748b; }
+        
+        /* Maxed out card style */
+        .card.maxed { 
+            border-color: #10b981; /* Green border */
+            background: #0f291e;   /* Dark green background tint */
+            cursor: default;
+        }
+        .card.maxed:hover { transform: none; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+
         .card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
         .card-icon { font-size: 24px; }
         .card-name { font-weight: 800; font-size: 0.85rem; color: #f1f5f9; line-height: 1.2; }
@@ -570,7 +579,7 @@
             { id: 'green',  color: '#10b981', minR: 12, maxR: 16, mass: 5,   valMult: 3,  weight: 30 }, 
             { id: 'orange', color: '#f59e0b', minR: 18, maxR: 24, mass: 15,  valMult: 8,  weight: 15 }, 
             { id: 'purple', color: '#8b5cf6', minR: 28, maxR: 35, mass: 40,  valMult: 20, weight: 5 },
-            { id: 'electric', color: '#facc15', minR: 15, maxR: 20, mass: 30, valMult: 15, weight: 0, isLightning: true },
+            { id: 'electric', color: '#facc15', minR: 15, maxR: 20, mass: 30, valMult: 15, weight: 1, isLightning: true },
             { id: 'giant',    color: '#ef4444', minR: 40, maxR: 60, mass: 80,  valMult: 50, weight: 0 },
             { id: 'ringed',   color: '#d97706', minR: 50, maxR: 70, mass: 150, valMult: 100, weight: 0, hasRings: true },
             { id: 'neutron',  color: '#ffffff', minR: 8,  maxR: 12, mass: 200, valMult: 300, weight: 0, glow: '#0ea5e9' },
@@ -1292,7 +1301,7 @@
                              
                              // ** 수정됨: 질량 비례 힘 적용 ** // 가벼운 것은 아주 세게(1500/1 = 1500), 무거운 것은 약하게(1500/500 = 3) 당김
                              // 이를 통해 자성 행성끼리의 무한 연쇄 폭발(Infinite Suction Bug)을 방지함
-                             const pullForce = 100 / target.mass;
+                             const pullForce = 80 / target.mass;
                              
                              target.vx += (-target.x/dist) * pullForce;
                              target.vy += (-target.y/dist) * pullForce;
@@ -1601,8 +1610,12 @@
 
                 tierUpgrades.forEach(u => {
                     const el = document.createElement('div');
-                    el.className = `card ${locked ? 'locked' : ''}`;
+                    // Check if max level reached
                     const isMax = u.level >= u.maxLevel;
+                    
+                    // Add 'maxed' class if max level
+                    el.className = `card ${locked ? 'locked' : ''} ${isMax ? 'maxed' : ''}`;
+                    
                     const cost = Math.floor(u.baseCost * Math.pow(u.mult, u.level));
                     
                     if (locked) {
@@ -1610,7 +1623,10 @@
                     } else {
                         if (GAME.money < cost && !isMax) el.classList.add('disabled');
                         
-                        el.onclick = () => buyUpgrade(u);
+                        // Only add click handler if not maxed
+                        if (!isMax) {
+                            el.onclick = () => buyUpgrade(u);
+                        }
                         
                         el.innerHTML = `
                             <div class="card-lvl ${isMax ? 'max-lvl' : ''}">Lv.${u.level}</div>
