@@ -70,20 +70,39 @@
             text-align: center;
             opacity: 0;
             transition: opacity 0.2s, transform 0.1s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
         .combo-val {
-            /* 폰트 크기 축소: 4rem -> 2.5rem */
             font-size: 2.5rem; 
             font-weight: 900; 
             background: linear-gradient(to bottom, #fcd34d, #f59e0b);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             font-style: italic;
+            line-height: 1.2;
         }
         .combo-label { 
-            /* 라벨 크기 축소: 1.2rem -> 1rem */
             font-size: 1rem; 
             color: #fbbf24; font-weight: 700; letter-spacing: 2px; 
+            margin-bottom: 5px;
+        }
+        /* 콤보 게이지 바 스타일 추가 */
+        .combo-bar-bg {
+            width: 100%;
+            max-width: 120px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .combo-bar-fill {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #fcd34d, #f59e0b);
+            transform-origin: left;
+            transition: width 0.1s linear;
         }
 
         /* 업적 알림 UI */
@@ -422,6 +441,8 @@
         <div class="combo-box" id="combo-box">
             <div class="combo-val" id="combo-val">x1.0</div>
             <div class="combo-label">COMBO!</div>
+            <!-- 콤보 게이지 바 추가 -->
+            <div class="combo-bar-bg"><div id="combo-bar-fill" class="combo-bar-fill"></div></div>
         </div>
         <div id="achievement-container"></div>
     </div>
@@ -487,6 +508,7 @@
         let canvas, ctx;
         let scoreEl, timerEl, upgradeScreen, upgradeMoneyEl, totalLevelEl, treeContainer, startOverlay, ingameUi, comboBox, comboValEl, passiveStatsEl, pauseOverlay;
         let autoSkillBtn; // Auto Skill Button
+        let comboBarFill; // Combo bar
         let slotBomb, slotStasis, slotSurge, slotStorm;
         let cdBomb, cdStasis, cdSurge, cdStorm;
         let glowBomb, glowStasis, glowSurge, glowStorm;
@@ -508,7 +530,6 @@
             { id: 'time', name: '시간 왜곡', desc: '제한 시간 증가.', icon: '⏳', tier: 1, level: 0, maxLevel: 50, baseCost: 200, mult: 1.5, val: 10, inc: 1.5 }, // 시간 기본값 10초
 
             // Tier 2
-            // 버프: 가치 증가량 1.0 -> 5.0 (5배 상향)
             { id: 'value', name: '채굴 효율', desc: '행성 가치 상승.', icon: '💎', tier: 2, level: 0, maxLevel: 99, baseCost: 300, mult: 1.5, val: 1.0, inc: 10.0 }, 
             // Skill Bomb: Levelable
             { id: 'unlock_bomb', name: '중력 폭탄 [Skill]', desc: '[Q] 주변 행성 당기기. 레벨업 시 위력 증가/쿨타임 감소.', icon: '💣', type: 'skill', tier: 2, level: 0, maxLevel: 50, baseCost: 1000, mult: 1.5, val: 0, inc: 0.3 },
@@ -549,7 +570,7 @@
             { id: 'interest', name: '암흑 물질 반응', desc: '라운드 종료 시 보유금 이자.', icon: '📈', tier: 7, level: 0, maxLevel: 10, baseCost: 15000, mult: 2.0, val: 0, inc: 1 },
             
             // Tier 8 ~ 20 (Expanded)
-            { id: 'singularity', name: '특이점', desc: '화면 전체 약한 중력장 생성.', icon: '⚛️', tier: 8, level: 0, maxLevel: 10, baseCost: 80000, mult: 3.0, val: 0, inc: 1 },
+            { id: 'singularity', name: '특이점', desc: '화면 전체 약한 중력장 생성.', icon: '⚛️', tier: 8, level: 0, maxLevel: 5, baseCost: 80000, mult: 3.0, val: 0, inc: 1 },
             { id: 'neutron_unlock', name: '중성자별', desc: '초고밀도 행성 발견.', icon: '🌟', tier: 8, level: 0, maxLevel: 1, baseCost: 200000, mult: 1, val: 0, inc: 1 },
             { id: 'unlock_nova', name: '노바 코어', desc: '흡수 시 폭발적인 흡입력을 발생시킵니다.', icon: '🎇', tier: 8, level: 0, maxLevel: 1, baseCost: 180000, mult: 1, val: 0, inc: 1 },
             
@@ -622,7 +643,6 @@
             { id: 'archmage2', name: '초월적 지성2', desc: '총 연구 레벨 1000 달성', req: { type: 'level', val: 1000 }, bonus: 'value', amount: 2.0 },
             { id: 'archmage3', name: '초월적 지성3', desc: '총 연구 레벨 1500 달성', req: { type: 'level', val: 1500 }, bonus: 'force', amount: 0.5 },
             { id: 'archmage4', name: '초월적 지성4', desc: '총 연구 레벨 2000 달성', req: { type: 'level', val: 2000 }, bonus: 'crit', amount: 50 },
-
         ];
 
         const SHARD_TYPES = [
