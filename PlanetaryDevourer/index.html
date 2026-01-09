@@ -795,10 +795,17 @@
             update(dt) {
                 const timeScale = dt * 60;
                 if(this.type === 'gravity_suck') {
-                    const dx = 0 - this.x; const dy = 0 - this.y;
-                    const angle = Math.atan2(dy, dx);
-                    this.vx += Math.cos(angle) * 50 * 0.1; this.vy += Math.sin(angle) * 50 * 0.1;
-                    this.x += this.vx * timeScale; this.y += this.vy * timeScale;
+                    const dist = Math.sqrt(this.x*this.x + this.y*this.y);
+                    const speed = 10 * timeScale; // Constant suction speed
+                    
+                    if (dist < 20 || dist < speed) { // Reached center (approx blackhole radius)
+                        this.life = 0;
+                    } else {
+                        // Direct movement towards center without momentum overshoot
+                        const angle = Math.atan2(0 - this.y, 0 - this.x);
+                        this.x += Math.cos(angle) * speed;
+                        this.y += Math.sin(angle) * speed;
+                    }
                 } else if (this.type === 'spiral_in') {
                     this.angle += 0.3 * timeScale;
                     this.dist -= 5 * timeScale; // 빨려드는 속도
@@ -1209,12 +1216,10 @@
                  // Spawn Sparks
                  for(let k=0; k<5; k++) particles.push(new EffectParticle(e.x, e.y, '#facc15', 'spark'));
 
-                 // Apply Pull Force with Min Distance Check (Fix infinite pull bug)
-                 // 거리가 0에 가까우면 힘이 무한대가 되는 것을 방지하기 위해 최소 거리를 설정합니다.
-                 const dist = Math.max(10, Math.sqrt(e.x*e.x+e.y*e.y)); 
+                 // Apply Pull Force
                  const force = lForce / e.mass; 
-                 e.vx += (-e.x / dist) * force;
-                 e.vy += (-e.y / dist) * force;
+                 e.vx += (-e.x / Math.sqrt(e.x*e.x+e.y*e.y)) * force;
+                 e.vy += (-e.y / Math.sqrt(e.x*e.x+e.y*e.y)) * force;
              }
         }
 
@@ -1269,15 +1274,15 @@
                     // Logic when absorbed
                     if (e.type.isLightning) triggerChainLightning(e);
                     
-                    if (e.type.ismagnet) {
+                    if (e.type.isMagnet) {
                         audio.playSkill('bomb'); // Use bomb sound
                         GAME.shakeTime = 0.5; GAME.shakeAmount = 15;
                         particles.push(new EffectParticle(0,0, '#94a3b8', 'shockwave'));
                         entities.forEach(target => {
                              const dist = Math.sqrt(target.x*target.x + target.y*target.y);
-                             // 200 -> 20 (1/10 reduction)
-                             target.vx += (-target.x/dist) * 50;
-                             target.vy += (-target.y/dist) * 50;
+                             // 200 -> 20 (too weak) -> 60 (Adjusted)
+                             target.vx += (-target.x/dist) * 60;
+                             target.vy += (-target.y/dist) * 60;
                         });
                     }
 
@@ -1657,7 +1662,7 @@
                 particles.push(new EffectParticle(0,0, '#ef4444', 'shockwave'));
                 
                 // 밸런스 조정: 초기 위력 50, 레벨당 +15 (기존 150 고정에서 변경)
-                const baseForce = 30 + (upgrade.level * 5);
+                const baseForce = 50 + (upgrade.level * 15);
                 const finalForce = baseForce * gamma;
 
                 entities.forEach(e => {
