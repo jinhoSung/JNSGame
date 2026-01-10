@@ -762,16 +762,15 @@
                 this.grid[x][y].agents = [];
             }
             
-            // 교차로 Lock 해제 (매 프레임 갱신 전에 비움 - 실제로는 점유자가 있으면 유지해야 함)
-            // 여기서는 Agent가 스스로 Lock을 관리하도록 함.
-            // 단, 죽거나 사라진 Agent가 락을 잡고 있는 경우를 방지해야 함.
-            // 일단 간단하게: Agent가 타일 위에 없으면 Lock 해제
+            // Lock 해제 체크 (점유자가 떠났는지 확인)
             for(let x=0; x<GRID_WIDTH; x++) for(let y=0; y<GRID_HEIGHT; y++) {
                 const cell = this.grid[x][y];
-                if(cell.lock && (cell.lock.state === STATE.IDLE || Math.floor(cell.lock.x) !== x || Math.floor(cell.lock.y) !== y)) {
-                    // 점유자가 이 타일을 벗어났으면 해제
-                    // 단, 진입 중일 때는 좌표가 아직 이전 타일일 수 있음.
-                    // 따라서 Lock은 moveCar에서 제어.
+                if(cell.lock) {
+                    const owner = cell.lock;
+                    // 주인이 IDLE상태거나, 이 타일에서 멀어졌으면(거리 1.5이상) Lock 해제
+                    if(owner.state === STATE.IDLE || Math.hypot(owner.x - (x+0.5), owner.y - (y+0.5)) > 1.2) {
+                        cell.lock = null;
+                    }
                 }
             }
 
@@ -824,97 +823,88 @@
         moveCar(a) {
             if(!a.path || a.pathIndex >= a.path.length) return;
             
-            // 현재 목표 타일 (인덱스가 가리키는 곳)
-            // pathIndex가 0이면 시작점. 1부터가 첫 이동.
-            // 하지만 path 배열은 [시작점, ..., 도착점]
-            
-            // 현재 위치에서 다음 타일로 가야 함.
-            // pathIndex는 "다음에 도착해야 할 타일"을 가리킴.
-            // 만약 pathIndex가 0이면 아직 출발 안 함 -> 1로 증가 필요.
             if(a.pathIndex === 0) a.pathIndex = 1;
             if(a.pathIndex >= a.path.length) return;
 
-            const nextT = a.path[a.pathIndex]; // 가야할 곳
-            const prevT = a.path[a.pathIndex - 1]; // 방금 온 곳 (또는 현재 있는 곳)
+            const nextT = a.path[a.pathIndex]; 
+            const prevT = a.path[a.pathIndex - 1]; 
             
-            // 방향 벡터 (도로의 흐름)
+            const gx = Math.floor(a.x);
+            const gy = Math.floor(a.y);
+            const currentCell = this.grid[gx][gy];
+            const nextCell = this.grid[nextT.x][nextT.y];
+            
             const dirX = nextT.x - prevT.x;
             const dirY = nextT.y - prevT.y;
-            
-            // 도로 타입
-            const nextCell = this.grid[nextT.x][nextT.y];
-            const prevCell = this.grid[prevT.x][prevT.y];
-            const rTypeInfo = ROAD_TYPES[prevCell.roadType] || ROAD_TYPES[1]; // 현재 도로 기준 속도
+            const dist = Math.hypot(dirX, dirY);
+            if(dist < 0.001) return; // 같은 위치면 패스
+
+            const rTypeInfo = ROAD_TYPES[this.grid[prevT.x][prevT.y].roadType] || ROAD_TYPES[1];
 
             // 우측 통행 오프셋
-            // 진행 방향의 오른쪽 90도: (-dy, dx)
-            let perpX = -dirY;
-            let perpY = dirX;
+            const ndx = dirX / dist;
+            const ndy = dirY / dist;
+            let perpX = -ndy;
+            let perpY = ndx;
             
-            let laneOffset = 0.18; // 기본 1차선
+            let laneOffset = 0.18; 
             if (rTypeInfo.lanes === 2) {
                 laneOffset = (a.lane === 0) ? 0.28 : 0.10; 
             }
             
-            // 목표 지점 (타일 중심 + 오프셋)
             const targetX = nextT.x + 0.5 + perpX * laneOffset;
             const targetY = nextT.y + 0.5 + perpY * laneOffset;
             
-            // 현재 차와 목표 지점 거리
             const distToTarget = Math.hypot(targetX - a.x, targetY - a.y);
-            
-            // --- 안전 운전 로직 ---
             let speed = a.maxSpeed * rTypeInfo.speed;
 
-            // 1. 교차로 진입 제어 (Locking)
-            // 다음 타일이 교차로/회전교차로(>=5)이고, 아직 진입 안했다면
+            // 1. 교차로 락 (Lock)
             if (nextCell.roadType >= 5) {
-                // 진입 시도 거리 (타일 경계 근처)
-                if (distToTarget < 0.6) { // 타일 중심까지 0.6 남음 -> 거의 진입 직전
+                if (distToTarget < 0.8) { 
                     if (nextCell.lock && nextCell.lock !== a) {
-                        speed = 0; // 남이 쓰고 있으면 대기
+                        // 락 주인이 유효하지 않거나 멀면 뺏기
+                        const owner = nextCell.lock;
+                        const distOwner = Math.hypot(owner.x - nextT.x - 0.5, owner.y - nextT.y - 0.5);
+                        if (distOwner > 1.5 || owner.state === STATE.IDLE) {
+                            nextCell.lock = a; 
+                        } else {
+                            speed = 0; 
+                        }
                     } else {
-                        nextCell.lock = a; // 내가 점유
+                        nextCell.lock = a; 
                     }
                 }
             }
-            // 이전 타일 락 해제 (완전히 넘어갔으면)
-            if (prevCell.roadType >= 5 && prevCell.lock === a && distToTarget < 0.4) {
-                 // 이미 다음 타일로 거의 넘어왔으므로 이전 타일 해제? 
-                 // 아니다, distToTarget은 다음 타일 중심까지 거리.
-                 // 이게 작아졌다는 건 다음 타일에 거의 도착했다는 것.
-                 // 즉, 이전 타일은 이미 벗어남.
-                 prevCell.lock = null;
-            }
 
-            // 2. 앞차 감지 (충돌 방지)
-            // 현재 타일과 다음 타일에 있는 차들 검사
-            const nearbyAgents = [...prevCell.agents, ...nextCell.agents];
+            // 2. 차간 거리 유지 (Lane Aware)
+            const nearbyAgents = [...currentCell.agents, ...nextCell.agents]; 
             for (let other of nearbyAgents) {
                 if (other === a) continue;
-                
+
+                // 2차선 도로일 때, 다른 차선 차량 무시
+                const curRoadType = ROAD_TYPES[currentCell.roadType];
+                if (curRoadType && curRoadType.lanes === 2) {
+                    if (a.lane !== other.lane) continue;
+                }
+
                 const d = Math.hypot(other.x - a.x, other.y - a.y);
-                if (d < 0.6) { // 너무 가까움
-                    // 내 진행 방향 앞에 있는지 확인
-                    // 벡터 (나 -> 상대)
+                if (d < 0.7) { 
                     const toOtherX = other.x - a.x;
                     const toOtherY = other.y - a.y;
-                    const dot = toOtherX * dirX + toOtherY * dirY; // 내 진행방향과 일치하는지
+                    const dot = toOtherX * ndx + toOtherY * ndy;
                     
-                    if (dot > 0) { // 내 앞에 있음
+                    if (dot > 0.5) { // 전방
                         speed = 0;
                         break;
                     }
                 }
             }
-
+            
             // 이동 실행
             if (distToTarget < speed) {
                 a.x = targetX;
                 a.y = targetY;
                 a.pathIndex++;
-                // 락 해제 (타일 완전히 벗어남)
-                if(prevCell.lock === a) prevCell.lock = null; 
             } else {
                 a.x += (targetX - a.x) / distToTarget * speed;
                 a.y += (targetY - a.y) / distToTarget * speed;
