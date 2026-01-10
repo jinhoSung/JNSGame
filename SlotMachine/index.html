@@ -339,6 +339,42 @@
         }
         @keyframes bounce { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
 
+        /* TIP 팝업 스타일 */
+        .tip-popup-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+        .tip-popup-content {
+            background: #111;
+            border: 2px solid var(--neon-cyan);
+            border-radius: 10px;
+            padding: 20px;
+            max-width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 0 20px var(--neon-cyan);
+        }
+        .tip-title { font-size: 1.5rem; color: var(--neon-gold); margin-bottom: 10px; }
+        .tip-section { margin-bottom: 15px; }
+        .tip-section h3 { font-size: 1.1rem; color: var(--neon-mint); margin-bottom: 5px; }
+        .paytable-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+        .paytable-item {
+            background: #222;
+            padding: 5px;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 0.8rem;
+        }
+
     </style>
 </head>
 <body>
@@ -351,6 +387,7 @@
             <div class="logo-text">SEA STORY <span style="font-size:0.6em; color:var(--neon-gold);">NEON</span></div>
             <div class="header-icons">
                 <button id="btn-sound" onclick="toggleSound()">🔊</button>
+                <button id="btn-tip" onclick="toggleTipPopup()">ℹ️</button>
                 <button onclick="toggleFullscreen()">⛶</button>
             </div>
         </header>
@@ -401,6 +438,45 @@
         <div id="jackpot-overlay" class="jackpot-overlay">
             <div class="jackpot-msg">JACKPOT!</div>
             <div style="font-size:3rem; color:#fff; margin-top:10px;" id="jackpot-amount">+5000</div>
+        </div>
+    </div>
+
+    <!-- TIP 팝업 오버레이 -->
+    <div id="tip-popup" class="tip-popup-overlay" onclick="if(event.target===this)toggleTipPopup()">
+        <div class="tip-popup-content">
+            <div class="tip-title">게임 정보</div>
+            
+            <div class="tip-section">
+                <h3>게임 방법</h3>
+                <p>SPIN 버튼을 눌러 5개의 릴을 회전시키세요. 왼쪽에서 오른쪽으로 동일한 심볼이 3개 이상 연결되면 당첨됩니다. AUTO 버튼으로 자동 회전이 가능합니다.</p>
+            </div>
+
+            <div class="tip-section">
+                <h3>와일드 심볼</h3>
+                <div style="display:flex; align-items:center;">
+                    <span style="font-size:2rem;">👑</span>
+                    <p style="margin-left:10px;">와일드(Wild) 심볼은 모든 심볼을 대체하여 당첨 라인을 완성합니다.</p>
+                </div>
+            </div>
+
+            <div class="tip-section">
+                <h3>당첨 족보 (배당률)</h3>
+                <div class="paytable-grid">
+                    <div class="paytable-item">🐚: x5, x15, x50</div>
+                    <div class="paytable-item">🐡: x10, x25, x100</div>
+                    <div class="paytable-item">🐙: x15, x40, x150</div>
+                    <div class="paytable-item">🐠: x20, x50, x200</div>
+                    <div class="paytable-item">🐢: x50, x150, x500</div>
+                    <div class="paytable-item">🦈: x100, x300, x1000</div>
+                    <div class="paytable-item">💎: x30, x100, x300</div>
+                    <div class="paytable-item">7️⃣: x100, x500, x5000</div>
+                </div>
+            </div>
+
+            <div class="tip-section">
+                <h3>당첨 라인 (25 Lines)</h3>
+                <p>총 25개의 다양한 라인이 적용됩니다. 왼쪽 첫 번째 릴부터 심볼이 연속으로 나와야 합니다.</p>
+            </div>
         </div>
     </div>
 
@@ -500,7 +576,8 @@
 
         const REEL_COUNT = 5;
         const ROW_COUNT = 3;
-        const SYMBOLS = ['🐚', '🐡', '🐙', '🐠', '🐢', '🦈', '💎', '7️⃣'];
+        const WILD_SYMBOL = '👑'; // 와일드 심볼 정의
+        const SYMBOLS = ['🐚', '🐡', '🐙', '🐠', '🐢', '🦈', '💎', '7️⃣', WILD_SYMBOL]; // 와일드 추가
         const PAYTABLE = {
             '🐚': [0, 0, 5, 15, 50],
             '🐡': [0, 0, 10, 25, 100],
@@ -509,23 +586,30 @@
             '🐢': [0, 0, 50, 150, 500],
             '🦈': [0, 5, 100, 300, 1000],
             '💎': [0, 0, 30, 100, 300],
-            '7️⃣': [0, 0, 100, 500, 5000]
+            '7️⃣': [0, 0, 100, 500, 5000],
+            '👑': [0, 0, 200, 1000, 10000] // 와일드 자체 당첨 시 높은 배당 (옵션)
         };
         const PAYLINES = [
-            [1,1,1,1,1], [0,0,0,0,0], [2,2,2,2,2],
-            [0,1,2,1,0], [2,1,0,1,2],
-            [0,0,1,2,2], [2,2,1,0,0],
-            [1,2,2,2,1], [1,0,0,0,1],
-            [0,1,1,1,0], [2,1,1,1,2],
-            [0,1,0,1,0], [2,1,2,1,2],
-            [1,0,1,0,1], [1,2,1,2,1],
-            [0,1,2,2,2], [2,1,0,0,0],
-            [0,2,0,2,0], [2,0,2,0,2],
-            [1,1,0,1,1]
+            // 기본 5릴 20라인 룰 적용 확인 (0=상, 1=중, 2=하)
+            [1,1,1,1,1], [0,0,0,0,0], [2,2,2,2,2], // 직선 (3)
+            [0,1,2,1,0], [2,1,0,1,2], // V (2)
+            [0,0,1,2,2], [2,2,1,0,0], // 계단 (2)
+            [1,2,2,2,1], [1,0,0,0,1], // M, W (2)
+            [0,1,1,1,0], [2,1,1,1,2], // 굴곡 (2)
+            [0,1,0,1,0], [2,1,2,1,2], // 지그재그 (2)
+            [1,0,1,0,1], [1,2,1,2,1], // 지그재그2 (2)
+            [0,1,2,2,2], [2,1,0,0,0], // 변형 계단 (2)
+            [0,2,0,2,0], [2,0,2,0,2], // 교차 (2)
+            [1,1,0,1,1], // 굴곡2 (1) - 여기까지 기존 20라인
+
+            // 추가 5라인 (총 25라인) - 확률 상승용
+            [0,0,1,1,1], [2,2,1,1,1], 
+            [1,1,1,0,0], [1,1,1,2,2],
+            [0,2,2,2,0]
         ];
 
         let credit = 10000;
-        let totalBet = 200;
+        let totalBet = 250; // 라인 수 증가에 따라 기본 베팅액 조정
         let isSpinning = false;
         let forceStop = false; 
         let isAuto = false;    
@@ -595,7 +679,8 @@
 
         function changeBet() {
             if(isSpinning) return;
-            const bets = [200, 400, 1000, 2000, 5000];
+            // 25라인 기준 베팅액
+            const bets = [250, 500, 1250, 2500, 5000];
             let idx = bets.indexOf(totalBet);
             totalBet = bets[(idx + 1) % bets.length];
             if(totalBet > credit && credit > 0) totalBet = bets[0];
@@ -624,6 +709,15 @@
 
         function stopSpin() {
             forceStop = true;
+        }
+
+        function toggleTipPopup() {
+            const popup = document.getElementById('tip-popup');
+            if(popup.style.display === 'flex') {
+                popup.style.display = 'none';
+            } else {
+                popup.style.display = 'flex';
+            }
         }
 
         async function spin() {
@@ -683,24 +777,14 @@
                 const dummyCount = 20 + index * 5; 
                 
                 let stripSymbols = [];
-                
-                // 버퍼 심볼 추가 (상단 공백 방지용 - 랜덤 1개)
                 const bufferSymbol = getRandomSymbol();
                 stripSymbols.push(bufferSymbol); 
-                
-                // 실제 보여질 결과 (최종 3개)
                 stripSymbols.push(...finalSymbols); 
-                
-                // 더미 심볼들
                 for(let k=0; k<dummyCount; k++) stripSymbols.push(getRandomSymbol());
-                
-                // 현재 보여지는 심볼들 (하단에 배치, 애니메이션 시작점)
                 stripSymbols.push(...currentReelSymbols[index]); 
 
-                // HTML 주입
                 reel.innerHTML = stripSymbols.map(s => createSymbolHTML(s)).join('');
                 
-                // 초기 위치: 하단 (현재 심볼들이 보이도록 설정)
                 const totalHeight = stripSymbols.length * symbolHeight;
                 const visibleHeight = ROW_COUNT * symbolHeight;
                 const startY = -(totalHeight - visibleHeight);
@@ -710,14 +794,9 @@
                 void reel.offsetWidth; 
 
                 requestAnimationFrame(() => {
-                    // 목표 위치: 버퍼 바로 아래 (최종 결과 3개가 화면에 딱 맞게)
-                    // 버퍼가 인덱스 0이므로, 인덱스 1부터 3개가 보여야 함
-                    // translateY 목표값 = -(1 * symbolHeight)
                     const endY = -(symbolHeight);
-                    
                     const baseDuration = 1.5 + (index * 0.6); 
                     
-                    // Bounce Effect 수정: 1.15배 정도로 덜 과장되게 (Tight mechanical stop)
                     reel.style.transition = `transform ${baseDuration}s cubic-bezier(0.25, 1.15, 0.25, 1)`; 
                     reel.style.transform = `translateY(${endY}px)`;
 
@@ -746,7 +825,6 @@
                     }
                     
                     function finish() {
-                        // DOM 정리 (최종 결과만 남김)
                         reel.innerHTML = finalSymbols.map(s => createSymbolHTML(s)).join('');
                         reel.style.transition = 'none';
                         reel.style.transform = 'translateY(0)'; // 정규 위치로 리셋
@@ -762,18 +840,38 @@
         function checkWin(grid) {
             let totalWin = 0;
             let winners = [];
-            const lineBet = totalBet / 20;
+            const lineBet = totalBet / PAYLINES.length; // 총 베팅액 / 라인 수
 
             PAYLINES.forEach((pattern, idx) => {
-                const first = grid[0][pattern[0]];
+                const firstSym = grid[0][pattern[0]]; // 첫 번째 릴 심볼
+                let effectiveSym = firstSym; // 실제 당첨 기준 심볼
                 let count = 1;
+                let isWildWin = (firstSym === WILD_SYMBOL); // 와일드로 시작하는지
+
                 for(let c=1; c<REEL_COUNT; c++) {
-                    if(grid[c][pattern[c]] === first) count++;
-                    else break;
+                    const currentSym = grid[c][pattern[c]];
+                    if(currentSym === effectiveSym || currentSym === WILD_SYMBOL) {
+                        count++;
+                        // 첫 심볼이 와일드였다면, 그 다음 첫 일반 심볼이 기준 심볼이 됨
+                        if(isWildWin && currentSym !== WILD_SYMBOL) {
+                            effectiveSym = currentSym;
+                            isWildWin = false;
+                        }
+                    } else if (isWildWin && currentSym !== WILD_SYMBOL) {
+                        // 와일드만 나오다가 첫 일반 심볼이 나온 경우 (예: 👑 🐚 🐚 ...)
+                         effectiveSym = currentSym;
+                         isWildWin = false;
+                         count++; // 현재 심볼 포함
+                    } else {
+                        break; // 연속 끊김
+                    }
                 }
 
-                if(count >= 3) {
-                    const mul = PAYTABLE[first][count-1];
+                // 와일드만으로 구성된 당첨 (예: 👑👑👑)
+                if(isWildWin) effectiveSym = WILD_SYMBOL;
+
+                if(count >= 3 && PAYTABLE[effectiveSym]) {
+                    const mul = PAYTABLE[effectiveSym][count-1];
                     if(mul > 0) {
                         const amt = lineBet * mul;
                         totalWin += amt;
