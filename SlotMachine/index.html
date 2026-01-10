@@ -42,6 +42,19 @@
             z-index: -5;
             filter: brightness(0.7); /* 비디오 밝기 조절 */
         }
+
+        /* 백업용 이미지 배경 (기본적으로 숨김, 비디오 에러시 표시) */
+        .deep-sea-bg {
+            position: absolute;
+            inset: 0;
+            background-color: #0b1026; 
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: cover;
+            transition: background-image 0.5s ease-in-out;
+            z-index: -6; /* 비디오보다 뒤 */
+            display: none; /* 초기엔 숨김 */
+        }
         
         .aurora {
             position: absolute;
@@ -440,6 +453,9 @@
 
     <!-- 배경 비디오: 가로/세로 비율에 따라 JS로 src 변경 -->
     <video id="bg-video" class="bg-video" autoplay muted loop playsinline></video>
+    <!-- 백업용 배경 이미지 (비디오 에러시 표시) -->
+    <div class="deep-sea-bg"></div>
+    
     <div class="aurora"></div>
     <div id="bubble-container" class="bubble-container"></div>
 
@@ -562,9 +578,43 @@
         let spinOscillator = null; 
         let lfoOscillator = null;
 
+        // === 백업용 이미지 설정 (비디오 실패 시 사용) ===
+        const backgroundConfig = [
+            { filename: 'img/img1.jpg', ratio: 16 / 9 },
+            { filename: 'img/img2.jpg', ratio: 16 / 10 },
+            { filename: 'img/img3.jpg', ratio: 9 / 16 }
+        ];
+
+        // === 이미지 배경 업데이트 함수 ===
+        function updateBackground() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            const currentRatio = width / height;
+
+            let closestImage = backgroundConfig[0];
+            let minDiff = Math.abs(currentRatio - closestImage.ratio);
+
+            for (let i = 1; i < backgroundConfig.length; i++) {
+                const diff = Math.abs(currentRatio - backgroundConfig[i].ratio);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closestImage = backgroundConfig[i];
+                }
+            }
+
+            const bgElement = document.querySelector('.deep-sea-bg');
+            if (!bgElement) return;
+
+            const newBg = `linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.7)), url('${closestImage.filename}')`;
+            if (bgElement.style.backgroundImage !== newBg) {
+                bgElement.style.backgroundImage = newBg;
+            }
+        }
+
         // === 배경 비디오 업데이트 로직 (비율 기반) ===
         function updateBackgroundVideo() {
             const video = document.getElementById('bg-video');
+            const bgImage = document.querySelector('.deep-sea-bg');
             const width = window.innerWidth;
             const height = window.innerHeight;
             
@@ -572,9 +622,22 @@
             const isLandscape = width > height;
             const newSrc = isLandscape ? 'move1.mp4' : 'move2.mp4';
             
+            // 비디오 로드 실패 시 이미지 배경으로 전환
+            video.onerror = function() {
+                video.style.display = 'none'; // 비디오 숨김
+                if(bgImage) {
+                    bgImage.style.display = 'block'; // 이미지 보임
+                    updateBackground(); // 이미지 비율 맞춤 실행
+                }
+            };
+
             // 소스가 변경될 때만 로드 및 재생
             const currentSrc = video.getAttribute('src');
             if (currentSrc !== newSrc) {
+                // 비디오 소스가 바뀔 때, 비디오를 다시 보이게 설정 (이전 에러 복구 시도)
+                video.style.display = 'block';
+                if(bgImage) bgImage.style.display = 'none';
+
                 video.src = newSrc;
                 video.load();
                 video.play().catch(e => {
@@ -762,8 +825,15 @@
             
             // 초기 비디오 설정
             updateBackgroundVideo();
-            // 리사이즈 시 비디오 소스 변경 체크
-            window.addEventListener('resize', updateBackgroundVideo);
+            // 리사이즈 시 비디오 소스 변경 체크 + 이미지도 고려
+            window.addEventListener('resize', () => {
+                updateBackgroundVideo();
+                // 비디오 에러 상태일 경우 이미지 리사이즈도 함께 수행
+                const bgImage = document.querySelector('.deep-sea-bg');
+                if(bgImage && bgImage.style.display !== 'none') {
+                    updateBackground();
+                }
+            });
 
             reels.forEach((reel, i) => {
                 let html = '';
@@ -791,7 +861,9 @@
             // 사용자 인터랙션 발생 시 비디오 재생 시도 (브라우저 정책 대응)
             document.body.addEventListener('click', () => {
                 const video = document.getElementById('bg-video');
-                if (video.paused) video.play().catch(()=>{});
+                if (video && video.style.display !== 'none' && video.paused) {
+                    video.play().catch(()=>{});
+                }
                 if (audioCtx.state === 'suspended') audioCtx.resume();
             }, {once: true});
         }
