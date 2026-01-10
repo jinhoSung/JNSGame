@@ -889,11 +889,21 @@
         }
 
         function getRandomSymbol() {
+            // 당첨 확률 상향을 위해 가중치(w) 증가
             const weights = [
-                { s: '🐚', w: 20 }, { s: '🐡', w: 18 }, { s: '🐙', w: 16 }, { s: '🐠', w: 15 },
-                { s: '🦀', w: 14 }, { s: '🦐', w: 12 }, { s: '🦑', w: 10 }, { s: '🐢', w: 8 },
-                { s: '🦈', w: 6 },  { s: '💎', w: 4 },  { s: '7️⃣', w: 2 },  { s: '👑', w: 1 },
-                { s: SCATTER_SYMBOL, w: 2 } 
+                { s: '🐚', w: 30 }, // 20 -> 30
+                { s: '🐡', w: 25 }, // 18 -> 25
+                { s: '🐙', w: 22 }, // 16 -> 22
+                { s: '🐠', w: 20 }, // 15 -> 20
+                { s: '🦀', w: 18 }, // 14 -> 18
+                { s: '🦐', w: 15 }, // 12 -> 15
+                { s: '🦑', w: 12 }, // 10 -> 12
+                { s: '🐢', w: 10 }, // 8 -> 10
+                { s: '🦈', w: 8 },  // 6 -> 8
+                { s: '💎', w: 6 },  // 4 -> 6
+                { s: '7️⃣', w: 4 },  // 2 -> 4
+                { s: '👑', w: 5 },  // 와일드(1->5): 당첨 확률 대폭 증가 요인
+                { s: SCATTER_SYMBOL, w: 4 } // 2 -> 4
             ];
             
             let totalWeight = weights.reduce((sum, item) => sum + item.w, 0);
@@ -1188,9 +1198,13 @@
 
             let occupiedYPositions = []; 
 
-            winners.forEach(win => {
+            winners.forEach((win, index) => { // index 추가: 당첨 순서에 따라 분산
                 let points = "";
                 let labelPos = {x: 0, y: 0};
+
+                // 텍스트를 표시할 릴(컬럼) 위치를 순환 지정 (중앙 -> 좌 -> 우 -> 중좌 -> 중우)
+                // 당첨이 여러 개일 때 겹치지 않게 하기 위함
+                const targetCol = [2, 0, 4, 1, 3][index % 5];
 
                 if (win.lineIdx !== -1) {
                     const fullLinePattern = PAYLINES[win.lineIdx];
@@ -1205,7 +1219,8 @@
                             const centerY = colEl.offsetTop + symbolEl.offsetTop + (symbolEl.offsetHeight / 2);
                             points += `${centerX},${centerY} `;
 
-                            if (colIdx === 2) {
+                            // 지정된 타겟 컬럼에 텍스트 위치 설정
+                            if (colIdx === targetCol) {
                                 labelPos = {x: centerX, y: centerY};
                             }
                          }
