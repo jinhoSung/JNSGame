@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deep Sea Slots - 5 Reel Ocean</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon&display=swap');
+
+        body {
+            font-family: 'Do Hyeon', sans-serif;
+            background: linear-gradient(180deg, #001020 0%, #000000 100%);
+            color: white;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+
+        .font-title { font-family: 'Black Han Sans', sans-serif; }
+
+        /* 릴 컨테이너 */
+        .slot-machine {
+            position: relative;
+            background: rgba(0, 0, 0, 0.6);
+            border: 4px solid #d4af37;
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.2);
+            padding: 10px;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .reels-wrapper {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 4px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .reel-col {
+            overflow: hidden;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), rgba(0,20,40,0.5) 50%, rgba(0,0,0,0.8));
+            border: 1px solid #4a90e2;
+            border-radius: 4px;
+            height: 240px; /* 3행 * 80px */
+            position: relative;
+        }
+
+        .reel-strip {
+            display: flex;
+            flex-direction: column;
+            will-change: transform;
+            /* 초기화 시 transform 적용 */
+            transform: translateY(0); 
+        }
+
+        .symbol {
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3.5rem;
+            filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));
+            /* 텍스트 선택 방지 */
+            user-select: none;
+        }
+
+        /* 당첨 라인 SVG 오버레이 */
+        .lines-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 20;
+            pointer-events: none;
+        }
+        
+        /* 당첨금 팝업 */
+        .win-popup {
+            position: absolute;
+            color: #fff700;
+            font-family: 'Black Han Sans', sans-serif;
+            font-size: 1.8rem;
+            font-weight: bold;
+            text-shadow: 0 0 5px #ff0000, 0 0 10px #ff0000;
+            z-index: 30;
+            pointer-events: none;
+            animation: popUp 2s forwards;
+            white-space: nowrap;
+        }
+
+        @keyframes popUp {
+            0% { transform: scale(0) translateY(0); opacity: 0; }
+            10% { transform: scale(1.2) translateY(-10px); opacity: 1; }
+            20% { transform: scale(1) translateY(-10px); opacity: 1; }
+            80% { transform: scale(1) translateY(-40px); opacity: 1; }
+            100% { transform: scale(1) translateY(-50px); opacity: 0; }
+        }
+
+        /* 심볼 당첨 효과 */
+        .win-anim {
+            animation: flashSymbol 0.8s infinite alternate;
+            background-color: rgba(255, 255, 0, 0.3);
+            border-radius: 10px;
+            box-shadow: inset 0 0 10px rgba(255,255,0,0.5);
+        }
+        @keyframes flashSymbol {
+            from { filter: brightness(1) drop-shadow(0 0 0 transparent); transform: scale(1); }
+            to { filter: brightness(1.3) drop-shadow(0 0 10px gold); transform: scale(1.05); }
+        }
+
+        /* 컨트롤 패널 */
+        .control-panel {
+            background: linear-gradient(to bottom, #2a2a2a, #111);
+            border-top: 2px solid #555;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.5);
+        }
+
+        .btn-action {
+            transition: all 0.1s;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-action:active { transform: scale(0.95); filter: brightness(0.8); }
+        
+        .btn-spin {
+            background: radial-gradient(circle at 30% 30%, #ff4d4d, #cc0000);
+            box-shadow: 0 5px 0 #990000, 0 0 15px rgba(255,0,0,0.6);
+        }
+        .btn-spin:active { box-shadow: 0 2px 0 #990000; transform: translateY(3px); }
+
+        /* 반응형 */
+        @media (max-width: 640px) {
+            .reel-col { height: 180px; } /* 3 * 60px */
+            .symbol { height: 60px; font-size: 2.2rem; }
+            .slot-machine { padding: 5px; border-width: 2px; }
+            .font-title { letter-spacing: -1px; }
+        }
+
+    </style>
+</head>
+<body class="h-screen flex flex-col items-center justify-between p-2">
+
+    <!-- 배경 장식 -->
+    <div class="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <div class="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+        <div id="bubbles"></div>
+    </div>
+
+    <!-- 상단 정보창 -->
+    <header class="w-full max-w-4xl flex justify-between items-center z-10 mt-2 px-2">
+        <div class="flex flex-col">
+            <h1 class="text-2xl md:text-4xl font-title text-yellow-400 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
+                <span class="text-blue-400">바다</span>이야기 <span class="text-xs text-gray-400 block md:inline font-sans font-normal tracking-normal">5 Reel Edition</span>
+            </h1>
+        </div>
+        <div class="bg-black/60 border border-yellow-600 rounded-lg px-4 py-1 text-right min-w-[120px]">
+            <span class="text-gray-400 text-xs block">CREDIT</span>
+            <span id="credit-display" class="text-2xl font-bold text-yellow-300">10,000</span>
+        </div>
+    </header>
+
+    <!-- 메인 슬롯 영역 -->
+    <main class="w-full max-w-4xl flex-grow flex items-center justify-center z-10 py-2">
+        <div class="slot-machine">
+            <!-- 릴 영역 -->
+            <div class="reels-wrapper" id="reels-wrapper">
+                <!-- Reels 1~5 -->
+                <div class="reel-col"><div class="reel-strip" id="reel0"></div></div>
+                <div class="reel-col"><div class="reel-strip" id="reel1"></div></div>
+                <div class="reel-col"><div class="reel-strip" id="reel2"></div></div>
+                <div class="reel-col"><div class="reel-strip" id="reel3"></div></div>
+                <div class="reel-col"><div class="reel-strip" id="reel4"></div></div>
+            </div>
+
+            <!-- SVG 라인 드로잉 레이어 -->
+            <svg id="paylines-svg" class="lines-svg" preserveAspectRatio="none">
+                <!-- JS로 라인 생성 -->
+            </svg>
+            
+            <!-- 당첨금 텍스트 오버레이 레이어 -->
+            <div id="win-overlay" class="lines-svg"></div>
+
+            <!-- 페이라인 인디케이터 (좌우 장식) -->
+            <div class="absolute top-1/2 -left-3 -translate-y-1/2 flex flex-col gap-8 hidden md:flex">
+                <div class="w-6 h-6 bg-yellow-600 rounded-full text-[10px] flex items-center justify-center shadow">4</div>
+                <div class="w-6 h-6 bg-yellow-600 rounded-full text-[10px] flex items-center justify-center shadow">2</div>
+                <div class="w-6 h-6 bg-yellow-600 rounded-full text-[10px] flex items-center justify-center shadow">5</div>
+            </div>
+             <div class="absolute top-1/2 -right-3 -translate-y-1/2 flex flex-col gap-8 hidden md:flex">
+                <div class="w-6 h-6 bg-yellow-600 rounded-full text-[10px] flex items-center justify-center shadow">10</div>
+                <div class="w-6 h-6 bg-yellow-600 rounded-full text-[10px] flex items-center justify-center shadow">1</div>
+                <div class="w-6 h-6 bg-yellow-600 rounded-full text-[10px] flex items-center justify-center shadow">3</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 하단 컨트롤 패널 -->
+    <footer class="w-full max-w-4xl z-20 mb-2 control-panel rounded-xl p-3">
+        <div class="flex justify-between items-center gap-2">
+            
+            <!-- 정보창 -->
+            <div class="flex-1 grid grid-cols-2 md:grid-cols-3 gap-2">
+                <div class="bg-black/50 rounded p-1 border border-gray-700 text-center">
+                    <div class="text-[10px] text-gray-400">TOTAL BET</div>
+                    <div id="bet-display" class="text-lg font-bold text-white">200</div>
+                </div>
+                <div class="bg-black/50 rounded p-1 border border-gray-700 text-center">
+                    <div class="text-[10px] text-gray-400">WIN</div>
+                    <div id="win-display" class="text-lg font-bold text-green-400">0</div>
+                </div>
+                <div class="bg-black/50 rounded p-1 border border-gray-700 text-center hidden md:block">
+                    <div class="text-[10px] text-gray-400">LINES</div>
+                    <div class="text-lg font-bold text-white">20</div>
+                </div>
+            </div>
+
+            <!-- 버튼 그룹 -->
+            <div class="flex gap-2 items-center">
+                <button onclick="changeBet()" class="btn-action bg-gray-700 text-white w-14 h-14 md:w-16 md:h-16 rounded-full border-2 border-gray-500 shadow-lg flex flex-col items-center justify-center">
+                    <span class="text-[10px] text-gray-300">BET</span>
+                    <span class="font-bold text-sm">변경</span>
+                </button>
+                
+                <button onclick="maxBet()" class="btn-action bg-blue-800 text-white w-14 h-14 md:w-16 md:h-16 rounded-full border-2 border-blue-500 shadow-lg flex flex-col items-center justify-center">
+                    <span class="text-[10px] text-blue-200">MAX</span>
+                    <span class="font-bold text-sm">최대</span>
+                </button>
+
+                <button id="btn-spin" onclick="spin()" class="btn-spin text-white w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-red-800 flex items-center justify-center ml-2">
+                    <span class="font-title text-2xl md:text-3xl drop-shadow-md tracking-wider">스핀</span>
+                </button>
+            </div>
+        </div>
+        <div class="text-center mt-2 text-[10px] text-gray-500">
+            20 라인 적용 | 가로, 대각선, V자, W자 등 다양한 패턴 당첨
+        </div>
+    </footer>
+
+    <script>
+        // --- 게임 설정 및 상수 ---
+        // JS에서 심볼 높이를 동적으로 가져오도록 수정하므로 상수는 초기값/참고용
+        const REEL_COUNT = 5;
+        const ROW_COUNT = 3;
+        
+        // 심볼 정의
+        const SYMBOLS = [
+            '🐚', '🐚', '🐚', '🐚', 
+            '🐡', '🐡', '🐡',       
+            '🐙', '🐙',             
+            '🐠', '🐠',             
+            '🐢',                   
+            '🦈',                   
+            'BAR',                  
+            '7️⃣'                   
+        ];
+
+        // 배당률
+        const PAYTABLE = {
+            '🐚': [0, 0, 5, 15, 50],
+            '🐡': [0, 0, 10, 25, 100],
+            '🐙': [0, 0, 15, 40, 150],
+            '🐠': [0, 0, 20, 50, 200],
+            '🐢': [0, 0, 50, 150, 500],
+            '🦈': [0, 5, 100, 300, 1000],
+            'BAR': [0, 0, 30, 100, 300],
+            '7️⃣': [0, 0, 100, 500, 5000]
+        };
+
+        // 20개 당첨 라인
+        const PAYLINES = [
+            [1, 1, 1, 1, 1], [0, 0, 0, 0, 0], [2, 2, 2, 2, 2], // 1~3: 가로
+            [0, 1, 2, 1, 0], [2, 1, 0, 1, 2], // 4~5: V, 역V
+            [0, 0, 1, 2, 2], [2, 2, 1, 0, 0], // 6~7: 계단
+            [1, 2, 2, 2, 1], [1, 0, 0, 0, 1], // 8~9: M, W
+            [0, 1, 1, 1, 0], [2, 1, 1, 1, 2], // 10~11: 오목, 볼록
+            [0, 1, 0, 1, 0], [2, 1, 2, 1, 2], // 12~13: 지그재그
+            [1, 0, 1, 0, 1], [1, 2, 1, 2, 1], // 14~15: 지그재그 중앙
+            [0, 1, 2, 2, 2], [2, 1, 0, 0, 0], // 16~17: 변형
+            [0, 2, 0, 2, 0], [2, 0, 2, 0, 2], // 18~19: 격한 지그재그
+            [1, 1, 0, 1, 1]  // 20: 중앙 솟음
+        ];
+
+        let credit = 10000;
+        let totalBet = 200;
+        let isSpinning = false;
+        let currentReelSymbols = [[], [], [], [], []];
+
+        const reels = Array.from({length: REEL_COUNT}, (_, i) => document.getElementById(`reel${i}`));
+        const svgLayer = document.getElementById('paylines-svg');
+        const winOverlay = document.getElementById('win-overlay');
+        const elCredit = document.getElementById('credit-display');
+        const elBet = document.getElementById('bet-display');
+        const elWin = document.getElementById('win-display');
+        const btnSpin = document.getElementById('btn-spin');
+
+        function init() {
+            createBubbles();
+            reels.forEach((reel, i) => {
+                let html = '';
+                currentReelSymbols[i] = [];
+                for(let j=0; j<ROW_COUNT; j++) {
+                    const sym = getRandomSymbol();
+                    currentReelSymbols[i].push(sym);
+                    html += `<div class="symbol">${sym}</div>`;
+                }
+                reel.innerHTML = html;
+            });
+            updateUI();
+        }
+
+        function getRandomSymbol() {
+            return SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
+        }
+
+        function createBubbles() {
+            const container = document.getElementById('bubbles');
+            // Background effects
+        }
+
+        function changeBet() {
+            if(isSpinning) return;
+            const bets = [200, 400, 1000, 2000, 5000];
+            let idx = bets.indexOf(totalBet);
+            totalBet = bets[(idx + 1) % bets.length];
+            if(totalBet > credit && credit > 0) totalBet = bets[0];
+            updateUI();
+        }
+
+        function maxBet() {
+            if(isSpinning) return;
+            totalBet = 5000;
+            if(totalBet > credit) totalBet = Math.floor(credit / 100) * 100; 
+            if(totalBet === 0) totalBet = 200;
+            updateUI();
+        }
+
+        async function spin() {
+            if(isSpinning) return;
+            if(credit < totalBet) {
+                alert("크레딧이 부족합니다!");
+                return;
+            }
+
+            isSpinning = true;
+            credit -= totalBet;
+            elWin.innerText = "0";
+            btnSpin.classList.add("opacity-50", "cursor-not-allowed");
+            
+            clearWinEffects();
+            updateUI();
+
+            // 결과 미리 결정
+            const results = [];
+            for(let i=0; i<REEL_COUNT; i++) {
+                const col = [];
+                for(let j=0; j<ROW_COUNT; j++) col.push(getRandomSymbol());
+                results.push(col);
+            }
+
+            if(window._cheat7) {
+                results.forEach(col => col[1] = '7️⃣');
+                window._cheat7 = false;
+            }
+
+            const promises = reels.map((reel, index) => spinReel(reel, index, results[index]));
+            await Promise.all(promises);
+
+            checkWin(results);
+
+            isSpinning = false;
+            btnSpin.classList.remove("opacity-50", "cursor-not-allowed");
+            updateUI();
+        }
+
+        function spinReel(reel, index, finalSymbols) {
+            return new Promise(resolve => {
+                // 심볼 높이 실시간 계산 (리사이징 대응)
+                const firstSymbol = reel.querySelector('.symbol');
+                const symbolHeight = firstSymbol ? firstSymbol.offsetHeight : (window.innerWidth <= 640 ? 60 : 80);
+
+                const dummyCount = 20; 
+                
+                // 1. 스트립 구성: [현재 심볼] + [더미] + [최종 결과]
+                // 이렇게 구성하면 애니메이션이 시작될 때 현재 화면과 동일한 그림으로 시작합니다.
+                let stripSymbols = [...currentReelSymbols[index]];
+                for(let k=0; k<dummyCount; k++) stripSymbols.push(getRandomSymbol());
+                stripSymbols.push(...finalSymbols);
+
+                // 2. HTML 주입 및 위치 초기화 (중요: 끊김 방지)
+                reel.innerHTML = stripSymbols.map(s => `<div class="symbol">${s}</div>`).join('');
+                
+                // 트랜지션 없이 즉시 0 위치로 이동 (현재 화면 유지)
+                reel.style.transition = 'none';
+                reel.style.transform = 'translateY(0)';
+                
+                // 3. Force Reflow (브라우저가 0 위치를 인식하도록 강제)
+                // 이 코드가 없으면 브라우저 최적화 때문에 0 위치 설정을 건너뛰고 바로 애니메이션 할 수 있음
+                void reel.offsetWidth; 
+
+                // 4. 애니메이션 시작
+                requestAnimationFrame(() => {
+                    const totalMove = (stripSymbols.length - ROW_COUNT) * symbolHeight;
+                    const duration = 1.5 + (index * 0.2); 
+                    
+                    reel.style.transition = `transform ${duration}s cubic-bezier(0.25, 1, 0.5, 1)`;
+                    reel.style.transform = `translateY(-${totalMove}px)`;
+
+                    setTimeout(() => {
+                        // 5. 애니메이션 종료 후 정리: 최종 결과만 남김
+                        // 시각적으로 동일하므로 사용자 눈에는 멈춘 것처럼 보임
+                        reel.innerHTML = finalSymbols.map(s => `<div class="symbol">${s}</div>`).join('');
+                        reel.style.transition = 'none';
+                        reel.style.transform = 'translateY(0)';
+                        
+                        currentReelSymbols[index] = [...finalSymbols];
+                        resolve();
+                    }, duration * 1000);
+                });
+            });
+        }
+
+        function checkWin(grid) {
+            let totalWinAmount = 0;
+            let winningLines = [];
+            const lineBet = totalBet / 20;
+
+            PAYLINES.forEach((linePattern, lineIdx) => {
+                const firstSymbol = grid[0][linePattern[0]];
+                let matchCount = 1;
+
+                for(let c=1; c<REEL_COUNT; c++) {
+                    const row = linePattern[c];
+                    if(grid[c][row] === firstSymbol) {
+                        matchCount++;
+                    } else {
+                        break;
+                    }
+                }
+
+                if(matchCount >= 3) {
+                    const multiplier = PAYTABLE[firstSymbol][matchCount-1];
+                    if(multiplier > 0) {
+                        const winAmount = lineBet * multiplier;
+                        totalWinAmount += winAmount;
+                        
+                        const coords = [];
+                        for(let i=0; i<matchCount; i++) {
+                            coords.push([i, linePattern[i]]);
+                        }
+
+                        winningLines.push({
+                            lineIndex: lineIdx,
+                            amount: winAmount,
+                            coords: coords,
+                            symbol: firstSymbol
+                        });
+                    }
+                }
+            });
+
+            if(totalWinAmount > 0) {
+                credit += totalWinAmount;
+                elWin.innerText = Math.floor(totalWinAmount).toLocaleString();
+                drawWinningLines(winningLines);
+            }
+        }
+
+        function drawWinningLines(winners) {
+            svgLayer.innerHTML = '';
+            winOverlay.innerHTML = '';
+
+            winners.forEach((win, idx) => {
+                // 심볼 강조
+                win.coords.forEach(([c, r]) => {
+                    const dom = reels[c].children[r];
+                    if(dom) dom.classList.add('win-anim');
+                });
+
+                // 라인 그리기 (5칸 전체 연결)
+                const fullLinePattern = PAYLINES[win.lineIndex];
+                let points = "";
+                
+                for(let c=0; c<5; c++) {
+                    const r = fullLinePattern[c]; 
+                    const x = (c * 20) + 10;
+                    const y = (r * 33.33) + 16.66;
+                    points += `${x},${y} `;
+                }
+
+                const colors = ['#ff0000', '#00ff00', '#ffff00', '#00ffff', '#ff00ff'];
+                const color = colors[idx % colors.length];
+
+                const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+                polyline.setAttribute("points", points.trim());
+                polyline.setAttribute("fill", "none");
+                polyline.setAttribute("stroke", color);
+                polyline.setAttribute("stroke-width", "2"); // 선 두께를 얇게 (2)
+                polyline.setAttribute("stroke-opacity", "0.9");
+                polyline.setAttribute("stroke-linecap", "round");
+                polyline.setAttribute("stroke-linejoin", "round");
+                polyline.style.filter = "drop-shadow(0 0 2px black)"; // 그림자도 살짝 줄임
+                
+                svgLayer.setAttribute("viewBox", "0 0 100 100");
+                svgLayer.appendChild(polyline);
+
+                // 당첨금 팝업
+                const lastMatchCol = win.coords[win.coords.length - 1][0];
+                const lastMatchRow = win.coords[win.coords.length - 1][1];
+                const lastMatchX = (lastMatchCol * 20) + 10;
+                const lastMatchY = (lastMatchRow * 33.33) + 16.66;
+
+                const popup = document.createElement('div');
+                popup.className = 'win-popup';
+                popup.innerText = `+${Math.floor(win.amount).toLocaleString()}`;
+                popup.style.left = `${lastMatchX}%`;
+                popup.style.top = `${lastMatchY}%`;
+                popup.style.transform = `translate(-50%, -50%)`;
+                popup.style.color = color;
+                popup.style.textShadow = `0 0 2px black`;
+                
+                winOverlay.appendChild(popup);
+            });
+        }
+
+        function clearWinEffects() {
+            svgLayer.innerHTML = '';
+            winOverlay.innerHTML = '';
+            document.querySelectorAll('.symbol').forEach(el => el.classList.remove('win-anim'));
+        }
+
+        function updateUI() {
+            elCredit.innerText = Math.floor(credit).toLocaleString();
+            elBet.innerText = totalBet.toLocaleString();
+        }
+
+        window.addEventListener('resize', () => {});
+
+        init();
+    </script>
+</body>
+</html>
