@@ -123,11 +123,11 @@
             width: 100%;
             height: 100%;
             position: relative;
-            gap: 4px;
+            gap: 4px; /* 중요: 이 간격 때문에 단순 계산 시 라인이 안 맞음 */
             z-index: 5;
         }
 
-        /* 개별 릴 기둥 (광택 효과 수정: 가로축 원통 느낌) */
+        /* 개별 릴 기둥 */
         .reel-col {
             position: relative;
             overflow: hidden;
@@ -135,25 +135,22 @@
             border-radius: 4px;
         }
         
-        /* 릴의 하이라이트 (Cylindrical Glossy Reflection) */
-        /* 180deg(상하) 그라데이션을 사용하여 가로로 빛이 맺히게 함 */
+        /* 릴 하이라이트 (가로 원통 느낌) */
         .reel-col::after {
             content: '';
             position: absolute;
             inset: 0;
             pointer-events: none;
-            /* 위쪽 어두움 -> 위쪽 하이라이트 -> 중간 투명 -> 아래쪽 하이라이트 -> 아래쪽 어두움 */
             background: linear-gradient(180deg, 
                 rgba(0,0,0,0.95) 0%, 
                 rgba(0,0,0,0.6) 10%,
-                rgba(255,255,255,0.15) 25%, /* 상단 가로 광택 */
+                rgba(255,255,255,0.15) 25%, 
                 rgba(255,255,255,0.02) 40%, 
                 rgba(255,255,255,0.02) 60%, 
-                rgba(255,255,255,0.15) 75%, /* 하단 가로 광택 */
+                rgba(255,255,255,0.15) 75%, 
                 rgba(0,0,0,0.6) 90%,
                 rgba(0,0,0,0.95) 100%);
             z-index: 20;
-            /* 좌우 구분선 */
             border-left: 1px solid rgba(255,255,255,0.05);
             border-right: 1px solid rgba(0,0,0,0.5);
         }
@@ -164,16 +161,14 @@
             will-change: transform;
         }
 
-        /* 릴의 각 '칸' 디자인 - 마진 제거 */
+        /* 심볼 컨테이너 (칸) */
         .symbol-wrapper {
             display: flex;
             align-items: center;
             justify-content: center;
             box-sizing: border-box;
-            /* 칸 구분선은 아주 얇게 */
             border-top: 1px solid rgba(255,255,255,0.05);
             border-bottom: 1px solid rgba(0,0,0,0.5);
-            /* 배경은 릴 전체 쉐이딩에 맡기거나 아주 약하게 */
             background: rgba(20, 20, 20, 0.5); 
             position: relative;
             margin: 0; 
@@ -188,7 +183,7 @@
 
         .symbol-wrapper.win-highlight {
             background: linear-gradient(to bottom, #2a2a2a, #222);
-            border: 2px solid var(--neon-gold); /* 테두리 강조 */
+            border: 2px solid var(--neon-gold);
             z-index: 15;
             box-shadow: inset 0 0 15px var(--neon-gold);
         }
@@ -278,9 +273,27 @@
             opacity: 1 !important;
         }
 
+        /* AUTO 모드 활성화 스타일 */
+        .btn-auto.active {
+            background: radial-gradient(circle at 50% 50%, #00ff00, #006600);
+            box-shadow: 0 0 10px #00ff00, 0 4px 0 #003300;
+            color: #000;
+        }
+
         .btn-bet { width: 55px; height: 55px; font-size: 0.8rem; background: radial-gradient(circle at 50% 50%, #4a90e2, #004488); }
         .btn-max { width: 55px; height: 55px; font-size: 0.8rem; background: radial-gradient(circle at 50% 50%, #9b59b6, #5b2c6f); }
-        .btn-spin { width: 75px; height: 75px; font-size: 1.4rem; background: radial-gradient(circle at 50% 50%, #ff5252, #a70000); border: 2px solid #ff8a80; }
+        .btn-auto { width: 55px; height: 55px; font-size: 0.8rem; background: radial-gradient(circle at 50% 50%, #555, #222); }
+        
+        .btn-spin { 
+            width: 75px; height: 75px; font-size: 1.4rem; 
+            background: radial-gradient(circle at 50% 50%, #ff5252, #a70000); 
+            border: 2px solid #ff8a80; 
+        }
+        .btn-spin.stop-mode {
+            background: radial-gradient(circle at 50% 50%, #ffaa00, #995500);
+            border: 2px solid #ffeeaa;
+            font-size: 1.1rem;
+        }
 
         .lines-layer {
             position: absolute;
@@ -362,7 +375,7 @@
                 <div class="reel-col"><div class="reel-strip" id="reel4"></div></div>
             </div>
 
-            <!-- 당첨 라인 SVG -->
+            <!-- 당첨 라인 SVG (좌표계 동적 계산을 위해 viewBox 제거) -->
             <svg id="lines-svg" class="lines-layer"></svg>
             <!-- 텍스트 레이어 -->
             <div id="text-layer" class="lines-layer" style="z-index:60;"></div>
@@ -386,13 +399,15 @@
             </div>
 
             <div class="btn-group">
+                <!-- AUTO 버튼 추가 -->
+                <button class="game-btn btn-auto" onclick="toggleAuto()" id="btn-auto">
+                    AUTO
+                </button>
                 <button class="game-btn btn-bet" onclick="changeBet()" id="btn-bet">
                     BET<br><span style="font-size:0.8em; color:#ddd;" id="btn-bet-val">200</span>
                 </button>
-                <button class="game-btn btn-max" onclick="maxBet()" id="btn-max">
-                    MAX
-                </button>
-                <button class="game-btn btn-spin" onclick="spin()" id="btn-spin">
+                <!-- Spin 버튼 -->
+                <button class="game-btn btn-spin" onclick="handleSpinClick()" id="btn-spin">
                     SPIN
                 </button>
             </div>
@@ -406,10 +421,13 @@
     </div>
 
     <script>
-        // --- 사운드 ---
+        // --- 사운드 시스템 ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let isSoundOn = true;
+        let spinOscillator = null; // 회전음 제어용
+        let spinNoiseNode = null;
 
+        // 범용 톤 재생 함수
         function playTone(freq, type, duration, vol=0.1) {
             if(!isSoundOn) return;
             const osc = audioCtx.createOscillator();
@@ -424,21 +442,76 @@
             osc.stop(audioCtx.currentTime + duration);
         }
 
-        function playSpinSound() {
+        // --- 수정된 스핀 루프 소리 ---
+        // 낮은 주파수의 톱니파로 부드러운 기계음 표현
+        function startSpinSound() {
             if(!isSoundOn) return;
-            const osc = audioCtx.createOscillator();
+            if(spinOscillator) return; // 이미 재생 중
+            
+            // 오실레이터 생성
+            spinOscillator = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(100, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.02, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.03);
-            osc.connect(gain);
+            
+            spinOscillator.type = 'sawtooth'; // 톱니파가 좀 더 기계적인 느낌
+            spinOscillator.frequency.setValueAtTime(45, audioCtx.currentTime); // 낮은 주파수
+            
+            // 볼륨 설정
+            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            
+            spinOscillator.connect(gain);
             gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.03);
+            spinOscillator.start();
         }
 
-        // --- 게임 설정 ---
+        function stopSpinSound() {
+            if(spinOscillator) {
+                try { spinOscillator.stop(); } catch(e){}
+                spinOscillator = null;
+            }
+        }
+
+        // --- 수정된 릴 정지 소리 ---
+        // 짧고 강한 타격음('척!')
+        function playReelStopSound() {
+            if(!isSoundOn) return;
+
+            // 1. 타격감을 위한 노이즈 생성 (짧은 화이트 노이즈)
+            const bufferSize = audioCtx.sampleRate * 0.03; // 30ms의 매우 짧은 버퍼
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1; // 화이트 노이즈
+            }
+            const noiseSource = audioCtx.createBufferSource();
+            noiseSource.buffer = buffer;
+
+            // 노이즈용 게인 (볼륨 엔벨로프)
+            const noiseGain = audioCtx.createGain();
+            noiseGain.gain.setValueAtTime(1, audioCtx.currentTime);
+            noiseGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.03);
+
+            // 2. 톤 추가 (약간의 울림)
+            const osc = audioCtx.createOscillator();
+            const oscGain = audioCtx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.05);
+            
+            oscGain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            oscGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+            
+            // 연결 및 재생
+            noiseSource.connect(noiseGain);
+            noiseGain.connect(audioCtx.destination);
+            osc.connect(oscGain);
+            oscGain.connect(audioCtx.destination);
+
+            noiseSource.start();
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.05);
+        }
+
+        // --- 게임 변수 ---
         const REEL_COUNT = 5;
         const ROW_COUNT = 3;
         const SYMBOLS = ['🐚', '🐡', '🐙', '🐠', '🐢', '🦈', '💎', '7️⃣'];
@@ -468,6 +541,9 @@
         let credit = 10000;
         let totalBet = 200;
         let isSpinning = false;
+        let forceStop = false; // 강제 정지 플래그
+        let isAuto = false;    // 오토 모드 플래그
+        let autoTimeout = null;
         let currentReelSymbols = [[], [], [], [], []];
         let symbolHeight = 0;
 
@@ -481,9 +557,9 @@
         
         const btnSpin = document.getElementById('btn-spin');
         const btnBet = document.getElementById('btn-bet');
-        const btnMax = document.getElementById('btn-max');
-        const btns = [btnSpin, btnBet, btnMax];
-
+        const btnAuto = document.getElementById('btn-auto');
+        
+        // --- 초기화 ---
         function init() {
             reels.forEach((reel, i) => {
                 let html = '';
@@ -501,12 +577,11 @@
             document.addEventListener('keydown', (e) => {
                 if(e.code === 'Space') {
                     e.preventDefault();
-                    if(!isSpinning) spin();
+                    handleSpinClick();
                 }
             });
         }
 
-        // 심볼 HTML 생성 (칸 디자인 포함)
         function createSymbolHTML(sym) {
             return `<div class="symbol-wrapper" style="height:${symbolHeight}px">
                         <div class="symbol" style="font-size:${symbolHeight*0.6}px">${sym}</div>
@@ -516,21 +591,19 @@
         function updateLayout() {
             const container = document.getElementById('reelsContainer');
             if(!container) return;
-            // 3등분 높이 계산 (마진 고려하지 않음)
             const h = container.clientHeight / 3;
             symbolHeight = h;
             
-            // 모든 심볼 래퍼 높이 업데이트
-            const wrappers = document.querySelectorAll('.symbol-wrapper');
-            if (wrappers.length > 0) {
-                wrappers.forEach(el => {
-                    el.style.height = `${h}px`;
-                });
-                document.querySelectorAll('.symbol').forEach(el => {
-                    el.style.fontSize = `${h * 0.6}px`;
-                });
-            }
+            document.querySelectorAll('.symbol-wrapper').forEach(el => {
+                el.style.height = `${h}px`;
+            });
+            document.querySelectorAll('.symbol').forEach(el => {
+                el.style.fontSize = `${h * 0.6}px`;
+            });
             reels.forEach(r => r.style.transform = 'translateY(0)');
+            
+            // SVG 크기 재설정
+            svgLayer.setAttribute('viewBox', `0 0 ${container.clientWidth} ${container.clientHeight}`);
         }
 
         function getRandomSymbol() {
@@ -547,29 +620,56 @@
             playTone(400, 'sine', 0.1);
         }
 
-        function maxBet() {
-            if(isSpinning) return;
-            totalBet = 5000;
-            if(totalBet > credit) totalBet = Math.floor(credit/100)*100 || 200;
-            updateUI();
-            playTone(600, 'sine', 0.1);
+        function toggleAuto() {
+            isAuto = !isAuto;
+            if(isAuto) {
+                btnAuto.classList.add('active');
+                if(!isSpinning) spin();
+            } else {
+                btnAuto.classList.remove('active');
+                if(autoTimeout) clearTimeout(autoTimeout);
+            }
+        }
+
+        function handleSpinClick() {
+            if (isSpinning) {
+                // 이미 돌고 있으면 강제 정지 (Stop)
+                stopSpin();
+            } else {
+                // 멈춰 있으면 스핀 시작
+                spin();
+            }
+        }
+
+        function stopSpin() {
+            forceStop = true;
         }
 
         async function spin() {
             if(isSpinning) return;
             if(credit < totalBet) {
                 alert("크레딧 부족!");
+                isAuto = false;
+                btnAuto.classList.remove('active');
                 return;
             }
             if(audioCtx.state === 'suspended') audioCtx.resume();
 
+            // 초기화
             isSpinning = true;
+            forceStop = false;
             credit -= totalBet;
-            
-            toggleButtons(false);
             elWin.innerText = "0";
             clearWinEffects();
             updateUI();
+            
+            // UI 변경 (STOP 모드)
+            btnSpin.innerText = "STOP";
+            btnSpin.classList.add('stop-mode');
+            btnBet.disabled = true;
+
+            // 회전 소리 시작
+            startSpinSound();
 
             const results = [];
             for(let i=0; i<REEL_COUNT; i++) {
@@ -578,55 +678,85 @@
                 results.push(col);
             }
 
+            // 릴 회전
             const promises = reels.map((reel, idx) => spinReel(reel, idx, results[idx]));
             await Promise.all(promises);
 
+            // 종료 처리
+            stopSpinSound();
             checkWin(results);
             
             isSpinning = false;
-            toggleButtons(true);
+            btnSpin.innerText = "SPIN";
+            btnSpin.classList.remove('stop-mode');
+            btnBet.disabled = false;
             updateUI();
-        }
 
-        function toggleButtons(enable) {
-            btns.forEach(b => {
-                b.disabled = !enable;
-            });
+            // 오토 모드면 다음 스핀 예약
+            if (isAuto && credit >= totalBet) {
+                autoTimeout = setTimeout(() => {
+                    if(isAuto) spin();
+                }, 1000);
+            } else if (isAuto && credit < totalBet) {
+                isAuto = false;
+                btnAuto.classList.remove('active');
+            }
         }
 
         function spinReel(reel, index, finalSymbols) {
             return new Promise(resolve => {
                 const dummyCount = 20 + index * 5; 
                 let stripSymbols = [...currentReelSymbols[index]];
-                
                 for(let k=0; k<dummyCount; k++) stripSymbols.push(getRandomSymbol());
                 stripSymbols.push(...finalSymbols);
 
                 reel.innerHTML = stripSymbols.map(s => createSymbolHTML(s)).join('');
-                
                 reel.style.transition = 'none';
                 reel.style.transform = 'translateY(0)';
-                void reel.offsetWidth;
-
-                const spinInterval = setInterval(playSpinSound, 120);
+                void reel.offsetWidth; // Reflow
 
                 requestAnimationFrame(() => {
                     const totalMove = (stripSymbols.length - ROW_COUNT) * symbolHeight;
-                    const duration = 1.8 + (index * 0.4);
-                    reel.style.transition = `transform ${duration}s cubic-bezier(0.2, 0.8, 0.2, 1)`; 
+                    // 애니메이션 시간 (강제 정지 시 즉시 0.1s로 단축)
+                    const baseDuration = 1.5 + (index * 0.3);
+                    
+                    // CSS Transition 시작 (Bounce 효과 추가: cubic-bezier(0.5, 1.3, 0.5, 1))
+                    reel.style.transition = `transform ${baseDuration}s cubic-bezier(0.5, 1.3, 0.5, 1)`; 
                     reel.style.transform = `translateY(-${totalMove}px)`;
 
-                    setTimeout(() => {
-                        clearInterval(spinInterval);
-                        playTone(150, 'triangle', 0.1);
-
+                    // 진행 상태 모니터링 (Force Stop 체크)
+                    const startTime = performance.now();
+                    
+                    function checkStop() {
+                        const elapsed = (performance.now() - startTime) / 1000;
+                        
+                        if (forceStop) {
+                            // 강제 정지: 즉시 끝으로 이동
+                            reel.style.transition = `transform 0.1s ease-out`;
+                            reel.style.transform = `translateY(-${totalMove}px)`;
+                            
+                            setTimeout(finish, 100); // 0.1초 후 종료
+                        } else if (elapsed >= baseDuration) {
+                            // 자연 종료
+                            finish();
+                        } else {
+                            requestAnimationFrame(checkStop);
+                        }
+                    }
+                    
+                    function finish() {
+                        // 릴이 멈추는 순간 소리 재생 (타이밍 동기화)
+                        playReelStopSound(); 
+                        
+                        // DOM 정리
                         reel.innerHTML = finalSymbols.map(s => createSymbolHTML(s)).join('');
                         reel.style.transition = 'none';
                         reel.style.transform = 'translateY(0)';
-                        
                         currentReelSymbols[index] = [...finalSymbols];
                         resolve();
-                    }, duration * 1000);
+                    }
+
+                    checkStop();
                 });
             });
         }
@@ -652,7 +782,7 @@
                         winners.push({
                             lineIdx: idx,
                             amount: amt,
-                            coords: pattern.slice(0, count).map((r, c) => [c, r]),
+                            coords: pattern.slice(0, count).map((r, c) => [c, r]), // [col, row]
                             color: getNeonColor(idx)
                         });
                     }
@@ -664,10 +794,7 @@
                 elWin.innerText = Math.floor(totalWin).toLocaleString();
                 playWinMusic(); 
                 drawWinEffects(winners);
-                
-                if(totalWin >= totalBet * 50) {
-                    showJackpot(totalWin);
-                }
+                if(totalWin >= totalBet * 50) showJackpot(totalWin);
             }
         }
 
@@ -676,36 +803,55 @@
             return colors[idx % colors.length];
         }
 
+        // 라인 그리기 (DOM 좌표 기반 정렬)
         function drawWinEffects(winners) {
             svgLayer.innerHTML = '';
             textLayer.innerHTML = '';
-            svgLayer.setAttribute("viewBox", "0 0 500 300");
+            
+            // 컨테이너 크기 업데이트
+            const container = document.getElementById('reelsContainer');
+            svgLayer.setAttribute('viewBox', `0 0 ${container.clientWidth} ${container.clientHeight}`);
 
             winners.forEach(win => {
-                const points = PAYLINES[win.lineIdx].map((row, col) => `${col*100 + 50},${row*100 + 50}`).join(' ');
+                // 좌표 계산 (실제 심볼 DOM 위치 기준)
+                let points = "";
+                let lastPos = {x:0, y:0};
+
+                win.coords.forEach(([c, r]) => {
+                    const reelEl = reels[c];
+                    // r 번째 자식 (현재 DOM에는 결과 심볼만 남아있음. r은 0,1,2)
+                    const symbolEl = reelEl.children[r]; 
+                    
+                    if(symbolEl) {
+                        // 상대 좌표 계산 (컨테이너 기준)
+                        const centerX = reelEl.offsetLeft + (reelEl.offsetWidth / 2);
+                        const centerY = symbolEl.offsetTop + (symbolEl.offsetHeight / 2);
+                        points += `${centerX},${centerY} `;
+                        lastPos = {x: centerX, y: centerY};
+                        
+                        // 심볼 하이라이트
+                        symbolEl.classList.add('win-highlight');
+                    }
+                });
+
+                // 라인
                 const poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
                 poly.setAttribute("points", points);
                 poly.setAttribute("fill", "none");
                 poly.setAttribute("stroke", win.color);
-                poly.setAttribute("stroke-width", "6");
+                poly.setAttribute("stroke-width", "5");
                 poly.setAttribute("stroke-linecap", "round");
                 poly.setAttribute("stroke-linejoin", "round");
                 poly.style.filter = `drop-shadow(0 0 8px ${win.color})`;
                 svgLayer.appendChild(poly);
 
-                win.coords.forEach(([c, r]) => {
-                    const wrapperEl = reels[c].children[r];
-                    if(wrapperEl) {
-                        wrapperEl.classList.add('win-highlight');
-                    }
-                });
-
-                const last = win.coords[win.coords.length-1];
+                // 텍스트
                 const label = document.createElement('div');
                 label.className = 'win-float-text';
                 label.innerText = "+" + Math.floor(win.amount).toLocaleString();
-                label.style.left = `${last[0]*20 + 10}%`;
-                label.style.top = `${last[1]*33.33 + 16.66}%`;
+                // 절대 좌표로 배치 (container relative)
+                label.style.left = `${lastPos.x}px`;
+                label.style.top = `${lastPos.y}px`;
                 label.style.color = win.color;
                 label.style.borderColor = win.color;
                 label.style.boxShadow = `0 0 10px ${win.color}`;
@@ -725,16 +871,7 @@
             if(!isSoundOn) return;
             const now = audioCtx.currentTime;
             [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.type = 'triangle';
-                osc.frequency.value = freq;
-                gain.gain.setValueAtTime(0.1, now + i*0.1);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + i*0.1 + 0.3);
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start(now + i*0.1);
-                osc.stop(now + i*0.1 + 0.3);
+                playTone(freq, 'triangle', 0.3, 0.1);
             });
         }
 
