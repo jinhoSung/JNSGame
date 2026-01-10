@@ -255,10 +255,9 @@
     <div id="instruction" class="pointer-auto">
         <h3>🏙️ 시티 타이쿤 프로</h3>
         <p style="text-align:left; font-size:13px; color:#555; line-height:1.6;">
-            1. <strong>인접 연결</strong>: 도로를 끊어 지어도 옆에 도로가 있으면 자동으로 연결됩니다.<br>
-            2. <strong>구조물 배치</strong>: 교차로와 회전교차로는 드래그가 아닌 <strong>클릭하여 배치</strong>합니다.<br>
-            3. <strong>고속도로 업그레이드</strong>: 일반 도로 위에 고속도로를 지으면 기존 도로는 <strong>자동 판매</strong>됩니다.<br>
-            4. <strong>색상 매칭</strong>: 집과 같은 색의 회사로만 출근합니다.
+            1. <strong>조작법 개선</strong>: 우클릭이나 이동모드에서 집을 클릭하면 <strong>회전</strong>합니다.<br>
+            2. <strong>화면 이동</strong>: 우클릭 드래그 또는 이동모드 드래그.<br>
+            3. <strong>건설/철거</strong>: 드래그 후 [확인]을 눌러주세요.
         </p>
         <button onclick="document.getElementById('instruction').style.display='none'" style="padding:10px 20px; background:#2196F3; color:white; border:none; border-radius:5px; cursor:pointer;">게임 시작</button>
     </div>
@@ -268,7 +267,7 @@
     const TILE_SIZE = 40;
     const GRID_WIDTH = 50;
     const GRID_HEIGHT = 50;
-    const SALARY = 20; // 월급 인상 ($5 -> $20)
+    const SALARY = 20; 
     const INIT_MONEY = 1000;
     const WORK_DURATION = 300;
 
@@ -331,7 +330,12 @@
             
             this.lastMouse = {x:0, y:0};
             this.isPanDragging = false;
-            this.stampPos = null; // 구조물 건설용 좌표
+            this.stampPos = null; 
+            
+            // 입력 구분용
+            this.mouseDownScreen = {x:0, y:0};
+            this.isDragMoved = false;
+            this.isRightClick = false;
 
             this.resize();
             window.addEventListener('resize', () => this.resize());
@@ -414,55 +418,63 @@
         }
 
         handleStart(x, y, isRight) {
+            this.mouseDownScreen = {x, y};
             this.lastMouse = {x, y};
-            if (currentMode === 'move' || isRight) {
-                this.isPanDragging = true;
-                return;
-            }
+            this.isDragMoved = false;
+            this.isRightClick = isRight;
+
+            if (this.waitingConfirm) return;
+
             const g = this.screenToGrid(x, y);
             if (!this.isValid(g.x, g.y)) return;
 
-            // 집 회전
-            const cell = this.grid[g.x][g.y];
-            if (cell.type === TYPE.HOUSE && cell.ref) {
-                this.rotateBuilding(cell.ref);
-                return;
-            }
-
-            // 건설 모드 분기 (드래그 vs 스탬프)
-            const rInfo = ROAD_TYPES[selectedRoadType];
-            
-            if (currentMode === 'build' && rInfo.type === 'stamp') {
-                // 스탬프 모드: 클릭 시점의 좌표를 저장하고 즉시 확인 팝업
-                this.stampPos = g;
-                this.previewPath = []; // 패스 대신 stampPos 사용
-                this.showConfirmPopup();
-            } else {
-                // 드래그 모드 (일반/고속도로/철거)
-                this.isDragging = true;
-                this.dragStart = g;
-                this.dragEnd = g;
-                this.updateDragPath();
+            // 이동 모드 or 우클릭: 일단 팬 모드 진입 준비 (실제 이동은 move에서)
+            if (currentMode === 'move' || isRight) {
+                this.isPanDragging = true;
+            } 
+            else {
+                // 건설/철거 모드 (좌클릭)
+                const rInfo = ROAD_TYPES[selectedRoadType];
+                
+                // 스탬프 모드는 클릭 시 처리하므로 여기서는 좌표만 잡음
+                if (currentMode === 'build' && rInfo.type === 'stamp') {
+                    // pass (handled in Move/End)
+                } else {
+                    // 드래그 건설 시작
+                    this.isDragging = true;
+                    this.dragStart = g;
+                    this.dragEnd = g;
+                    // 아직 패스 업데이트 안함 (단순 클릭과 구분 위해)
+                }
             }
         }
 
         handleMove(x, y) {
+            // 드래그 여부 판단 (5픽셀 이상 이동 시)
+            if (!this.isDragMoved) {
+                const dist = Math.hypot(x - this.mouseDownScreen.x, y - this.mouseDownScreen.y);
+                if (dist > 5) this.isDragMoved = true;
+            }
+
             if (this.isPanDragging) {
-                this.camera.x += x - this.lastMouse.x;
-                this.camera.y += y - this.lastMouse.y;
+                if (this.isDragMoved) {
+                    this.camera.x += x - this.lastMouse.x;
+                    this.camera.y += y - this.lastMouse.y;
+                }
                 this.lastMouse = {x, y};
                 return;
             }
 
             const g = this.screenToGrid(x, y);
             
-            // 스탬프 모드일 때는 마우스 위치만 추적하여 프리뷰 렌더링에 사용
-            if (currentMode === 'build' && ROAD_TYPES[selectedRoadType].type === 'stamp') {
+            // 스탬프 모드: 마우스 따라다니는 프리뷰
+            if (currentMode === 'build' && ROAD_TYPES[selectedRoadType].type === 'stamp' && !this.isRightClick) {
                 this.stampPos = g;
                 return;
             }
 
-            if (this.isDragging) {
+            // 드래그 건설 프리뷰
+            if (this.isDragging && this.isDragMoved) {
                 if (this.isValid(g.x, g.y) && (g.x !== this.dragEnd.x || g.y !== this.dragEnd.y)) {
                     this.dragEnd = g;
                     this.updateDragPath();
@@ -471,13 +483,41 @@
         }
 
         handleEnd() {
-            this.isPanDragging = false;
-            if (this.isDragging) {
-                this.isDragging = false;
-                if (this.previewPath.length > 0) {
+            // 클릭이 끝났을 때 처리
+            const g = this.screenToGrid(this.mouseDownScreen.x, this.mouseDownScreen.y);
+
+            // 1. 드래그가 아니었던 경우 (단순 클릭)
+            if (!this.isDragMoved) {
+                if (this.isValid(g.x, g.y)) {
+                    const cell = this.grid[g.x][g.y];
+                    
+                    // 집 회전 (어떤 모드에서든 집 클릭 시)
+                    if (cell.type === TYPE.HOUSE && cell.ref) {
+                        this.rotateBuilding(cell.ref);
+                    }
+                    // 스탬프 건설 (건설 모드 & 좌클릭 & 빈 땅/도로)
+                    else if (currentMode === 'build' && !this.isRightClick) {
+                        const rInfo = ROAD_TYPES[selectedRoadType];
+                        if (rInfo.type === 'stamp') {
+                            this.stampPos = g;
+                            this.previewPath = []; 
+                            this.showConfirmPopup();
+                        }
+                    }
+                }
+            }
+            // 2. 드래그 였던 경우
+            else {
+                // 건설/철거 드래그 완료 시 팝업
+                if (this.isDragging && this.previewPath.length > 0) {
                     this.showConfirmPopup();
                 }
             }
+
+            // 상태 초기화
+            this.isPanDragging = false;
+            this.isDragging = false;
+            this.isDragMoved = false;
         }
 
         updateDragPath() {
@@ -501,8 +541,6 @@
             if (currentMode === 'build') {
                 const rInfo = ROAD_TYPES[selectedRoadType];
                 if (rInfo.type === 'stamp') {
-                    // 스탬프 모드 비용 (1회)
-                    // 유효성 검사 (빈 땅 혹은 도로인지)
                     let w=rInfo.w, h=rInfo.h;
                     let canBuild = true;
                     if(this.stampPos) {
@@ -513,22 +551,20 @@
                             if(c.type!==TYPE.EMPTY && c.type!==TYPE.ROAD) { canBuild=false; break; }
                         }
                     }
-                    if(canBuild) {
+                    if(canBuild && this.stampPos) {
                         cost = rInfo.cost;
                         msg = `${rInfo.name} 건설`;
                         valid = true;
                     }
                 } else {
-                    // 드래그 모드 비용
                     this.previewPath.forEach(p => {
                         const cell = this.grid[p.x][p.y];
                         if (cell.type === TYPE.EMPTY) {
                             cost += rInfo.cost;
                             valid = true;
                         } else if (cell.type === TYPE.ROAD && !cell.isFixedRoad) {
-                             // 기존 도로 위에 덮어쓰기 (업그레이드)
                              if (cell.roadType !== selectedRoadType) {
-                                 cost += rInfo.cost - 5; // 새 비용 - 환불
+                                 cost += rInfo.cost - 5;
                                  valid = true;
                              }
                         }
@@ -560,7 +596,7 @@
             let changed = false;
             const rInfo = ROAD_TYPES[selectedRoadType];
 
-            // 1. 스탬프 건설 (교차로, 회전교차로)
+            // 1. 스탬프 건설
             if (currentMode === 'build' && rInfo.type === 'stamp' && this.stampPos) {
                 if (this.money >= rInfo.cost) {
                     this.money -= rInfo.cost;
@@ -568,10 +604,10 @@
                     for(let i=0; i<rInfo.w; i++) for(let j=0; j<rInfo.h; j++) {
                         const nx=this.stampPos.x+i, ny=this.stampPos.y+j;
                         const cell = this.grid[nx][ny];
-                        if(cell.type===TYPE.ROAD && !cell.isFixedRoad) this.money += 5; // 기존 도로 환불
+                        if(cell.type===TYPE.ROAD && !cell.isFixedRoad) this.money += 5; 
                         cell.type = TYPE.ROAD;
                         cell.roadType = selectedRoadType;
-                        cell.connections.fill(true); // 구조물 내부는 모두 연결
+                        cell.connections.fill(true); 
                         this.refreshConnections(nx, ny);
                     }
                     changed = true;
@@ -583,7 +619,6 @@
                     const cell = this.grid[p.x][p.y];
                     if (currentMode === 'build') {
                         if (cell.type === TYPE.EMPTY || (cell.type === TYPE.ROAD && !cell.isFixedRoad && cell.roadType !== selectedRoadType)) {
-                             // 비용 체크
                              let cost = rInfo.cost;
                              let refund = 0;
                              if(cell.type === TYPE.ROAD) refund = 5;
@@ -594,7 +629,6 @@
                                  cell.type = TYPE.ROAD;
                                  cell.roadType = selectedRoadType;
                                  changed = true;
-                                 // 인접 연결
                                  this.refreshConnections(p.x, p.y);
                              }
                         }
@@ -632,16 +666,12 @@
             document.getElementById('confirm-popup').style.display = 'none';
         }
 
-        // 인접 도로 자동 연결 로직
         refreshConnections(x, y) {
             const cell = this.grid[x][y];
             if(cell.type !== TYPE.ROAD) return;
-            
-            // 8방향 체크
             for(let i=0; i<8; i++) {
                 const nx=x+DIRS[i].dx, ny=y+DIRS[i].dy;
                 if(this.isValid(nx, ny) && this.grid[nx][ny].type === TYPE.ROAD) {
-                    // 서로 연결
                     cell.connections[i] = true;
                     this.grid[nx][ny].connections[(i+4)%8] = true;
                 }
@@ -657,7 +687,6 @@
             }
         }
 
-        // --- 에이전트/건물 ---
         spawnBuilding(type, colorIdx = -1) {
             let placed = false, attempts=0;
             const w = (type===TYPE.COMPANY)?4:1;
@@ -690,16 +719,14 @@
         }
 
         setupEntrance(b) {
-            // [수정] 기존 도로 제거 로직 (잔상 해결)
             if (b.entranceRoadPos) {
                 const ox = b.entranceRoadPos.x, oy = b.entranceRoadPos.y;
                 if (this.isValid(ox, oy)) {
                     const old = this.grid[ox][oy];
-                    // 고정 도로였고 다른 연결이 없다면 삭제. 연결이 있어도 집 회전이니 끊어야 함.
                     if (old.isFixedRoad) {
                         old.type = TYPE.EMPTY;
                         old.connections.fill(false);
-                        this.disconnectNeighbors(ox, oy); // 주변 연결 끊기
+                        this.disconnectNeighbors(ox, oy); 
                     }
                 }
             }
@@ -722,7 +749,7 @@
                 }
                 cell.isFixedRoad=true;
                 b.entranceRoadPos={x:rx, y:ry};
-                this.refreshConnections(rx, ry); // 새 위치 연결
+                this.refreshConnections(rx, ry); 
             }
         }
 
@@ -737,7 +764,6 @@
         rotateBuilding(b) {
             b.rotation = (b.rotation + 1) % 4;
             this.setupEntrance(b);
-            // 회전 후 경로 재탐색 트리거
             this.triggerCommute();
         }
 
@@ -761,7 +787,7 @@
         planRoute(a, dest, mode) {
             if (mode === STATE.TO_WORK && dest.colorIdx !== a.colorIdx) return;
             let start = (mode===STATE.TO_WORK) ? a.home.entranceRoadPos : a.work.entranceRoadPos;
-            let target = (mode===STATE.TO_WORK) ? dest.entranceRoadPos : dest.entranceRoadPos; // 집 입구 도로로
+            let target = (mode===STATE.TO_WORK) ? dest.entranceRoadPos : dest.entranceRoadPos; 
             if(!start || !target) return;
 
             let slot = null;
@@ -817,7 +843,6 @@
         }
 
         update() {
-             // 자동 건물 생성 (가끔)
             if(Math.random()<0.002 && this.buildings.length<40) {
                 this.spawnBuilding(Math.random()>0.6?TYPE.COMPANY:TYPE.HOUSE);
             }
@@ -905,13 +930,11 @@
             this.ctx.fillStyle = '#81c784';
             this.ctx.fillRect(0,0,GRID_WIDTH*TILE_SIZE, GRID_HEIGHT*TILE_SIZE);
 
-            // 도로 & 건물
             for(let x=0; x<GRID_WIDTH; x++) for(let y=0; y<GRID_HEIGHT; y++) {
                 if(this.grid[x][y].type === TYPE.ROAD) this.drawRoad(x, y);
             }
             this.buildings.forEach(b => this.drawBuilding(b));
 
-            // 에이전트
             this.agents.forEach(a => {
                 if(a.state !== STATE.IDLE && a.state !== STATE.RESTING) {
                     this.drawAgent(a);
@@ -922,15 +945,13 @@
             // 프리뷰 (드래그 or 스탬프)
             if (currentMode === 'build' || currentMode === 'erase') {
                 const rInfo = ROAD_TYPES[selectedRoadType];
-                if (currentMode==='build' && rInfo.type==='stamp' && this.stampPos) {
-                     // 스탬프 프리뷰
+                if (currentMode==='build' && rInfo.type==='stamp' && this.stampPos && !this.isRightClick) {
                      this.ctx.strokeStyle = 'rgba(0,255,0,0.8)';
                      this.ctx.lineWidth = 2;
                      this.ctx.strokeRect(this.stampPos.x*TILE_SIZE, this.stampPos.y*TILE_SIZE, rInfo.w*TILE_SIZE, rInfo.h*TILE_SIZE);
                      this.ctx.fillStyle = 'rgba(0,255,0,0.2)';
                      this.ctx.fillRect(this.stampPos.x*TILE_SIZE, this.stampPos.y*TILE_SIZE, rInfo.w*TILE_SIZE, rInfo.h*TILE_SIZE);
                 } else if (this.previewPath.length > 0) {
-                     // 드래그 프리뷰
                      this.ctx.fillStyle = (currentMode==='erase') ? 'rgba(244,67,54,0.5)' : 'rgba(33,150,243,0.5)';
                      this.previewPath.forEach(p => {
                          this.ctx.fillRect(p.x*TILE_SIZE, p.y*TILE_SIZE, TILE_SIZE, TILE_SIZE);
@@ -946,10 +967,8 @@
             const info = ROAD_TYPES[c.roadType] || ROAD_TYPES[1];
             const cx=x*TILE_SIZE+TILE_SIZE/2, cy=y*TILE_SIZE+TILE_SIZE/2;
             
-            // 도로 원형
             this.ctx.fillStyle = info.color;
             let radius = TILE_SIZE*0.4;
-            // 회전교차로는 더 크게 그리기 (시각적)
             if (c.roadType === 4) radius = TILE_SIZE * 0.5;
 
             this.ctx.beginPath(); this.ctx.arc(cx,cy,radius,0,Math.PI*2); this.ctx.fill();
@@ -965,12 +984,10 @@
             }
             this.ctx.stroke();
 
-            // 차선 및 장식
             this.ctx.strokeStyle = (c.roadType===2) ? '#FFEB3B' : 'rgba(255,255,255,0.4)';
             this.ctx.lineWidth = 2;
             if (c.roadType === 3) this.ctx.strokeStyle = 'white'; 
             
-            // 회전교차로는 중앙 섬
             if(c.roadType===4) {
                  this.ctx.fillStyle = '#4CAF50';
                  this.ctx.beginPath(); this.ctx.arc(cx,cy,TILE_SIZE*0.2,0,Math.PI*2); this.ctx.fill();
@@ -985,7 +1002,6 @@
                  this.ctx.stroke();
             }
             
-            // 교차로 정지선
             if(c.roadType===3) {
                 this.ctx.fillStyle='#fff';
                 this.ctx.fillRect(cx-4,cy-4,8,8);
