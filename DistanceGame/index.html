@@ -285,6 +285,10 @@
         }
 
         #my-rank-info { color: #aaa; font-size: 14px; margin-bottom: 15px; }
+        
+        #loading-msg {
+            color: #aaa; font-size: 14px; margin-bottom: 10px;
+        }
 
         @keyframes pop {
             0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
@@ -338,6 +342,8 @@
         <h2 id="modal-title">GAME OVER</h2>
         <div id="final-score" class="hidden">0 m</div>
         
+        <div id="loading-msg" class="hidden">순위 확인 중...</div>
+
         <div id="register-form" class="hidden">
             <input type="text" id="player-name" placeholder="이름을 입력하세요 (최대 8자)" maxlength="8">
             <div style="display: flex; gap: 5px; justify-content: center;">
@@ -409,7 +415,8 @@
                 if (!this.db) return { top10: [], myRank: '-' };
                 try {
                     const scoresRef = collection(this.db, 'scores');
-                    const qTop = query(scoresRef, orderBy('score', 'desc'), limit(10));
+                    // [수정] 상위 30개까지 가져오도록 변경
+                    const qTop = query(scoresRef, orderBy('score', 'desc'), limit(30));
                     const snapshot = await getDocs(qTop);
                     const top10 = snapshot.docs.map(doc => doc.data());
                     let myRank = '-';
@@ -427,6 +434,27 @@
                     return { top10, myRank };
                 } catch (e) {
                     return { top10: [], myRank: '-' };
+                }
+            },
+            // [신규] 랭킹 등록 가능 여부 확인 함수
+            canRegisterRank: async function(score) {
+                if (!this.db) return false;
+                try {
+                    const scoresRef = collection(this.db, 'scores');
+                    const q = query(scoresRef, orderBy('score', 'desc'), limit(30));
+                    const snapshot = await getDocs(q);
+                    
+                    // 30위 미만이면 무조건 등록 가능
+                    if (snapshot.size < 30) return true;
+                    
+                    // 30위 점수보다 높으면 등록 가능
+                    const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+                    const lastScore = lastDoc.data().score;
+                    
+                    return score > lastScore;
+                } catch (e) {
+                    console.error("Rank check failed", e);
+                    return true; // 에러 시 등록 허용 (fallback)
                 }
             }
         };
@@ -514,6 +542,7 @@
         const modal = document.getElementById('ranking-modal');
         const modalTitle = document.getElementById('modal-title');
         const finalScoreEl = document.getElementById('final-score');
+        const loadingMsgEl = document.getElementById('loading-msg');
         const registerForm = document.getElementById('register-form');
         const rankingContainer = document.getElementById('ranking-container');
         const rankListEl = document.getElementById('rank-list');
@@ -617,8 +646,11 @@
         async function updateRankingBoard(myScore, myName) {
             rankListEl.innerHTML = '<li style="padding:10px; color:#888;">로딩 중...</li>';
             const { top10, myRank } = await window.GAME.getRanking(myScore);
-            if (myScore !== null) {
+            if (myScore !== null && myRank !== '-') {
                 myRankEl.innerText = `이번 기록 순위: ${myRank}위`;
+                myRankEl.classList.remove('hidden');
+            } else if (myScore !== null) {
+                myRankEl.innerText = "순위권 밖입니다";
                 myRankEl.classList.remove('hidden');
             } else {
                 myRankEl.classList.add('hidden');
@@ -1407,7 +1439,7 @@
                     });
                 }
             }
-            stop() {
+            async stop() {
                 if (this.isStopped) return;
                 this.isStopped = true;
                 gameState = STATE.STOPPED;
@@ -1417,12 +1449,34 @@
                 modalTitle.innerText = "GAME OVER";
                 finalScoreEl.innerText = `${currentScore} m`;
                 finalScoreEl.classList.remove('hidden');
-                registerForm.classList.remove('hidden');
+                
+                // UI 초기화: 모두 숨김
+                registerForm.classList.add('hidden');
                 rankingContainer.classList.add('hidden');
                 btnRetry.classList.add('hidden');
-                btnSubmit.disabled = false;
-                btnSubmit.innerText = "랭킹 등록";
+                loadingMsgEl.classList.remove('hidden'); // 로딩 메시지 표시
                 modal.style.display = 'block';
+
+                if (window.GAME) {
+                    const canRegister = await window.GAME.canRegisterRank(currentScore);
+                    loadingMsgEl.classList.add('hidden'); // 로딩 숨김
+
+                    if (canRegister) {
+                        // 랭킹 등록 가능 -> 폼 표시
+                        registerForm.classList.remove('hidden');
+                        btnSubmit.disabled = false;
+                        btnSubmit.innerText = "랭킹 등록";
+                    } else {
+                        // 랭킹 등록 불가 -> 리스트 & 재시작 표시
+                        rankingContainer.classList.remove('hidden');
+                        btnRetry.classList.remove('hidden');
+                        await updateRankingBoard(currentScore, null); // 랭킹판 업데이트 (내 점수는 하이라이트 없이)
+                    }
+                } else {
+                    // 오류 시 기본 동작
+                    loadingMsgEl.classList.add('hidden');
+                    registerForm.classList.remove('hidden');
+                }
             }
             draw() {
                 if (gameState === STATE.DROPPING && this.y < 0) {
@@ -1656,12 +1710,19 @@
                 modalTitle.innerText = "GAME OVER";
                 finalScoreEl.innerText = "MISS";
                 finalScoreEl.classList.remove('hidden');
-                registerForm.classList.remove('hidden');
-                rankingContainer.classList.add('hidden');
-                btnRetry.classList.add('hidden');
+                
+                // MISS인 경우 점수가 0이므로 랭킹 등록 불가 (보통)
+                // 바로 리스트 보여주기
+                registerForm.classList.add('hidden');
+                rankingContainer.classList.remove('hidden');
+                btnRetry.classList.remove('hidden');
+                modal.style.display = 'block';
+                
+                // 랭킹판 업데이트 (0점, 등록 안함)
+                updateRankingBoard(0, null);
+                
                 btnSubmit.disabled = false;
                 btnSubmit.innerText = "랭킹 등록";
-                modal.style.display = 'block';
             }
         }
 
