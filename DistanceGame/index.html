@@ -691,7 +691,6 @@
             }
             draw(ctx) {
                 ctx.save();
-                // ReferenceError 수정: this.type 사용
                 if(this.type === 'rain') { ctx.strokeStyle = 'rgba(150, 200, 255, 0.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x + this.vx, this.y + this.len); ctx.stroke(); } 
                 else { ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill(); }
                 ctx.restore();
@@ -896,7 +895,8 @@
             checkCollision(p) {
                 if (!this.active) return false;
                 const dx = this.x - p.x; const dy = this.y - p.y; const dist = Math.sqrt(dx*dx + dy*dy);
-                if (dist < this.radius + p.radius) { this.active = false; return true; } return false;
+                if (dist < p.radius + 200 * scaleFactor) { return true; } // 충돌 범위는 200m
+                return false;
             }
         }
 
@@ -977,11 +977,12 @@
                     
                     if (this.magnetTimer > 0) {
                         this.magnetTimer -= dt;
-                        const magnetRange = 100 * scaleFactor; 
+                        const magnetRange = 200 * scaleFactor; // [수정] 자석 범위 200m
                         boosters.forEach(b => {
                             if (b.active) {
                                 const dx = this.x - b.x; const dy = this.y - b.y; const dist = Math.sqrt(dx*dx + dy*dy);
                                 if (dist < magnetRange) { 
+                                    // [수정] 공으로 강하게 수렴하도록 속도 계수 0.5 유지
                                     b.x += (this.x - b.x) * 0.5 * dt; 
                                     b.y += (this.y - b.y) * 0.5 * dt; 
                                 }
@@ -1022,7 +1023,7 @@
                             else if (b.type === 'float') { Sound.playFloat(); this.floatTimer = 120; this.vx += 5 * scaleFactor; showFeedback("FLOAT!", "#fff"); shockwaves.push(new Shockwave(this.x, this.y, '#fff')); }
                             else if (b.type === 'magnet') { 
                                 Sound.playMagnet(); 
-                                this.magnetTimer = 75; 
+                                this.magnetTimer = 75; // [수정] 1.25초 (75프레임) 유지
                                 showFeedback("MAGNET!", "#f33"); 
                                 shockwaves.push(new Shockwave(this.x, this.y, '#f33')); 
                             }
@@ -1091,6 +1092,20 @@
                 
                 ctx.save(); ctx.translate(drawX, drawY); ctx.rotate(this.rotation);
                 
+                // [마그넷 흡입 범위 시각화]
+                if (this.magnetTimer > 0) {
+                    const magnetRadius = 200 * scaleFactor;
+                    const pulseAlpha = 0.2 + Math.abs(Math.sin(frameId * 0.1)) * 0.1;
+                    
+                    ctx.save();
+                    ctx.globalAlpha = pulseAlpha;
+                    ctx.fillStyle = '#ff3333';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, magnetRadius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+
                 if (this.hasShield) {
                     ctx.shadowBlur = 20; ctx.shadowColor = '#a0f'; ctx.strokeStyle = '#a0f'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, this.radius + 5, 0, Math.PI*2); ctx.stroke();
                 }
@@ -1105,7 +1120,7 @@
                     ctx.save();
                     ctx.globalCompositeOperation = 'lighter';
                     const fireIntensity = Math.min(2.0, (speed - 300) / 300);
-                    const fireScale = this.radius * (1.3 + Math.random() * 0.4 + fireIntensity * 0.5); // 크기 증가
+                    const fireScale = this.radius * (1.3 + Math.random() * 0.4 + fireIntensity * 0.5);
                     let fireColor;
                     if (speed < 500) fireColor = `rgba(255, ${200 - fireIntensity*50}, 0, 0.6)`;
                     else if (speed < 800) fireColor = `rgba(255, ${60 - (speed-500)/5}, 0, 0.7)`;
@@ -1113,24 +1128,17 @@
                     ctx.shadowBlur = 30 + fireIntensity * 20; 
                     ctx.shadowColor = fireColor; 
                     ctx.fillStyle = fireColor;
-                    
-                    // 불꽃 본체 (더 크고 뭉개지게)
                     ctx.beginPath(); ctx.arc(0, 0, fireScale, 0, Math.PI*2); ctx.fill();
-
-                    // 불꽃 꼬리 (랜덤 파티클 생성)
                     for(let i=0; i<3 + fireIntensity*5; i++) {
-                        // 공 뒤쪽으로 힘을 받아 흩어지도록 속도 역방향을 활용
+                        ctx.beginPath();
                         const randomAngle = Math.atan2(this.vy, this.vx) + Math.PI + (Math.random() - 0.5) * 0.8;
-                        const distance = this.radius * (1 + Math.random() * 2 * fireIntensity); // 뒤로 길게
+                        const distance = this.radius * (1 + Math.random() * 2 * fireIntensity); 
                         const tailX = Math.cos(randomAngle) * distance;
                         const tailY = Math.sin(randomAngle) * distance;
-                        const tailSize = this.radius * (0.1 + Math.random() * 0.2) * (1 + fireIntensity); // 크기 조절
+                        const tailSize = this.radius * (0.1 + Math.random() * 0.2) * (1 + fireIntensity);
 
-                        ctx.beginPath();
-                        ctx.arc(tailX, tailY, tailSize, 0, Math.PI*2); 
-                        ctx.fill();
+                        ctx.arc(tailX, tailY, tailSize, 0, Math.PI*2); ctx.fill();
                     }
-
                     ctx.fillStyle = '#ffff00'; 
                     ctx.beginPath(); ctx.arc((Math.random()-0.5)*5, (Math.random()-0.5)*5, this.radius * (0.8 + fireIntensity*0.2), 0, Math.PI*2); ctx.fill();
                     ctx.restore();
