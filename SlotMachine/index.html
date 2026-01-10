@@ -123,7 +123,7 @@
             width: 100%;
             height: 100%;
             position: relative;
-            gap: 4px; /* 중요: 이 간격 때문에 단순 계산 시 라인이 안 맞음 */
+            gap: 4px;
             z-index: 5;
         }
 
@@ -135,7 +135,7 @@
             border-radius: 4px;
         }
         
-        /* 릴 하이라이트 (가로 원통 느낌) */
+        /* 릴 하이라이트 (가로 원통 느낌 - 상하 그라데이션) */
         .reel-col::after {
             content: '';
             position: absolute;
@@ -159,6 +159,7 @@
             display: flex;
             flex-direction: column;
             will-change: transform;
+            /* 초기 위치는 상단(0)이 아니라 하단으로 설정될 예정 */
         }
 
         /* 심볼 컨테이너 (칸) */
@@ -273,7 +274,6 @@
             opacity: 1 !important;
         }
 
-        /* AUTO 모드 활성화 스타일 */
         .btn-auto.active {
             background: radial-gradient(circle at 50% 50%, #00ff00, #006600);
             box-shadow: 0 0 10px #00ff00, 0 4px 0 #003300;
@@ -348,7 +348,6 @@
     <div class="aurora"></div>
 
     <div class="cabinet" id="gameCabinet">
-        <!-- 헤더 -->
         <header class="header">
             <div class="logo-text">SEA STORY <span style="font-size:0.6em; color:var(--neon-gold);">NEON</span></div>
             <div class="header-icons">
@@ -357,16 +356,12 @@
             </div>
         </header>
 
-        <!-- 메인 화면 -->
         <div class="reel-area" id="reelArea">
-            
-            <!-- 가로 라인 오버레이 -->
             <div class="grid-lines">
                 <div class="horizontal-line" style="top: 33.3%;"></div>
                 <div class="horizontal-line" style="top: 66.6%;"></div>
             </div>
 
-            <!-- 릴 컨테이너 -->
             <div class="reels-container" id="reelsContainer">
                 <div class="reel-col"><div class="reel-strip" id="reel0"></div></div>
                 <div class="reel-col"><div class="reel-strip" id="reel1"></div></div>
@@ -375,13 +370,10 @@
                 <div class="reel-col"><div class="reel-strip" id="reel4"></div></div>
             </div>
 
-            <!-- 당첨 라인 SVG (좌표계 동적 계산을 위해 viewBox 제거) -->
             <svg id="lines-svg" class="lines-layer"></svg>
-            <!-- 텍스트 레이어 -->
             <div id="text-layer" class="lines-layer" style="z-index:60;"></div>
         </div>
 
-        <!-- 하단 컨트롤 -->
         <footer class="control-panel">
             <div style="display:flex; gap:10px;">
                 <div class="lcd-display">
@@ -399,21 +391,14 @@
             </div>
 
             <div class="btn-group">
-                <!-- AUTO 버튼 추가 -->
-                <button class="game-btn btn-auto" onclick="toggleAuto()" id="btn-auto">
-                    AUTO
-                </button>
+                <button class="game-btn btn-auto" onclick="toggleAuto()" id="btn-auto">AUTO</button>
                 <button class="game-btn btn-bet" onclick="changeBet()" id="btn-bet">
                     BET<br><span style="font-size:0.8em; color:#ddd;" id="btn-bet-val">200</span>
                 </button>
-                <!-- Spin 버튼 -->
-                <button class="game-btn btn-spin" onclick="handleSpinClick()" id="btn-spin">
-                    SPIN
-                </button>
+                <button class="game-btn btn-spin" onclick="handleSpinClick()" id="btn-spin">SPIN</button>
             </div>
         </footer>
 
-        <!-- 잭팟 오버레이 -->
         <div id="jackpot-overlay" class="jackpot-overlay">
             <div class="jackpot-msg">JACKPOT!</div>
             <div style="font-size:3rem; color:#fff; margin-top:10px;" id="jackpot-amount">+5000</div>
@@ -421,13 +406,11 @@
     </div>
 
     <script>
-        // --- 사운드 시스템 ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let isSoundOn = true;
         let spinOscillator = null; 
         let lfoOscillator = null;
 
-        // 범용 톤 재생 함수
         function playTone(freq, type, duration, vol=0.1) {
             if(!isSoundOn) return;
             const osc = audioCtx.createOscillator();
@@ -442,41 +425,28 @@
             osc.stop(audioCtx.currentTime + duration);
         }
 
-        // --- 수정된 스핀 루프 소리 (띠리리링~) ---
-        // High pitched Triangle wave with Amplitude Modulation
+        // --- 스핀 소리 (띠리리링~) ---
         function startSpinSound() {
             if(!isSoundOn) return;
-            if(spinOscillator) return; // 이미 재생 중
+            if(spinOscillator) return;
             
-            // Carrier (높은 음)
             spinOscillator = audioCtx.createOscillator();
             spinOscillator.type = 'triangle';
-            spinOscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // High pitch (A5)
+            spinOscillator.frequency.setValueAtTime(800, audioCtx.currentTime); // 높은 음
 
-            // LFO (떨림 효과) - Amplitude Modulation
+            // LFO로 빠른 떨림 효과 (링잉)
             lfoOscillator = audioCtx.createOscillator();
             lfoOscillator.type = 'square';
-            lfoOscillator.frequency.setValueAtTime(15, audioCtx.currentTime); // Rapid pulsing (15Hz)
+            lfoOscillator.frequency.setValueAtTime(20, audioCtx.currentTime); // 20Hz 떨림
 
-            const lfoGain = audioCtx.createGain();
-            lfoGain.gain.value = 0.5; // Depth of modulation
+            const modGain = audioCtx.createGain();
+            modGain.gain.value = 100; // 떨림 폭
+
+            lfoOscillator.connect(modGain);
+            modGain.connect(spinOscillator.frequency);
 
             const mainGain = audioCtx.createGain();
             mainGain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-
-            // Connect LFO to Gain
-            // LFO -> LFO Gain -> Main Gain.gain (AM Synthesis)
-            // Web Audio API modulation routing is slightly complex, simplified approach:
-            // Just use a high pitched arpeggio-like warble
-            
-            // Re-setup simple high pitch warble without complex AM graph for compatibility
-            spinOscillator.frequency.setValueAtTime(700, audioCtx.currentTime);
-            // Slight frequency modulation for "ring" effect
-            lfoOscillator.connect(spinOscillator.frequency);
-            const modGain = audioCtx.createGain();
-            modGain.gain.value = 50; // Pitch deviation
-            lfoOscillator.connect(modGain);
-            modGain.connect(spinOscillator.frequency);
 
             spinOscillator.connect(mainGain);
             mainGain.connect(audioCtx.destination);
@@ -496,13 +466,12 @@
             }
         }
 
-        // --- 수정된 릴 정지 소리 ---
-        // 탁! (짧은 타격음)
+        // --- 릴 정지 소리 (착!) ---
         function playReelStopSound() {
             if(!isSoundOn) return;
 
-            // 짧고 굵은 노이즈 (Clack)
-            const bufferSize = audioCtx.sampleRate * 0.05; // 50ms
+            // 짧은 타격음 (Noise + Kick)
+            const bufferSize = audioCtx.sampleRate * 0.05; 
             const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
             const data = buffer.getChannelData(0);
             for (let i = 0; i < bufferSize; i++) {
@@ -515,9 +484,8 @@
             noiseGain.gain.setValueAtTime(0.8, audioCtx.currentTime);
             noiseGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
             
-            // 저음 킥 추가 (Thud)
             const kick = audioCtx.createOscillator();
-            kick.frequency.setValueAtTime(150, audioCtx.currentTime);
+            kick.frequency.setValueAtTime(120, audioCtx.currentTime);
             kick.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
             const kickGain = audioCtx.createGain();
             kickGain.gain.setValueAtTime(0.5, audioCtx.currentTime);
@@ -535,7 +503,6 @@
             kick.stop(audioCtx.currentTime + 0.1);
         }
 
-        // --- 게임 변수 ---
         const REEL_COUNT = 5;
         const ROW_COUNT = 3;
         const SYMBOLS = ['🐚', '🐡', '🐙', '🐠', '🐢', '🦈', '💎', '7️⃣'];
@@ -583,7 +550,6 @@
         const btnBet = document.getElementById('btn-bet');
         const btnAuto = document.getElementById('btn-auto');
         
-        // --- 초기화 ---
         function init() {
             reels.forEach((reel, i) => {
                 let html = '';
@@ -625,7 +591,6 @@
                 el.style.fontSize = `${h * 0.6}px`;
             });
             reels.forEach(r => r.style.transform = 'translateY(0)');
-            
             svgLayer.setAttribute('viewBox', `0 0 ${container.clientWidth} ${container.clientHeight}`);
         }
 
@@ -696,7 +661,6 @@
                 results.push(col);
             }
 
-            // 릴 회전 (순차 정지)
             const promises = reels.map((reel, idx) => spinReel(reel, idx, results[idx]));
             await Promise.all(promises);
 
@@ -719,46 +683,83 @@
             }
         }
 
+        // --- 릴 회전 로직 (Top-to-Bottom & Bounce) ---
         function spinReel(reel, index, finalSymbols) {
             return new Promise(resolve => {
                 const dummyCount = 20 + index * 5; 
-                let stripSymbols = [...currentReelSymbols[index]];
+                
+                // Top-to-Bottom을 위한 스트립 구성:
+                // [Final Symbols] (Top)
+                // [Dummy Symbols]
+                // [Current Symbols] (Bottom - Visible initially)
+                
+                // 배열 구성:
+                // 1. Final Symbols (Index 0~2)
+                // 2. Dummies
+                // 3. Current (Last 3)
+                
+                let stripSymbols = [];
+                stripSymbols.push(...finalSymbols); // Target at top
                 for(let k=0; k<dummyCount; k++) stripSymbols.push(getRandomSymbol());
-                stripSymbols.push(...finalSymbols);
+                stripSymbols.push(...currentReelSymbols[index]); // Current at bottom
 
+                // HTML 주입
                 reel.innerHTML = stripSymbols.map(s => createSymbolHTML(s)).join('');
+                
+                // 초기 위치: 하단 (Current Symbols가 보이도록)
+                // total height = strip length * symbolHeight
+                // visible view = 3 * symbolHeight
+                // translateY should be -(totalHeight - visibleHeight)
+                const totalHeight = stripSymbols.length * symbolHeight;
+                const visibleHeight = ROW_COUNT * symbolHeight;
+                const startY = -(totalHeight - visibleHeight);
+                
                 reel.style.transition = 'none';
-                reel.style.transform = 'translateY(0)';
-                void reel.offsetWidth; 
+                reel.style.transform = `translateY(${startY}px)`;
+                void reel.offsetWidth; // Force Reflow
 
                 requestAnimationFrame(() => {
-                    const totalMove = (stripSymbols.length - ROW_COUNT) * symbolHeight;
-                    // 시간차를 더 둠 (0.6초 간격)
-                    const baseDuration = 2.0 + (index * 0.6);
+                    // 목표 위치: 0 (상단 Final Symbols가 보이도록)
+                    // 시간차: 0.6초 간격으로 늘림 (쿵, 쿵, 쿵...)
+                    const baseDuration = 1.5 + (index * 0.6); 
                     
-                    reel.style.transition = `transform ${baseDuration}s cubic-bezier(0.5, 1.3, 0.5, 1)`; 
-                    reel.style.transform = `translateY(-${totalMove}px)`;
+                    // Bounce Effect: cubic-bezier(0.5, 1.5, 0.5, 1) -> 끝에서 튕김
+                    reel.style.transition = `transform ${baseDuration}s cubic-bezier(0.5, 1.5, 0.5, 1)`; 
+                    reel.style.transform = `translateY(0px)`;
 
+                    // 소리 싱크를 위한 이벤트 리스너 (transitionend)
+                    const soundHandler = () => {
+                        playReelStopSound();
+                        reel.removeEventListener('transitionend', soundHandler);
+                    };
+                    reel.addEventListener('transitionend', soundHandler);
+
+                    // 강제 정지 처리
                     const startTime = performance.now();
-                    
                     function checkStop() {
                         const elapsed = (performance.now() - startTime) / 1000;
-                        
                         if (forceStop) {
                             reel.style.transition = `transform 0.1s ease-out`;
-                            reel.style.transform = `translateY(-${totalMove}px)`;
-                            setTimeout(finish, 100); 
+                            reel.style.transform = `translateY(0px)`;
+                            // 강제 정지 시에도 소리 나게 0.1초 후 트리거
+                            setTimeout(() => {
+                                // 이미 transitionend가 발생했을 수도 있으므로 체크 필요하지만, 
+                                // 간단히 여기서 직접 호출하고 이벤트 제거
+                                reel.removeEventListener('transitionend', soundHandler);
+                                playReelStopSound();
+                                finish();
+                            }, 100); 
                         } else if (elapsed >= baseDuration) {
-                            finish();
+                            // 자연 종료 (transitionend가 처리함, 하지만 Promise resolve는 여기서)
+                            // 안전하게 약간의 딜레이 후 정리
+                            setTimeout(finish, 100);
                         } else {
                             requestAnimationFrame(checkStop);
                         }
                     }
                     
                     function finish() {
-                        // 멈추는 순간 소리 재생
-                        playReelStopSound();
-                        
+                        // DOM 정리
                         reel.innerHTML = finalSymbols.map(s => createSymbolHTML(s)).join('');
                         reel.style.transition = 'none';
                         reel.style.transform = 'translateY(0)';
