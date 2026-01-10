@@ -509,7 +509,7 @@
         const uiSpeed = document.getElementById('speed-val');
         const uiHeight = document.getElementById('height-val');
         const btnFullscreen = document.getElementById('btn-fullscreen');
-        const btnLowQ = document.getElementById('btn-lowq'); // 저사양 모드 버튼
+        const btnLowQ = document.getElementById('btn-lowq'); 
         
         const modal = document.getElementById('ranking-modal');
         const modalTitle = document.getElementById('modal-title');
@@ -537,7 +537,7 @@
         let currentScore = 0;
         let hitFreeze = 0; 
         let specialEffects = [];
-        let isLowQuality = false; // 저사양 모드 플래그
+        let isLowQuality = false;
 
         const camera = { x: 0, y: 0, shake: 0 };
         const GRAVITY_BASE = 0.25;
@@ -562,7 +562,6 @@
             }
         });
 
-        // 저사양 모드 토글
         btnLowQ.addEventListener('click', () => {
             isLowQuality = !isLowQuality;
             if(isLowQuality) {
@@ -692,7 +691,6 @@
                 this.moonX = centerX + Math.cos(moonAngle) * radius; this.moonY = centerY + Math.sin(moonAngle) * radius;
                 this.weatherTimer += dt;
                 
-                // 저사양 모드에서는 날씨 효과 생략 가능
                 if(!isLowQuality) {
                     if(this.weatherTimer > 600) {
                         this.weatherTimer = 0; const r = Math.random();
@@ -722,7 +720,6 @@
                 ctx.fillStyle = '#01010a';
                 ctx.fillRect(0, 0, width, height);
 
-                // 저사양 모드 시 복잡한 그라데이션 생략
                 if (!isLowQuality && spaceFactor > 0) {
                     ctx.save();
                     
@@ -773,14 +770,12 @@
                     ctx.restore();
                 }
 
-                // 행성 그리기 (저사양 모드에서도 단순하게는 표시)
                 if (spaceFactor > 0) {
                     this.planets.forEach(p => {
                         ctx.save();
                         ctx.globalAlpha = spaceFactor;
                         let py = p.y - camera.y * 0.05; 
                         
-                        // 저사양에서는 고리 단순화 또는 생략
                         if(p.hasRing && !isLowQuality) {
                             ctx.save();
                             ctx.translate(p.x, py);
@@ -1091,7 +1086,7 @@
                 
                 this.life = 1.0;
                 this.decay = 0.05 + Math.random() * 0.05; // 수명 감쇠 속도
-                this.size = (15 + Math.random() * 15) * scaleFactor;
+                this.size = (4 + Math.random() * 6) * scaleFactor; // [수정] 작게 조정
                 
                 // 색상 타입 (0: 노랑, 1: 주황, 2: 빨강)
                 this.colorType = Math.random(); 
@@ -1311,12 +1306,17 @@
                         if (this.trail.length > 25) this.trail.shift(); 
                     }
                     
-                    // [신규] 공 속도에 따른 불꽃 효과 생성 (저사양 모드가 아닐 때)
+                    // [신규] 공 속도에 따른 불꽃 효과 생성 (300km/h 이상부터)
                     const speed = Math.sqrt(this.vx**2 + this.vy**2);
-                    if (speed > 15 * scaleFactor && !isLowQuality) {
-                        // 속도에 비례하여 생성 개수 조절
-                        const count = Math.min(5, Math.floor(speed / (10 * scaleFactor)));
-                        for(let i=0; i<count; i++) {
+                    const speedKmh = speed * 2; // UI 표시 속도와 유사한 스케일
+                    
+                    if (speedKmh > 300 && !isLowQuality) {
+                        // 300km/h를 넘으면 기본 3개 + 속도 30 증가당 1개 추가
+                        // 예: 300 -> 3개, 600 -> 13개, 900 -> 23개
+                        // 최대 50개 제한으로 과부하 방지
+                        const particleCount = Math.min(50, 3 + Math.floor((speedKmh - 300) / 30));
+                        
+                        for(let i=0; i<particleCount; i++) {
                             particles.push(new FireParticle(this.x, this.y, this.vx, this.vy));
                         }
                     }
@@ -1434,17 +1434,6 @@
                     if(!isLowQuality) { ctx.shadowBlur = 15; ctx.shadowColor = '#f00'; }
                     ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, this.radius + 10 + Math.sin(frameId * 0.2)*5, 0, Math.PI*2); ctx.stroke();
                 }
-
-                const speed = Math.sqrt(this.vx*this.vx + this.vy*this.vy) * 2;
-                
-                // 기존 단순 불꽃은 저사양 모드에서 사용하거나 제거
-                // 여기서는 제거하고 FireParticle로 대체됨. 
-                // 단, FireParticle 생성 전인 300 이하 속도에서는 기본 효과 유지
-                /*
-                if (speed > 300) {
-                    // ... 기존 로직 삭제 및 FireParticle로 대체 ...
-                }
-                */
 
                 if(!isLowQuality) { ctx.shadowBlur = 15; ctx.shadowColor = '#0ff'; }
                 ctx.fillStyle = '#0ff';
