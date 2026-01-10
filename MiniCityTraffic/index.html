@@ -205,7 +205,7 @@
             </div>
             <div class="info-box">
                 <span>👷</span>
-                <span id="scoreDisplay">0</span>
+                <span id="populationDisplay">0</span>
             </div>
         </div>
 
@@ -253,11 +253,12 @@
     </div>
 
     <div id="instruction" class="pointer-auto">
-        <h3>🏙️ 시티 타이쿤 프로</h3>
+        <h3>🏙️ 스마트 시티 타이쿤</h3>
         <p style="text-align:left; font-size:13px; color:#555; line-height:1.6;">
-            1. <strong>조작법 개선</strong>: 우클릭이나 이동모드에서 집을 클릭하면 <strong>회전</strong>합니다.<br>
-            2. <strong>화면 이동</strong>: 우클릭 드래그 또는 이동모드 드래그.<br>
-            3. <strong>건설/철거</strong>: 드래그 후 [확인]을 눌러주세요.
+            1. <strong>스마트 출근</strong>: 시민들은 <span style="color:#ef5350">●</span>같은 색 회사 중 <strong>가장 가깝고 주차공간이 있는</strong> 곳으로 출근합니다.<br>
+            2. <strong>도시 성장</strong>: 집이 많이 생성됩니다. 회사를 적절히 배치해 일자리를 공급하세요.<br>
+            3. <strong>조작</strong>: 우클릭으로 회전 및 이동이 가능합니다.<br>
+            4. <strong>수익</strong>: 출근 성공 시 <strong>$20</strong>를 획득합니다.
         </p>
         <button onclick="document.getElementById('instruction').style.display='none'" style="padding:10px 20px; background:#2196F3; color:white; border:none; border-radius:5px; cursor:pointer;">게임 시작</button>
     </div>
@@ -315,7 +316,6 @@
             this.ctx = this.canvas.getContext('2d');
             
             this.money = INIT_MONEY;
-            this.trips = 0;
             this.camera = { x: 0, y: 0, zoom: 1.0 };
             
             this.grid = [];
@@ -428,29 +428,22 @@
             const g = this.screenToGrid(x, y);
             if (!this.isValid(g.x, g.y)) return;
 
-            // 이동 모드 or 우클릭: 일단 팬 모드 진입 준비 (실제 이동은 move에서)
             if (currentMode === 'move' || isRight) {
                 this.isPanDragging = true;
             } 
             else {
-                // 건설/철거 모드 (좌클릭)
                 const rInfo = ROAD_TYPES[selectedRoadType];
-                
-                // 스탬프 모드는 클릭 시 처리하므로 여기서는 좌표만 잡음
                 if (currentMode === 'build' && rInfo.type === 'stamp') {
-                    // pass (handled in Move/End)
+                    // 스탬프
                 } else {
-                    // 드래그 건설 시작
                     this.isDragging = true;
                     this.dragStart = g;
                     this.dragEnd = g;
-                    // 아직 패스 업데이트 안함 (단순 클릭과 구분 위해)
                 }
             }
         }
 
         handleMove(x, y) {
-            // 드래그 여부 판단 (5픽셀 이상 이동 시)
             if (!this.isDragMoved) {
                 const dist = Math.hypot(x - this.mouseDownScreen.x, y - this.mouseDownScreen.y);
                 if (dist > 5) this.isDragMoved = true;
@@ -467,13 +460,11 @@
 
             const g = this.screenToGrid(x, y);
             
-            // 스탬프 모드: 마우스 따라다니는 프리뷰
             if (currentMode === 'build' && ROAD_TYPES[selectedRoadType].type === 'stamp' && !this.isRightClick) {
                 this.stampPos = g;
                 return;
             }
 
-            // 드래그 건설 프리뷰
             if (this.isDragging && this.isDragMoved) {
                 if (this.isValid(g.x, g.y) && (g.x !== this.dragEnd.x || g.y !== this.dragEnd.y)) {
                     this.dragEnd = g;
@@ -483,19 +474,16 @@
         }
 
         handleEnd() {
-            // 클릭이 끝났을 때 처리
             const g = this.screenToGrid(this.mouseDownScreen.x, this.mouseDownScreen.y);
 
-            // 1. 드래그가 아니었던 경우 (단순 클릭)
+            // 1. 단순 클릭
             if (!this.isDragMoved) {
                 if (this.isValid(g.x, g.y)) {
                     const cell = this.grid[g.x][g.y];
                     
-                    // 집 회전 (어떤 모드에서든 집 클릭 시)
                     if (cell.type === TYPE.HOUSE && cell.ref) {
                         this.rotateBuilding(cell.ref);
                     }
-                    // 스탬프 건설 (건설 모드 & 좌클릭 & 빈 땅/도로)
                     else if (currentMode === 'build' && !this.isRightClick) {
                         const rInfo = ROAD_TYPES[selectedRoadType];
                         if (rInfo.type === 'stamp') {
@@ -506,15 +494,13 @@
                     }
                 }
             }
-            // 2. 드래그 였던 경우
+            // 2. 드래그 완료
             else {
-                // 건설/철거 드래그 완료 시 팝업
                 if (this.isDragging && this.previewPath.length > 0) {
                     this.showConfirmPopup();
                 }
             }
 
-            // 상태 초기화
             this.isPanDragging = false;
             this.isDragging = false;
             this.isDragMoved = false;
@@ -770,7 +756,12 @@
         triggerCommute() {
             this.agents.forEach(a => {
                 if (a.state === STATE.IDLE || (a.state === STATE.TO_WORK && a.path.length === 0)) {
-                    if(a.work) this.planRoute(a, a.work, STATE.TO_WORK);
+                    // Re-evaluate work
+                    const best = this.findBestCompany(a);
+                    if(best) {
+                        a.work = best;
+                        this.planRoute(a, a.work, STATE.TO_WORK);
+                    }
                 }
             });
         }
@@ -784,16 +775,39 @@
             };
         }
 
+        // New Logic: Find best matching company
+        findBestCompany(a) {
+            // Filter: Same Color AND Has Free Parking
+            const candidates = this.buildings.filter(b => 
+                b.type === TYPE.COMPANY && 
+                b.colorIdx === a.colorIdx &&
+                b.parkingSlots.some(s => !s.occupiedBy)
+            );
+            
+            if (candidates.length === 0) return null;
+
+            // Sort by distance (closest first)
+            candidates.sort((b1, b2) => {
+                const d1 = Math.hypot(b1.x - a.x, b1.y - a.y);
+                const d2 = Math.hypot(b2.x - a.x, b2.y - a.y);
+                return d1 - d2;
+            });
+
+            return candidates[0];
+        }
+
         planRoute(a, dest, mode) {
-            if (mode === STATE.TO_WORK && dest.colorIdx !== a.colorIdx) return;
             let start = (mode===STATE.TO_WORK) ? a.home.entranceRoadPos : a.work.entranceRoadPos;
             let target = (mode===STATE.TO_WORK) ? dest.entranceRoadPos : dest.entranceRoadPos; 
             if(!start || !target) return;
 
             let slot = null;
             if (mode === STATE.TO_WORK) {
+                // Double check parking (someone might have taken it in same frame?)
+                // Since this is single threaded JS, findBestCompany ensured availability just before.
+                // But planRoute is called from update loop, so it's safe.
                 slot = dest.parkingSlots.find(s => !s.occupiedBy);
-                if (!slot) return;
+                if (!slot) return; // Should not happen if findBestCompany worked, but safety check
                 slot.occupiedBy = a;
                 a.targetSlot = slot;
             }
@@ -843,17 +857,20 @@
         }
 
         update() {
-            if(Math.random()<0.002 && this.buildings.length<40) {
-                this.spawnBuilding(Math.random()>0.6?TYPE.COMPANY:TYPE.HOUSE);
+            // More buildings, More Houses
+            if(Math.random()<0.005 && this.buildings.length<300) {
+                // 80% House, 20% Company
+                this.spawnBuilding(Math.random()>0.8?TYPE.COMPANY:TYPE.HOUSE);
             }
             this.agents.forEach(a => {
                 switch(a.state) {
                     case STATE.IDLE:
-                        if (!a.work) {
-                            const comps = this.buildings.filter(b => b.type===TYPE.COMPANY && b.colorIdx===a.colorIdx);
-                            if(comps.length>0) a.work = comps[Math.floor(Math.random()*comps.length)];
+                        // Dynamic Work Selection
+                        const bestCompany = this.findBestCompany(a);
+                        if (bestCompany) {
+                            a.work = bestCompany;
+                            this.planRoute(a, a.work, STATE.TO_WORK);
                         }
-                        if(a.work) this.planRoute(a, a.work, STATE.TO_WORK);
                         break;
                     case STATE.TO_WORK:
                         this.moveCar(a);
@@ -942,7 +959,7 @@
                 }
             });
 
-            // 프리뷰 (드래그 or 스탬프)
+            // 프리뷰
             if (currentMode === 'build' || currentMode === 'erase') {
                 const rInfo = ROAD_TYPES[selectedRoadType];
                 if (currentMode==='build' && rInfo.type==='stamp' && this.stampPos && !this.isRightClick) {
@@ -1062,7 +1079,7 @@
         isValid(x, y) { return x>=0 && y>=0 && x<GRID_WIDTH && y<GRID_HEIGHT; }
         updateUI() {
             document.getElementById('moneyDisplay').innerText = this.money;
-            document.getElementById('scoreDisplay').innerText = this.trips;
+            document.getElementById('populationDisplay').innerText = this.agents.length;
         }
         gridToScreen(gx, gy) {
             return { x: gx*TILE_SIZE*this.camera.zoom + this.camera.x, y: gy*TILE_SIZE*this.camera.zoom + this.camera.y };
