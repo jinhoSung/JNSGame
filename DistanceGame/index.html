@@ -691,6 +691,7 @@
             }
             draw(ctx) {
                 ctx.save();
+                // ReferenceError 수정: this.type 사용
                 if(this.type === 'rain') { ctx.strokeStyle = 'rgba(150, 200, 255, 0.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x + this.vx, this.y + this.len); ctx.stroke(); } 
                 else { ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill(); }
                 ctx.restore();
@@ -976,11 +977,16 @@
                     
                     if (this.magnetTimer > 0) {
                         this.magnetTimer -= dt;
-                        const magnetRange = 600 * scaleFactor; 
+                        // [수정] 마그넷 범위 300m, 유지시간 75프레임 (1.25초)
+                        const magnetRange = 300 * scaleFactor; 
                         boosters.forEach(b => {
                             if (b.active) {
                                 const dx = this.x - b.x; const dy = this.y - b.y; const dist = Math.sqrt(dx*dx + dy*dy);
-                                if (dist < magnetRange) { b.x += dx * 0.1 * dt; b.y += dy * 0.1 * dt; }
+                                if (dist < magnetRange) { 
+                                    // 공으로 빠르게 수렴 (속도 계수 0.5)
+                                    b.x += (this.x - b.x) * 0.5 * dt; 
+                                    b.y += (this.y - b.y) * 0.5 * dt; 
+                                }
                             }
                         });
                     }
@@ -1016,13 +1022,16 @@
                             else if (b.type === 'blast') { Sound.playBlast(); this.vx += blastPower; this.vy = -20 * scaleFactor; showFeedback("EXPLOSION!", "#f05"); camera.shake = 15; shockwaves.push(new Shockwave(this.x, this.y, '#f05')); for(let i=0; i<30; i++) particles.push(new Particle(this.x, this.y, '#f05', 12)); }
                             else if (b.type === 'shield') { Sound.playShield(); this.hasShield = true; showFeedback("SHIELD UP!", "#a0f"); shockwaves.push(new Shockwave(this.x, this.y, '#a0f')); }
                             else if (b.type === 'float') { Sound.playFloat(); this.floatTimer = 120; this.vx += 5 * scaleFactor; showFeedback("FLOAT!", "#fff"); shockwaves.push(new Shockwave(this.x, this.y, '#fff')); }
-                            else if (b.type === 'magnet') { Sound.playMagnet(); this.magnetTimer = 300; showFeedback("MAGNET!", "#f33"); shockwaves.push(new Shockwave(this.x, this.y, '#f33')); }
-                            // [수정] 워프 효과: 전방(X) 이동 및 약간 위쪽(Y)으로 속도 부여
+                            else if (b.type === 'magnet') { 
+                                Sound.playMagnet(); 
+                                this.magnetTimer = 75; // [수정] 1.25초 (75프레임) 유지
+                                showFeedback("MAGNET!", "#f33"); 
+                                shockwaves.push(new Shockwave(this.x, this.y, '#f33')); 
+                            }
                             else if (b.type === 'warp') {
                                 Sound.playWarp(); 
                                 this.x += 300 * scaleFactor; 
                                 this.vx += 10 * scaleFactor;
-                                // 약간 위쪽으로 튕기도록 음수 값 부여 (Y축이 아래로 갈수록 양수)
                                 this.vy -= 10 * scaleFactor;
                                 showFeedback("WARP!", "#7f7"); 
                                 camera.shake = 25; 
