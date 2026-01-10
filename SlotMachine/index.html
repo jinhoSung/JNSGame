@@ -424,8 +424,8 @@
         // --- 사운드 시스템 ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let isSoundOn = true;
-        let spinOscillator = null; // 회전음 제어용
-        let spinNoiseNode = null;
+        let spinOscillator = null; 
+        let lfoOscillator = null;
 
         // 범용 톤 재생 함수
         function playTone(freq, type, duration, vol=0.1) {
@@ -442,73 +442,97 @@
             osc.stop(audioCtx.currentTime + duration);
         }
 
-        // --- 수정된 스핀 루프 소리 ---
-        // 낮은 주파수의 톱니파로 부드러운 기계음 표현
+        // --- 수정된 스핀 루프 소리 (띠리리링~) ---
+        // High pitched Triangle wave with Amplitude Modulation
         function startSpinSound() {
             if(!isSoundOn) return;
             if(spinOscillator) return; // 이미 재생 중
             
-            // 오실레이터 생성
+            // Carrier (높은 음)
             spinOscillator = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
+            spinOscillator.type = 'triangle';
+            spinOscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // High pitch (A5)
+
+            // LFO (떨림 효과) - Amplitude Modulation
+            lfoOscillator = audioCtx.createOscillator();
+            lfoOscillator.type = 'square';
+            lfoOscillator.frequency.setValueAtTime(15, audioCtx.currentTime); // Rapid pulsing (15Hz)
+
+            const lfoGain = audioCtx.createGain();
+            lfoGain.gain.value = 0.5; // Depth of modulation
+
+            const mainGain = audioCtx.createGain();
+            mainGain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+
+            // Connect LFO to Gain
+            // LFO -> LFO Gain -> Main Gain.gain (AM Synthesis)
+            // Web Audio API modulation routing is slightly complex, simplified approach:
+            // Just use a high pitched arpeggio-like warble
             
-            spinOscillator.type = 'sawtooth'; // 톱니파가 좀 더 기계적인 느낌
-            spinOscillator.frequency.setValueAtTime(45, audioCtx.currentTime); // 낮은 주파수
+            // Re-setup simple high pitch warble without complex AM graph for compatibility
+            spinOscillator.frequency.setValueAtTime(700, audioCtx.currentTime);
+            // Slight frequency modulation for "ring" effect
+            lfoOscillator.connect(spinOscillator.frequency);
+            const modGain = audioCtx.createGain();
+            modGain.gain.value = 50; // Pitch deviation
+            lfoOscillator.connect(modGain);
+            modGain.connect(spinOscillator.frequency);
+
+            spinOscillator.connect(mainGain);
+            mainGain.connect(audioCtx.destination);
             
-            // 볼륨 설정
-            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-            
-            spinOscillator.connect(gain);
-            gain.connect(audioCtx.destination);
             spinOscillator.start();
+            lfoOscillator.start();
         }
 
         function stopSpinSound() {
             if(spinOscillator) {
-                try { spinOscillator.stop(); } catch(e){}
+                try { 
+                    spinOscillator.stop(); 
+                    if(lfoOscillator) lfoOscillator.stop();
+                } catch(e){}
                 spinOscillator = null;
+                lfoOscillator = null;
             }
         }
 
         // --- 수정된 릴 정지 소리 ---
-        // 짧고 강한 타격음('척!')
+        // 탁! (짧은 타격음)
         function playReelStopSound() {
             if(!isSoundOn) return;
 
-            // 1. 타격감을 위한 노이즈 생성 (짧은 화이트 노이즈)
-            const bufferSize = audioCtx.sampleRate * 0.03; // 30ms의 매우 짧은 버퍼
+            // 짧고 굵은 노이즈 (Clack)
+            const bufferSize = audioCtx.sampleRate * 0.05; // 50ms
             const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
             const data = buffer.getChannelData(0);
             for (let i = 0; i < bufferSize; i++) {
-                data[i] = Math.random() * 2 - 1; // 화이트 노이즈
+                data[i] = (Math.random() * 2 - 1) * 0.8; 
             }
-            const noiseSource = audioCtx.createBufferSource();
-            noiseSource.buffer = buffer;
-
-            // 노이즈용 게인 (볼륨 엔벨로프)
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            
             const noiseGain = audioCtx.createGain();
-            noiseGain.gain.setValueAtTime(1, audioCtx.currentTime);
-            noiseGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.03);
+            noiseGain.gain.setValueAtTime(0.8, audioCtx.currentTime);
+            noiseGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+            
+            // 저음 킥 추가 (Thud)
+            const kick = audioCtx.createOscillator();
+            kick.frequency.setValueAtTime(150, audioCtx.currentTime);
+            kick.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            const kickGain = audioCtx.createGain();
+            kickGain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            kickGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
 
-            // 2. 톤 추가 (약간의 울림)
-            const osc = audioCtx.createOscillator();
-            const oscGain = audioCtx.createGain();
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.05);
-            
-            oscGain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            oscGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
-            
-            // 연결 및 재생
-            noiseSource.connect(noiseGain);
+            noise.connect(noiseGain);
             noiseGain.connect(audioCtx.destination);
-            osc.connect(oscGain);
-            oscGain.connect(audioCtx.destination);
+            kick.connect(kickGain);
+            kickGain.connect(audioCtx.destination);
 
-            noiseSource.start();
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.05);
+            noise.start();
+            kick.start();
+            
+            noise.stop(audioCtx.currentTime + 0.1);
+            kick.stop(audioCtx.currentTime + 0.1);
         }
 
         // --- 게임 변수 ---
@@ -541,8 +565,8 @@
         let credit = 10000;
         let totalBet = 200;
         let isSpinning = false;
-        let forceStop = false; // 강제 정지 플래그
-        let isAuto = false;    // 오토 모드 플래그
+        let forceStop = false; 
+        let isAuto = false;    
         let autoTimeout = null;
         let currentReelSymbols = [[], [], [], [], []];
         let symbolHeight = 0;
@@ -602,7 +626,6 @@
             });
             reels.forEach(r => r.style.transform = 'translateY(0)');
             
-            // SVG 크기 재설정
             svgLayer.setAttribute('viewBox', `0 0 ${container.clientWidth} ${container.clientHeight}`);
         }
 
@@ -633,10 +656,8 @@
 
         function handleSpinClick() {
             if (isSpinning) {
-                // 이미 돌고 있으면 강제 정지 (Stop)
                 stopSpin();
             } else {
-                // 멈춰 있으면 스핀 시작
                 spin();
             }
         }
@@ -655,7 +676,6 @@
             }
             if(audioCtx.state === 'suspended') audioCtx.resume();
 
-            // 초기화
             isSpinning = true;
             forceStop = false;
             credit -= totalBet;
@@ -663,12 +683,10 @@
             clearWinEffects();
             updateUI();
             
-            // UI 변경 (STOP 모드)
             btnSpin.innerText = "STOP";
             btnSpin.classList.add('stop-mode');
             btnBet.disabled = true;
 
-            // 회전 소리 시작
             startSpinSound();
 
             const results = [];
@@ -678,11 +696,10 @@
                 results.push(col);
             }
 
-            // 릴 회전
+            // 릴 회전 (순차 정지)
             const promises = reels.map((reel, idx) => spinReel(reel, idx, results[idx]));
             await Promise.all(promises);
 
-            // 종료 처리
             stopSpinSound();
             checkWin(results);
             
@@ -692,7 +709,6 @@
             btnBet.disabled = false;
             updateUI();
 
-            // 오토 모드면 다음 스핀 예약
             if (isAuto && credit >= totalBet) {
                 autoTimeout = setTimeout(() => {
                     if(isAuto) spin();
@@ -713,31 +729,26 @@
                 reel.innerHTML = stripSymbols.map(s => createSymbolHTML(s)).join('');
                 reel.style.transition = 'none';
                 reel.style.transform = 'translateY(0)';
-                void reel.offsetWidth; // Reflow
+                void reel.offsetWidth; 
 
                 requestAnimationFrame(() => {
                     const totalMove = (stripSymbols.length - ROW_COUNT) * symbolHeight;
-                    // 애니메이션 시간 (강제 정지 시 즉시 0.1s로 단축)
-                    const baseDuration = 1.5 + (index * 0.3);
+                    // 시간차를 더 둠 (0.6초 간격)
+                    const baseDuration = 2.0 + (index * 0.6);
                     
-                    // CSS Transition 시작 (Bounce 효과 추가: cubic-bezier(0.5, 1.3, 0.5, 1))
                     reel.style.transition = `transform ${baseDuration}s cubic-bezier(0.5, 1.3, 0.5, 1)`; 
                     reel.style.transform = `translateY(-${totalMove}px)`;
 
-                    // 진행 상태 모니터링 (Force Stop 체크)
                     const startTime = performance.now();
                     
                     function checkStop() {
                         const elapsed = (performance.now() - startTime) / 1000;
                         
                         if (forceStop) {
-                            // 강제 정지: 즉시 끝으로 이동
                             reel.style.transition = `transform 0.1s ease-out`;
                             reel.style.transform = `translateY(-${totalMove}px)`;
-                            
-                            setTimeout(finish, 100); // 0.1초 후 종료
+                            setTimeout(finish, 100); 
                         } else if (elapsed >= baseDuration) {
-                            // 자연 종료
                             finish();
                         } else {
                             requestAnimationFrame(checkStop);
@@ -745,10 +756,9 @@
                     }
                     
                     function finish() {
-                        // 릴이 멈추는 순간 소리 재생 (타이밍 동기화)
-                        playReelStopSound(); 
+                        // 멈추는 순간 소리 재생
+                        playReelStopSound();
                         
-                        // DOM 정리
                         reel.innerHTML = finalSymbols.map(s => createSymbolHTML(s)).join('');
                         reel.style.transition = 'none';
                         reel.style.transform = 'translateY(0)';
@@ -782,7 +792,7 @@
                         winners.push({
                             lineIdx: idx,
                             amount: amt,
-                            coords: pattern.slice(0, count).map((r, c) => [c, r]), // [col, row]
+                            coords: pattern.slice(0, count).map((r, c) => [c, r]), 
                             color: getNeonColor(idx)
                         });
                     }
@@ -803,38 +813,31 @@
             return colors[idx % colors.length];
         }
 
-        // 라인 그리기 (DOM 좌표 기반 정렬)
         function drawWinEffects(winners) {
             svgLayer.innerHTML = '';
             textLayer.innerHTML = '';
             
-            // 컨테이너 크기 업데이트
             const container = document.getElementById('reelsContainer');
             svgLayer.setAttribute('viewBox', `0 0 ${container.clientWidth} ${container.clientHeight}`);
 
             winners.forEach(win => {
-                // 좌표 계산 (실제 심볼 DOM 위치 기준)
                 let points = "";
                 let lastPos = {x:0, y:0};
 
                 win.coords.forEach(([c, r]) => {
                     const reelEl = reels[c];
-                    // r 번째 자식 (현재 DOM에는 결과 심볼만 남아있음. r은 0,1,2)
                     const symbolEl = reelEl.children[r]; 
                     
                     if(symbolEl) {
-                        // 상대 좌표 계산 (컨테이너 기준)
                         const centerX = reelEl.offsetLeft + (reelEl.offsetWidth / 2);
                         const centerY = symbolEl.offsetTop + (symbolEl.offsetHeight / 2);
                         points += `${centerX},${centerY} `;
                         lastPos = {x: centerX, y: centerY};
                         
-                        // 심볼 하이라이트
                         symbolEl.classList.add('win-highlight');
                     }
                 });
 
-                // 라인
                 const poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
                 poly.setAttribute("points", points);
                 poly.setAttribute("fill", "none");
@@ -845,11 +848,9 @@
                 poly.style.filter = `drop-shadow(0 0 8px ${win.color})`;
                 svgLayer.appendChild(poly);
 
-                // 텍스트
                 const label = document.createElement('div');
                 label.className = 'win-float-text';
                 label.innerText = "+" + Math.floor(win.amount).toLocaleString();
-                // 절대 좌표로 배치 (container relative)
                 label.style.left = `${lastPos.x}px`;
                 label.style.top = `${lastPos.y}px`;
                 label.style.color = win.color;
