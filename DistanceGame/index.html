@@ -711,14 +711,43 @@
                 this.time = 0.25; this.dayDuration = 6000; this.weather = 'clear'; this.weatherTimer = 0;
                 this.clouds = []; this.precipitations = []; this.sunX = 0; this.sunY = 0; this.moonX = 0; this.moonY = 0;
                 
-                this.planets = [
-                    { x: width * 0.1, y: height * 0.2, r: 60, color: '#eec', glow: '#aa8', orbit: 0.00003, hasRing: true, ringColor: 'rgba(200, 200, 255, 0.6)' },
-                    { x: width * 0.8, y: height * 0.15, r: 40, color: '#3af', glow: '#05d', orbit: 0.00008, hasRing: false },
-                    { x: width * 0.4, y: height * 0.6, r: 25, color: '#f44', glow: '#a22', orbit: 0.0001, hasRing: false },
-                    { x: width * 0.6, y: height * 0.4, r: 55, color: '#fa5', glow: '#d80', orbit: 0.00005, hasRing: true, ringColor: 'rgba(255, 200, 150, 0.5)' },
-                    { x: width * 0.25, y: height * 0.8, r: 30, color: '#5f5', glow: '#2a2', orbit: 0.00012, hasRing: false },
-                    { x: width * 0.9, y: height * 0.7, r: 20, color: '#d5f', glow: '#82a', orbit: 0.00015, hasRing: false }
+                // [수정] 행성 배치 로직 개선: 화면 전체에 골고루 분포하도록 변경
+                this.planets = [];
+                const planetStyles = [
+                    { r: 60, color: '#eec', glow: '#aa8', orbit: 0.00003, hasRing: true, ringColor: 'rgba(200, 200, 255, 0.6)' },
+                    { r: 40, color: '#3af', glow: '#05d', orbit: 0.00008, hasRing: false },
+                    { r: 25, color: '#f44', glow: '#a22', orbit: 0.0001, hasRing: false },
+                    { r: 55, color: '#fa5', glow: '#d80', orbit: 0.00005, hasRing: true, ringColor: 'rgba(255, 200, 150, 0.5)' },
+                    { r: 30, color: '#5f5', glow: '#2a2', orbit: 0.00012, hasRing: false },
+                    { r: 20, color: '#d5f', glow: '#82a', orbit: 0.00015, hasRing: false },
+                    { r: 45, color: '#b5f', glow: '#72a', orbit: 0.00007, hasRing: false },
+                    { r: 35, color: '#f88', glow: '#c44', orbit: 0.00009, hasRing: true, ringColor: 'rgba(255, 100, 100, 0.4)' }
                 ];
+
+                // 화면을 격자로 나누어 행성을 하나씩 배치 (겹침 방지 및 균등 분포)
+                const cols = 2; // 2열
+                const rows = 4; // 4행
+                const cellW = width / cols;
+                const cellH = (height * 1.2) / rows; // 화면 위아래로 약간 더 여유 있게
+
+                // 섞기
+                planetStyles.sort(() => Math.random() - 0.5);
+                const cells = Array.from({length: cols * rows}, (_, i) => i).sort(() => Math.random() - 0.5);
+
+                for(let i=0; i<Math.min(planetStyles.length, cells.length); i++) {
+                    const style = planetStyles[i];
+                    const cellIdx = cells[i];
+                    const c = cellIdx % cols;
+                    const r = Math.floor(cellIdx / cols);
+
+                    // 격자 내 랜덤 위치 (가장자리 여백 둠)
+                    const x = c * cellW + (Math.random() * 0.6 + 0.2) * cellW;
+                    // Y좌표는 화면 상단(-0.2h)부터 하단(1.0h)까지 분포
+                    const startY = -height * 0.2;
+                    const y = startY + r * cellH + (Math.random() * 0.6 + 0.2) * cellH;
+
+                    this.planets.push({ x, y, ...style });
+                }
 
                 this.nebulae = [];
                 for(let i=0; i<6; i++) {
