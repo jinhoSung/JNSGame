@@ -755,17 +755,28 @@
                 this.moonX = centerX + Math.cos(moonAngle) * radius; this.moonY = centerY + Math.sin(moonAngle) * radius;
                 this.weatherTimer += dt;
                 
+                // [수정] 우주 고도 체크 (3000m 이상이면 날씨 없음)
+                let currentAltitude = ball ? (height - 50 - ball.y) / scaleFactor : 0;
+                let isSpace = currentAltitude > 3000;
+
                 if(!isLowQuality) {
-                    if(this.weatherTimer > 600) {
-                        this.weatherTimer = 0; const r = Math.random();
-                        if(r < 0.6) this.weather = 'clear'; else if(r < 0.8) this.weather = 'rain'; else this.weather = 'snow';
+                    if (isSpace) {
+                        // 우주에서는 구름/비/눈 강제 제거
+                        this.weather = 'clear';
+                        this.precipitations = []; 
+                    } else {
+                        // 대기권 내에서만 날씨 변화 및 생성
+                        if(this.weatherTimer > 600) {
+                            this.weatherTimer = 0; const r = Math.random();
+                            if(r < 0.6) this.weather = 'clear'; else if(r < 0.8) this.weather = 'rain'; else this.weather = 'snow';
+                        }
+                        this.clouds.forEach(c => c.update(dt));
+                        if(this.weather !== 'clear') {
+                            const count = Math.ceil(width / 200); 
+                            for(let i=0; i<count; i++) { if(Math.random() > 0.5) this.precipitations.push(new WeatherParticle(this.weather)); }
+                        }
+                        this.precipitations.forEach((p, i) => { p.update(dt); if(!p.active) this.precipitations.splice(i, 1); });
                     }
-                    this.clouds.forEach(c => c.update(dt));
-                    if(this.weather !== 'clear') {
-                        const count = Math.ceil(width / 200); 
-                        for(let i=0; i<count; i++) { if(Math.random() > 0.5) this.precipitations.push(new WeatherParticle(this.weather)); }
-                    }
-                    this.precipitations.forEach((p, i) => { p.update(dt); if(!p.active) this.precipitations.splice(i, 1); });
                 }
                 
                 this.planets.forEach(p => {
@@ -779,7 +790,11 @@
             }
             draw(ctx) {
                 let currentAltitude = ball ? (height - 50 - ball.y) / scaleFactor : 0;
+                // 우주 배경 진입 (5000m부터 어두워짐)
                 let spaceFactor = Math.min(1, Math.max(0, (currentAltitude - 5000) / 10000));
+                
+                // [수정] 대기권 요소 투명도 (3000m부터 흐려져서 5000m에 완전히 사라짐)
+                let atmosphereAlpha = 1 - Math.min(1, Math.max(0, (currentAltitude - 3000) / 2000));
 
                 ctx.fillStyle = '#01010a';
                 ctx.fillRect(0, 0, width, height);
@@ -909,14 +924,16 @@
                 ctx.fillStyle = '#ffffee'; ctx.beginPath(); ctx.arc(this.moonX, this.moonY, 50 * scaleFactor, 0, Math.PI*2); ctx.fill();
                 ctx.fillStyle = 'rgba(200,200,200,0.3)'; ctx.beginPath(); ctx.arc(this.moonX - 10, this.moonY - 5, 10 * scaleFactor, 0, Math.PI*2); ctx.arc(this.moonX + 15, this.moonY + 10, 8 * scaleFactor, 0, Math.PI*2); ctx.fill(); ctx.restore();
                 
-                if (!isLowQuality) {
+                if (!isLowQuality && atmosphereAlpha > 0) {
                     ctx.save();
-                    ctx.globalAlpha = 1 - spaceFactor;
+                    // [수정] 우주로 갈수록 구름 투명해짐
+                    ctx.globalAlpha = atmosphereAlpha;
                     this.clouds.forEach(c => c.draw(ctx)); 
                     ctx.restore();
 
                     ctx.save();
-                    ctx.globalAlpha = 1 - spaceFactor;
+                    // [수정] 우주로 갈수록 비/눈 투명해짐
+                    ctx.globalAlpha = atmosphereAlpha;
                     this.precipitations.forEach(p => p.draw(ctx));
                     ctx.restore();
                 }
