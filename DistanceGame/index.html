@@ -536,7 +536,7 @@
         btnFullscreen.addEventListener('click', () => {
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen().catch(err => {
-                    console.log(`Error attempting to enable fullscreen: ${err.message}`);
+                    console.log(`Error: ${err.message}`);
                 });
             } else {
                 if (document.exitFullscreen) {
@@ -619,7 +619,6 @@
                 this.time = 0.25; this.dayDuration = 6000; this.weather = 'clear'; this.weatherTimer = 0;
                 this.clouds = []; this.precipitations = []; this.sunX = 0; this.sunY = 0; this.moonX = 0; this.moonY = 0;
                 
-                // [수정] 다채로운 행성들 (고리 행성 포함)
                 this.planets = [
                     { x: width * 0.1, y: height * 0.2, r: 60, color: '#eec', glow: '#aa8', orbit: 0.00003, hasRing: true, ringColor: 'rgba(200, 200, 255, 0.6)' },
                     { x: width * 0.8, y: height * 0.15, r: 40, color: '#3af', glow: '#05d', orbit: 0.00008, hasRing: false },
@@ -629,7 +628,6 @@
                     { x: width * 0.9, y: height * 0.7, r: 20, color: '#d5f', glow: '#82a', orbit: 0.00015, hasRing: false }
                 ];
 
-                // [추가] 성운 (Nebula) - 여러 개의 가스 구름
                 this.nebulae = [];
                 for(let i=0; i<6; i++) {
                     this.nebulae.push({
@@ -641,7 +639,6 @@
                     });
                 }
 
-                // [추가] 별자리 (Constellations)
                 this.constellations = [];
                 const cCount = 3;
                 for(let i=0; i<cCount; i++) {
@@ -676,30 +673,25 @@
                 }
                 this.precipitations.forEach((p, i) => { p.update(dt); if(!p.active) this.precipitations.splice(i, 1); });
                 
-                // 행성 위치 업데이트 (미세한 궤도 운동)
                 this.planets.forEach(p => {
                     p.x += Math.cos(Date.now() * p.orbit) * 0.2;
                     p.y += Math.sin(Date.now() * p.orbit) * 0.1;
                 });
                 
-                // 별자리 회전
                 this.constellations.forEach(c => {
                     c.rot += 0.0001;
                 });
             }
             draw(ctx) {
-                // 고도에 따른 우주 배경 전환 (5,000m ~ 15,000m)
                 let currentAltitude = ball ? (height - 50 - ball.y) / scaleFactor : 0;
                 let spaceFactor = Math.min(1, Math.max(0, (currentAltitude - 5000) / 10000));
 
-                // 1. 기본 배경 (칠흑같은 블랙)
                 ctx.fillStyle = '#01010a';
                 ctx.fillRect(0, 0, width, height);
 
                 if (spaceFactor > 0) {
                     ctx.save();
                     
-                    // [추가] 성운 그리기
                     this.nebulae.forEach(n => {
                         let pulse = Math.sin(Date.now() * 0.001 + n.pulseOffset);
                         let r = n.r * (1 + pulse * 0.1);
@@ -710,22 +702,20 @@
                         ctx.fillRect(n.x - r, n.y - r, r*2, r*2);
                     });
 
-                    // [수정] 은하수 더 화려하게
                     ctx.globalAlpha = spaceFactor * 0.8;
                     const galaxyGrad = ctx.createRadialGradient(width * 0.5, height * 0.5, 0, width * 0.5, height * 0.5, width * 1.2);
-                    galaxyGrad.addColorStop(0, 'rgba(100, 50, 180, 0.5)'); // 보라색 코어
-                    galaxyGrad.addColorStop(0.3, 'rgba(50, 50, 150, 0.4)'); // 파란색 중간
+                    galaxyGrad.addColorStop(0, 'rgba(100, 50, 180, 0.5)'); 
+                    galaxyGrad.addColorStop(0.3, 'rgba(50, 50, 150, 0.4)'); 
                     galaxyGrad.addColorStop(0.7, 'rgba(20, 20, 60, 0.2)');
                     galaxyGrad.addColorStop(1, 'transparent');
                     
                     ctx.fillStyle = galaxyGrad;
                     ctx.translate(width/2, height/2);
-                    ctx.rotate(Date.now() * 0.00005); // 은하수 전체 매우 느린 회전
+                    ctx.rotate(Date.now() * 0.00005); 
                     ctx.fillRect(-width*1.5, -height*1.5, width*3, height*3);
                     ctx.rotate(-Date.now() * 0.00005);
                     ctx.translate(-width/2, -height/2);
                     
-                    // [추가] 별자리 그리기
                     ctx.globalAlpha = spaceFactor * 0.6;
                     ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
                     ctx.lineWidth = 1;
@@ -737,7 +727,6 @@
                         c.stars.forEach((s, i) => {
                             if(i===0) ctx.moveTo(s.x, s.y);
                             else ctx.lineTo(s.x, s.y);
-                            // 별 점 찍기
                             ctx.save();
                             ctx.fillStyle = '#fff';
                             ctx.beginPath(); ctx.arc(s.x, s.y, 2, 0, Math.PI*2); ctx.fill();
@@ -750,27 +739,24 @@
                     ctx.restore();
                 }
 
-                // 3. 행성(Planets) 추가 (고리 포함)
                 if (spaceFactor > 0) {
                     this.planets.forEach(p => {
                         ctx.save();
                         ctx.globalAlpha = spaceFactor;
-                        let py = p.y - camera.y * 0.05; // 시차 효과
+                        let py = p.y - camera.y * 0.05; 
                         
-                        // 고리 그리기 (뒤쪽)
                         if(p.hasRing) {
                             ctx.save();
                             ctx.translate(p.x, py);
                             ctx.rotate(Math.PI / 6);
                             ctx.beginPath();
-                            ctx.ellipse(0, 0, p.r * 2.2, p.r * 0.6, 0, Math.PI, 0); // 반쪽만
+                            ctx.ellipse(0, 0, p.r * 2.2, p.r * 0.6, 0, Math.PI, 0); 
                             ctx.lineWidth = p.r * 0.3;
                             ctx.strokeStyle = p.ringColor;
                             ctx.stroke();
                             ctx.restore();
                         }
 
-                        // 행성 본체
                         ctx.shadowBlur = 15;
                         ctx.shadowColor = p.glow;
                         ctx.fillStyle = p.color;
@@ -778,20 +764,18 @@
                         ctx.arc(p.x, py, p.r * scaleFactor, 0, Math.PI * 2);
                         ctx.fill();
                         
-                        // 행성 그림자 효과 (입체감)
                         const grad = ctx.createRadialGradient(p.x - p.r/3, py - p.r/3, 0, p.x, py, p.r * scaleFactor);
                         grad.addColorStop(0, 'rgba(255,255,255,0.3)');
                         grad.addColorStop(1, 'rgba(0,0,0,0.7)');
                         ctx.fillStyle = grad;
                         ctx.fill();
 
-                        // 고리 그리기 (앞쪽)
                         if(p.hasRing) {
                             ctx.save();
                             ctx.translate(p.x, py);
                             ctx.rotate(Math.PI / 6);
                             ctx.beginPath();
-                            ctx.ellipse(0, 0, p.r * 2.2, p.r * 0.6, 0, 0, Math.PI); // 나머지 반쪽
+                            ctx.ellipse(0, 0, p.r * 2.2, p.r * 0.6, 0, 0, Math.PI); 
                             ctx.lineWidth = p.r * 0.3;
                             ctx.strokeStyle = p.ringColor;
                             ctx.stroke();
@@ -802,7 +786,6 @@
                     });
                 }
 
-                // 4. 대기권 배경 (고도에 따라 투명해짐)
                 ctx.save();
                 ctx.globalAlpha = 1 - spaceFactor;
                 const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
@@ -815,22 +798,18 @@
                 ctx.fillRect(0, 0, width, height);
                 ctx.restore();
 
-                // 5. 별 (우주로 갈수록 또는 밤일 때 진해짐)
                 const starAlpha = Math.max(spaceFactor, Math.max(0, -sunHeight)); 
                 if(starAlpha > 0) { ctx.save(); ctx.globalAlpha = starAlpha; stars.forEach(s => s.draw(ctx)); ctx.restore(); }
                 
-                // 6. 태양과 달
                 ctx.save(); ctx.shadowBlur = 50; ctx.shadowColor = '#ffff00'; ctx.fillStyle = '#ffaa00'; ctx.beginPath(); ctx.arc(this.sunX, this.sunY, 60 * scaleFactor, 0, Math.PI*2); ctx.fill(); ctx.restore();
                 ctx.save(); ctx.shadowBlur = 30; ctx.shadowColor = '#ffffff'; ctx.fillStyle = '#ffffee'; ctx.beginPath(); ctx.arc(this.moonX, this.moonY, 50 * scaleFactor, 0, Math.PI*2); ctx.fill();
                 ctx.fillStyle = 'rgba(200,200,200,0.3)'; ctx.beginPath(); ctx.arc(this.moonX - 10, this.moonY - 5, 10 * scaleFactor, 0, Math.PI*2); ctx.arc(this.moonX + 15, this.moonY + 10, 8 * scaleFactor, 0, Math.PI*2); ctx.fill(); ctx.restore();
                 
-                // 7. 구름 (우주에서는 사라짐)
                 ctx.save();
                 ctx.globalAlpha = 1 - spaceFactor;
                 this.clouds.forEach(c => c.draw(ctx)); 
                 ctx.restore();
 
-                // 8. 기상 현상 (비/눈 - 우주에서는 사라짐)
                 ctx.save();
                 ctx.globalAlpha = 1 - spaceFactor;
                 this.precipitations.forEach(p => p.draw(ctx));
@@ -888,10 +867,45 @@
                 ctx.beginPath(); ctx.moveTo(-this.size/3, -this.size/3); ctx.lineTo(this.size/3, this.size/3);
                 ctx.moveTo(this.size/3, -this.size/3); ctx.lineTo(-this.size/3, this.size/3); ctx.stroke(); ctx.restore();
             }
-            checkCollision(p) {
+            // [수정] 충돌 계산 개선 (선분 충돌 체크 추가)
+            checkCollision(p, prevX, prevY) {
                 if (!this.active) return false;
-                const dx = this.x - p.x; const dy = this.y - p.y; const dist = Math.sqrt(dx*dx + dy*dy);
-                if (dist < this.size/1.5 + p.radius) { this.active = false; return true; }
+                
+                const hitRadius = p.radius + this.size / 2;
+                
+                // 1. 현재 위치 단순 거리 체크
+                const dx = this.x - p.x; 
+                const dy = this.y - p.y;
+                if (dx*dx + dy*dy < hitRadius*hitRadius) { 
+                    this.active = false; return true; 
+                }
+
+                // 2. 고속 이동 시 선분 충돌 체크 (터널링 방지)
+                if (prevX !== undefined && prevY !== undefined) {
+                    const vX = p.x - prevX;
+                    const vY = p.y - prevY;
+                    const lenSq = vX*vX + vY*vY;
+                    
+                    if (lenSq > 0.0001) { // 이동했을 경우만
+                        const cX = this.x - prevX;
+                        const cY = this.y - prevY;
+                        
+                        // 선분 위 가장 가까운 점 찾기 (t: 0~1)
+                        let t = (cX * vX + cY * vY) / lenSq;
+                        t = Math.max(0, Math.min(1, t));
+                        
+                        const closeX = prevX + t * vX;
+                        const closeY = prevY + t * vY;
+                        
+                        const dist2X = this.x - closeX;
+                        const dist2Y = this.y - closeY;
+                        
+                        if (dist2X*dist2X + dist2Y*dist2Y < hitRadius*hitRadius) {
+                            this.active = false;
+                            return true;
+                        }
+                    }
+                }
                 return false;
             }
         }
@@ -916,7 +930,6 @@
             }
         }
 
-        // [수정] 랜덤 컷신 효과 클래스
         class CutsceneEffect {
             constructor(specificType) { 
                 this.active = true; this.life = 1.0;
@@ -932,7 +945,6 @@
                 const slashWidth = width * 1.5;
                 ctx.translate(width/2, height/2); ctx.rotate(-Math.PI / 6); 
                 
-                // 중앙선 효과
                 ctx.shadowBlur = 50; ctx.shadowColor = this.type.subColor; ctx.fillStyle = '#fff'; ctx.globalAlpha = this.life;
                 ctx.beginPath(); ctx.moveTo(-slashWidth/2, 0); ctx.lineTo(slashWidth/2, 0); ctx.lineWidth = 10 * scaleFactor; ctx.strokeStyle = '#fff'; ctx.stroke();
                 
@@ -940,7 +952,6 @@
                 ctx.shadowBlur = 20; ctx.shadowColor = this.type.subColor; 
                 ctx.textAlign = 'center';
                 
-                // 텍스트 출력
                 ctx.fillStyle = this.type.textColor;
                 ctx.font = `bold ${40 * scaleFactor}px 'Noto Sans KR', sans-serif`; 
                 ctx.fillText(this.type.text, 0, -50 * scaleFactor);
@@ -1032,11 +1043,10 @@
                 if (this.y - camera.y < -100 || this.y - camera.y > height + 100) return;
                 this.pulse += 0.1;
                 const r = this.radius + Math.sin(this.pulse) * 5;
-                ctx.strokeStyle = this.color; ctx.lineWidth = 3; ctx.shadowBlur = 20; ctx.shadowColor = this.glow;
+                ctx.save(); ctx.strokeStyle = this.color; ctx.lineWidth = 3; ctx.shadowBlur = 20; ctx.shadowColor = this.glow;
                 ctx.beginPath();
                 if (this.type === 'blast') {
-                    const cx = this.x - camera.x;
-                    const cy = this.y - camera.y;
+                    const cx = this.x - camera.x; const cy = this.y - camera.y;
                     ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy); ctx.lineTo(cx, cy + r); ctx.lineTo(cx - r, cy); ctx.closePath();
                 } else if (this.type === 'shield') {
                     for (let i = 0; i < 6; i++) {
@@ -1047,12 +1057,9 @@
                     }
                     ctx.closePath();
                 } else if (this.type === 'magnet') {
-                    const cx = this.x - camera.x;
-                    const cy = this.y - camera.y;
+                    const cx = this.x - camera.x; const cy = this.y - camera.y;
                     ctx.arc(cx, cy, r, 0, Math.PI, false); 
-                    ctx.lineTo(cx - r, cy - r*0.5); 
-                    ctx.moveTo(cx + r, cy); 
-                    ctx.lineTo(cx + r, cy - r*0.5);
+                    ctx.lineTo(cx - r, cy - r*0.5); ctx.moveTo(cx + r, cy); ctx.lineTo(cx + r, cy - r*0.5);
                 } else if (this.type === 'warp') {
                     for(let i=0; i<3; i++) {
                         ctx.arc(this.x - camera.x, this.y - camera.y, r * (1 - i*0.3), this.pulse + i, this.pulse + i + Math.PI);
@@ -1066,11 +1073,32 @@
                 if (this.type === 'shield') icon = 'SHD'; if (this.type === 'float') icon = 'FLT';
                 if (this.type === 'magnet') icon = '🧲'; if (this.type === 'warp') icon = '🌀';
                 ctx.fillText(icon, this.x - camera.x, this.y - camera.y);
+                ctx.restore();
             }
-            checkCollision(p) {
+            checkCollision(p, prevX, prevY) {
                 if (!this.active) return false;
-                const dx = this.x - p.x; const dy = this.y - p.y; const dist = Math.sqrt(dx*dx + dy*dy);
-                if (dist < p.radius + this.radius) { return true; } 
+                const hitRadius = p.radius + this.radius;
+                const dx = this.x - p.x; 
+                const dy = this.y - p.y; 
+                if (dx*dx + dy*dy < hitRadius*hitRadius) { 
+                    this.active = false; 
+                    return true; 
+                } 
+                if (prevX !== undefined && prevY !== undefined) {
+                    const vX = p.x - prevX; const vY = p.y - prevY;
+                    const lenSq = vX*vX + vY*vY;
+                    if (lenSq > 0.0001) {
+                        const cX = this.x - prevX; const cY = this.y - prevY;
+                        let t = (cX * vX + cY * vY) / lenSq;
+                        t = Math.max(0, Math.min(1, t));
+                        const closeX = prevX + t * vX; const closeY = prevY + t * vY;
+                        const dist2X = this.x - closeX; const dist2Y = this.y - closeY;
+                        if (dist2X*dist2X + dist2Y*dist2Y < hitRadius*hitRadius) {
+                            this.active = false; 
+                            return true;
+                        }
+                    }
+                }
                 return false;
             }
         }
@@ -1097,17 +1125,13 @@
                 ctx.save(); ctx.translate(drawX, drawY);
                 ctx.strokeStyle = '#0ff'; ctx.fillStyle = '#000'; ctx.lineWidth = 3 * s;
                 ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.shadowBlur = 10; ctx.shadowColor = '#0ff';
-                // Legs
                 ctx.beginPath(); ctx.moveTo(-5*s, -55*s); ctx.lineTo(-20*s, -25*s); ctx.lineTo(-35*s, 0); ctx.stroke();
                 ctx.beginPath(); ctx.moveTo(5*s, -55*s); ctx.lineTo(25*s, -25*s); ctx.lineTo(30*s, 0); ctx.stroke();
-                // Body
                 ctx.save(); ctx.translate(0, breathY);
                 ctx.fillStyle = '#051515'; ctx.beginPath(); ctx.moveTo(-12*s, -100*s); ctx.lineTo(12*s, -100*s); ctx.lineTo(6*s, -55*s); ctx.lineTo(-6*s, -55*s); ctx.closePath(); ctx.fill(); ctx.stroke();
                 ctx.fillStyle = '#0ff'; ctx.beginPath(); ctx.arc(0, -80*s, 5*s, 0, Math.PI * 2); ctx.fill();
-                // Head
                 ctx.save(); ctx.translate(0, -105*s); ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(0, 0, 16*s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
                 ctx.shadowColor = '#f0f'; ctx.fillStyle = '#f0f'; ctx.beginPath(); ctx.moveTo(7*s, -5*s); ctx.lineTo(16*s, -3*s); ctx.lineTo(16*s, 5*s); ctx.lineTo(7*s, 7*s); ctx.closePath(); ctx.fill(); ctx.restore();
-                // Arm & Bat
                 ctx.save(); ctx.translate(0, -95*s); ctx.rotate(this.armAngle);
                 ctx.strokeStyle = '#fff'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(30*s, 0); ctx.stroke();
                 ctx.translate(30*s, 0); ctx.fillStyle = '#555'; ctx.fillRect(0, -5*s, 12*s, 10*s);
@@ -1117,8 +1141,8 @@
                 ctx.fillStyle = batGrad; ctx.beginPath(); ctx.moveTo(12*s, -6*s); ctx.lineTo(110*s, -9*s); ctx.lineTo(115*s, 0); ctx.lineTo(110*s, 9*s); ctx.lineTo(12*s, 6*s); ctx.closePath(); ctx.fill();
                 ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.moveTo(12*s, 0); ctx.lineTo(105*s, 0); ctx.stroke();
                 ctx.restore(); 
-                ctx.restore(); // Body end
-                ctx.restore(); // Player end
+                ctx.restore();
+                ctx.restore();
             }
         }
 
@@ -1148,6 +1172,9 @@
                     return;
                 }
                 if (gameState === STATE.FLYING) {
+                    const prevX = this.x;
+                    const prevY = this.y;
+
                     this.x += this.vx * dt; this.y += this.vy * dt; 
                     
                     if (this.magnetTimer > 0) {
@@ -1183,7 +1210,7 @@
                         else if (Math.abs(this.vx) > 0.5 && Math.random() > 0.7) particles.push(new Particle(this.x, this.y + 10, '#555', 2));
                     }
                     boosters.forEach(b => {
-                        if (b.checkCollision(this)) {
+                        if (b.checkCollision(this, prevX, prevY)) {
                             combo++; uiCombo.innerText = `COMBO x${combo}`; uiCombo.style.opacity = 1;
                             const comboBonus = 1 + (combo * 0.1);
                             const boostPower = 15 * scaleFactor * comboBonus;
@@ -1214,7 +1241,7 @@
                     });
                     
                     obstacles.forEach(o => {
-                        if(o.checkCollision(this)) {
+                        if(o.checkCollision(this, prevX, prevY)) {
                             if (this.hasShield) {
                                 this.hasShield = false; showFeedback("BLOCKED!", "#a0f"); Sound.playShield(); shockwaves.push(new Shockwave(this.x, this.y, '#a0f')); return; 
                             }
@@ -1266,11 +1293,9 @@
                 
                 ctx.save(); ctx.translate(drawX, drawY); ctx.rotate(this.rotation);
                 
-                // [마그넷 흡입 범위 시각화]
                 if (this.magnetTimer > 0) {
                     const magnetRadius = 200 * scaleFactor;
                     const pulseAlpha = 0.2 + Math.abs(Math.sin(frameId * 0.1)) * 0.1;
-                    
                     ctx.save();
                     ctx.globalAlpha = pulseAlpha;
                     ctx.fillStyle = '#ff3333';
@@ -1289,7 +1314,6 @@
 
                 const speed = Math.sqrt(this.vx*this.vx + this.vy*this.vy) * 2;
                 
-                // [화염 효과 - Fire Effect]
                 if (speed > 300) {
                     ctx.save();
                     ctx.globalCompositeOperation = 'lighter';
@@ -1332,7 +1356,6 @@
             }
         }
 
-        // --- Init Functions ---
         function init() {
             resize(); 
             window.addEventListener('resize', resize);
@@ -1368,7 +1391,6 @@
             addBoosters(25); 
         }
 
-        // [수정 사항 반영: 고도가 높을수록 아이템 등장 확률 감소]
         function addBoosters(count) {
              for(let i=0; i<count; i++) {
                 let gap = (50 + Math.random() * 150) * scaleFactor;
@@ -1387,9 +1409,14 @@
                 
                 let by = height - 100 - spawnHeight; 
                 
-                // 확률 계산 로직 추가: 고도가 높을수록 확률 감소
+                // 확률 계산 로직 개선: 낮은 고도에서도 적당히 나오도록 조정
                 let currentAltitude = Math.abs(spawnHeight / scaleFactor);
-                let spawnProbability = Math.max(0.1, 1.0 - (currentAltitude / 20000));
+                // 20000m까지 확률 선형 감소, 하지만 최소 20% 보장, 낮은 고도(2000m 이하)에서는 100%
+                let spawnProbability = 1.0;
+                if (currentAltitude > 2000) {
+                    spawnProbability = Math.max(0.2, 1.0 - ((currentAltitude - 2000) / 18000));
+                }
+                
                 if (Math.random() > spawnProbability) continue; 
 
                 if (Math.random() > 0.95) {
