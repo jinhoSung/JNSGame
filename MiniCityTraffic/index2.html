@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mini City Tycoon - Parking Update</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #263238;
+            font-family: 'Noto Sans KR', sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #game-wrapper {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            background-color: #263238;
+        }
+
+        /* UI 레이어 */
+        .ui-layer {
+            position: absolute;
+            pointer-events: none;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+        }
+
+        .pointer-auto {
+            pointer-events: auto;
+        }
+
+        /* 상단 정보창 */
+        .top-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .info-box {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* 하단 컨트롤 바 */
+        .control-bar {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            background: rgba(33, 33, 33, 0.8);
+            padding: 8px;
+            border-radius: 24px;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        .btn {
+            background: #eee;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 16px;
+            font-size: 13px;
+            font-weight: bold;
+            color: #444;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-width: 50px;
+            transition: all 0.2s;
+        }
+
+        .btn span { font-size: 18px; margin-bottom: 2px; }
+        .btn:active { transform: scale(0.95); }
+        
+        .btn.active {
+            background: #FFC107;
+            color: #000;
+            box-shadow: 0 2px 8px rgba(255, 193, 7, 0.4);
+        }
+        
+        .btn.move-mode.active { background: #4CAF50; color: white; }
+        .btn.erase-mode.active { background: #F44336; color: white; }
+
+        /* 줌 컨트롤 (우측) */
+        .zoom-controls {
+            position: absolute;
+            right: 20px;
+            bottom: 100px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .zoom-btn {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: white;
+            border: none;
+            font-size: 24px;
+            font-weight: bold;
+            color: #555;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .zoom-btn:active { background: #f0f0f0; transform: scale(0.95); }
+
+        /* 전체화면 버튼 */
+        #fullscreen-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 40px;
+            height: 40px;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            border-radius: 50%;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .instruction-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 25px;
+            border-radius: 16px;
+            width: 80%;
+            max-width: 320px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            z-index: 100;
+            display: none;
+        }
+
+        .instruction-modal h2 { margin-top: 0; color: #263238; }
+        .instruction-modal p { line-height: 1.5; color: #546e7a; margin-bottom: 20px; }
+        .close-btn {
+            background: #2196f3; color: white; border: none;
+            padding: 10px 20px; border-radius: 8px; font-weight: bold; width: 100%; font-size: 16px;
+        }
+
+        #money-float {
+            position: absolute;
+            font-weight: bold;
+            font-size: 20px;
+            color: #4CAF50;
+            pointer-events: none;
+            opacity: 0;
+            transition: transform 1s, opacity 1s;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="ui-layer">
+        <div class="top-panel pointer-auto">
+            <div class="info-box">
+                <span>💰</span>
+                <span id="moneyDisplay">500</span>
+            </div>
+            <div class="info-box">
+                <span>🏙️</span>
+                <span id="scoreDisplay">0</span>
+            </div>
+        </div>
+
+        <button id="fullscreen-btn" class="pointer-auto" onclick="toggleFullscreen()">⛶</button>
+
+        <div class="zoom-controls pointer-auto">
+            <button class="zoom-btn" onclick="gameInstance.zoomIn()">+</button>
+            <button class="zoom-btn" onclick="gameInstance.zoomOut()">-</button>
+        </div>
+
+        <div class="control-bar pointer-auto">
+            <button class="btn active" id="btn-build" onclick="setMode('build')">
+                <span>🚧</span>건설 ($10)
+            </button>
+            <button class="btn move-mode" id="btn-move" onclick="setMode('move')">
+                <span>✋</span>이동
+            </button>
+            <button class="btn erase-mode" id="btn-erase" onclick="setMode('erase')">
+                <span>🧹</span>철거 (+$5)
+            </button>
+        </div>
+    </div>
+
+    <div class="instruction-modal pointer-auto" id="instruction">
+        <h2>도시 타이쿤</h2>
+        <p>
+            <strong>도로 연결 규칙 변경!</strong><br><br>
+            차가 다니려면 반드시<br>
+            <strong>[집 입구 도로]</strong>와 <strong>[회사 입구 도로]</strong>가<br>
+            연결되어야 합니다.<br><br>
+            회사 앞 도로에 도착하면 차가<br>
+            주차장으로 들어가서 주차합니다.
+        </p>
+        <button class="close-btn" onclick="document.getElementById('instruction').style.display='none'">시작하기</button>
+    </div>
+</div>
+
+<script>
+    // --- 설정 변수 ---
+    const TILE_SIZE = 40; 
+    const GRID_WIDTH = 50;
+    const GRID_HEIGHT = 50;
+    
+    const ROAD_COST = 10;
+    const ROAD_REFUND = 5;
+    const SALARY = 50;
+    const WORK_DURATION = 600; // 10초
+
+    const TYPE = { EMPTY: 0, ROAD: 1, HOUSE: 2, COMPANY: 3, COMPANY_PART: 4 };
+
+    const COLORS = {
+        ROAD: '#546e7a', 
+        ROAD_PREVIEW: 'rgba(84, 110, 122, 0.5)',
+        ROAD_INVALID: 'rgba(239, 83, 80, 0.5)',
+        GRASS: '#81c784',
+        BG: '#a5d6a7'
+    };
+
+    const STATE = {
+        IDLE: 0,
+        TO_WORK: 1,      // 집 입구 -> 회사 입구 도로 (운전)
+        PARKING: 2,      // 회사 입구 도로 -> 주차 슬롯 (주차 진입)
+        TO_ENTRANCE: 3,  // 주차 슬롯 -> 회사 문 (보행)
+        WORKING: 4,      // 근무 중
+        TO_CAR: 5,       // 회사 문 -> 주차 슬롯 (보행)
+        TO_HOME: 6,      // 주차 슬롯 -> 집 (운전)
+        RESTING: 7
+    };
+
+    const DIRS = [
+        {dx:0,dy:-1},{dx:1,dy:-1},{dx:1,dy:0},{dx:1,dy:1},
+        {dx:0,dy:1},{dx:-1,dy:1},{dx:-1,dy:0},{dx:-1,dy:-1}
+    ];
+
+    let gameInstance = null;
+    let currentMode = 'build'; 
+
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(e=>{});
+        } else {
+            if (document.exitFullscreen) document.exitFullscreen();
+        }
+    }
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(`btn-${mode}`).classList.add('active');
+        if(gameInstance) gameInstance.handleModeChange();
+    }
+
+    class Game {
+        constructor(canvasId) {
+            this.canvas = document.getElementById(canvasId);
+            this.ctx = this.canvas.getContext('2d');
+            
+            this.money = 200;
+            this.completedTrips = 0;
+            
+            this.camera = { x: 0, y: 0, zoom: 1.0 };
+            this.isPanDragging = false;
+            this.lastMouse = { x:0, y:0 };
+
+            this.grid = [];
+            this.agents = [];
+            this.buildings = [];
+            this.particles = [];
+
+            this.isDragging = false;
+            this.dragStart = null;
+            this.dragEnd = null;
+            this.dragPath = [];
+            
+            this.resize();
+            window.addEventListener('resize', () => this.resize());
+
+            this.initGrid();
+            this.spawnInitialBuildings();
+            this.addInputListeners();
+            
+            document.getElementById('instruction').style.display = 'block';
+
+            this.loop();
+        }
+
+        resize() {
+            this.canvas.width = window.innerWidth;
+            this.canvas.height = window.innerHeight;
+            if(this.camera.x === 0 && this.camera.y === 0) {
+                this.camera.x = (this.canvas.width - GRID_WIDTH * TILE_SIZE) / 2;
+                this.camera.y = (this.canvas.height - GRID_HEIGHT * TILE_SIZE) / 2;
+            }
+        }
+
+        initGrid() {
+            for (let x = 0; x < GRID_WIDTH; x++) {
+                this.grid[x] = [];
+                for (let y = 0; y < GRID_HEIGHT; y++) {
+                    this.grid[x][y] = { 
+                        type: TYPE.EMPTY, 
+                        isFixedRoad: false,
+                        connections: new Array(8).fill(false)
+                    };
+                }
+            }
+        }
+
+        spawnInitialBuildings() {
+            this.spawnBuilding(TYPE.HOUSE);
+            this.spawnBuilding(TYPE.HOUSE);
+            this.spawnBuilding(TYPE.COMPANY);
+        }
+
+        addInputListeners() {
+            const getEventPos = (e) => {
+                if(e.touches) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                return { x: e.clientX, y: e.clientY };
+            };
+
+            const start = (e) => {
+                const p = getEventPos(e);
+                this.handleStart(p.x, p.y, e.button === 2);
+            };
+            const move = (e) => {
+                const p = getEventPos(e);
+                this.handleMove(p.x, p.y);
+            };
+            const end = () => this.handleEnd();
+
+            this.canvas.addEventListener('mousedown', start);
+            window.addEventListener('mousemove', move);
+            window.addEventListener('mouseup', end);
+            
+            this.canvas.addEventListener('touchstart', (e) => { e.preventDefault(); start(e); }, {passive: false});
+            window.addEventListener('touchmove', (e) => { e.preventDefault(); move(e); }, {passive: false});
+            window.addEventListener('touchend', end);
+            
+            this.canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const zoomSpeed = 0.1;
+                const newZoom = this.camera.zoom - Math.sign(e.deltaY) * zoomSpeed;
+                this.setZoom(newZoom, e.clientX, e.clientY);
+            }, {passive: false});
+
+            this.canvas.addEventListener('contextmenu', e => e.preventDefault());
+        }
+
+        screenToGrid(sx, sy) {
+            const wx = (sx - this.camera.x) / this.camera.zoom;
+            const wy = (sy - this.camera.y) / this.camera.zoom;
+            const gx = Math.floor(wx / TILE_SIZE);
+            const gy = Math.floor(wy / TILE_SIZE);
+            return { x: gx, y: gy };
+        }
+
+        handleStart(x, y, isRightClick) {
+            this.lastMouse = { x, y };
+            if (currentMode === 'move' || isRightClick) {
+                this.isPanDragging = true;
+                return;
+            }
+            const pos = this.screenToGrid(x, y);
+            if (!this.isValid(pos.x, pos.y)) return;
+
+            const cell = this.grid[pos.x][pos.y];
+            if (cell.type === TYPE.HOUSE && cell.ref) {
+                this.rotateBuilding(cell.ref);
+                return;
+            }
+
+            this.isDragging = true;
+            this.dragStart = pos;
+            this.dragEnd = pos;
+            this.updateDragPath();
+        }
+
+        handleMove(x, y) {
+            if (this.isPanDragging) {
+                const dx = x - this.lastMouse.x;
+                const dy = y - this.lastMouse.y;
+                this.camera.x += dx;
+                this.camera.y += dy;
+                this.lastMouse = { x, y };
+                return;
+            }
+
+            if (this.isDragging) {
+                const pos = this.screenToGrid(x, y);
+                if (this.isValid(pos.x, pos.y)) {
+                    if (this.dragEnd.x !== pos.x || this.dragEnd.y !== pos.y) {
+                        this.dragEnd = pos;
+                        this.updateDragPath();
+                    }
+                }
+            }
+        }
+
+        handleEnd() {
+            this.isPanDragging = false;
+            if (this.isDragging) {
+                this.applyDragPath();
+                this.isDragging = false;
+                this.dragPath = [];
+            }
+        }
+        
+        handleModeChange() {
+            this.isDragging = false;
+            this.dragPath = [];
+            this.isPanDragging = false;
+        }
+
+        zoomIn() { this.setZoom(this.camera.zoom + 0.2, this.canvas.width/2, this.canvas.height/2); }
+        zoomOut() { this.setZoom(this.camera.zoom - 0.2, this.canvas.width/2, this.canvas.height/2); }
+
+        setZoom(zoom, centerX, centerY) {
+            const newZoom = Math.max(0.3, Math.min(zoom, 3.0));
+            const worldX = (centerX - this.camera.x) / this.camera.zoom;
+            const worldY = (centerY - this.camera.y) / this.camera.zoom;
+            
+            this.camera.x = centerX - worldX * newZoom;
+            this.camera.y = centerY - worldY * newZoom;
+            this.camera.zoom = newZoom;
+        }
+
+        updateDragPath() {
+            this.dragPath = [];
+            if (!this.dragStart || !this.dragEnd) return;
+            
+            const x0 = this.dragStart.x, y0 = this.dragStart.y;
+            const x1 = this.dragEnd.x, y1 = this.dragEnd.y;
+            const dx = x1 - x0, dy = y1 - y0;
+            const dist = Math.max(Math.abs(dx), Math.abs(dy));
+
+            for (let i = 0; i <= dist; i++) {
+                const t = (dist === 0) ? 0 : i / dist;
+                const tx = Math.round(x0 + dx * t);
+                const ty = Math.round(y0 + dy * t);
+                if (this.isValid(tx, ty)) this.dragPath.push({x: tx, y: ty});
+            }
+        }
+
+        applyDragPath() {
+            let cost = 0;
+            let refund = 0;
+            let changed = false;
+
+            if (currentMode === 'build') {
+                const tilesToBuild = this.dragPath.filter(p => this.grid[p.x][p.y].type === TYPE.EMPTY).length;
+                if (this.money < tilesToBuild * ROAD_COST) {
+                    this.showFloatText("자금 부족!", this.canvas.width/2, this.canvas.height/2, 'red');
+                    return;
+                }
+            }
+
+            this.dragPath.forEach((curr, i) => {
+                const cell = this.grid[curr.x][curr.y];
+                
+                if (currentMode === 'build') {
+                    if (cell.type === TYPE.EMPTY) {
+                        cell.type = TYPE.ROAD;
+                        this.money -= ROAD_COST;
+                        cost += ROAD_COST;
+                        changed = true;
+                    }
+                    if (cell.type === TYPE.ROAD && i > 0) {
+                        const prev = this.dragPath[i-1];
+                        const prevCell = this.grid[prev.x][prev.y];
+                        if (prevCell.type === TYPE.ROAD) {
+                            const dx = curr.x - prev.x, dy = curr.y - prev.y;
+                            const dirIdx = DIRS.findIndex(d => d.dx === dx && d.dy === dy);
+                            if (dirIdx !== -1) {
+                                prevCell.connections[dirIdx] = true;
+                                cell.connections[(dirIdx + 4) % 8] = true;
+                                changed = true;
+                            }
+                        }
+                    }
+                } else if (currentMode === 'erase') {
+                    if (cell.type === TYPE.ROAD && !cell.isFixedRoad) {
+                        cell.type = TYPE.EMPTY;
+                        cell.connections.fill(false);
+                        this.money += ROAD_REFUND;
+                        refund += ROAD_REFUND;
+                        changed = true;
+                        for(let d=0; d<8; d++) {
+                            const nx = curr.x + DIRS[d].dx, ny = curr.y + DIRS[d].dy;
+                            if(this.isValid(nx, ny) && this.grid[nx][ny].type === TYPE.ROAD) {
+                                this.grid[nx][ny].connections[(d+4)%8] = false;
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (changed) {
+                this.updateUI();
+                if (cost > 0) this.showFloatText(`-$${cost}`, this.canvas.width/2, this.canvas.height/2, 'red');
+                if (refund > 0) this.showFloatText(`+$${refund}`, this.canvas.width/2, this.canvas.height/2, 'green');
+                
+                this.agents.forEach(a => {
+                    if (a.state === STATE.TO_WORK) this.planRoute(a, a.work, STATE.TO_WORK);
+                    if (a.state === STATE.TO_HOME) this.planRoute(a, a.home, STATE.TO_HOME);
+                });
+            }
+        }
+
+        showFloatText(text, x, y, color) {
+            const el = document.createElement('div');
+            el.innerText = text;
+            el.style.position = 'absolute';
+            el.style.left = x + 'px';
+            el.style.top = y + 'px';
+            el.style.color = color;
+            el.style.fontWeight = 'bold';
+            el.style.fontSize = '24px';
+            el.style.pointerEvents = 'none';
+            el.style.textShadow = '0 2px 2px rgba(0,0,0,0.5)';
+            el.style.transition = 'all 1s ease-out';
+            document.body.appendChild(el);
+
+            requestAnimationFrame(() => {
+                el.style.transform = 'translateY(-50px)';
+                el.style.opacity = '0';
+            });
+            setTimeout(() => el.remove(), 1000);
+        }
+
+        spawnBuilding(type) {
+            let placed = false, attempts = 0;
+            const w = (type === TYPE.COMPANY) ? 4 : 1;
+            const h = (type === TYPE.COMPANY) ? 3 : 1;
+            while (!placed && attempts < 200) {
+                attempts++;
+                const x = Math.floor(Math.random() * (GRID_WIDTH - 2 - w)) + 1;
+                const y = Math.floor(Math.random() * (GRID_HEIGHT - 2 - h)) + 1;
+                let ok = true;
+                for(let i=-1; i<=w; i++) for(let j=-1; j<=h; j++) {
+                    const cx=x+i, cy=y+j;
+                    if (cx>=0 && cx<GRID_WIDTH && cy>=0 && cy<GRID_HEIGHT) {
+                        if(this.grid[cx][cy].type !== TYPE.EMPTY) ok=false;
+                    }
+                }
+                if (ok) {
+                    const colorKey = ['RED','BLUE','YELLOW'][Math.floor(Math.random()*3)];
+                    const b = { x,y,type,w,h, color: COLORS[colorKey], rotation:0, parkingSlots:[], entranceRoadPos:null };
+                    for(let i=0; i<w; i++) for(let j=0; j<h; j++) {
+                        this.grid[x+i][y+j] = { type: (i===0&&j===0)?type:TYPE.COMPANY_PART, ref:b, connections:new Array(8).fill(false) };
+                    }
+                    this.setupEntrance(b);
+                    if(type === TYPE.COMPANY) this.setupParking(b);
+                    else {
+                        b.entrance = {x:0.5, y:0.5};
+                        this.agents.push(this.createAgent(b));
+                    }
+                    this.buildings.push(b);
+                    placed = true;
+                }
+            }
+        }
+
+        setupEntrance(b) {
+            if(b.entranceRoadPos) {
+                const c = this.grid[b.entranceRoadPos.x][b.entranceRoadPos.y];
+                if(!c.connections.some(x=>x)) c.type = TYPE.EMPTY;
+                c.isFixedRoad = false;
+            }
+            let rx, ry;
+            if (b.type === TYPE.COMPANY) { rx=b.x+1; ry=b.y+3; }
+            else {
+                if(b.rotation===0){rx=b.x;ry=b.y+1;}
+                else if(b.rotation===1){rx=b.x-1;ry=b.y;}
+                else if(b.rotation===2){rx=b.x;ry=b.y-1;}
+                else {rx=b.x+1;ry=b.y;}
+            }
+            if(this.isValid(rx,ry)) {
+                const cell = this.grid[rx][ry];
+                if(cell.type===TYPE.EMPTY) { cell.type=TYPE.ROAD; cell.connections.fill(false); }
+                cell.isFixedRoad=true;
+                b.entranceRoadPos = {x:rx, y:ry};
+                // 자동 연결
+                for(let i=0; i<8; i++) {
+                    const nx=rx+DIRS[i].dx, ny=ry+DIRS[i].dy;
+                    if(this.isValid(nx,ny) && this.grid[nx][ny].type===TYPE.ROAD) {
+                        cell.connections[i]=true;
+                        this.grid[nx][ny].connections[(i+4)%8]=true;
+                    }
+                }
+            }
+        }
+
+        setupParking(b) {
+            b.entranceLocal = {x:1, y:2.8};
+            b.parkingSlots = [];
+            [{x:2.5,y:0.5},{x:3.5,y:0.5},{x:2.5,y:1.5},{x:3.5,y:1.5},{x:2.5,y:2.5},{x:3.5,y:2.5}].forEach(p=>{
+                b.parkingSlots.push({rx:p.x, ry:p.y, occupiedBy:null});
+            });
+        }
+
+        createAgent(home) {
+            return {
+                x: home.x+0.5, y: home.y+0.5,
+                home: home, work: null,
+                state: STATE.IDLE,
+                path: [], pathIndex: 0,
+                speed: 0, maxSpeed: 0.1,
+                color: home.color, walking: false, targetSlot: null, angle: 0,
+                workTimer: 0
+            };
+        }
+
+        rotateBuilding(b) {
+            b.rotation = (b.rotation + 1) % 4;
+            this.setupEntrance(b);
+        }
+
+        isValid(x, y) { return x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT; }
+
+        update() {
+            if (Math.random() < 0.001 && this.buildings.length < 20) {
+                 if (Math.random() > 0.6) this.spawnBuilding(TYPE.COMPANY);
+                 else this.spawnBuilding(TYPE.HOUSE);
+            }
+
+            this.agents.forEach(a => {
+                switch(a.state) {
+                    case STATE.IDLE: 
+                        if (!a.work) {
+                            const comps = this.buildings.filter(b => b.type === TYPE.COMPANY);
+                            if (comps.length > 0) a.work = comps[Math.floor(Math.random()*comps.length)];
+                        }
+                        // 출근 시작 (집 입구 도로 -> 회사 입구 도로)
+                        if (a.work) this.planRoute(a, a.work, STATE.TO_WORK);
+                        break;
+                    
+                    case STATE.TO_WORK:
+                        this.moveCar(a);
+                        // 도착 시 회사 입구 도로임. 주차 모드로 전환
+                        if(a.pathIndex >= a.path.length) {
+                            a.state = STATE.PARKING;
+                        }
+                        break;
+                        
+                    case STATE.PARKING:
+                        // 도로에서 주차 슬롯으로 부드럽게 진입
+                        const s = a.targetSlot;
+                        const tx = a.work.x + s.rx, ty = a.work.y + s.ry;
+                        
+                        const pdx = tx - a.x;
+                        const pdy = ty - a.y;
+                        const dist = Math.hypot(pdx, pdy);
+                        
+                        if(dist < 0.1) {
+                            // 주차 완료 -> 하차 -> 걷기
+                            a.x = tx; a.y = ty; 
+                            a.state = STATE.TO_ENTRANCE; 
+                            a.walking = true;
+                        } else {
+                            // 주차 진입 애니메이션 (Lerp)
+                            a.x += pdx * 0.08; 
+                            a.y += pdy * 0.08;
+                            a.angle = Math.atan2(pdy, pdx);
+                        }
+                        break;
+
+                    case STATE.TO_ENTRANCE:
+                        const ex = a.work.x+a.work.entranceLocal.x, ey = a.work.y+a.work.entranceLocal.y;
+                        this.moveWalking(a, ex, ey, STATE.WORKING);
+                        break;
+
+                    case STATE.WORKING:
+                        a.workTimer++;
+                        if (a.workTimer >= WORK_DURATION) { 
+                            a.workTimer = 0;
+                            a.state = STATE.TO_CAR;
+                            a.walking = true;
+                        }
+                        break;
+
+                    case STATE.TO_CAR:
+                        const cx = a.work.x + a.targetSlot.rx, cy = a.work.y + a.targetSlot.ry;
+                        this.moveWalking(a, cx, cy, STATE.TO_HOME);
+                        break;
+
+                    case STATE.TO_HOME:
+                        // 차에 타면 경로 계산 (주차장 -> 집 입구 도로)
+                        if(a.path.length === 0) {
+                            a.walking = false;
+                            this.planRoute(a, a.home, STATE.TO_HOME);
+                        }
+                        
+                        // 집으로 운전
+                        this.moveCar(a);
+                        
+                        if(a.path.length > 0 && a.pathIndex >= a.path.length) {
+                            // 집 도착
+                            if(a.targetSlot) { a.targetSlot.occupiedBy=null; a.targetSlot=null; }
+                            a.state = STATE.RESTING;
+                            a.workTimer = 0;
+                            
+                            this.money += SALARY;
+                            this.completedTrips++;
+                            this.updateUI();
+                            
+                            const screenPos = this.gridToScreen(a.x, a.y);
+                            this.showFloatText(`+$${SALARY}`, screenPos.x, screenPos.y, '#4CAF50');
+                        }
+                        break;
+                        
+                    case STATE.RESTING:
+                        a.workTimer++;
+                        if (a.workTimer > 120) {
+                            a.workTimer = 0;
+                            a.state = STATE.IDLE;
+                        }
+                        break;
+                }
+            });
+        }
+
+        gridToScreen(gx, gy) {
+            return {
+                x: gx * TILE_SIZE * this.camera.zoom + this.camera.x,
+                y: gy * TILE_SIZE * this.camera.zoom + this.camera.y
+            };
+        }
+
+        planRoute(a, destBuilding, mode) {
+            // 출발지 결정
+            let start;
+            if (mode === STATE.TO_WORK) {
+                // 출근: 집 입구 도로에서 출발
+                start = a.home.entranceRoadPos; 
+            } else {
+                // 퇴근: 현재 위치(주차장) 근처의 회사 입구 도로에서 출발해야 함
+                // 하지만 편의상 현재 위치가 도로가 아니므로, 회사 입구 도로 좌표를 시작점으로 잡고
+                // 시각적으로는 주차장에서 나가는 모션을 처리해야 함.
+                // 여기서는 간단히: STATE.TO_HOME 진입 시 바로 회사 입구 도로를 시작점으로 경로 탐색
+                start = a.work.entranceRoadPos;
+            }
+            
+            if(!start) return; // 입구 도로 없으면 대기
+
+            // 목적지 결정
+            let target;
+            let slot = null;
+
+            if (mode === STATE.TO_WORK) {
+                // 출근 목표: 회사 입구 도로 (주차 슬롯 아님)
+                target = destBuilding.entranceRoadPos;
+                
+                // 주차 자리 확보
+                const slots = destBuilding.parkingSlots;
+                slot = slots.find(s => !s.occupiedBy);
+                if(!slot) return; // 자리 없음 대기
+                slot.occupiedBy = a;
+                a.targetSlot = slot;
+            } else {
+                // 퇴근 목표: 집 입구 도로
+                target = destBuilding.entranceRoadPos;
+            }
+
+            if(!target) {
+                if(slot) slot.occupiedBy = null;
+                return;
+            }
+
+            // A* 경로 탐색 (도로 to 도로)
+            const path = this.findPath(start.x, start.y, target.x, target.y);
+            
+            if (path) {
+                a.path = path;
+                a.pathIndex = 0;
+                a.state = mode;
+                
+                // 차량 위치 초기화 (출발 시 도로 위에 올림)
+                if (mode === STATE.TO_WORK) {
+                    a.x = start.x + 0.5; 
+                    a.y = start.y + 0.5;
+                    a.walking = false;
+                } else {
+                    // 퇴근 시: 주차장에서 도로로 이동하는 연출 필요
+                    // 간단히 주차장에서 바로 출발하되, 첫 타겟이 입구 도로
+                    // path[0]이 입구 도로일 것임.
+                    a.walking = false;
+                }
+
+            } else {
+                // 경로 실패
+                if(slot) { slot.occupiedBy=null; a.targetSlot=null; }
+                if(mode === STATE.TO_WORK) {
+                    // 못가면 집으로 텔레포트 및 리셋
+                    a.x=a.home.x+0.5; a.y=a.home.y+0.5; a.state=STATE.IDLE;
+                }
+            }
+        }
+
+        findPath(sx, sy, tx, ty) {
+            // 시작점과 목표점이 모두 도로여야 함 (입구 도로 로직에 의해 보장됨)
+            // A* 알고리즘
+            const startNode = {x:sx, y:sy};
+            const targetNode = {x:tx, y:ty};
+
+            const open=[{x:startNode.x, y:startNode.y, g:0, h:0, f:0, p:null}];
+            const closed=new Set();
+            
+            while(open.length>0){
+                open.sort((a,b)=>a.f-b.f);
+                const curr=open.shift();
+                
+                if(curr.x===targetNode.x && curr.y===targetNode.y){
+                    const path=[]; let t=curr;
+                    while(t){path.unshift({x:t.x,y:t.y}); t=t.p;}
+                    return path;
+                }
+                
+                const k=`${curr.x},${curr.y}`;
+                if(closed.has(k)) continue;
+                closed.add(k);
+                
+                for(let i=0;i<8;i++){
+                    // 연결된 도로만 이동 가능
+                    if(!this.grid[curr.x][curr.y].connections[i]) continue;
+                    
+                    const nx=curr.x+DIRS[i].dx, ny=curr.y+DIRS[i].dy;
+                    if(this.isValid(nx,ny) && !closed.has(`${nx},${ny}`)){
+                        const g=curr.g + ((i%2===0)?1:1.414);
+                        const h=Math.hypot(nx-targetNode.x, ny-targetNode.y);
+                        open.push({x:nx, y:ny, g, h, f:g+h, p:curr});
+                    }
+                }
+            }
+            return null;
+        }
+
+        moveCar(a) {
+            if (!a.path || !a.path[a.pathIndex]) return;
+            const t = a.path[a.pathIndex];
+            const dx = t.x+0.5 - a.x, dy = t.y+0.5 - a.y;
+            const d = Math.hypot(dx,dy);
+            if(d < a.maxSpeed) { 
+                a.x=t.x+0.5; 
+                a.y=t.y+0.5; 
+                a.pathIndex++; 
+            } else { 
+                a.x += (dx/d)*a.maxSpeed; 
+                a.y += (dy/d)*a.maxSpeed; 
+                a.angle = Math.atan2(dy,dx); 
+            }
+        }
+        
+        moveWalking(a, tx, ty, nextState) {
+            const dx=tx-a.x, dy=ty-a.y;
+            const d=Math.hypot(dx,dy);
+            if(d<0.05) { 
+                a.x=tx; a.y=ty; 
+                a.state=nextState; 
+                if(nextState===STATE.TO_HOME) a.path=[]; 
+            } else { 
+                a.x += (dx/d)*0.03; 
+                a.y += (dy/d)*0.03; 
+            }
+        }
+
+        updateUI() {
+            document.getElementById('moneyDisplay').innerText = this.money;
+            document.getElementById('scoreDisplay').innerText = this.completedTrips;
+        }
+
+        draw() {
+            this.ctx.fillStyle = COLORS.BG;
+            this.ctx.fillRect(0,0,this.canvas.width, this.canvas.height);
+
+            this.ctx.save();
+            this.ctx.translate(this.camera.x, this.camera.y);
+            this.ctx.scale(this.camera.zoom, this.camera.zoom);
+
+            this.ctx.fillStyle = COLORS.GRASS;
+            this.ctx.fillRect(0,0,GRID_WIDTH*TILE_SIZE, GRID_HEIGHT*TILE_SIZE);
+            
+            this.ctx.strokeStyle = 'rgba(0,0,0,0.05)';
+            this.ctx.lineWidth = 1;
+            this.ctx.beginPath();
+            for(let i=0; i<=GRID_WIDTH; i++) { this.ctx.moveTo(i*TILE_SIZE,0); this.ctx.lineTo(i*TILE_SIZE, GRID_HEIGHT*TILE_SIZE); }
+            for(let i=0; i<=GRID_HEIGHT; i++) { this.ctx.moveTo(0,i*TILE_SIZE); this.ctx.lineTo(GRID_WIDTH*TILE_SIZE, i*TILE_SIZE); }
+            this.ctx.stroke();
+
+            for(let x=0; x<GRID_WIDTH; x++) for(let y=0; y<GRID_HEIGHT; y++) {
+                if(this.grid[x][y].type===TYPE.ROAD) this.drawRoad(x,y);
+            }
+            this.buildings.forEach(b => this.drawBuilding(b));
+            this.agents.forEach(a => { if(a.state!==STATE.IDLE && a.state!==STATE.RESTING) this.drawAgent(a); });
+
+            if(this.isDragging && this.dragPath.length>0) {
+                const isErase = currentMode==='erase';
+                this.ctx.fillStyle = isErase ? COLORS.ROAD_INVALID : COLORS.ROAD_PREVIEW;
+                this.dragPath.forEach(p => {
+                    this.ctx.fillRect(p.x*TILE_SIZE, p.y*TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                });
+            }
+
+            this.ctx.restore();
+        }
+
+        drawRoad(x,y) {
+            const cx = x*TILE_SIZE + TILE_SIZE/2, cy = y*TILE_SIZE + TILE_SIZE/2;
+            const c = this.grid[x][y];
+            this.ctx.fillStyle = COLORS.ROAD;
+            this.ctx.beginPath(); this.ctx.arc(cx,cy,TILE_SIZE*0.35,0,Math.PI*2); this.ctx.fill();
+            this.ctx.strokeStyle = COLORS.ROAD;
+            this.ctx.lineWidth = TILE_SIZE*0.6;
+            this.ctx.lineCap='round';
+            this.ctx.beginPath();
+            for(let i=0;i<8;i++) {
+                if(c.connections[i]){
+                    this.ctx.moveTo(cx,cy);
+                    this.ctx.lineTo(cx+DIRS[i].dx*TILE_SIZE*0.6, cy+DIRS[i].dy*TILE_SIZE*0.6);
+                }
+            }
+            this.ctx.stroke();
+            this.ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            this.ctx.lineWidth=2;
+            this.ctx.beginPath();
+            for(let i=0;i<8;i++) {
+                if(c.connections[i]){
+                    this.ctx.moveTo(cx,cy);
+                    this.ctx.lineTo(cx+DIRS[i].dx*TILE_SIZE*0.5, cy+DIRS[i].dy*TILE_SIZE*0.5);
+                }
+            }
+            this.ctx.stroke();
+        }
+
+        drawBuilding(b) {
+            const bx=b.x*TILE_SIZE, by=b.y*TILE_SIZE;
+            if(b.type===TYPE.HOUSE) {
+                const cx=bx+TILE_SIZE/2, cy=by+TILE_SIZE/2;
+                this.ctx.save();
+                this.ctx.translate(cx,cy);
+                this.ctx.rotate([0,0.5,1,1.5][b.rotation]*Math.PI);
+                const s = TILE_SIZE*0.8;
+                this.ctx.fillStyle='#fff'; this.ctx.fillRect(-s/2,-s/2,s,s);
+                this.ctx.fillStyle=b.color; this.ctx.beginPath();
+                this.ctx.moveTo(-s/2-2,-s/2); this.ctx.lineTo(0,-s/2-10); this.ctx.lineTo(s/2+2,-s/2); this.ctx.fill();
+                this.ctx.fillStyle='#795548'; this.ctx.fillRect(-4,s/2-6,8,6);
+                this.ctx.restore();
+            } else if(b.type===TYPE.COMPANY) {
+                const bw=2*TILE_SIZE, bh=3*TILE_SIZE;
+                this.ctx.fillStyle='rgba(0,0,0,0.2)'; this.ctx.fillRect(bx+5,by+5,bw,bh);
+                this.ctx.fillStyle='#eceff1'; this.ctx.fillRect(bx,by,bw-2,bh-2);
+                this.ctx.fillStyle=b.color; this.ctx.globalAlpha=0.6;
+                for(let i=0;i<3;i++) for(let j=0;j<8;j++) this.ctx.fillRect(bx+10+i*20, by+10+j*12, 12, 8);
+                this.ctx.globalAlpha=1;
+                const px=bx+bw, pw=2*TILE_SIZE, ph=3*TILE_SIZE;
+                this.ctx.fillStyle='#b0bec5'; this.ctx.fillRect(px,by,pw-2,ph-2);
+                this.ctx.strokeStyle='white'; this.ctx.lineWidth=1;
+                b.parkingSlots.forEach(s => {
+                    this.ctx.strokeRect((b.x+s.rx)*TILE_SIZE-12, (b.y+s.ry)*TILE_SIZE-8, 24, 16);
+                });
+                const ex=(b.x+b.entranceLocal.x)*TILE_SIZE, ey=(b.y+b.entranceLocal.y)*TILE_SIZE;
+                this.ctx.fillStyle='#37474f'; this.ctx.fillRect(ex-20,ey-5,40,5);
+                this.ctx.fillStyle='white'; this.ctx.font='10px Arial'; this.ctx.textAlign='center';
+                this.ctx.fillText("CORP", ex, ey-8);
+            }
+        }
+
+        drawAgent(a) {
+            const sx=a.x*TILE_SIZE, sy=a.y*TILE_SIZE;
+            if(a.walking) {
+                this.ctx.fillStyle='#333'; this.ctx.beginPath(); this.ctx.arc(sx,sy,5,0,Math.PI*2); this.ctx.fill();
+                this.ctx.fillStyle=a.color; this.ctx.beginPath(); this.ctx.arc(sx,sy-3,3,0,Math.PI*2); this.ctx.fill();
+                if (a.state === STATE.WORKING) {
+                    this.ctx.fillStyle = '#eee';
+                    this.ctx.fillRect(sx-10, sy-20, 20, 4);
+                    this.ctx.fillStyle = '#4CAF50';
+                    this.ctx.fillRect(sx-10, sy-20, 20 * (a.workTimer / WORK_DURATION), 4);
+                }
+            } else {
+                this.ctx.save(); this.ctx.translate(sx,sy); this.ctx.rotate(a.angle);
+                this.ctx.fillStyle=a.color; this.ctx.fillRect(-9,-5,18,10);
+                this.ctx.fillStyle='#222'; this.ctx.fillRect(2,-4,4,8);
+                this.ctx.restore();
+            }
+        }
+
+        loop() {
+            this.update();
+            this.draw();
+            requestAnimationFrame(() => this.loop());
+        }
+    }
+
+    window.onload = () => { gameInstance = new Game('gameCanvas'); };
+
+</script>
+</body>
+</html>
