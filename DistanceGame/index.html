@@ -415,7 +415,6 @@
                 if (!this.db) return { top10: [], myRank: '-' };
                 try {
                     const scoresRef = collection(this.db, 'scores');
-                    // [수정] 상위 30개까지 가져오도록 변경
                     const qTop = query(scoresRef, orderBy('score', 'desc'), limit(30));
                     const snapshot = await getDocs(qTop);
                     const top10 = snapshot.docs.map(doc => doc.data());
@@ -436,25 +435,19 @@
                     return { top10: [], myRank: '-' };
                 }
             },
-            // [신규] 랭킹 등록 가능 여부 확인 함수
             canRegisterRank: async function(score) {
                 if (!this.db) return false;
                 try {
                     const scoresRef = collection(this.db, 'scores');
                     const q = query(scoresRef, orderBy('score', 'desc'), limit(30));
                     const snapshot = await getDocs(q);
-                    
-                    // 30위 미만이면 무조건 등록 가능
                     if (snapshot.size < 30) return true;
-                    
-                    // 30위 점수보다 높으면 등록 가능
                     const lastDoc = snapshot.docs[snapshot.docs.length - 1];
                     const lastScore = lastDoc.data().score;
-                    
                     return score > lastScore;
                 } catch (e) {
                     console.error("Rank check failed", e);
-                    return true; // 에러 시 등록 허용 (fallback)
+                    return true;
                 }
             }
         };
@@ -578,6 +571,11 @@
 
         let ball, batter, particles = [], shockwaves = [], speedLines = [], stars = [], boosters = [], mountains = [], cityBuildings = [], obstacles = [];
         let skyManager = null;
+        
+        // [최적화] 오브젝트 풀 (재사용 대기소)
+        const particlePool = [];
+        const fireParticlePool = [];
+        const shockwavePool = [];
 
         btnFullscreen.addEventListener('click', () => {
             if (!document.fullscreenElement) {
@@ -673,6 +671,40 @@
 
         const savedName = localStorage.getItem('neon_launcher_name');
         if (savedName) playerNameInput.value = savedName;
+
+        // [최적화] 파티클 생성 도우미 함수 (풀링 사용)
+        function spawnParticle(x, y, color, speed, sizeObj) {
+            let p;
+            if (particlePool.length > 0) {
+                p = particlePool.pop();
+                p.activate(x, y, color, speed, sizeObj);
+            } else {
+                p = new Particle(x, y, color, speed, sizeObj);
+            }
+            particles.push(p);
+        }
+
+        function spawnFireParticle(x, y, ballVx, ballVy) {
+            let p;
+            if (fireParticlePool.length > 0) {
+                p = fireParticlePool.pop();
+                p.activate(x, y, ballVx, ballVy);
+            } else {
+                p = new FireParticle(x, y, ballVx, ballVy);
+            }
+            particles.push(p);
+        }
+
+        function spawnShockwave(x, y, color) {
+            let s;
+            if (shockwavePool.length > 0) {
+                s = shockwavePool.pop();
+                s.activate(x, y, color);
+            } else {
+                s = new Shockwave(x, y, color);
+            }
+            shockwaves.push(s);
+        }
 
         class SkyManager {
             constructor() {
@@ -941,30 +973,26 @@
                 ctx.beginPath(); ctx.moveTo(-this.size/3, -this.size/3); ctx.lineTo(this.size/3, this.size/3);
                 ctx.moveTo(this.size/3, -this.size/3); ctx.lineTo(-this.size/3, this.size/3); ctx.stroke(); ctx.restore();
             }
-            // [수정] 충돌 계산 개선 (선분 충돌 체크 추가)
             checkCollision(p, prevX, prevY) {
                 if (!this.active) return false;
                 
                 const hitRadius = p.radius + this.size / 2;
                 
-                // 1. 현재 위치 단순 거리 체크
                 const dx = this.x - p.x; 
                 const dy = this.y - p.y;
                 if (dx*dx + dy*dy < hitRadius*hitRadius) { 
                     this.active = false; return true; 
                 }
 
-                // 2. 고속 이동 시 선분 충돌 체크 (터널링 방지)
                 if (prevX !== undefined && prevY !== undefined) {
                     const vX = p.x - prevX;
                     const vY = p.y - prevY;
                     const lenSq = vX*vX + vY*vY;
                     
-                    if (lenSq > 0.0001) { // 이동했을 경우만
+                    if (lenSq > 0.0001) { 
                         const cX = this.x - prevX;
                         const cY = this.y - prevY;
                         
-                        // 선분 위 가장 가까운 점 찾기 (t: 0~1)
                         let t = (cX * vX + cY * vY) / lenSq;
                         t = Math.max(0, Math.min(1, t));
                         
@@ -1055,11 +1083,39 @@
         }
 
         class Shockwave {
-            constructor(x, y, color) { this.x = x; this.y = y; this.color = color; this.radius = 10; this.maxRadius = 100 * scaleFactor; this.alpha = 1.0; this.lineWidth = 5 * scaleFactor; }
-            update(dt) { this.radius += 8 * scaleFactor * dt; this.alpha -= 0.08 * dt; this.lineWidth -= 0.2 * dt; if (this.lineWidth < 0) this.lineWidth = 0; }
+            constructor(x, y, color) { 
+                this.init(x, y, color);
+            }
+            init(x, y, color) {
+                this.x = x; this.y = y; this.color = color; this.radius = 10; this.maxRadius = 100 * scaleFactor; this.alpha = 1.0; this.lineWidth = 5 * scaleFactor; this.active = true;
+            }
+            activate(x, y, color) {
+                this.init(x, y, color);
+            }
+            update(dt) { 
+                this.radius += 8 * scaleFactor * dt; this.alpha -= 0.08 * dt; this.lineWidth -= 0.2 * dt; 
+                if (this.lineWidth < 0) this.lineWidth = 0; 
+                if (this.alpha <= 0) this.active = false;
+            }
             draw() {
                 if (this.alpha <= 0) return;
-                ctx.save(); ctx.globalAlpha = this.alpha; ctx.strokeStyle = this.color; ctx.lineWidth = this.lineWidth; ctx.beginPath(); ctx.arc(this.x - camera.x, this.y - camera.y, this.radius, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+                // [최적화] 상태 저장 최소화
+                ctx.globalAlpha = this.alpha; 
+                ctx.strokeStyle = this.color; 
+                ctx.lineWidth = this.lineWidth; 
+                
+                if(!isLowQuality) {
+                    ctx.shadowBlur = 10; ctx.shadowColor = this.color;
+                } else {
+                    ctx.shadowBlur = 0; // 명시적 해제
+                }
+
+                ctx.beginPath(); 
+                ctx.arc(this.x - camera.x, this.y - camera.y, this.radius, 0, Math.PI * 2); 
+                ctx.stroke(); 
+                
+                // 복구
+                ctx.globalAlpha = 1.0;
             }
         }
 
@@ -1077,100 +1133,118 @@
                     let rx = (this.x - camera.x * this.parallax) % width; if (rx < 0) rx += width;
                     let ry = this.y - camera.y * this.parallax;
                     this.alpha += this.blinkSpeed; if (this.alpha > 1 || this.alpha < 0) this.blinkSpeed *= -1;
-                    ctx.save(); ctx.globalAlpha = ctx.globalAlpha * Math.abs(this.alpha); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(rx, ry, this.size, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+                    
+                    // [최적화] 별 그리기에서 save/restore 제거하고 globalAlpha만 조작
+                    const currentAlpha = ctx.globalAlpha;
+                    ctx.globalAlpha = currentAlpha * Math.abs(this.alpha); 
+                    ctx.fillStyle = '#fff'; 
+                    ctx.beginPath(); ctx.arc(rx, ry, this.size, 0, Math.PI * 2); ctx.fill(); 
+                    ctx.globalAlpha = currentAlpha; // 복구
                 }
             }
         }
 
         class Particle {
             constructor(x, y, color, speed, sizeObj = 2) {
+                this.init(x, y, color, speed, sizeObj);
+            }
+            init(x, y, color, speed, sizeObj) {
                 this.x = x; this.y = y; this.color = color;
                 const a = Math.random() * Math.PI * 2; const v = Math.random() * speed * scaleFactor;
                 this.vx = Math.cos(a) * v; this.vy = Math.sin(a) * v;
                 this.life = 1.0; this.decay = 0.02 + Math.random() * 0.03;
                 this.size = (sizeObj + Math.random() * 3) * scaleFactor;
+                this.active = true;
+                this.isFire = false;
             }
-            update(dt) { this.x += this.vx * dt; this.y += this.vy * dt; this.vy += 0.05 * scaleFactor * dt; this.life -= this.decay * dt; }
-            draw() {
+            activate(x, y, color, speed, sizeObj) {
+                this.init(x, y, color, speed, sizeObj);
+            }
+            update(dt) { 
+                this.x += this.vx * dt; this.y += this.vy * dt; this.vy += 0.05 * scaleFactor * dt; this.life -= this.decay * dt; 
+                if (this.life <= 0) this.active = false;
+            }
+            draw(ctx) {
                 if (this.life <= 0) return;
-                ctx.globalAlpha = this.life; ctx.fillStyle = this.color; 
+                // [최적화] save/restore 제거. 메인 루프에서 설정한 상태 이용
+                ctx.globalAlpha = this.life; 
+                ctx.fillStyle = this.color; 
+                
                 if(!isLowQuality) {
                     ctx.shadowBlur = 10; ctx.shadowColor = this.color;
+                } else {
+                    ctx.shadowBlur = 0;
                 }
+
                 ctx.beginPath(); ctx.arc(this.x - camera.x, this.y - camera.y, this.size, 0, Math.PI * 2); ctx.fill();
-                ctx.shadowBlur = 0; ctx.globalAlpha = 1.0;
             }
         }
 
-        // [신규] 불꽃 파티클 클래스
         class FireParticle {
             constructor(x, y, ballVx, ballVy) {
-                // 공의 중심부에서 생성되도록 랜덤 오프셋 조정 (공 크기 안쪽으로 집중)
+                this.init(x, y, ballVx, ballVy);
+            }
+            init(x, y, ballVx, ballVy) {
                 const offsetR = (Math.random() * 8) * scaleFactor;
                 const offsetAngle = Math.random() * Math.PI * 2;
                 this.x = x + Math.cos(offsetAngle) * offsetR;
                 this.y = y + Math.sin(offsetAngle) * offsetR;
                 
-                // 공의 이동 반대 방향 벡터 계산 (정규화)
                 const speed = Math.sqrt(ballVx*ballVx + ballVy*ballVy);
                 let nx = 0, ny = 0;
-                if(speed > 0) {
-                     nx = -ballVx / speed;
-                     ny = -ballVy / speed;
-                }
+                if(speed > 0) { nx = -ballVx / speed; ny = -ballVy / speed; }
 
-                // 불꽃이 퍼지는 각도 (반대 방향 기준 부채꼴)
-                const spreadAngle = (Math.random() - 0.5) * 0.8; // 퍼짐 정도 조절
+                const spreadAngle = (Math.random() - 0.5) * 0.8; 
                 const baseAngle = Math.atan2(ny, nx);
                 const finalAngle = baseAngle + spreadAngle;
 
-                // 불꽃 자체의 속도 (공 속도와 무관하게 뒤로 뿜어지는 느낌)
                 const fireSpeed = (1 + Math.random() * 4) * scaleFactor; 
-                
-                // 공의 관성을 거의 받지 않고, 뒤로 확산되도록 설정
                 this.vx = Math.cos(finalAngle) * fireSpeed + (ballVx * 0.1); 
                 this.vy = Math.sin(finalAngle) * fireSpeed + (ballVy * 0.1);
                 
                 this.life = 1.0;
-                // [핵심] 꼬리가 너무 길지 않게(화면 안에 들어오도록) 감쇠 속도 빠르게 설정 (0.08 ~ 0.15)
                 this.decay = 0.08 + Math.random() * 0.07; 
-                
-                // 크기는 풍성하게 시작
                 this.size = (8 + Math.random() * 12) * scaleFactor; 
                 this.maxSize = this.size;
+                this.active = true;
+                this.isFire = true;
+            }
+            activate(x, y, ballVx, ballVy) {
+                this.init(x, y, ballVx, ballVy);
             }
             update(dt) {
                 this.x += this.vx * dt;
                 this.y += this.vy * dt;
                 this.life -= this.decay * dt;
+                // [최적화] Math.pow 대신 단순 곱셈 사용 (성능 향상)
+                // this.size = this.maxSize * Math.pow(this.life, 1.5);
+                this.size = this.maxSize * (this.life * this.life); // 비슷하게 보임
                 
-                // 시간이 지날수록 크기가 급격히 줄어듦 (불꽃 끝부분이 뾰족해지게)
-                this.size = this.maxSize * Math.pow(this.life, 1.5); 
+                if (this.life <= 0) this.active = false;
             }
             draw(ctx) {
                 if (this.life <= 0) return;
                 
                 let color;
-                // 색상 단계를 좀 더 세밀하게 조정하여 불꽃 중심부 표현
                 if (this.life > 0.8) {
-                    color = `rgba(255, 255, ${200 + Math.floor(Math.random()*55)}, ${this.life})`; // 흰색/아주 밝은 노랑
+                    color = `rgba(255, 255, ${200 + Math.floor(Math.random()*55)}, ${this.life})`; 
                 } else if (this.life > 0.5) {
-                    color = `rgba(255, ${Math.floor(Math.random()*150 + 50)}, 0, ${this.life})`; // 주황/노랑
+                    color = `rgba(255, ${Math.floor(Math.random()*150 + 50)}, 0, ${this.life})`; 
                 } else {
-                    color = `rgba(${Math.floor(Math.random()*100 + 155)}, 0, 0, ${this.life})`; // 붉은색
+                    color = `rgba(${Math.floor(Math.random()*100 + 155)}, 0, 0, ${this.life})`; 
                 }
 
-                ctx.save();
-                ctx.globalCompositeOperation = 'lighter'; // 발광 효과
+                // [최적화] save/restore 제거하고 속성 직접 제어
+                // ctx.globalCompositeOperation = 'lighter'; // 상위에서 설정됨
                 ctx.fillStyle = color;
-                if (!isLowQuality) {
-                    ctx.shadowBlur = 15;
-                    ctx.shadowColor = color;
-                }
+                
+                // [중요 수정] HQ 모드일지라도 수백 개의 파티클에 shadowBlur를 거는 건 성능상 치명적임.
+                // 이미 lighter 모드로 겹치면서 빛나는 효과가 있으므로 blur는 제거하여 성능 확보.
+                ctx.shadowBlur = 0; 
+                
                 ctx.beginPath();
                 ctx.arc(this.x - camera.x, this.y - camera.y, this.size, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.restore();
             }
         }
 
@@ -1314,8 +1388,8 @@
                 this.vx = Math.cos(rad) * speed * scaleFactor;
                 this.vy = Math.sin(rad) * speed * scaleFactor;
                 camera.shake = 20; 
-                shockwaves.push(new Shockwave(this.x, this.y, '#fff')); 
-                for(let i=0; i<30; i++) particles.push(new Particle(this.x, this.y, '#fff', 8));
+                spawnShockwave(this.x, this.y, '#fff');
+                for(let i=0; i<30; i++) spawnParticle(this.x, this.y, '#fff', 8);
             }
             update(dt) { 
                 if (gameState === STATE.READY) return;
@@ -1357,37 +1431,32 @@
                         if (this.trail.length > 25) this.trail.shift(); 
                     }
                     
-                    // [수정] 공 속도에 따른 불꽃 효과 생성 (보간 로직 적용)
                     const speed = Math.sqrt(this.vx**2 + this.vy**2);
                     const speedKmh = speed * 2; 
                     
-                    // 100km/h 이상일 때부터 불꽃 효과 (더 낮은 속도부터 시작)
                     if (speedKmh > 100 && !isLowQuality) {
-                        // 이동한 거리 계산
                         const moveDist = Math.sqrt((this.x - prevX)**2 + (this.y - prevY)**2);
                         
-                        // 불꽃을 생성할 간격 (픽셀 단위). 
-                        // 매우 촘촘하게(4px 간격) 생성하여 고속에서도 점선 현상 방지
-                        const stepSize = 4 * scaleFactor; 
+                        // [최적화] 파티클 생성 간격을 늘려 렌더링 부하 감소 (4px -> 12px)
+                        const stepSize = 12 * scaleFactor; 
                         const steps = Math.floor(moveDist / stepSize);
                         
-                        // 최소 1번은 실행되도록 보장
                         const loopCount = Math.max(1, steps);
-
-                        for(let i=0; i <= loopCount; i++) {
-                            // 0.0 ~ 1.0 사이 보간값
-                            const t = i / loopCount;
-                            
-                            // 이전 위치와 현재 위치 사이를 t만큼 이동한 지점
-                            const spawnX = prevX + (this.x - prevX) * t;
-                            const spawnY = prevY + (this.y - prevY) * t;
-                            
-                            // 해당 위치에 불꽃 파티클 생성 (한 지점에 2개씩 겹쳐 풍성하게)
-                            // 속도가 300km/h 넘어가면 더 많이 생성
-                            const density = speedKmh > 300 ? 3 : 2; 
-                            
-                            for(let j=0; j<density; j++) {
-                                particles.push(new FireParticle(spawnX, spawnY, this.vx, this.vy));
+                        
+                        // 화면 내 파티클 총량 제한 (Safety Lock)
+                        // 이미 너무 많으면 새로 생성하지 않음
+                        if (particles.length < 800) { 
+                            for(let i=0; i <= loopCount; i++) {
+                                const t = i / loopCount;
+                                
+                                const spawnX = prevX + (this.x - prevX) * t;
+                                const spawnY = prevY + (this.y - prevY) * t;
+                                
+                                const density = speedKmh > 300 ? 3 : 2; 
+                                
+                                for(let j=0; j<density; j++) {
+                                    spawnFireParticle(spawnX, spawnY, this.vx, this.vy);
+                                }
                             }
                         }
                     }
@@ -1396,7 +1465,7 @@
                         this.y = height - 50 - this.radius; this.vy *= -BOUNCE; this.vx *= Math.pow(FRICTION_GROUND, dt); 
                         if (combo > 0) { combo = 0; uiCombo.style.opacity = 0; }
                         if (Math.abs(this.vx) < 1.0 && Math.abs(this.vy) < 2.0) { this.vx = 0; this.vy = 0; this.stop(); }
-                        else if (Math.abs(this.vx) > 0.5 && Math.random() > 0.7) particles.push(new Particle(this.x, this.y + 10, '#555', 2));
+                        else if (Math.abs(this.vx) > 0.5 && Math.random() > 0.7) spawnParticle(this.x, this.y + 10, '#555', 2);
                     }
                     boosters.forEach(b => {
                         if (b.checkCollision(this, prevX, prevY)) {
@@ -1406,16 +1475,16 @@
                             const jumpPower = 25 * scaleFactor * comboBonus;
                             const blastPower = 25 * scaleFactor * comboBonus;
                             
-                            if (b.type === 'speed') { Sound.playBoost(); this.vx += boostPower; this.vy = -12 * scaleFactor; showFeedback("SPEED!", "#ff0"); camera.shake = 5; shockwaves.push(new Shockwave(this.x, this.y, '#ff0')); for(let i=0; i<15; i++) particles.push(new Particle(this.x, this.y, '#ff0', 8)); } 
-                            else if (b.type === 'jump') { Sound.playJump(); this.vx += 5 * scaleFactor; this.vy = -jumpPower; showFeedback("HIGH JUMP!", "#0ff"); camera.shake = 8; shockwaves.push(new Shockwave(this.x, this.y, '#0ff')); for(let i=0; i<20; i++) particles.push(new Particle(this.x, this.y, '#0ff', 10)); }
-                            else if (b.type === 'blast') { Sound.playBlast(); this.vx += blastPower; this.vy = -20 * scaleFactor; showFeedback("EXPLOSION!", "#f05"); camera.shake = 15; shockwaves.push(new Shockwave(this.x, this.y, '#f05')); for(let i=0; i<30; i++) particles.push(new Particle(this.x, this.y, '#f05', 12)); }
-                            else if (b.type === 'shield') { Sound.playShield(); this.hasShield = true; showFeedback("SHIELD UP!", "#a0f"); shockwaves.push(new Shockwave(this.x, this.y, '#a0f')); }
-                            else if (b.type === 'float') { Sound.playFloat(); this.floatTimer = 120; this.vx += 5 * scaleFactor; showFeedback("FLOAT!", "#fff"); shockwaves.push(new Shockwave(this.x, this.y, '#fff')); }
+                            if (b.type === 'speed') { Sound.playBoost(); this.vx += boostPower; this.vy = -12 * scaleFactor; showFeedback("SPEED!", "#ff0"); camera.shake = 5; spawnShockwave(this.x, this.y, '#ff0'); for(let i=0; i<15; i++) spawnParticle(this.x, this.y, '#ff0', 8); } 
+                            else if (b.type === 'jump') { Sound.playJump(); this.vx += 5 * scaleFactor; this.vy = -jumpPower; showFeedback("HIGH JUMP!", "#0ff"); camera.shake = 8; spawnShockwave(this.x, this.y, '#0ff'); for(let i=0; i<20; i++) spawnParticle(this.x, this.y, '#0ff', 10); }
+                            else if (b.type === 'blast') { Sound.playBlast(); this.vx += blastPower; this.vy = -20 * scaleFactor; showFeedback("EXPLOSION!", "#f05"); camera.shake = 15; spawnShockwave(this.x, this.y, '#f05'); for(let i=0; i<30; i++) spawnParticle(this.x, this.y, '#f05', 12); }
+                            else if (b.type === 'shield') { Sound.playShield(); this.hasShield = true; showFeedback("SHIELD UP!", "#a0f"); spawnShockwave(this.x, this.y, '#a0f'); }
+                            else if (b.type === 'float') { Sound.playFloat(); this.floatTimer = 120; this.vx += 5 * scaleFactor; showFeedback("FLOAT!", "#fff"); spawnShockwave(this.x, this.y, '#fff'); }
                             else if (b.type === 'magnet') { 
                                 Sound.playMagnet(); 
                                 this.magnetTimer = 75; 
                                 showFeedback("MAGNET!", "#f33"); 
-                                shockwaves.push(new Shockwave(this.x, this.y, '#f33')); 
+                                spawnShockwave(this.x, this.y, '#f33'); 
                             }
                             else if (b.type === 'warp') {
                                 Sound.playWarp(); 
@@ -1424,7 +1493,7 @@
                                 this.vy -= 10 * scaleFactor;
                                 showFeedback("WARP!", "#7f7"); 
                                 camera.shake = 25; 
-                                shockwaves.push(new Shockwave(this.x, this.y, '#7f7')); 
+                                spawnShockwave(this.x, this.y, '#7f7'); 
                             }
                         }
                     });
@@ -1432,9 +1501,9 @@
                     obstacles.forEach(o => {
                         if(o.checkCollision(this, prevX, prevY)) {
                             if (this.hasShield) {
-                                this.hasShield = false; showFeedback("BLOCKED!", "#a0f"); Sound.playShield(); shockwaves.push(new Shockwave(this.x, this.y, '#a0f')); return; 
+                                this.hasShield = false; showFeedback("BLOCKED!", "#a0f"); Sound.playShield(); spawnShockwave(this.x, this.y, '#a0f'); return; 
                             }
-                            this.vx *= 0.5; this.vy *= 0.5; camera.shake = 15; showFeedback("CRASH!", "#f00"); Sound.playCrash(); shockwaves.push(new Shockwave(this.x, this.y, '#f00')); combo = 0; uiCombo.style.opacity = 0;
+                            this.vx *= 0.5; this.vy *= 0.5; camera.shake = 15; showFeedback("CRASH!", "#f00"); Sound.playCrash(); spawnShockwave(this.x, this.y, '#f00'); combo = 0; uiCombo.style.opacity = 0;
                         }
                     });
                 }
@@ -1800,8 +1869,29 @@
                 if (obstacles.length > 20) { while(obstacles.length > 0 && obstacles[0].x < ball.x - width * 2) obstacles.shift(); }
             } else { camera.y += (0 - camera.y) * 0.1 * dt; }
             if (camera.shake > 0) { camera.shake *= Math.pow(0.9, dt); if(camera.shake < 0.5) camera.shake = 0; }
-            for (let i = particles.length - 1; i >= 0; i--) { particles[i].update(dt); if (particles[i].life <= 0) particles.splice(i, 1); }
-            for (let i = shockwaves.length - 1; i >= 0; i--) { shockwaves[i].update(dt); if (shockwaves[i].alpha <= 0) shockwaves.splice(i, 1); }
+            
+            // [최적화] 풀링된 파티클 관리
+            // splice는 O(N)으로 느림. 
+            // 여기선 편의상 역순 루프 + splice 사용하되, 죽은 객체는 풀로 되돌려 보냄
+            for (let i = particles.length - 1; i >= 0; i--) { 
+                const p = particles[i];
+                p.update(dt); 
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                    if (p.isFire) fireParticlePool.push(p); // 불꽃 풀로 반환
+                    else particlePool.push(p);              // 일반 풀로 반환
+                }
+            }
+            
+            for (let i = shockwaves.length - 1; i >= 0; i--) { 
+                const s = shockwaves[i];
+                s.update(dt); 
+                if (s.alpha <= 0) {
+                    shockwaves.splice(i, 1);
+                    shockwavePool.push(s); // 풀로 반환
+                }
+            }
+            
             const ballSpeed = Math.abs(ball.vx); speedLines.forEach(l => l.update(ballSpeed));
             
             if (gameState === STATE.FLYING || gameState === STATE.STOPPED) {
