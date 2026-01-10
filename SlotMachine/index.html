@@ -135,7 +135,7 @@
             border-radius: 4px;
         }
         
-        /* 릴 하이라이트 (가로 원통 느낌 - 상하 그라데이션) */
+        /* 릴 하이라이트 (가로 원통 느낌) */
         .reel-col::after {
             content: '';
             position: absolute;
@@ -159,10 +159,9 @@
             display: flex;
             flex-direction: column;
             will-change: transform;
-            /* 초기 위치는 상단(0)이 아니라 하단으로 설정될 예정 */
         }
 
-        /* 심볼 컨테이너 (칸) */
+        /* 심볼 컨테이너 */
         .symbol-wrapper {
             display: flex;
             align-items: center;
@@ -425,22 +424,20 @@
             osc.stop(audioCtx.currentTime + duration);
         }
 
-        // --- 스핀 소리 (띠리리링~) ---
         function startSpinSound() {
             if(!isSoundOn) return;
             if(spinOscillator) return;
             
             spinOscillator = audioCtx.createOscillator();
             spinOscillator.type = 'triangle';
-            spinOscillator.frequency.setValueAtTime(800, audioCtx.currentTime); // 높은 음
+            spinOscillator.frequency.setValueAtTime(800, audioCtx.currentTime); 
 
-            // LFO로 빠른 떨림 효과 (링잉)
             lfoOscillator = audioCtx.createOscillator();
             lfoOscillator.type = 'square';
-            lfoOscillator.frequency.setValueAtTime(20, audioCtx.currentTime); // 20Hz 떨림
+            lfoOscillator.frequency.setValueAtTime(20, audioCtx.currentTime); 
 
             const modGain = audioCtx.createGain();
-            modGain.gain.value = 100; // 떨림 폭
+            modGain.gain.value = 100; 
 
             lfoOscillator.connect(modGain);
             modGain.connect(spinOscillator.frequency);
@@ -466,11 +463,9 @@
             }
         }
 
-        // --- 릴 정지 소리 (착!) ---
         function playReelStopSound() {
             if(!isSoundOn) return;
 
-            // 짧은 타격음 (Noise + Kick)
             const bufferSize = audioCtx.sampleRate * 0.05; 
             const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
             const data = buffer.getChannelData(0);
@@ -683,75 +678,67 @@
             }
         }
 
-        // --- 릴 회전 로직 (Top-to-Bottom & Bounce) ---
         function spinReel(reel, index, finalSymbols) {
             return new Promise(resolve => {
                 const dummyCount = 20 + index * 5; 
                 
-                // Top-to-Bottom을 위한 스트립 구성:
-                // [Final Symbols] (Top)
-                // [Dummy Symbols]
-                // [Current Symbols] (Bottom - Visible initially)
-                
-                // 배열 구성:
-                // 1. Final Symbols (Index 0~2)
-                // 2. Dummies
-                // 3. Current (Last 3)
-                
                 let stripSymbols = [];
-                stripSymbols.push(...finalSymbols); // Target at top
+                
+                // 버퍼 심볼 추가 (상단 공백 방지용 - 랜덤 1개)
+                const bufferSymbol = getRandomSymbol();
+                stripSymbols.push(bufferSymbol); 
+                
+                // 실제 보여질 결과 (최종 3개)
+                stripSymbols.push(...finalSymbols); 
+                
+                // 더미 심볼들
                 for(let k=0; k<dummyCount; k++) stripSymbols.push(getRandomSymbol());
-                stripSymbols.push(...currentReelSymbols[index]); // Current at bottom
+                
+                // 현재 보여지는 심볼들 (하단에 배치, 애니메이션 시작점)
+                stripSymbols.push(...currentReelSymbols[index]); 
 
                 // HTML 주입
                 reel.innerHTML = stripSymbols.map(s => createSymbolHTML(s)).join('');
                 
-                // 초기 위치: 하단 (Current Symbols가 보이도록)
-                // total height = strip length * symbolHeight
-                // visible view = 3 * symbolHeight
-                // translateY should be -(totalHeight - visibleHeight)
+                // 초기 위치: 하단 (현재 심볼들이 보이도록 설정)
                 const totalHeight = stripSymbols.length * symbolHeight;
                 const visibleHeight = ROW_COUNT * symbolHeight;
                 const startY = -(totalHeight - visibleHeight);
                 
                 reel.style.transition = 'none';
                 reel.style.transform = `translateY(${startY}px)`;
-                void reel.offsetWidth; // Force Reflow
+                void reel.offsetWidth; 
 
                 requestAnimationFrame(() => {
-                    // 목표 위치: 0 (상단 Final Symbols가 보이도록)
-                    // 시간차: 0.6초 간격으로 늘림 (쿵, 쿵, 쿵...)
+                    // 목표 위치: 버퍼 바로 아래 (최종 결과 3개가 화면에 딱 맞게)
+                    // 버퍼가 인덱스 0이므로, 인덱스 1부터 3개가 보여야 함
+                    // translateY 목표값 = -(1 * symbolHeight)
+                    const endY = -(symbolHeight);
+                    
                     const baseDuration = 1.5 + (index * 0.6); 
                     
-                    // Bounce Effect: cubic-bezier(0.5, 1.5, 0.5, 1) -> 끝에서 튕김
-                    reel.style.transition = `transform ${baseDuration}s cubic-bezier(0.5, 1.5, 0.5, 1)`; 
-                    reel.style.transform = `translateY(0px)`;
+                    // Bounce Effect 수정: 1.15배 정도로 덜 과장되게 (Tight mechanical stop)
+                    reel.style.transition = `transform ${baseDuration}s cubic-bezier(0.25, 1.15, 0.25, 1)`; 
+                    reel.style.transform = `translateY(${endY}px)`;
 
-                    // 소리 싱크를 위한 이벤트 리스너 (transitionend)
                     const soundHandler = () => {
                         playReelStopSound();
                         reel.removeEventListener('transitionend', soundHandler);
                     };
                     reel.addEventListener('transitionend', soundHandler);
 
-                    // 강제 정지 처리
                     const startTime = performance.now();
                     function checkStop() {
                         const elapsed = (performance.now() - startTime) / 1000;
                         if (forceStop) {
                             reel.style.transition = `transform 0.1s ease-out`;
-                            reel.style.transform = `translateY(0px)`;
-                            // 강제 정지 시에도 소리 나게 0.1초 후 트리거
+                            reel.style.transform = `translateY(${endY}px)`;
                             setTimeout(() => {
-                                // 이미 transitionend가 발생했을 수도 있으므로 체크 필요하지만, 
-                                // 간단히 여기서 직접 호출하고 이벤트 제거
                                 reel.removeEventListener('transitionend', soundHandler);
                                 playReelStopSound();
                                 finish();
                             }, 100); 
                         } else if (elapsed >= baseDuration) {
-                            // 자연 종료 (transitionend가 처리함, 하지만 Promise resolve는 여기서)
-                            // 안전하게 약간의 딜레이 후 정리
                             setTimeout(finish, 100);
                         } else {
                             requestAnimationFrame(checkStop);
@@ -759,10 +746,10 @@
                     }
                     
                     function finish() {
-                        // DOM 정리
+                        // DOM 정리 (최종 결과만 남김)
                         reel.innerHTML = finalSymbols.map(s => createSymbolHTML(s)).join('');
                         reel.style.transition = 'none';
-                        reel.style.transform = 'translateY(0)';
+                        reel.style.transform = 'translateY(0)'; // 정규 위치로 리셋
                         currentReelSymbols[index] = [...finalSymbols];
                         resolve();
                     }
