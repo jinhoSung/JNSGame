@@ -172,13 +172,16 @@
             background: rgba(20, 20, 20, 0.5); 
             position: relative;
             margin: 0; 
+            overflow: hidden; /* 심볼이 칸을 넘어가지 않도록 */
         }
 
         .symbol {
-            font-size: 3rem;
+            /* 폰트 크기는 JS에서 제어하지만 기본값 설정 */
+            font-size: 2rem; 
             filter: drop-shadow(0 4px 4px rgba(0,0,0,0.8));
             transform: scale(0.9);
             z-index: 10;
+            line-height: 1; /* 이모지 수직 정렬 보정 */
         }
 
         .symbol-wrapper.win-highlight {
@@ -460,6 +463,14 @@
             </div>
 
             <div class="tip-section">
+                <h3>잭팟 (JACKPOT)</h3>
+                <div style="display:flex; align-items:center; color: #ffd700;">
+                    <span style="font-size:2rem;">💰</span>
+                    <p style="margin-left:10px;">한 번의 스핀으로 <br><strong>총 베팅액의 50배 이상</strong><br>당첨 시 잭팟 이벤트가 발생합니다!</p>
+                </div>
+            </div>
+
+            <div class="tip-section">
                 <h3>당첨 족보 (배당률)</h3>
                 <div class="paytable-grid">
                     <div class="paytable-item">🐚: x5, x15, x50</div>
@@ -580,7 +591,6 @@
         const REEL_COUNT = 5;
         const ROW_COUNT = 3;
         const WILD_SYMBOL = '👑'; 
-        // 12 symbols: 🐚, 🐡, 🐙, 🐠, 🦀, 🦐, 🦑, 🐢, 🦈, 💎, 7️⃣, 👑
         const SYMBOLS = ['🐚', '🐡', '🐙', '🐠', '🦀', '🦐', '🦑', '🐢', '🦈', '💎', '7️⃣', WILD_SYMBOL];
         const PAYTABLE = {
             '🐚': [0, 0, 5, 15, 50],
@@ -647,6 +657,10 @@
             updateLayout();
             window.addEventListener('resize', updateLayout);
             
+            // 초기 레이아웃 강제 보정 (모바일 주소창 이슈 대응)
+            setTimeout(updateLayout, 100);
+            setTimeout(updateLayout, 500);
+
             document.addEventListener('keydown', (e) => {
                 if(e.code === 'Space') {
                     e.preventDefault();
@@ -657,7 +671,7 @@
 
         function createSymbolHTML(sym) {
             return `<div class="symbol-wrapper" style="height:${symbolHeight}px">
-                        <div class="symbol" style="font-size:${symbolHeight*0.6}px">${sym}</div>
+                        <div class="symbol" style="font-size:${symbolHeight*0.5}px">${sym}</div>
                     </div>`;
         }
 
@@ -671,14 +685,14 @@
                 el.style.height = `${h}px`;
             });
             document.querySelectorAll('.symbol').forEach(el => {
-                el.style.fontSize = `${h * 0.6}px`;
+                // 모바일 해상도 대응: 폰트 크기를 높이의 50%로 고정
+                el.style.fontSize = `${h * 0.5}px`;
             });
             reels.forEach(r => r.style.transform = 'translateY(0)');
             svgLayer.setAttribute('viewBox', `0 0 ${container.clientWidth} ${container.clientHeight}`);
         }
 
         function getRandomSymbol() {
-            // Weighted RNG: Common symbols have higher weight
             const weights = [
                 { s: '🐚', w: 20 }, { s: '🐡', w: 18 }, { s: '🐙', w: 16 }, { s: '🐠', w: 15 },
                 { s: '🦀', w: 14 }, { s: '🦐', w: 12 }, { s: '🦑', w: 10 }, { s: '🐢', w: 8 },
@@ -692,7 +706,7 @@
                 if (random < weights[i].w) return weights[i].s;
                 random -= weights[i].w;
             }
-            return weights[0].s; // Fallback
+            return weights[0].s; 
         }
 
         function changeBet() {
@@ -812,7 +826,6 @@
 
                 requestAnimationFrame(() => {
                     const endY = -(symbolHeight);
-                    // Standard Duration
                     const baseDuration = 1.5 + (index * 0.6); 
                     
                     reel.style.transition = `transform ${baseDuration}s cubic-bezier(0.25, 1.15, 0.25, 1)`; 
@@ -828,17 +841,10 @@
                     function checkStop() {
                         const elapsed = (performance.now() - startTime) / 1000;
                         if (forceStop) {
-                            // Fast Stop: use ~0.4s to give it a fast spin-down feel instead of instant snap
-                            // We need to ensure we reach endY.
-                            // If we just change transition to 0.4s, it will accelerate to target.
                             reel.style.transition = `transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)`;
                             reel.style.transform = `translateY(${endY}px)`;
-                            
-                            // Delay slightly to let it finish visual
                             setTimeout(() => {
-                                // Manual triggering of sound/finish if the event listener doesn't catch due to override
-                                // But transitionend might still fire. Let's be safe.
-                                reel.removeEventListener('transitionend', soundHandler); 
+                                reel.removeEventListener('transitionend', soundHandler);
                                 playReelStopSound();
                                 finish();
                             }, 400); 
