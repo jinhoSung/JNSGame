@@ -741,7 +741,6 @@
             }
         }
 
-        // [수정] 랜덤 컷신 효과 클래스
         class CutsceneEffect {
             constructor(specificType) { 
                 this.active = true; this.life = 1.0;
@@ -757,7 +756,6 @@
                 const slashWidth = width * 1.5;
                 ctx.translate(width/2, height/2); ctx.rotate(-Math.PI / 6); 
                 
-                // 중앙선 효과
                 ctx.shadowBlur = 50; ctx.shadowColor = this.type.subColor; ctx.fillStyle = '#fff'; ctx.globalAlpha = this.life;
                 ctx.beginPath(); ctx.moveTo(-slashWidth/2, 0); ctx.lineTo(slashWidth/2, 0); ctx.lineWidth = 10 * scaleFactor; ctx.strokeStyle = '#fff'; ctx.stroke();
                 
@@ -765,7 +763,6 @@
                 ctx.shadowBlur = 20; ctx.shadowColor = this.type.subColor; 
                 ctx.textAlign = 'center';
                 
-                // 텍스트 출력
                 ctx.fillStyle = this.type.textColor;
                 ctx.font = `bold ${40 * scaleFactor}px 'Noto Sans KR', sans-serif`; 
                 ctx.fillText(this.type.text, 0, -50 * scaleFactor);
@@ -895,7 +892,8 @@
             checkCollision(p) {
                 if (!this.active) return false;
                 const dx = this.x - p.x; const dy = this.y - p.y; const dist = Math.sqrt(dx*dx + dy*dy);
-                if (dist < p.radius + 200 * scaleFactor) { return true; } // 충돌 범위는 200m
+                // [수정] 200m 범위가 아닌 실제 아이템 반지름 범위로 수정
+                if (dist < p.radius + this.radius) { return true; } 
                 return false;
             }
         }
@@ -977,12 +975,11 @@
                     
                     if (this.magnetTimer > 0) {
                         this.magnetTimer -= dt;
-                        const magnetRange = 200 * scaleFactor; // [수정] 자석 범위 200m
+                        const magnetRange = 200 * scaleFactor; 
                         boosters.forEach(b => {
                             if (b.active) {
                                 const dx = this.x - b.x; const dy = this.y - b.y; const dist = Math.sqrt(dx*dx + dy*dy);
                                 if (dist < magnetRange) { 
-                                    // [수정] 공으로 강하게 수렴하도록 속도 계수 0.5 유지
                                     b.x += (this.x - b.x) * 0.5 * dt; 
                                     b.y += (this.y - b.y) * 0.5 * dt; 
                                 }
@@ -1194,6 +1191,7 @@
             addBoosters(25); 
         }
 
+        // [수정 사항 반영: 고도가 높을수록 아이템 등장 확률 감소]
         function addBoosters(count) {
              for(let i=0; i<count; i++) {
                 let gap = (50 + Math.random() * 150) * scaleFactor;
@@ -1212,6 +1210,12 @@
                 
                 let by = height - 100 - spawnHeight; 
                 
+                // 확률 계산 로직 추가: 고도가 높을수록 확률 감소
+                // 10000m 고도에서 약 50% 확률, 20000m 이상에서 최소 10% 확률 유지
+                let currentAltitude = Math.abs(spawnHeight / scaleFactor);
+                let spawnProbability = Math.max(0.1, 1.0 - (currentAltitude / 20000));
+                if (Math.random() > spawnProbability) continue; // 확률에 따라 생성을 건너뜀
+
                 if (Math.random() > 0.95) {
                     obstacles.push(new Obstacle(lastBoosterX, by));
                 } else {
