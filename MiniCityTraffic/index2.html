@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Mini City Tycoon - Parking Update</title>
+    <title>Mini City Tycoon: Advanced</title>
     <style>
         body {
             margin: 0;
@@ -32,7 +32,6 @@
             background-color: #263238;
         }
 
-        /* UI 레이어 */
         .ui-layer {
             position: absolute;
             pointer-events: none;
@@ -53,6 +52,7 @@
             left: 10px;
             display: flex;
             gap: 10px;
+            z-index: 10;
         }
 
         .info-box {
@@ -68,6 +68,40 @@
             gap: 6px;
         }
 
+        /* 우측 도로 선택 메뉴 */
+        .road-menu {
+            position: absolute;
+            right: 10px;
+            top: 60px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        .road-btn {
+            width: 50px;
+            height: 50px;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            background: #fff;
+            transition: all 0.2s;
+        }
+        
+        .road-btn span { font-size: 20px; margin-bottom: 2px; }
+        .road-btn:hover { background: #f0f0f0; }
+        .road-btn.active { border-color: #2196F3; background: #E3F2FD; }
+
         /* 하단 컨트롤 바 */
         .control-bar {
             position: absolute;
@@ -76,46 +110,80 @@
             transform: translateX(-50%);
             display: flex;
             gap: 8px;
-            background: rgba(33, 33, 33, 0.8);
-            padding: 8px;
+            background: rgba(33, 33, 33, 0.9);
+            padding: 10px;
             border-radius: 24px;
             backdrop-filter: blur(5px);
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            z-index: 10;
         }
 
-        .btn {
+        .main-btn {
             background: #eee;
             border: none;
-            padding: 10px 16px;
+            padding: 10px 20px;
             border-radius: 16px;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: bold;
             color: #444;
             cursor: pointer;
             display: flex;
-            flex-direction: column;
             align-items: center;
+            gap: 6px;
+            min-width: 80px;
             justify-content: center;
-            min-width: 50px;
-            transition: all 0.2s;
         }
 
-        .btn span { font-size: 18px; margin-bottom: 2px; }
-        .btn:active { transform: scale(0.95); }
-        
-        .btn.active {
+        .main-btn.active {
             background: #FFC107;
             color: #000;
-            box-shadow: 0 2px 8px rgba(255, 193, 7, 0.4);
         }
-        
-        .btn.move-mode.active { background: #4CAF50; color: white; }
-        .btn.erase-mode.active { background: #F44336; color: white; }
+        .main-btn.move-mode.active { background: #4CAF50; color: white; }
+        .main-btn.erase-mode.active { background: #F44336; color: white; }
 
-        /* 줌 컨트롤 (우측) */
+        /* 건설 확인 팝업 */
+        #confirm-popup {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            text-align: center;
+            z-index: 20;
+            animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popUp {
+            from { transform: translateX(-50%) scale(0.8); opacity: 0; }
+            to { transform: translateX(-50%) scale(1); opacity: 1; }
+        }
+
+        .popup-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .pop-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn-yes { background: #4CAF50; color: white; }
+        .btn-no { background: #F44336; color: white; }
+
+        /* 줌 컨트롤 */
         .zoom-controls {
             position: absolute;
-            right: 20px;
+            right: 10px;
             bottom: 100px;
             display: flex;
             flex-direction: column;
@@ -123,73 +191,30 @@
         }
 
         .zoom-btn {
-            width: 45px;
-            height: 45px;
-            border-radius: 50%;
-            background: white;
-            border: none;
-            font-size: 24px;
+            width: 40px; height: 40px; border-radius: 50%;
+            background: white; border: none; font-size: 20px; cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        /* 플로팅 텍스트 */
+        .float-text {
+            position: absolute;
             font-weight: bold;
-            color: #555;
-            cursor: pointer;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            font-size: 20px;
+            pointer-events: none;
+            animation: floatUp 1s forwards;
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-40px); opacity: 0; }
         }
         
-        .zoom-btn:active { background: #f0f0f0; transform: scale(0.95); }
-
-        /* 전체화면 버튼 */
-        #fullscreen-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            width: 40px;
-            height: 40px;
-            background: rgba(0,0,0,0.6);
-            color: white;
-            border-radius: 50%;
-            border: none;
-            font-size: 20px;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+        #instruction {
+            position: absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+            background: white; padding: 20px; border-radius: 10px; max-width: 300px;
+            text-align: center; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
-
-        .instruction-modal {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            padding: 25px;
-            border-radius: 16px;
-            width: 80%;
-            max-width: 320px;
-            text-align: center;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-            z-index: 100;
-            display: none;
-        }
-
-        .instruction-modal h2 { margin-top: 0; color: #263238; }
-        .instruction-modal p { line-height: 1.5; color: #546e7a; margin-bottom: 20px; }
-        .close-btn {
-            background: #2196f3; color: white; border: none;
-            padding: 10px 20px; border-radius: 8px; font-weight: bold; width: 100%; font-size: 16px;
-        }
-
-        #money-float {
-            position: absolute;
-            font-weight: bold;
-            font-size: 20px;
-            color: #4CAF50;
-            pointer-events: none;
-            opacity: 0;
-            transition: transform 1s, opacity 1s;
-        }
+        .color-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px;}
     </style>
 </head>
 <body>
@@ -201,15 +226,29 @@
         <div class="top-panel pointer-auto">
             <div class="info-box">
                 <span>💰</span>
-                <span id="moneyDisplay">500</span>
+                <span id="moneyDisplay">1000</span>
             </div>
             <div class="info-box">
-                <span>🏙️</span>
+                <span>👷</span>
                 <span id="scoreDisplay">0</span>
             </div>
         </div>
 
-        <button id="fullscreen-btn" class="pointer-auto" onclick="toggleFullscreen()">⛶</button>
+        <!-- 도로 선택 메뉴 -->
+        <div class="road-menu pointer-auto" id="roadMenu">
+            <button class="road-btn active" onclick="setRoadType(1)">
+                <span>🛣️</span>일반($10)
+            </button>
+            <button class="road-btn" onclick="setRoadType(2)">
+                <span>🚀</span>고속($20)
+            </button>
+            <button class="road-btn" onclick="setRoadType(3)">
+                <span>🚦</span>교차로($30)
+            </button>
+            <button class="road-btn" onclick="setRoadType(4)">
+                <span>🔄</span>회전($50)
+            </button>
+        </div>
 
         <div class="zoom-controls pointer-auto">
             <button class="zoom-btn" onclick="gameInstance.zoomIn()">+</button>
@@ -217,62 +256,66 @@
         </div>
 
         <div class="control-bar pointer-auto">
-            <button class="btn active" id="btn-build" onclick="setMode('build')">
-                <span>🚧</span>건설 ($10)
+            <button class="main-btn active" id="btn-build" onclick="setMode('build')">
+                🚧 건설
             </button>
-            <button class="btn move-mode" id="btn-move" onclick="setMode('move')">
-                <span>✋</span>이동
+            <button class="main-btn move-mode" id="btn-move" onclick="setMode('move')">
+                ✋ 이동
             </button>
-            <button class="btn erase-mode" id="btn-erase" onclick="setMode('erase')">
-                <span>🧹</span>철거 (+$5)
+            <button class="main-btn erase-mode" id="btn-erase" onclick="setMode('erase')">
+                🧹 철거
             </button>
+        </div>
+
+        <!-- 건설 확인 팝업 -->
+        <div id="confirm-popup" class="pointer-auto">
+            <div id="popup-msg">도로를 건설하시겠습니까?</div>
+            <div style="font-weight:bold; color:#E91E63; margin-bottom:5px;" id="popup-cost">비용: $50</div>
+            <div class="popup-buttons">
+                <button class="pop-btn btn-yes" onclick="gameInstance.confirmBuild()">확인</button>
+                <button class="pop-btn btn-no" onclick="gameInstance.cancelBuild()">취소</button>
+            </div>
         </div>
     </div>
 
-    <div class="instruction-modal pointer-auto" id="instruction">
-        <h2>도시 타이쿤</h2>
-        <p>
-            <strong>도로 연결 규칙 변경!</strong><br><br>
-            차가 다니려면 반드시<br>
-            <strong>[집 입구 도로]</strong>와 <strong>[회사 입구 도로]</strong>가<br>
-            연결되어야 합니다.<br><br>
-            회사 앞 도로에 도착하면 차가<br>
-            주차장으로 들어가서 주차합니다.
+    <div id="instruction" class="pointer-auto">
+        <h3>🚦 고급 교통 시뮬레이션</h3>
+        <p style="text-align:left; font-size:13px; color:#555;">
+            1. <strong>색상 매칭</strong>: 시민은 <span style="color:#ef5350">●</span><span style="color:#42a5f5">●</span><span style="color:#fdd835">●</span> 같은 색의 회사로만 출근합니다.<br>
+            2. <strong>건설 확인</strong>: 드래그 후 [확인]을 눌러야 건설됩니다.<br>
+            3. <strong>도로 종류</strong>: 고속도로는 이동 속도가 빠릅니다.<br>
+            4. <strong>월급</strong>: 1회 출근 시 <strong>$5</strong>를 법니다.
         </p>
-        <button class="close-btn" onclick="document.getElementById('instruction').style.display='none'">시작하기</button>
+        <button onclick="document.getElementById('instruction').style.display='none'" style="padding:10px 20px; background:#2196F3; color:white; border:none; border-radius:5px; cursor:pointer;">게임 시작</button>
     </div>
 </div>
 
 <script>
-    // --- 설정 변수 ---
-    const TILE_SIZE = 40; 
+    // === 설정 상수 ===
+    const TILE_SIZE = 40;
     const GRID_WIDTH = 50;
     const GRID_HEIGHT = 50;
-    
-    const ROAD_COST = 10;
-    const ROAD_REFUND = 5;
-    const SALARY = 50;
-    const WORK_DURATION = 600; // 10초
+
+    const SALARY = 5; // 월급
+    const INIT_MONEY = 1000; // 초기 자금
+    const WORK_DURATION = 300; // 약 5초 근무
+
+    // 도로 타입 및 비용/속도
+    const ROAD_TYPES = {
+        1: { name: 'NORMAL', cost: 10, speed: 1.0, color: '#546e7a' },
+        2: { name: 'HIGHWAY', cost: 20, speed: 2.0, color: '#37474F' }, // 고속도로: 짙은색
+        3: { name: 'CROSS', cost: 30, speed: 0.8, color: '#607D8B' },   // 교차로: 약간 느림
+        4: { name: 'ROUND', cost: 50, speed: 1.2, color: '#78909C' }    // 회전교차로
+    };
 
     const TYPE = { EMPTY: 0, ROAD: 1, HOUSE: 2, COMPANY: 3, COMPANY_PART: 4 };
 
-    const COLORS = {
-        ROAD: '#546e7a', 
-        ROAD_PREVIEW: 'rgba(84, 110, 122, 0.5)',
-        ROAD_INVALID: 'rgba(239, 83, 80, 0.5)',
-        GRASS: '#81c784',
-        BG: '#a5d6a7'
-    };
+    // 건물/에이전트 색상 (빨강, 파랑, 노랑)
+    const TEAM_COLORS = ['#ef5350', '#42a5f5', '#fdd835'];
 
     const STATE = {
-        IDLE: 0,
-        TO_WORK: 1,      // 집 입구 -> 회사 입구 도로 (운전)
-        PARKING: 2,      // 회사 입구 도로 -> 주차 슬롯 (주차 진입)
-        TO_ENTRANCE: 3,  // 주차 슬롯 -> 회사 문 (보행)
-        WORKING: 4,      // 근무 중
-        TO_CAR: 5,       // 회사 문 -> 주차 슬롯 (보행)
-        TO_HOME: 6,      // 주차 슬롯 -> 집 (운전)
-        RESTING: 7
+        IDLE: 0, TO_WORK: 1, PARKING: 2, TO_ENTRANCE: 3, 
+        WORKING: 4, TO_CAR: 5, TO_HOME: 6, RESTING: 7
     };
 
     const DIRS = [
@@ -281,165 +324,164 @@
     ];
 
     let gameInstance = null;
-    let currentMode = 'build'; 
+    let currentMode = 'build';
+    let selectedRoadType = 1;
 
-    function toggleFullscreen() {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(e=>{});
-        } else {
-            if (document.exitFullscreen) document.exitFullscreen();
-        }
-    }
-
+    // === 전역 함수 ===
     function setMode(mode) {
         currentMode = mode;
-        document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+        // 버튼 UI 업데이트
+        document.querySelectorAll('.main-btn').forEach(b => b.classList.remove('active'));
         document.getElementById(`btn-${mode}`).classList.add('active');
-        if(gameInstance) gameInstance.handleModeChange();
+        
+        // 메뉴 표시/숨김
+        const roadMenu = document.getElementById('roadMenu');
+        roadMenu.style.display = (mode === 'build') ? 'flex' : 'none';
+        
+        if (gameInstance) gameInstance.resetInteraction();
     }
 
+    function setRoadType(type) {
+        selectedRoadType = type;
+        document.querySelectorAll('.road-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.road-btn')[type-1].classList.add('active');
+    }
+
+    // === 게임 클래스 ===
     class Game {
         constructor(canvasId) {
             this.canvas = document.getElementById(canvasId);
             this.ctx = this.canvas.getContext('2d');
             
-            this.money = 200;
-            this.completedTrips = 0;
-            
-            this.camera = { x: 0, y: 0, zoom: 1.0 };
-            this.isPanDragging = false;
-            this.lastMouse = { x:0, y:0 };
+            this.money = INIT_MONEY;
+            this.trips = 0;
 
+            this.camera = { x: 0, y: 0, zoom: 1.0 };
+            
             this.grid = [];
             this.agents = [];
             this.buildings = [];
-            this.particles = [];
-
+            
+            // 인터랙션 상태
             this.isDragging = false;
             this.dragStart = null;
             this.dragEnd = null;
-            this.dragPath = [];
+            this.previewPath = []; // 건설 대기중인 경로
+            this.waitingConfirm = false; // 확인 팝업 대기중
             
+            this.lastMouse = {x:0, y:0};
+            this.isPanDragging = false;
+
             this.resize();
             window.addEventListener('resize', () => this.resize());
-
+            
             this.initGrid();
             this.spawnInitialBuildings();
             this.addInputListeners();
             
-            document.getElementById('instruction').style.display = 'block';
-
+            this.updateUI();
             this.loop();
         }
 
         resize() {
             this.canvas.width = window.innerWidth;
             this.canvas.height = window.innerHeight;
-            if(this.camera.x === 0 && this.camera.y === 0) {
-                this.camera.x = (this.canvas.width - GRID_WIDTH * TILE_SIZE) / 2;
-                this.camera.y = (this.canvas.height - GRID_HEIGHT * TILE_SIZE) / 2;
+            if (this.camera.x === 0) {
+                this.camera.x = (this.canvas.width - GRID_WIDTH*TILE_SIZE)/2;
+                this.camera.y = (this.canvas.height - GRID_HEIGHT*TILE_SIZE)/2;
             }
         }
 
         initGrid() {
-            for (let x = 0; x < GRID_WIDTH; x++) {
+            for(let x=0; x<GRID_WIDTH; x++) {
                 this.grid[x] = [];
-                for (let y = 0; y < GRID_HEIGHT; y++) {
+                for(let y=0; y<GRID_HEIGHT; y++) {
                     this.grid[x][y] = { 
                         type: TYPE.EMPTY, 
+                        roadType: 0, 
                         isFixedRoad: false,
-                        connections: new Array(8).fill(false)
+                        connections: new Array(8).fill(false) 
                     };
                 }
             }
         }
 
         spawnInitialBuildings() {
-            this.spawnBuilding(TYPE.HOUSE);
-            this.spawnBuilding(TYPE.HOUSE);
-            this.spawnBuilding(TYPE.COMPANY);
+            // 색상별로 하나씩 생성 보장
+            this.spawnBuilding(TYPE.HOUSE, 0);   // Red House
+            this.spawnBuilding(TYPE.COMPANY, 0); // Red Company
+            this.spawnBuilding(TYPE.HOUSE, 1);   // Blue House
+            this.spawnBuilding(TYPE.COMPANY, 1); // Blue Company
         }
 
+        // --- 입력 처리 ---
         addInputListeners() {
-            const getEventPos = (e) => {
-                if(e.touches) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-                return { x: e.clientX, y: e.clientY };
-            };
-
+            const getPos = (e) => e.touches ? {x:e.touches[0].clientX, y:e.touches[0].clientY} : {x:e.clientX, y:e.clientY};
+            
             const start = (e) => {
-                const p = getEventPos(e);
+                if (this.waitingConfirm) return; // 팝업 떠있으면 조작 금지
+                const p = getPos(e);
                 this.handleStart(p.x, p.y, e.button === 2);
             };
             const move = (e) => {
-                const p = getEventPos(e);
+                if (this.waitingConfirm) return;
+                const p = getPos(e);
                 this.handleMove(p.x, p.y);
             };
-            const end = () => this.handleEnd();
+            const end = () => {
+                if (this.waitingConfirm) return;
+                this.handleEnd();
+            };
 
             this.canvas.addEventListener('mousedown', start);
             window.addEventListener('mousemove', move);
             window.addEventListener('mouseup', end);
-            
-            this.canvas.addEventListener('touchstart', (e) => { e.preventDefault(); start(e); }, {passive: false});
-            window.addEventListener('touchmove', (e) => { e.preventDefault(); move(e); }, {passive: false});
+            this.canvas.addEventListener('touchstart', (e)=>{e.preventDefault(); start(e);}, {passive:false});
+            window.addEventListener('touchmove', (e)=>{e.preventDefault(); move(e);}, {passive:false});
             window.addEventListener('touchend', end);
-            
-            this.canvas.addEventListener('wheel', (e) => {
-                e.preventDefault();
-                const zoomSpeed = 0.1;
-                const newZoom = this.camera.zoom - Math.sign(e.deltaY) * zoomSpeed;
-                this.setZoom(newZoom, e.clientX, e.clientY);
-            }, {passive: false});
-
-            this.canvas.addEventListener('contextmenu', e => e.preventDefault());
+            this.canvas.addEventListener('contextmenu', e=>e.preventDefault());
         }
 
         screenToGrid(sx, sy) {
             const wx = (sx - this.camera.x) / this.camera.zoom;
             const wy = (sy - this.camera.y) / this.camera.zoom;
-            const gx = Math.floor(wx / TILE_SIZE);
-            const gy = Math.floor(wy / TILE_SIZE);
-            return { x: gx, y: gy };
+            return { x: Math.floor(wx/TILE_SIZE), y: Math.floor(wy/TILE_SIZE) };
         }
 
-        handleStart(x, y, isRightClick) {
-            this.lastMouse = { x, y };
-            if (currentMode === 'move' || isRightClick) {
+        handleStart(x, y, isRight) {
+            this.lastMouse = {x, y};
+            if (currentMode === 'move' || isRight) {
                 this.isPanDragging = true;
                 return;
             }
-            const pos = this.screenToGrid(x, y);
-            if (!this.isValid(pos.x, pos.y)) return;
+            const g = this.screenToGrid(x, y);
+            if (!this.isValid(g.x, g.y)) return;
 
-            const cell = this.grid[pos.x][pos.y];
+            // 건물 회전 (집만)
+            const cell = this.grid[g.x][g.y];
             if (cell.type === TYPE.HOUSE && cell.ref) {
                 this.rotateBuilding(cell.ref);
                 return;
             }
 
             this.isDragging = true;
-            this.dragStart = pos;
-            this.dragEnd = pos;
+            this.dragStart = g;
+            this.dragEnd = g;
             this.updateDragPath();
         }
 
         handleMove(x, y) {
             if (this.isPanDragging) {
-                const dx = x - this.lastMouse.x;
-                const dy = y - this.lastMouse.y;
-                this.camera.x += dx;
-                this.camera.y += dy;
-                this.lastMouse = { x, y };
+                this.camera.x += x - this.lastMouse.x;
+                this.camera.y += y - this.lastMouse.y;
+                this.lastMouse = {x, y};
                 return;
             }
-
             if (this.isDragging) {
-                const pos = this.screenToGrid(x, y);
-                if (this.isValid(pos.x, pos.y)) {
-                    if (this.dragEnd.x !== pos.x || this.dragEnd.y !== pos.y) {
-                        this.dragEnd = pos;
-                        this.updateDragPath();
-                    }
+                const g = this.screenToGrid(x, y);
+                if (this.isValid(g.x, g.y) && (g.x !== this.dragEnd.x || g.y !== this.dragEnd.y)) {
+                    this.dragEnd = g;
+                    this.updateDragPath();
                 }
             }
         }
@@ -447,81 +489,102 @@
         handleEnd() {
             this.isPanDragging = false;
             if (this.isDragging) {
-                this.applyDragPath();
                 this.isDragging = false;
-                this.dragPath = [];
+                // 드래그가 끝났으면 확인 팝업 띄우기 (건설/철거 내용이 있을 때만)
+                if (this.previewPath.length > 0) {
+                    this.showConfirmPopup();
+                }
             }
-        }
-        
-        handleModeChange() {
-            this.isDragging = false;
-            this.dragPath = [];
-            this.isPanDragging = false;
-        }
-
-        zoomIn() { this.setZoom(this.camera.zoom + 0.2, this.canvas.width/2, this.canvas.height/2); }
-        zoomOut() { this.setZoom(this.camera.zoom - 0.2, this.canvas.width/2, this.canvas.height/2); }
-
-        setZoom(zoom, centerX, centerY) {
-            const newZoom = Math.max(0.3, Math.min(zoom, 3.0));
-            const worldX = (centerX - this.camera.x) / this.camera.zoom;
-            const worldY = (centerY - this.camera.y) / this.camera.zoom;
-            
-            this.camera.x = centerX - worldX * newZoom;
-            this.camera.y = centerY - worldY * newZoom;
-            this.camera.zoom = newZoom;
         }
 
         updateDragPath() {
-            this.dragPath = [];
+            this.previewPath = [];
             if (!this.dragStart || !this.dragEnd) return;
             
             const x0 = this.dragStart.x, y0 = this.dragStart.y;
             const x1 = this.dragEnd.x, y1 = this.dragEnd.y;
-            const dx = x1 - x0, dy = y1 - y0;
+            const dx = x1-x0, dy = y1-y0;
             const dist = Math.max(Math.abs(dx), Math.abs(dy));
 
-            for (let i = 0; i <= dist; i++) {
-                const t = (dist === 0) ? 0 : i / dist;
-                const tx = Math.round(x0 + dx * t);
-                const ty = Math.round(y0 + dy * t);
-                if (this.isValid(tx, ty)) this.dragPath.push({x: tx, y: ty});
+            for(let i=0; i<=dist; i++) {
+                const t = (dist===0) ? 0 : i/dist;
+                this.previewPath.push({
+                    x: Math.round(x0 + dx*t),
+                    y: Math.round(y0 + dy*t)
+                });
             }
         }
 
-        applyDragPath() {
+        // --- 건설 시스템 ---
+        showConfirmPopup() {
+            // 비용 계산
             let cost = 0;
-            let refund = 0;
-            let changed = false;
+            let msg = "";
+            let validCells = 0;
 
             if (currentMode === 'build') {
-                const tilesToBuild = this.dragPath.filter(p => this.grid[p.x][p.y].type === TYPE.EMPTY).length;
-                if (this.money < tilesToBuild * ROAD_COST) {
-                    this.showFloatText("자금 부족!", this.canvas.width/2, this.canvas.height/2, 'red');
-                    return;
-                }
+                this.previewPath.forEach(p => {
+                    if (this.grid[p.x][p.y].type === TYPE.EMPTY) {
+                        cost += ROAD_TYPES[selectedRoadType].cost;
+                        validCells++;
+                    }
+                });
+                msg = `${ROAD_TYPES[selectedRoadType].name} 도로 건설`;
+            } else if (currentMode === 'erase') {
+                this.previewPath.forEach(p => {
+                    const c = this.grid[p.x][p.y];
+                    if (c.type === TYPE.ROAD && !c.isFixedRoad) {
+                        cost -= 5; // 환불 (음수로 표현)
+                        validCells++;
+                    }
+                });
+                msg = "도로 철거";
             }
 
-            this.dragPath.forEach((curr, i) => {
-                const cell = this.grid[curr.x][curr.y];
+            if (validCells === 0) {
+                this.cancelBuild(); // 변경사항 없으면 취소
+                return;
+            }
+
+            // UI 표시
+            this.waitingConfirm = true;
+            const popup = document.getElementById('confirm-popup');
+            document.getElementById('popup-msg').innerText = msg;
+            document.getElementById('popup-cost').innerText = cost > 0 ? `비용: $${cost}` : `환불: +$${Math.abs(cost)}`;
+            document.getElementById('popup-cost').style.color = cost > 0 ? '#E91E63' : '#4CAF50';
+            popup.style.display = 'flex';
+        }
+
+        confirmBuild() {
+            let totalCost = 0;
+            let changed = false;
+
+            // 실제 적용
+            this.previewPath.forEach((p, i) => {
+                const cell = this.grid[p.x][p.y];
                 
                 if (currentMode === 'build') {
-                    if (cell.type === TYPE.EMPTY) {
-                        cell.type = TYPE.ROAD;
-                        this.money -= ROAD_COST;
-                        cost += ROAD_COST;
-                        changed = true;
+                    if (this.money >= ROAD_TYPES[selectedRoadType].cost || cell.type === TYPE.ROAD) { // 이미 도로면 업그레이드? 일단 빈땅만
+                         if (cell.type === TYPE.EMPTY) {
+                             if (this.money >= ROAD_TYPES[selectedRoadType].cost) {
+                                 cell.type = TYPE.ROAD;
+                                 cell.roadType = selectedRoadType;
+                                 this.money -= ROAD_TYPES[selectedRoadType].cost;
+                                 totalCost += ROAD_TYPES[selectedRoadType].cost;
+                                 changed = true;
+                             }
+                         }
                     }
-                    if (cell.type === TYPE.ROAD && i > 0) {
-                        const prev = this.dragPath[i-1];
+                    // 연결 로직 (이전 타일과 연결)
+                    if (i > 0 && cell.type === TYPE.ROAD) {
+                        const prev = this.previewPath[i-1];
                         const prevCell = this.grid[prev.x][prev.y];
                         if (prevCell.type === TYPE.ROAD) {
-                            const dx = curr.x - prev.x, dy = curr.y - prev.y;
-                            const dirIdx = DIRS.findIndex(d => d.dx === dx && d.dy === dy);
-                            if (dirIdx !== -1) {
-                                prevCell.connections[dirIdx] = true;
-                                cell.connections[(dirIdx + 4) % 8] = true;
-                                changed = true;
+                            const dx = p.x - prev.x, dy = p.y - prev.y;
+                            const dir = DIRS.findIndex(d => d.dx===dx && d.dy===dy);
+                            if (dir !== -1) {
+                                prevCell.connections[dir] = true;
+                                cell.connections[(dir+4)%8] = true;
                             }
                         }
                     }
@@ -529,12 +592,13 @@
                     if (cell.type === TYPE.ROAD && !cell.isFixedRoad) {
                         cell.type = TYPE.EMPTY;
                         cell.connections.fill(false);
-                        this.money += ROAD_REFUND;
-                        refund += ROAD_REFUND;
+                        this.money += 5;
+                        totalCost -= 5;
                         changed = true;
+                        // 주변 끊기
                         for(let d=0; d<8; d++) {
-                            const nx = curr.x + DIRS[d].dx, ny = curr.y + DIRS[d].dy;
-                            if(this.isValid(nx, ny) && this.grid[nx][ny].type === TYPE.ROAD) {
+                            const nx=p.x+DIRS[d].dx, ny=p.y+DIRS[d].dy;
+                            if(this.isValid(nx,ny) && this.grid[nx][ny].type===TYPE.ROAD) {
                                 this.grid[nx][ny].connections[(d+4)%8] = false;
                             }
                         }
@@ -543,77 +607,82 @@
             });
 
             if (changed) {
-                this.updateUI();
-                if (cost > 0) this.showFloatText(`-$${cost}`, this.canvas.width/2, this.canvas.height/2, 'red');
-                if (refund > 0) this.showFloatText(`+$${refund}`, this.canvas.width/2, this.canvas.height/2, 'green');
+                // 플로팅 텍스트
+                const center = this.gridToScreen(this.previewPath[0].x, this.previewPath[0].y);
+                if (totalCost > 0) this.showFloatText(`-$${totalCost}`, center.x, center.y, '#E91E63');
+                else if (totalCost < 0) this.showFloatText(`+$${Math.abs(totalCost)}`, center.x, center.y, '#4CAF50');
                 
-                this.agents.forEach(a => {
-                    if (a.state === STATE.TO_WORK) this.planRoute(a, a.work, STATE.TO_WORK);
-                    if (a.state === STATE.TO_HOME) this.planRoute(a, a.home, STATE.TO_HOME);
-                });
+                // 모든 대기중인 에이전트에게 즉시 길찾기 명령
+                this.triggerCommute();
             }
+
+            this.resetInteraction();
+            this.updateUI();
         }
 
-        showFloatText(text, x, y, color) {
-            const el = document.createElement('div');
-            el.innerText = text;
-            el.style.position = 'absolute';
-            el.style.left = x + 'px';
-            el.style.top = y + 'px';
-            el.style.color = color;
-            el.style.fontWeight = 'bold';
-            el.style.fontSize = '24px';
-            el.style.pointerEvents = 'none';
-            el.style.textShadow = '0 2px 2px rgba(0,0,0,0.5)';
-            el.style.transition = 'all 1s ease-out';
-            document.body.appendChild(el);
+        cancelBuild() {
+            this.resetInteraction();
+        }
 
-            requestAnimationFrame(() => {
-                el.style.transform = 'translateY(-50px)';
-                el.style.opacity = '0';
+        resetInteraction() {
+            this.previewPath = [];
+            this.waitingConfirm = false;
+            document.getElementById('confirm-popup').style.display = 'none';
+        }
+
+        triggerCommute() {
+            // IDLE 상태거나, 길을 못찾아 대기중인 에이전트들을 깨움
+            this.agents.forEach(a => {
+                if (a.state === STATE.IDLE || (a.state === STATE.TO_WORK && a.path.length === 0)) {
+                    // 즉시 재시도
+                    if(a.work) this.planRoute(a, a.work, STATE.TO_WORK);
+                }
             });
-            setTimeout(() => el.remove(), 1000);
         }
 
-        spawnBuilding(type) {
-            let placed = false, attempts = 0;
-            const w = (type === TYPE.COMPANY) ? 4 : 1;
-            const h = (type === TYPE.COMPANY) ? 3 : 1;
-            while (!placed && attempts < 200) {
+        // --- 에이전트 및 로직 ---
+        spawnBuilding(type, colorIdx = -1) {
+            let placed = false, attempts=0;
+            const w = (type===TYPE.COMPANY)?4:1;
+            const h = (type===TYPE.COMPANY)?3:1;
+            
+            while(!placed && attempts<100) {
                 attempts++;
-                const x = Math.floor(Math.random() * (GRID_WIDTH - 2 - w)) + 1;
-                const y = Math.floor(Math.random() * (GRID_HEIGHT - 2 - h)) + 1;
+                const x = Math.floor(Math.random()*(GRID_WIDTH-2-w))+1;
+                const y = Math.floor(Math.random()*(GRID_HEIGHT-2-h))+1;
                 let ok = true;
                 for(let i=-1; i<=w; i++) for(let j=-1; j<=h; j++) {
                     const cx=x+i, cy=y+j;
-                    if (cx>=0 && cx<GRID_WIDTH && cy>=0 && cy<GRID_HEIGHT) {
+                    if(cx>=0 && cy>=0 && cx<GRID_WIDTH && cy<GRID_HEIGHT) {
                         if(this.grid[cx][cy].type !== TYPE.EMPTY) ok=false;
                     }
                 }
-                if (ok) {
-                    const colorKey = ['RED','BLUE','YELLOW'][Math.floor(Math.random()*3)];
-                    const b = { x,y,type,w,h, color: COLORS[colorKey], rotation:0, parkingSlots:[], entranceRoadPos:null };
-                    for(let i=0; i<w; i++) for(let j=0; j<h; j++) {
-                        this.grid[x+i][y+j] = { type: (i===0&&j===0)?type:TYPE.COMPANY_PART, ref:b, connections:new Array(8).fill(false) };
+                if(ok) {
+                    const cIdx = (colorIdx === -1) ? Math.floor(Math.random()*3) : colorIdx;
+                    const b = { 
+                        x,y,type,w,h, 
+                        color: TEAM_COLORS[cIdx], 
+                        colorIdx: cIdx,
+                        rotation:0, parkingSlots:[], entranceRoadPos:null 
+                    };
+
+                    for(let i=0;i<w;i++) for(let j=0;j<h;j++) {
+                        this.grid[x+i][y+j] = { type:(i===0&&j===0)?type:TYPE.COMPANY_PART, ref:b, connections:[], roadType:0 };
                     }
                     this.setupEntrance(b);
-                    if(type === TYPE.COMPANY) this.setupParking(b);
+                    if(type===TYPE.COMPANY) this.setupParking(b);
                     else {
-                        b.entrance = {x:0.5, y:0.5};
+                        b.entrance={x:0.5, y:0.5};
                         this.agents.push(this.createAgent(b));
                     }
                     this.buildings.push(b);
-                    placed = true;
+                    placed=true;
                 }
             }
         }
 
         setupEntrance(b) {
-            if(b.entranceRoadPos) {
-                const c = this.grid[b.entranceRoadPos.x][b.entranceRoadPos.y];
-                if(!c.connections.some(x=>x)) c.type = TYPE.EMPTY;
-                c.isFixedRoad = false;
-            }
+            // ... (기존과 동일, 회전 및 고정 도로 처리)
             let rx, ry;
             if (b.type === TYPE.COMPANY) { rx=b.x+1; ry=b.y+3; }
             else {
@@ -622,25 +691,19 @@
                 else if(b.rotation===2){rx=b.x;ry=b.y-1;}
                 else {rx=b.x+1;ry=b.y;}
             }
-            if(this.isValid(rx,ry)) {
+            if (this.isValid(rx,ry)) {
+                // 이전 위치 해제 생략(간단화), 새 위치 생성
                 const cell = this.grid[rx][ry];
-                if(cell.type===TYPE.EMPTY) { cell.type=TYPE.ROAD; cell.connections.fill(false); }
+                if(cell.type===TYPE.EMPTY) { cell.type=TYPE.ROAD; cell.roadType=1; cell.connections.fill(false); }
                 cell.isFixedRoad=true;
-                b.entranceRoadPos = {x:rx, y:ry};
-                // 자동 연결
-                for(let i=0; i<8; i++) {
-                    const nx=rx+DIRS[i].dx, ny=ry+DIRS[i].dy;
-                    if(this.isValid(nx,ny) && this.grid[nx][ny].type===TYPE.ROAD) {
-                        cell.connections[i]=true;
-                        this.grid[nx][ny].connections[(i+4)%8]=true;
-                    }
-                }
+                b.entranceRoadPos={x:rx, y:ry};
             }
         }
 
         setupParking(b) {
             b.entranceLocal = {x:1, y:2.8};
             b.parkingSlots = [];
+            // 6개 슬롯
             [{x:2.5,y:0.5},{x:3.5,y:0.5},{x:2.5,y:1.5},{x:3.5,y:1.5},{x:2.5,y:2.5},{x:3.5,y:2.5}].forEach(p=>{
                 b.parkingSlots.push({rx:p.x, ry:p.y, occupiedBy:null});
             });
@@ -650,231 +713,80 @@
             return {
                 x: home.x+0.5, y: home.y+0.5,
                 home: home, work: null,
+                color: home.color, colorIdx: home.colorIdx,
                 state: STATE.IDLE,
                 path: [], pathIndex: 0,
                 speed: 0, maxSpeed: 0.1,
-                color: home.color, walking: false, targetSlot: null, angle: 0,
+                walking: false, targetSlot: null, angle: 0,
                 workTimer: 0
             };
         }
 
-        rotateBuilding(b) {
-            b.rotation = (b.rotation + 1) % 4;
-            this.setupEntrance(b);
-        }
+        // 경로 계획
+        planRoute(a, dest, mode) {
+            // 색상 매칭 체크
+            if (mode === STATE.TO_WORK && dest.colorIdx !== a.colorIdx) return;
 
-        isValid(x, y) { return x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT; }
-
-        update() {
-            if (Math.random() < 0.001 && this.buildings.length < 20) {
-                 if (Math.random() > 0.6) this.spawnBuilding(TYPE.COMPANY);
-                 else this.spawnBuilding(TYPE.HOUSE);
-            }
-
-            this.agents.forEach(a => {
-                switch(a.state) {
-                    case STATE.IDLE: 
-                        if (!a.work) {
-                            const comps = this.buildings.filter(b => b.type === TYPE.COMPANY);
-                            if (comps.length > 0) a.work = comps[Math.floor(Math.random()*comps.length)];
-                        }
-                        // 출근 시작 (집 입구 도로 -> 회사 입구 도로)
-                        if (a.work) this.planRoute(a, a.work, STATE.TO_WORK);
-                        break;
-                    
-                    case STATE.TO_WORK:
-                        this.moveCar(a);
-                        // 도착 시 회사 입구 도로임. 주차 모드로 전환
-                        if(a.pathIndex >= a.path.length) {
-                            a.state = STATE.PARKING;
-                        }
-                        break;
-                        
-                    case STATE.PARKING:
-                        // 도로에서 주차 슬롯으로 부드럽게 진입
-                        const s = a.targetSlot;
-                        const tx = a.work.x + s.rx, ty = a.work.y + s.ry;
-                        
-                        const pdx = tx - a.x;
-                        const pdy = ty - a.y;
-                        const dist = Math.hypot(pdx, pdy);
-                        
-                        if(dist < 0.1) {
-                            // 주차 완료 -> 하차 -> 걷기
-                            a.x = tx; a.y = ty; 
-                            a.state = STATE.TO_ENTRANCE; 
-                            a.walking = true;
-                        } else {
-                            // 주차 진입 애니메이션 (Lerp)
-                            a.x += pdx * 0.08; 
-                            a.y += pdy * 0.08;
-                            a.angle = Math.atan2(pdy, pdx);
-                        }
-                        break;
-
-                    case STATE.TO_ENTRANCE:
-                        const ex = a.work.x+a.work.entranceLocal.x, ey = a.work.y+a.work.entranceLocal.y;
-                        this.moveWalking(a, ex, ey, STATE.WORKING);
-                        break;
-
-                    case STATE.WORKING:
-                        a.workTimer++;
-                        if (a.workTimer >= WORK_DURATION) { 
-                            a.workTimer = 0;
-                            a.state = STATE.TO_CAR;
-                            a.walking = true;
-                        }
-                        break;
-
-                    case STATE.TO_CAR:
-                        const cx = a.work.x + a.targetSlot.rx, cy = a.work.y + a.targetSlot.ry;
-                        this.moveWalking(a, cx, cy, STATE.TO_HOME);
-                        break;
-
-                    case STATE.TO_HOME:
-                        // 차에 타면 경로 계산 (주차장 -> 집 입구 도로)
-                        if(a.path.length === 0) {
-                            a.walking = false;
-                            this.planRoute(a, a.home, STATE.TO_HOME);
-                        }
-                        
-                        // 집으로 운전
-                        this.moveCar(a);
-                        
-                        if(a.path.length > 0 && a.pathIndex >= a.path.length) {
-                            // 집 도착
-                            if(a.targetSlot) { a.targetSlot.occupiedBy=null; a.targetSlot=null; }
-                            a.state = STATE.RESTING;
-                            a.workTimer = 0;
-                            
-                            this.money += SALARY;
-                            this.completedTrips++;
-                            this.updateUI();
-                            
-                            const screenPos = this.gridToScreen(a.x, a.y);
-                            this.showFloatText(`+$${SALARY}`, screenPos.x, screenPos.y, '#4CAF50');
-                        }
-                        break;
-                        
-                    case STATE.RESTING:
-                        a.workTimer++;
-                        if (a.workTimer > 120) {
-                            a.workTimer = 0;
-                            a.state = STATE.IDLE;
-                        }
-                        break;
-                }
-            });
-        }
-
-        gridToScreen(gx, gy) {
-            return {
-                x: gx * TILE_SIZE * this.camera.zoom + this.camera.x,
-                y: gy * TILE_SIZE * this.camera.zoom + this.camera.y
-            };
-        }
-
-        planRoute(a, destBuilding, mode) {
-            // 출발지 결정
-            let start;
-            if (mode === STATE.TO_WORK) {
-                // 출근: 집 입구 도로에서 출발
-                start = a.home.entranceRoadPos; 
-            } else {
-                // 퇴근: 현재 위치(주차장) 근처의 회사 입구 도로에서 출발해야 함
-                // 하지만 편의상 현재 위치가 도로가 아니므로, 회사 입구 도로 좌표를 시작점으로 잡고
-                // 시각적으로는 주차장에서 나가는 모션을 처리해야 함.
-                // 여기서는 간단히: STATE.TO_HOME 진입 시 바로 회사 입구 도로를 시작점으로 경로 탐색
-                start = a.work.entranceRoadPos;
-            }
+            let start = (mode===STATE.TO_WORK) ? a.home.entranceRoadPos : a.work.entranceRoadPos;
+            let target = (mode===STATE.TO_WORK) ? dest.entranceRoadPos : dest.entranceRoadPos;
             
-            if(!start) return; // 입구 도로 없으면 대기
+            if(!start || !target) return;
 
-            // 목적지 결정
-            let target;
+            // 주차 슬롯 찾기 (순차적)
             let slot = null;
-
             if (mode === STATE.TO_WORK) {
-                // 출근 목표: 회사 입구 도로 (주차 슬롯 아님)
-                target = destBuilding.entranceRoadPos;
-                
-                // 주차 자리 확보
-                const slots = destBuilding.parkingSlots;
-                slot = slots.find(s => !s.occupiedBy);
-                if(!slot) return; // 자리 없음 대기
+                slot = dest.parkingSlots.find(s => !s.occupiedBy);
+                if (!slot) return; // 자리 없음
                 slot.occupiedBy = a;
                 a.targetSlot = slot;
-            } else {
-                // 퇴근 목표: 집 입구 도로
-                target = destBuilding.entranceRoadPos;
             }
 
-            if(!target) {
-                if(slot) slot.occupiedBy = null;
-                return;
-            }
-
-            // A* 경로 탐색 (도로 to 도로)
+            // 길찾기
             const path = this.findPath(start.x, start.y, target.x, target.y);
-            
-            if (path) {
+            if(path) {
                 a.path = path;
                 a.pathIndex = 0;
                 a.state = mode;
-                
-                // 차량 위치 초기화 (출발 시 도로 위에 올림)
-                if (mode === STATE.TO_WORK) {
-                    a.x = start.x + 0.5; 
-                    a.y = start.y + 0.5;
-                    a.walking = false;
-                } else {
-                    // 퇴근 시: 주차장에서 도로로 이동하는 연출 필요
-                    // 간단히 주차장에서 바로 출발하되, 첫 타겟이 입구 도로
-                    // path[0]이 입구 도로일 것임.
-                    a.walking = false;
-                }
-
+                if(mode===STATE.TO_WORK) { a.x=start.x+0.5; a.y=start.y+0.5; a.walking=false; }
             } else {
-                // 경로 실패
-                if(slot) { slot.occupiedBy=null; a.targetSlot=null; }
-                if(mode === STATE.TO_WORK) {
-                    // 못가면 집으로 텔레포트 및 리셋
-                    a.x=a.home.x+0.5; a.y=a.home.y+0.5; a.state=STATE.IDLE;
-                }
+                if(slot) { slot.occupiedBy = null; a.targetSlot = null; }
             }
         }
 
         findPath(sx, sy, tx, ty) {
-            // 시작점과 목표점이 모두 도로여야 함 (입구 도로 로직에 의해 보장됨)
-            // A* 알고리즘
+            // A* with Road Costs
             const startNode = {x:sx, y:sy};
-            const targetNode = {x:tx, y:ty};
+            const open = [{x:sx, y:sy, g:0, h:0, f:0, p:null}];
+            const closed = new Set();
 
-            const open=[{x:startNode.x, y:startNode.y, g:0, h:0, f:0, p:null}];
-            const closed=new Set();
-            
-            while(open.length>0){
+            while(open.length > 0) {
                 open.sort((a,b)=>a.f-b.f);
-                const curr=open.shift();
+                const curr = open.shift();
                 
-                if(curr.x===targetNode.x && curr.y===targetNode.y){
+                if(curr.x===tx && curr.y===ty) {
                     const path=[]; let t=curr;
                     while(t){path.unshift({x:t.x,y:t.y}); t=t.p;}
                     return path;
                 }
                 
-                const k=`${curr.x},${curr.y}`;
+                const k = `${curr.x},${curr.y}`;
                 if(closed.has(k)) continue;
                 closed.add(k);
-                
-                for(let i=0;i<8;i++){
-                    // 연결된 도로만 이동 가능
+
+                for(let i=0; i<8; i++) {
                     if(!this.grid[curr.x][curr.y].connections[i]) continue;
-                    
                     const nx=curr.x+DIRS[i].dx, ny=curr.y+DIRS[i].dy;
-                    if(this.isValid(nx,ny) && !closed.has(`${nx},${ny}`)){
-                        const g=curr.g + ((i%2===0)?1:1.414);
-                        const h=Math.hypot(nx-targetNode.x, ny-targetNode.y);
+                    
+                    if(this.isValid(nx,ny) && !closed.has(`${nx},${ny}`)) {
+                        const cell = this.grid[nx][ny];
+                        const rType = ROAD_TYPES[cell.roadType] || ROAD_TYPES[1];
+                        
+                        // 비용 계산: 거리를 속도로 나눔 (고속도로 선호)
+                        const dist = (i%2===0)?1:1.414;
+                        const weight = dist / rType.speed; 
+                        
+                        const g = curr.g + weight;
+                        const h = Math.hypot(nx-tx, ny-ty);
                         open.push({x:nx, y:ny, g, h, f:g+h, p:curr});
                     }
                 }
@@ -882,68 +794,143 @@
             return null;
         }
 
-        moveCar(a) {
-            if (!a.path || !a.path[a.pathIndex]) return;
-            const t = a.path[a.pathIndex];
-            const dx = t.x+0.5 - a.x, dy = t.y+0.5 - a.y;
-            const d = Math.hypot(dx,dy);
-            if(d < a.maxSpeed) { 
-                a.x=t.x+0.5; 
-                a.y=t.y+0.5; 
-                a.pathIndex++; 
-            } else { 
-                a.x += (dx/d)*a.maxSpeed; 
-                a.y += (dy/d)*a.maxSpeed; 
-                a.angle = Math.atan2(dy,dx); 
+        update() {
+            // 자동 건물 생성 (가끔)
+            if(Math.random()<0.002 && this.buildings.length<30) {
+                this.spawnBuilding(Math.random()>0.6?TYPE.COMPANY:TYPE.HOUSE);
             }
+
+            this.agents.forEach(a => {
+                switch(a.state) {
+                    case STATE.IDLE:
+                        if (!a.work) {
+                            // 같은 색 회사 찾기
+                            const comps = this.buildings.filter(b => b.type===TYPE.COMPANY && b.colorIdx===a.colorIdx);
+                            if(comps.length>0) a.work = comps[Math.floor(Math.random()*comps.length)];
+                        }
+                        if(a.work) this.planRoute(a, a.work, STATE.TO_WORK);
+                        break;
+                    
+                    case STATE.TO_WORK:
+                        this.moveCar(a);
+                        if(a.pathIndex >= a.path.length) a.state = STATE.PARKING;
+                        break;
+
+                    case STATE.PARKING:
+                        const s = a.targetSlot;
+                        const tx = a.work.x+s.rx, ty = a.work.y+s.ry;
+                        // 부드러운 주차
+                        if(Math.hypot(tx-a.x, ty-a.y) < 0.1) {
+                            a.x=tx; a.y=ty;
+                            a.state = STATE.TO_ENTRANCE;
+                            a.walking = true; 
+                        } else {
+                            a.x += (tx-a.x)*0.08; a.y += (ty-a.y)*0.08;
+                            a.angle = Math.atan2(ty-a.y, tx-a.x);
+                        }
+                        break;
+
+                    case STATE.TO_ENTRANCE:
+                        const ex = a.work.x+a.work.entranceLocal.x, ey = a.work.y+a.work.entranceLocal.y;
+                        this.moveWalk(a, ex, ey, STATE.WORKING);
+                        break;
+
+                    case STATE.WORKING:
+                        a.workTimer++;
+                        if(a.workTimer > WORK_DURATION) {
+                            a.workTimer=0;
+                            a.state = STATE.TO_CAR;
+                            a.walking = true;
+                        }
+                        break;
+
+                    case STATE.TO_CAR:
+                        const cx = a.work.x+a.targetSlot.rx, cy = a.work.y+a.targetSlot.ry;
+                        this.moveWalk(a, cx, cy, STATE.TO_HOME);
+                        break;
+
+                    case STATE.TO_HOME:
+                        if(a.path.length===0) {
+                            a.walking=false;
+                            this.planRoute(a, a.home, STATE.TO_HOME);
+                        }
+                        this.moveCar(a);
+                        if(a.path.length>0 && a.pathIndex>=a.path.length) {
+                            // 도착
+                            if(a.targetSlot) { a.targetSlot.occupiedBy=null; a.targetSlot=null; }
+                            a.state = STATE.RESTING;
+                            this.money += SALARY;
+                            this.trips++;
+                            this.updateUI();
+                            const sc = this.gridToScreen(a.x, a.y);
+                            this.showFloatText(`+$${SALARY}`, sc.x, sc.y, '#4CAF50');
+                        }
+                        break;
+                    
+                    case STATE.RESTING:
+                        a.workTimer++;
+                        if(a.workTimer > 100) { a.workTimer=0; a.state = STATE.IDLE; }
+                        break;
+                }
+            });
         }
-        
-        moveWalking(a, tx, ty, nextState) {
+
+        moveCar(a) {
+            if(!a.path || !a.path[a.pathIndex]) return;
+            const t = a.path[a.pathIndex];
+            // 도로 타입에 따른 속도 보정
+            const rType = this.grid[t.x][t.y].roadType || 1;
+            const speed = a.maxSpeed * ROAD_TYPES[rType].speed;
+            
+            const dx = t.x+0.5 - a.x, dy = t.y+0.5 - a.y;
+            const d = Math.hypot(dx, dy);
+            
+            if(d < speed) { a.x=t.x+0.5; a.y=t.y+0.5; a.pathIndex++; }
+            else { a.x += (dx/d)*speed; a.y += (dy/d)*speed; a.angle = Math.atan2(dy, dx); }
+        }
+
+        moveWalk(a, tx, ty, next) {
             const dx=tx-a.x, dy=ty-a.y;
             const d=Math.hypot(dx,dy);
-            if(d<0.05) { 
-                a.x=tx; a.y=ty; 
-                a.state=nextState; 
-                if(nextState===STATE.TO_HOME) a.path=[]; 
-            } else { 
-                a.x += (dx/d)*0.03; 
-                a.y += (dy/d)*0.03; 
-            }
+            if(d<0.05) { a.x=tx; a.y=ty; a.state=next; if(next===STATE.TO_HOME) a.path=[]; }
+            else { a.x += (dx/d)*0.03; a.y += (dy/d)*0.03; }
         }
 
-        updateUI() {
-            document.getElementById('moneyDisplay').innerText = this.money;
-            document.getElementById('scoreDisplay').innerText = this.completedTrips;
-        }
-
+        // --- 렌더링 ---
         draw() {
-            this.ctx.fillStyle = COLORS.BG;
+            this.ctx.fillStyle = '#a5d6a7';
             this.ctx.fillRect(0,0,this.canvas.width, this.canvas.height);
 
             this.ctx.save();
             this.ctx.translate(this.camera.x, this.camera.y);
             this.ctx.scale(this.camera.zoom, this.camera.zoom);
 
-            this.ctx.fillStyle = COLORS.GRASS;
+            this.ctx.fillStyle = '#81c784';
             this.ctx.fillRect(0,0,GRID_WIDTH*TILE_SIZE, GRID_HEIGHT*TILE_SIZE);
-            
-            this.ctx.strokeStyle = 'rgba(0,0,0,0.05)';
-            this.ctx.lineWidth = 1;
-            this.ctx.beginPath();
-            for(let i=0; i<=GRID_WIDTH; i++) { this.ctx.moveTo(i*TILE_SIZE,0); this.ctx.lineTo(i*TILE_SIZE, GRID_HEIGHT*TILE_SIZE); }
-            for(let i=0; i<=GRID_HEIGHT; i++) { this.ctx.moveTo(0,i*TILE_SIZE); this.ctx.lineTo(GRID_WIDTH*TILE_SIZE, i*TILE_SIZE); }
-            this.ctx.stroke();
 
+            // 도로
             for(let x=0; x<GRID_WIDTH; x++) for(let y=0; y<GRID_HEIGHT; y++) {
-                if(this.grid[x][y].type===TYPE.ROAD) this.drawRoad(x,y);
+                if(this.grid[x][y].type === TYPE.ROAD) this.drawRoad(x, y);
             }
-            this.buildings.forEach(b => this.drawBuilding(b));
-            this.agents.forEach(a => { if(a.state!==STATE.IDLE && a.state!==STATE.RESTING) this.drawAgent(a); });
 
-            if(this.isDragging && this.dragPath.length>0) {
-                const isErase = currentMode==='erase';
-                this.ctx.fillStyle = isErase ? COLORS.ROAD_INVALID : COLORS.ROAD_PREVIEW;
-                this.dragPath.forEach(p => {
+            // 건물
+            this.buildings.forEach(b => this.drawBuilding(b));
+
+            // 에이전트 & 주차된 차
+            this.agents.forEach(a => {
+                if(a.state !== STATE.IDLE && a.state !== STATE.RESTING) {
+                    this.drawAgent(a);
+                    // 차가 주차장에 대기하는 모습 (사람이 나와있을 때)
+                    if (a.state === STATE.TO_ENTRANCE || a.state === STATE.WORKING || a.state === STATE.TO_CAR) {
+                        this.drawParkedCar(a);
+                    }
+                }
+            });
+
+            // 프리뷰 (건설 대기)
+            if(this.previewPath.length > 0) {
+                this.ctx.fillStyle = (currentMode==='erase') ? 'rgba(244,67,54,0.5)' : 'rgba(33,150,243,0.5)';
+                this.previewPath.forEach(p => {
                     this.ctx.fillRect(p.x*TILE_SIZE, p.y*TILE_SIZE, TILE_SIZE, TILE_SIZE);
                 });
             }
@@ -951,84 +938,138 @@
             this.ctx.restore();
         }
 
-        drawRoad(x,y) {
-            const cx = x*TILE_SIZE + TILE_SIZE/2, cy = y*TILE_SIZE + TILE_SIZE/2;
+        drawRoad(x, y) {
             const c = this.grid[x][y];
-            this.ctx.fillStyle = COLORS.ROAD;
-            this.ctx.beginPath(); this.ctx.arc(cx,cy,TILE_SIZE*0.35,0,Math.PI*2); this.ctx.fill();
-            this.ctx.strokeStyle = COLORS.ROAD;
-            this.ctx.lineWidth = TILE_SIZE*0.6;
-            this.ctx.lineCap='round';
+            const info = ROAD_TYPES[c.roadType] || ROAD_TYPES[1];
+            const cx=x*TILE_SIZE+TILE_SIZE/2, cy=y*TILE_SIZE+TILE_SIZE/2;
+            
+            this.ctx.fillStyle = info.color;
+            this.ctx.beginPath(); this.ctx.arc(cx,cy,TILE_SIZE*0.4,0,Math.PI*2); this.ctx.fill();
+            this.ctx.strokeStyle = info.color;
+            this.ctx.lineWidth = TILE_SIZE * 0.8;
+            this.ctx.lineCap = 'round';
             this.ctx.beginPath();
-            for(let i=0;i<8;i++) {
-                if(c.connections[i]){
+            for(let i=0; i<8; i++) {
+                if(c.connections[i]) {
                     this.ctx.moveTo(cx,cy);
                     this.ctx.lineTo(cx+DIRS[i].dx*TILE_SIZE*0.6, cy+DIRS[i].dy*TILE_SIZE*0.6);
                 }
             }
             this.ctx.stroke();
-            this.ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-            this.ctx.lineWidth=2;
+
+            // 차선 (고속도로는 노란색, 일반은 흰색)
+            this.ctx.strokeStyle = (c.roadType===2) ? '#FFEB3B' : 'rgba(255,255,255,0.4)';
+            this.ctx.lineWidth = 2;
+            if (c.roadType === 3) this.ctx.strokeStyle = 'white'; // 교차로
+
             this.ctx.beginPath();
-            for(let i=0;i<8;i++) {
-                if(c.connections[i]){
+            for(let i=0; i<8; i++) {
+                if(c.connections[i]) {
                     this.ctx.moveTo(cx,cy);
                     this.ctx.lineTo(cx+DIRS[i].dx*TILE_SIZE*0.5, cy+DIRS[i].dy*TILE_SIZE*0.5);
                 }
             }
             this.ctx.stroke();
+
+            // 교차로/회전교차로 장식
+            if(c.roadType===3) {
+                this.ctx.fillStyle = '#fff';
+                this.ctx.fillRect(cx-4,cy-4,8,8); // 정지선 느낌
+            } else if(c.roadType===4) {
+                this.ctx.fillStyle = '#fff';
+                this.ctx.beginPath(); this.ctx.arc(cx,cy,6,0,Math.PI*2); this.ctx.fill();
+                this.ctx.fillStyle = '#4CAF50';
+                this.ctx.beginPath(); this.ctx.arc(cx,cy,4,0,Math.PI*2); this.ctx.fill();
+            }
         }
 
         drawBuilding(b) {
             const bx=b.x*TILE_SIZE, by=b.y*TILE_SIZE;
             if(b.type===TYPE.HOUSE) {
+                // 집: 색상 지붕
                 const cx=bx+TILE_SIZE/2, cy=by+TILE_SIZE/2;
                 this.ctx.save();
                 this.ctx.translate(cx,cy);
                 this.ctx.rotate([0,0.5,1,1.5][b.rotation]*Math.PI);
                 const s = TILE_SIZE*0.8;
                 this.ctx.fillStyle='#fff'; this.ctx.fillRect(-s/2,-s/2,s,s);
-                this.ctx.fillStyle=b.color; this.ctx.beginPath();
+                this.ctx.fillStyle=b.color; // 지붕 색상
+                this.ctx.beginPath();
                 this.ctx.moveTo(-s/2-2,-s/2); this.ctx.lineTo(0,-s/2-10); this.ctx.lineTo(s/2+2,-s/2); this.ctx.fill();
                 this.ctx.fillStyle='#795548'; this.ctx.fillRect(-4,s/2-6,8,6);
                 this.ctx.restore();
-            } else if(b.type===TYPE.COMPANY) {
-                const bw=2*TILE_SIZE, bh=3*TILE_SIZE;
-                this.ctx.fillStyle='rgba(0,0,0,0.2)'; this.ctx.fillRect(bx+5,by+5,bw,bh);
-                this.ctx.fillStyle='#eceff1'; this.ctx.fillRect(bx,by,bw-2,bh-2);
-                this.ctx.fillStyle=b.color; this.ctx.globalAlpha=0.6;
-                for(let i=0;i<3;i++) for(let j=0;j<8;j++) this.ctx.fillRect(bx+10+i*20, by+10+j*12, 12, 8);
-                this.ctx.globalAlpha=1;
-                const px=bx+bw, pw=2*TILE_SIZE, ph=3*TILE_SIZE;
-                this.ctx.fillStyle='#b0bec5'; this.ctx.fillRect(px,by,pw-2,ph-2);
+            } else {
+                // 회사: 색상 창문/띠
+                const bw=b.w*TILE_SIZE, bh=b.h*TILE_SIZE;
+                this.ctx.fillStyle='#cfd8dc'; this.ctx.fillRect(bx,by,bw,bh); // 바닥
+                // 건물 본체
+                this.ctx.fillStyle='#eceff1'; this.ctx.fillRect(bx,by,bw*0.5-2, bh-2);
+                this.ctx.fillStyle=b.color; this.ctx.fillRect(bx,by,bw*0.5-2, 10); // 상단 컬러띠
+                
+                // 주차장
+                const px=bx+bw*0.5, py=by;
+                this.ctx.fillStyle='#90a4ae'; this.ctx.fillRect(px,py,bw*0.5-2, bh-2);
                 this.ctx.strokeStyle='white'; this.ctx.lineWidth=1;
                 b.parkingSlots.forEach(s => {
                     this.ctx.strokeRect((b.x+s.rx)*TILE_SIZE-12, (b.y+s.ry)*TILE_SIZE-8, 24, 16);
                 });
-                const ex=(b.x+b.entranceLocal.x)*TILE_SIZE, ey=(b.y+b.entranceLocal.y)*TILE_SIZE;
-                this.ctx.fillStyle='#37474f'; this.ctx.fillRect(ex-20,ey-5,40,5);
-                this.ctx.fillStyle='white'; this.ctx.font='10px Arial'; this.ctx.textAlign='center';
-                this.ctx.fillText("CORP", ex, ey-8);
             }
         }
 
         drawAgent(a) {
             const sx=a.x*TILE_SIZE, sy=a.y*TILE_SIZE;
             if(a.walking) {
-                this.ctx.fillStyle='#333'; this.ctx.beginPath(); this.ctx.arc(sx,sy,5,0,Math.PI*2); this.ctx.fill();
+                this.ctx.fillStyle='#333'; this.ctx.beginPath(); this.ctx.arc(sx,sy,4,0,Math.PI*2); this.ctx.fill();
                 this.ctx.fillStyle=a.color; this.ctx.beginPath(); this.ctx.arc(sx,sy-3,3,0,Math.PI*2); this.ctx.fill();
-                if (a.state === STATE.WORKING) {
-                    this.ctx.fillStyle = '#eee';
-                    this.ctx.fillRect(sx-10, sy-20, 20, 4);
-                    this.ctx.fillStyle = '#4CAF50';
-                    this.ctx.fillRect(sx-10, sy-20, 20 * (a.workTimer / WORK_DURATION), 4);
-                }
             } else {
                 this.ctx.save(); this.ctx.translate(sx,sy); this.ctx.rotate(a.angle);
                 this.ctx.fillStyle=a.color; this.ctx.fillRect(-9,-5,18,10);
-                this.ctx.fillStyle='#222'; this.ctx.fillRect(2,-4,4,8);
+                this.ctx.fillStyle='#222'; this.ctx.fillRect(2,-4,4,8); // 유리창
                 this.ctx.restore();
             }
+        }
+
+        drawParkedCar(a) {
+            if(!a.targetSlot) return;
+            const sx = (a.work.x + a.targetSlot.rx) * TILE_SIZE;
+            const sy = (a.work.y + a.targetSlot.ry) * TILE_SIZE;
+            this.ctx.save(); this.ctx.translate(sx,sy);
+            this.ctx.fillStyle=a.color; this.ctx.fillRect(-9,-5,18,10);
+            this.ctx.fillStyle='#222'; this.ctx.fillRect(2,-4,4,8);
+            this.ctx.restore();
+        }
+
+        // 유틸
+        isValid(x, y) { return x>=0 && y>=0 && x<GRID_WIDTH && y<GRID_HEIGHT; }
+        rotateBuilding(b) { b.rotation=(b.rotation+1)%4; this.setupEntrance(b); }
+        showFloatText(txt, x, y, col) {
+            const el = document.createElement('div');
+            el.className = 'float-text';
+            el.innerText = txt;
+            el.style.left = x+'px'; el.style.top = y+'px'; el.style.color = col;
+            document.body.appendChild(el);
+            setTimeout(()=>el.remove(), 1000);
+        }
+        updateUI() {
+            document.getElementById('moneyDisplay').innerText = this.money;
+            document.getElementById('scoreDisplay').innerText = this.trips;
+        }
+        gridToScreen(gx, gy) {
+            return {
+                x: gx*TILE_SIZE*this.camera.zoom + this.camera.x,
+                y: gy*TILE_SIZE*this.camera.zoom + this.camera.y
+            };
+        }
+        zoomIn(){ this.setZoom(this.camera.zoom+0.2); }
+        zoomOut(){ this.setZoom(this.camera.zoom-0.2); }
+        setZoom(z) {
+            const nz = Math.max(0.3, Math.min(z, 3.0));
+            const cx = this.canvas.width/2, cy = this.canvas.height/2;
+            const wx = (cx - this.camera.x)/this.camera.zoom;
+            const wy = (cy - this.camera.y)/this.camera.zoom;
+            this.camera.x = cx - wx*nz;
+            this.camera.y = cy - wy*nz;
+            this.camera.zoom = nz;
         }
 
         loop() {
