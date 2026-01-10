@@ -456,15 +456,17 @@
     </script>
 
     <script>
+        const CUTSCENE_TYPES = [
+            { id: 'THUNDER', text: "네온의 호흡... 제1형...", sub: "벽력일섬 (Thunder) ⚡", textColor: "#fff", subColor: "#ffff00", bgColor: "rgba(0, 0, 0, ", speedMod: 1.1, angleMod: 0 },
+            { id: 'SUPERNOVA', text: "한계를 넘어선 힘...", sub: "초신성 폭발 (Supernova) 💥", textColor: "#ffaa00", subColor: "#ff5500", bgColor: "rgba(50, 10, 0, ", speedMod: 1.0, angleMod: -15 },
+            { id: 'DIMENSION', text: "차원을 가르는 일격...", sub: "공간 절단 (Dimension) ⚔️", textColor: "#00ffff", subColor: "#0088ff", bgColor: "rgba(0, 10, 50, ", speedMod: 1.3, angleMod: 15 }
+        ];
+
         const Sound = {
             ctx: null,
             init: function() {
-                if (!this.ctx) {
-                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-                }
-                if (this.ctx.state === 'suspended') {
-                    this.ctx.resume();
-                }
+                if (!this.ctx) { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+                if (this.ctx.state === 'suspended') { this.ctx.resume(); }
             },
             playTone: function(freq, type, duration, vol = 0.1) {
                 if (!this.ctx) return;
@@ -513,12 +515,10 @@
                 this.playTone(150, 'sawtooth', 0.1, 0.5);
                 setTimeout(() => this.playTone(80, 'square', 0.2, 0.5), 50);
             },
-            playShield: function() { // [추가] 쉴드 사운드
-                this.playTone(400, 'sine', 0.3, 0.3);
-            },
-            playFloat: function() { // [추가] 플로트 사운드
-                this.playTone(800, 'sine', 0.5, 0.1);
-            }
+            playShield: function() { this.playTone(400, 'sine', 0.3, 0.3); },
+            playFloat: function() { this.playTone(800, 'sine', 0.5, 0.1); },
+            playMagnet: function() { this.playTone(200, 'sine', 0.5, 0.2); },
+            playWarp: function() { this.playTone(1500, 'sawtooth', 0.3, 0.1); }
         };
 
         const canvas = document.getElementById('gameCanvas');
@@ -528,7 +528,6 @@
         const uiBest = document.getElementById('best-score');
         const uiMsg = document.getElementById('status-msg');
         const uiFeedback = document.getElementById('hit-feedback');
-        // 신규 UI 요소
         const uiSpeed = document.getElementById('speed-val');
         const uiHeight = document.getElementById('height-val');
         const btnFullscreen = document.getElementById('btn-fullscreen');
@@ -557,7 +556,6 @@
         let lastTime = 0;
         let combo = 0;
         let currentScore = 0;
-        
         let hitFreeze = 0; 
         let specialEffects = [];
 
@@ -572,8 +570,6 @@
         let ball, batter, particles = [], shockwaves = [], speedLines = [], stars = [], boosters = [], mountains = [], cityBuildings = [], obstacles = [];
         let skyManager = null;
 
-        // UI Event Listeners
-        // 전체화면 토글
         btnFullscreen.addEventListener('click', () => {
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen().catch(err => {
@@ -655,7 +651,6 @@
         const savedName = localStorage.getItem('neon_launcher_name');
         if (savedName) playerNameInput.value = savedName;
 
-        // --- Classes ---
         class SkyManager {
             constructor() {
                 this.time = 0.25; this.dayDuration = 6000; this.weather = 'clear'; this.weatherTimer = 0;
@@ -683,62 +678,42 @@
             }
             draw(ctx) {
                 const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-                const sunHeight = -Math.cos(this.time * Math.PI * 2); 
-                const L = Math.max(10, 10 + (sunHeight + 1) * 20); 
+                let sunHeight = -Math.cos(this.time * Math.PI * 2); 
+                let spaceFactor = 0;
+                if (ball) { spaceFactor = Math.min(1, Math.max(0, (-ball.y / scaleFactor - 10000) / 20000)); } // 고도 10,000m 이상일 때 우주 계수 계산
+                const L = Math.max(10, 10 + (sunHeight + 1) * 20 * (1 - spaceFactor)); // 고도에 따라 밝기 조절
                 const H = 220 + sunHeight * 20; 
-                bgGrad.addColorStop(0, `hsl(${H}, 60%, ${L * 0.5}%)`); bgGrad.addColorStop(1, `hsl(${H + 20}, 70%, ${L}%)`);
-                ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, width, height);
-                const starAlpha = Math.max(0, -sunHeight); 
+                bgGrad.addColorStop(0, `hsl(${H}, 60%, ${L * 0.5}%)`); 
+                bgGrad.addColorStop(1, `hsl(${H + 20}, 70%, ${L}%)`);
+                ctx.fillStyle = bgGrad; 
+                ctx.fillRect(0, 0, width, height);
+
+                // 우주 오버레이 (검은색)
+                if (spaceFactor > 0) { ctx.fillStyle = `rgba(0, 0, 20, ${spaceFactor})`; ctx.fillRect(0, 0, width, height); }
+                
+                const starAlpha = Math.max(spaceFactor, Math.max(0, -sunHeight)); 
                 if(starAlpha > 0) { ctx.save(); ctx.globalAlpha = starAlpha; stars.forEach(s => s.draw(ctx)); ctx.restore(); }
+                
+                // 해와 달은 그대로 둠
                 ctx.save(); ctx.shadowBlur = 50; ctx.shadowColor = '#ffff00'; ctx.fillStyle = '#ffaa00'; ctx.beginPath(); ctx.arc(this.sunX, this.sunY, 60 * scaleFactor, 0, Math.PI*2); ctx.fill(); ctx.restore();
                 ctx.save(); ctx.shadowBlur = 30; ctx.shadowColor = '#ffffff'; ctx.fillStyle = '#ffffee'; ctx.beginPath(); ctx.arc(this.moonX, this.moonY, 50 * scaleFactor, 0, Math.PI*2); ctx.fill();
                 ctx.fillStyle = 'rgba(200,200,200,0.3)'; ctx.beginPath(); ctx.arc(this.moonX - 10, this.moonY - 5, 10 * scaleFactor, 0, Math.PI*2); ctx.arc(this.moonX + 15, this.moonY + 10, 8 * scaleFactor, 0, Math.PI*2); ctx.fill(); ctx.restore();
-                this.clouds.forEach(c => c.draw(ctx));
-                this.precipitations.forEach(p => p.draw(ctx));
+                this.clouds.forEach(c => c.draw(ctx)); this.precipitations.forEach(p => p.draw(ctx));
             }
         }
 
         class Cloud {
             constructor(x, y) {
-                this.x = x || Math.random() * width;
-                this.y = y || Math.random() * height * 0.4;
-                this.speed = 0.3 + Math.random() * 0.5; // 속도 조절
-                this.size = 0.8 + Math.random() * 1.5; // 크기 다양화
-                this.circles = [];
-                const count = 4 + Math.floor(Math.random() * 5); // 덩어리 개수
-                for(let i=0; i<count; i++) {
-                    this.circles.push({
-                        x: (Math.random() - 0.5) * 80, // 가로로 더 넓게 퍼짐
-                        y: (Math.random() - 0.5) * 20, // 세로는 납작하게
-                        r: 20 + Math.random() * 25
-                    });
-                }
+                this.x = x || Math.random() * width; this.y = y || Math.random() * height * 0.4;
+                this.speed = 0.3 + Math.random() * 0.5; this.size = 0.8 + Math.random() * 1.5; this.circles = [];
+                const count = 4 + Math.floor(Math.random() * 5); 
+                for(let i=0; i<count; i++) { this.circles.push({ x: (Math.random() - 0.5) * 80, y: (Math.random() - 0.5) * 20, r: 20 + Math.random() * 25 }); }
             }
-            update(dt) {
-                this.x -= this.speed * dt * 0.5; 
-                if(this.x < -200) { 
-                    this.x = width + 200; 
-                    this.y = Math.random() * height * 0.4; 
-                }
-            }
+            update(dt) { this.x -= this.speed * dt * 0.5; if(this.x < -200) { this.x = width + 200; this.y = Math.random() * height * 0.4; } }
             draw(ctx) {
-                ctx.save();
-                ctx.translate(this.x, this.y);
-                ctx.scale(this.size * scaleFactor, this.size * scaleFactor);
-                
-                // 은은한 네온 구름 스타일
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'; 
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = 'rgba(255, 255, 255, 0.4)';
-                
-                ctx.beginPath();
-                this.circles.forEach(c => {
-                    // 중심점 이동 없이 외곽선만 그리기 (선 제거)
-                    ctx.moveTo(c.x + c.r, c.y); 
-                    ctx.arc(c.x, c.y, c.r, 0, Math.PI*2);
-                });
-                ctx.fill();
-                ctx.restore();
+                ctx.save(); ctx.translate(this.x, this.y); ctx.scale(this.size * scaleFactor, this.size * scaleFactor);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'; ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(255, 255, 255, 0.4)';
+                ctx.beginPath(); this.circles.forEach(c => { ctx.moveTo(c.x + c.r, c.y); ctx.arc(c.x, c.y, c.r, 0, Math.PI*2); }); ctx.fill(); ctx.restore();
             }
         }
 
@@ -938,9 +913,10 @@
                 if (this.type === 'speed') { this.color = '#ffd700'; this.glow = '#ff8800'; }
                 else if (this.type === 'jump') { this.color = '#00ffff'; this.glow = '#0088ff'; }
                 else if (this.type === 'blast') { this.color = '#ff0055'; this.glow = '#ff0000'; }
-                // [추가] 새로운 부스터 속성
                 else if (this.type === 'shield') { this.color = '#aa00ff'; this.glow = '#ff00ff'; }
                 else if (this.type === 'float') { this.color = '#ffffff'; this.glow = '#aaffff'; }
+                else if (this.type === 'magnet') { this.color = '#ff3333'; this.glow = '#ffaaaa'; } 
+                else if (this.type === 'warp') { this.color = '#77ff77'; this.glow = '#00ff00'; }
             }
             draw() {
                 if (!this.active) return;
@@ -951,10 +927,10 @@
                 ctx.strokeStyle = this.color; ctx.lineWidth = 3; ctx.shadowBlur = 20; ctx.shadowColor = this.glow;
                 ctx.beginPath();
                 if (this.type === 'blast') {
-                    ctx.moveTo(this.x - camera.x, this.y - camera.y - r); ctx.lineTo(this.x - camera.x + r, this.y - camera.y);
-                    ctx.lineTo(this.x - camera.x, this.y - camera.y + r); ctx.lineTo(this.x - camera.x - r, this.y - camera.y); ctx.closePath();
+                    const cx = this.x - camera.x;
+                    const cy = this.y - camera.y;
+                    ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy); ctx.lineTo(cx, cy + r); ctx.lineTo(cx - r, cy); ctx.closePath();
                 } else if (this.type === 'shield') {
-                     // 쉴드 모양 (육각형)
                     for (let i = 0; i < 6; i++) {
                         const angle = i * Math.PI / 3;
                         const bx = this.x - camera.x + Math.cos(angle) * r;
@@ -962,6 +938,17 @@
                         if (i === 0) ctx.moveTo(bx, by); else ctx.lineTo(bx, by);
                     }
                     ctx.closePath();
+                } else if (this.type === 'magnet') {
+                    const cx = this.x - camera.x;
+                    const cy = this.y - camera.y;
+                    ctx.arc(cx, cy, r, 0, Math.PI, false); 
+                    ctx.lineTo(cx - r, cy - r*0.5); 
+                    ctx.moveTo(cx + r, cy); 
+                    ctx.lineTo(cx + r, cy - r*0.5);
+                } else if (this.type === 'warp') {
+                    for(let i=0; i<3; i++) {
+                        ctx.arc(this.x - camera.x, this.y - camera.y, r * (1 - i*0.3), this.pulse + i, this.pulse + i + Math.PI);
+                    }
                 } else { ctx.arc(this.x - camera.x, this.y - camera.y, r, 0, Math.PI * 2); }
                 ctx.stroke();
                 ctx.fillStyle = this.color; ctx.globalAlpha = 0.2; ctx.fill(); ctx.globalAlpha = 1.0; ctx.shadowBlur = 0;
@@ -969,14 +956,13 @@
                 let icon = '>>'; 
                 if (this.type === 'jump') icon = 'UP'; if (this.type === 'blast') icon = '★';
                 if (this.type === 'shield') icon = 'SHD'; if (this.type === 'float') icon = 'FLT';
+                if (this.type === 'magnet') icon = '🧲'; if (this.type === 'warp') icon = '🌀';
                 ctx.fillText(icon, this.x - camera.x, this.y - camera.y);
             }
             checkCollision(p) {
                 if (!this.active) return false;
-                const dx = this.x - p.x; const dy = this.y - p.y;
-                const dist = Math.sqrt(dx*dx + dy*dy);
-                if (dist < this.radius + p.radius) { this.active = false; return true; }
-                return false;
+                const dx = this.x - p.x; const dy = this.y - p.y; const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < this.radius + p.radius) { this.active = false; return true; } return false;
             }
         }
 
@@ -1032,9 +1018,9 @@
             reset() { 
                 this.x = 200 * scaleFactor; this.y = -50 * scaleFactor; this.vx = 0; this.vy = 0; 
                 this.rotation = 0; this.trail = []; this.isStopped = false; this.radius = 15 * scaleFactor; 
-                // [추가] 상태 변수
                 this.hasShield = false;
                 this.floatTimer = 0;
+                this.magnetTimer = 0;
             }
             drop() { this.x = 200 * scaleFactor; this.y = -180 * scaleFactor; this.vx = 0; this.vy = 0; }
             hit(speed, angleDeg) {
@@ -1055,10 +1041,19 @@
                 if (gameState === STATE.FLYING) {
                     this.x += this.vx * dt; this.y += this.vy * dt; 
                     
-                    // [추가] 플로트 상태일 때 중력 무시
+                    if (this.magnetTimer > 0) {
+                        this.magnetTimer -= dt;
+                        const magnetRange = 600 * scaleFactor; 
+                        boosters.forEach(b => {
+                            if (b.active) {
+                                const dx = this.x - b.x; const dy = this.y - b.y; const dist = Math.sqrt(dx*dx + dy*dy);
+                                if (dist < magnetRange) { b.x += dx * 0.1 * dt; b.y += dy * 0.1 * dt; }
+                            }
+                        });
+                    }
+
                     if (this.floatTimer > 0) {
-                        this.floatTimer -= dt;
-                        this.vy *= 0.9; // 수직 속도 감소 (안정화)
+                        this.floatTimer -= dt; this.vy *= 0.9; 
                     } else {
                         this.vy += GRAVITY * dt; 
                     }
@@ -1082,36 +1077,22 @@
                             const boostPower = 15 * scaleFactor * comboBonus;
                             const jumpPower = 25 * scaleFactor * comboBonus;
                             const blastPower = 25 * scaleFactor * comboBonus;
+                            
                             if (b.type === 'speed') { Sound.playBoost(); this.vx += boostPower; this.vy = -12 * scaleFactor; showFeedback("SPEED!", "#ff0"); camera.shake = 5; shockwaves.push(new Shockwave(this.x, this.y, '#ff0')); for(let i=0; i<15; i++) particles.push(new Particle(this.x, this.y, '#ff0', 8)); } 
                             else if (b.type === 'jump') { Sound.playJump(); this.vx += 5 * scaleFactor; this.vy = -jumpPower; showFeedback("HIGH JUMP!", "#0ff"); camera.shake = 8; shockwaves.push(new Shockwave(this.x, this.y, '#0ff')); for(let i=0; i<20; i++) particles.push(new Particle(this.x, this.y, '#0ff', 10)); }
                             else if (b.type === 'blast') { Sound.playBlast(); this.vx += blastPower; this.vy = -20 * scaleFactor; showFeedback("EXPLOSION!", "#f05"); camera.shake = 15; shockwaves.push(new Shockwave(this.x, this.y, '#f05')); for(let i=0; i<30; i++) particles.push(new Particle(this.x, this.y, '#f05', 12)); }
-                            else if (b.type === 'shield') { // [추가] 쉴드
-                                Sound.playShield();
-                                this.hasShield = true;
-                                showFeedback("SHIELD UP!", "#a0f");
-                                shockwaves.push(new Shockwave(this.x, this.y, '#a0f'));
-                            }
-                            else if (b.type === 'float') { // [추가] 플로트
-                                Sound.playFloat();
-                                this.floatTimer = 120; // 약 2초
-                                this.vx += 5 * scaleFactor; // 약간 가속
-                                showFeedback("FLOAT!", "#fff");
-                                shockwaves.push(new Shockwave(this.x, this.y, '#fff'));
-                            }
+                            else if (b.type === 'shield') { Sound.playShield(); this.hasShield = true; showFeedback("SHIELD UP!", "#a0f"); shockwaves.push(new Shockwave(this.x, this.y, '#a0f')); }
+                            else if (b.type === 'float') { Sound.playFloat(); this.floatTimer = 120; this.vx += 5 * scaleFactor; showFeedback("FLOAT!", "#fff"); shockwaves.push(new Shockwave(this.x, this.y, '#fff')); }
+                            else if (b.type === 'magnet') { Sound.playMagnet(); this.magnetTimer = 300; showFeedback("MAGNET!", "#f33"); shockwaves.push(new Shockwave(this.x, this.y, '#f33')); }
+                            else if (b.type === 'warp') { Sound.playWarp(); this.x += 300 * scaleFactor; this.vx += 10 * scaleFactor; showFeedback("WARP!", "#7f7"); camera.shake = 25; shockwaves.push(new Shockwave(this.x, this.y, '#7f7')); }
                         }
                     });
                     
                     obstacles.forEach(o => {
                         if(o.checkCollision(this)) {
-                            // [추가] 쉴드 있으면 방어
                             if (this.hasShield) {
-                                this.hasShield = false;
-                                showFeedback("BLOCKED!", "#a0f");
-                                Sound.playShield(); // 방어음
-                                shockwaves.push(new Shockwave(this.x, this.y, '#a0f'));
-                                return; 
+                                this.hasShield = false; showFeedback("BLOCKED!", "#a0f"); Sound.playShield(); shockwaves.push(new Shockwave(this.x, this.y, '#a0f')); return; 
                             }
-                            
                             this.vx *= 0.5; this.vy *= 0.5; camera.shake = 15; showFeedback("CRASH!", "#f00"); Sound.playCrash(); shockwaves.push(new Shockwave(this.x, this.y, '#f00')); combo = 0; uiCombo.style.opacity = 0;
                         }
                     });
@@ -1145,9 +1126,7 @@
                 if (gameState === STATE.FLYING && this.trail.length > 1) {
                     if (Math.abs(this.vx) > 15) {
                         this.trail.forEach(t => {
-                            ctx.fillStyle = `rgba(0, 255, 255, ${t.alpha * 0.2})`;
-                            ctx.beginPath(); ctx.arc(t.x - camera.x, t.y - camera.y, this.radius * 0.8, 0, Math.PI*2); ctx.fill();
-                            t.alpha -= 0.05;
+                            ctx.fillStyle = `rgba(0, 255, 255, ${t.alpha * 0.2})`; ctx.beginPath(); ctx.arc(t.x - camera.x, t.y - camera.y, this.radius * 0.8, 0, Math.PI*2); ctx.fill(); t.alpha -= 0.05;
                         });
                     }
                     ctx.beginPath(); ctx.moveTo(this.trail[0].x - camera.x, this.trail[0].y - camera.y);
@@ -1160,24 +1139,49 @@
                     ctx.shadowBlur = 10; ctx.shadowColor = '#0ff'; ctx.stroke(); ctx.shadowBlur = 0;
                 }
                 
-                // 공 그리기
                 ctx.save(); ctx.translate(drawX, drawY); ctx.rotate(this.rotation);
                 
-                // [추가] 쉴드 이펙트
                 if (this.hasShield) {
-                    ctx.shadowBlur = 20; ctx.shadowColor = '#a0f';
-                    ctx.strokeStyle = '#a0f'; ctx.lineWidth = 3;
-                    ctx.beginPath(); ctx.arc(0, 0, this.radius + 5, 0, Math.PI*2); ctx.stroke();
+                    ctx.shadowBlur = 20; ctx.shadowColor = '#a0f'; ctx.strokeStyle = '#a0f'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, this.radius + 5, 0, Math.PI*2); ctx.stroke();
+                }
+                if (this.magnetTimer > 0) {
+                    ctx.shadowBlur = 15; ctx.shadowColor = '#f00'; ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, this.radius + 10 + Math.sin(frameId * 0.2)*5, 0, Math.PI*2); ctx.stroke();
+                }
+
+                const speed = Math.sqrt(this.vx*this.vx + this.vy*this.vy) * 2;
+                
+                // [화염 효과 - Fire Effect]
+                if (speed > 300) {
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'lighter';
+                    const fireIntensity = Math.min(2.0, (speed - 300) / 300);
+                    const fireScale = 1.3 + Math.random() * 0.4 + fireIntensity * 0.5;
+                    let fireColor;
+                    if (speed < 500) fireColor = `rgba(255, ${200 - fireIntensity*50}, 0, 0.6)`;
+                    else if (speed < 800) fireColor = `rgba(255, ${60 - (speed-500)/5}, 0, 0.7)`;
+                    else fireColor = `rgba(${100 + Math.random()*155}, 100, 255, 0.8)`;
+                    ctx.shadowBlur = 30 + fireIntensity * 20; 
+                    ctx.shadowColor = fireColor; 
+                    ctx.fillStyle = fireColor;
+                    ctx.beginPath(); ctx.arc(0, 0, this.radius * fireScale, 0, Math.PI*2); ctx.fill();
+                    for(let i=0; i<3 + fireIntensity*5; i++) {
+                        ctx.beginPath();
+                        const tailX = -this.vx * (0.5 + Math.random()) * 2;
+                        const tailY = -this.vy * (0.5 + Math.random()) * 2;
+                        const tailSize = this.radius * (0.5 + Math.random() * 0.5);
+                        ctx.arc(tailX, tailY, tailSize, 0, Math.PI*2); ctx.fill();
+                    }
+                    ctx.fillStyle = '#ffff00'; 
+                    ctx.beginPath(); ctx.arc((Math.random()-0.5)*5, (Math.random()-0.5)*5, this.radius * (0.8 + fireIntensity*0.2), 0, Math.PI*2); ctx.fill();
+                    ctx.restore();
                 }
 
                 ctx.shadowBlur = 15; ctx.shadowColor = '#0ff'; ctx.fillStyle = '#0ff';
                 ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
                 ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, this.radius * 0.5, 0, Math.PI * 2); ctx.fill();
                 
-                // [추가] 플로트 상태 날개 이펙트
                 if (this.floatTimer > 0) {
-                     ctx.shadowBlur = 10; ctx.shadowColor = '#fff';
-                     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+                     ctx.shadowBlur = 10; ctx.shadowColor = '#fff'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
                      ctx.beginPath(); ctx.moveTo(-this.radius, 0); ctx.lineTo(-this.radius - 15, -10); ctx.stroke();
                      ctx.beginPath(); ctx.moveTo(this.radius, 0); ctx.lineTo(this.radius + 15, -10); ctx.stroke();
                 }
@@ -1188,9 +1192,13 @@
 
         // --- Init Functions ---
         function init() {
-            resize(); window.addEventListener('resize', resize);
+            resize(); 
+            window.addEventListener('resize', resize);
+            // 전체화면 변경 시 resize를 강제로 호출하여 화면 크기 보정
+            document.addEventListener('fullscreenchange', resize);
+            document.addEventListener('webkitfullscreenchange', resize);
+
             const inputHandler = (e) => {
-                // 클릭 방지 예외 처리 추가
                 if(e.target.closest('#ranking-modal') || e.target.closest('#btn-show-ranking') || e.target.closest('#btn-fullscreen')) return;
                 Sound.init(); handleInput();
             };
@@ -1223,16 +1231,34 @@
              for(let i=0; i<count; i++) {
                 let gap = (50 + Math.random() * 150) * scaleFactor;
                 lastBoosterX += gap;
-                let by = height - 100 - (Math.random() * 2000 * scaleFactor); 
+                
+                // [수정] 고도에 따른 아이템 생성 로직
+                let limitY = 2000;
+                // 공이 높이 날고 있으면 아이템 생성 높이 범위 확장
+                if (ball && ball.y < -1000 * scaleFactor) {
+                    limitY = Math.abs(ball.y / scaleFactor) + 2000;
+                }
+                
+                let spawnHeight = Math.random() * limitY * scaleFactor;
+                
+                // 만약 공이 아주 높이 있다면, 공 근처 높이에 아이템이 생성될 확률을 높임 (50% 확률)
+                if (ball && ball.y < -5000 * scaleFactor && Math.random() < 0.5) {
+                    spawnHeight = Math.abs(ball.y) + (Math.random() - 0.5) * 1000 * scaleFactor;
+                }
+                
+                let by = height - 100 - spawnHeight; 
                 
                 if (Math.random() > 0.95) {
                     obstacles.push(new Obstacle(lastBoosterX, by));
                 } else {
                     let rand = Math.random();
                     let type = 'speed'; 
-                    if (rand > 0.85) type = 'blast';  
-                    else if (rand > 0.70) type = 'shield'; 
-                    else if (rand > 0.55) type = 'float';
+                    // [확률 조정]
+                    if (rand > 0.90) type = 'blast';  
+                    else if (rand > 0.80) type = 'shield'; 
+                    else if (rand > 0.70) type = 'float';
+                    else if (rand > 0.60) type = 'magnet'; // [신규] 자석 확률
+                    else if (rand > 0.50) type = 'warp';   // [신규] 워프 확률
                     else if (rand > 0.30) type = 'jump'; 
                     
                     boosters.push(new Booster(lastBoosterX, by, type));
@@ -1241,12 +1267,43 @@
         }
 
         function resize() {
-            width = window.innerWidth; height = window.innerHeight;
-            canvas.width = width; canvas.height = height;
+            // 이전 width, height 저장
+            const oldWidth = width;
+            const oldHeight = height;
+
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+
+            // 스케일 팩터 재계산
             scaleFactor = Math.min(width, height) / 800; 
-            if (scaleFactor < 0.6) scaleFactor = 0.6; if (scaleFactor > 1.2) scaleFactor = 1.2; 
+            if (scaleFactor < 0.6) scaleFactor = 0.6; 
+            if (scaleFactor > 1.2) scaleFactor = 1.2; 
             GRAVITY = GRAVITY_BASE * scaleFactor;
-            if (batter) batter.reset(); if (ball) ball.reset();
+            
+            // [수정] READY 상태가 아니면 공과 배터 위치를 현재 스케일 기준으로 보정
+            if (gameState !== STATE.READY) {
+                if (oldWidth && oldHeight) {
+                    // 이전 위치 대비 현재 화면 비율을 이용해 위치 보정
+                    const ratioX = width / oldWidth;
+                    const ratioY = height / oldHeight;
+
+                    // 공과 배터 위치 보정 (전체화면 전환 시 튀는 것 방지)
+                    ball.x *= ratioX;
+                    ball.y *= ratioY;
+                    batter.x *= ratioX;
+                    batter.y = height - 50; // 바닥 기준 위치 유지
+
+                    // 카메라 위치 보정
+                    camera.x *= ratioX;
+                    camera.y *= ratioY;
+                }
+            } else {
+                // READY 상태일 때만 초기 위치 설정
+                if (batter) batter.reset(); 
+                if (ball) ball.reset();
+            }
         }
 
         function handleInput() {
@@ -1263,10 +1320,13 @@
 
             if (Math.abs(distY) < 90 * scaleFactor) {
                 let isPerfect = false;
+                let cutsceneType = null;
+
                 if (Math.abs(distY) < 20 * scaleFactor) {
                     isPerfect = true;
                     hitFreeze = 45; 
-                    specialEffects.push(new CutsceneEffect()); // [수정] BreathEffect -> CutsceneEffect 교체
+                    cutsceneType = CUTSCENE_TYPES[Math.floor(Math.random() * CUTSCENE_TYPES.length)];
+                    specialEffects.push(new CutsceneEffect(cutsceneType)); 
                     Sound.playBreath();
                 }
 
@@ -1274,7 +1334,14 @@
                 let power = 25 * scaleFactor; let angle = -45; 
                 
                 if (isPerfect) {
-                    power = 40 * scaleFactor; angle = -45; 
+                    let basePower = 40 * scaleFactor;
+                    let baseAngle = -45;
+                    if (cutsceneType) {
+                        power = basePower * cutsceneType.speedMod;
+                        angle = baseAngle + cutsceneType.angleMod;
+                    } else {
+                        power = basePower;
+                    }
                     showFeedback("PERFECT!", "#0ff"); Sound.playHit(true);
                 } else {
                     power = (28 * scaleFactor) - (Math.abs(distY) * 0.15); 
@@ -1361,12 +1428,8 @@
 
             if (gameState === STATE.FLYING) {
                 let targetCamX = ball.x - width * 0.2; if (targetCamX < 0) targetCamX = 0;
-                
-                // [수정됨] 카메라 추적 로직 개선 (공이 화면 밖으로 나가지 않도록)
-                // 1. 추적 속도 증가 (0.1 -> 0.15)
                 camera.x += (targetCamX - camera.x) * 0.15 * dt;
                 
-                // 2. 공이 화면 오른쪽 70% 지점을 넘어가면 카메라를 강제로 이동 (Hard Clamp)
                 if (ball.x - camera.x > width * 0.7) {
                     camera.x = ball.x - width * 0.7;
                 }
@@ -1384,18 +1447,10 @@
             for (let i = shockwaves.length - 1; i >= 0; i--) { shockwaves[i].update(dt); if (shockwaves[i].alpha <= 0) shockwaves.splice(i, 1); }
             const ballSpeed = Math.abs(ball.vx); speedLines.forEach(l => l.update(ballSpeed));
             
-            // [추가] 속도 및 고도 업데이트
             if (gameState === STATE.FLYING || gameState === STATE.STOPPED) {
                 let dist = Math.floor((ball.x - 200 * scaleFactor) / scaleFactor); if (dist < 0) dist = 0; uiScore.innerText = dist;
-                
-                // 속도 (단순 픽셀 단위를 적절한 수치로 변환하여 표시)
-                let speedKmh = Math.floor(Math.sqrt(ball.vx*ball.vx + ball.vy*ball.vy) * 2);
-                uiSpeed.innerText = speedKmh;
-
-                // 고도 (바닥 기준)
-                let altitude = Math.floor((height - 50 - ball.y) / scaleFactor);
-                if (altitude < 0) altitude = 0;
-                uiHeight.innerText = altitude;
+                let speedKmh = Math.floor(Math.sqrt(ball.vx*ball.vx + ball.vy*ball.vy) * 2); uiSpeed.innerText = speedKmh;
+                let altitude = Math.floor((height - 50 - ball.y) / scaleFactor); if (altitude < 0) altitude = 0; uiHeight.innerText = altitude;
             }
         }
 
