@@ -618,6 +618,12 @@
             constructor() {
                 this.time = 0.25; this.dayDuration = 6000; this.weather = 'clear'; this.weatherTimer = 0;
                 this.clouds = []; this.precipitations = []; this.sunX = 0; this.sunY = 0; this.moonX = 0; this.moonY = 0;
+                // 행성 데이터 추가
+                this.planets = [
+                    { x: width * 0.2, y: height * 0.3, r: 40, color: '#f80', glow: '#f50', orbit: 0.0001 },
+                    { x: width * 0.8, y: height * 0.1, r: 25, color: '#0af', glow: '#05a', orbit: 0.0002 },
+                    { x: width * 0.5, y: height * 0.6, r: 15, color: '#f5f', glow: '#a0a', orbit: 0.0003 }
+                ];
                 for(let i=0; i<8; i++) { this.clouds.push(new Cloud()); }
             }
             update(dt) {
@@ -638,18 +644,59 @@
                     for(let i=0; i<count; i++) { if(Math.random() > 0.5) this.precipitations.push(new WeatherParticle(this.weather)); }
                 }
                 this.precipitations.forEach((p, i) => { p.update(dt); if(!p.active) this.precipitations.splice(i, 1); });
+                
+                // 행성 위치 업데이트 (미세한 궤도 운동)
+                this.planets.forEach(p => {
+                    p.x += Math.cos(Date.now() * p.orbit) * 0.1;
+                    p.y += Math.sin(Date.now() * p.orbit) * 0.1;
+                });
             }
             draw(ctx) {
-                // [수정] 고도에 따른 우주 배경 전환 효과 강화
+                // 고도에 따른 우주 배경 전환 (5,000m ~ 15,000m)
                 let currentAltitude = ball ? (height - 50 - ball.y) / scaleFactor : 0;
-                // 약 5,000m부터 15,000m까지 서서히 우주 배경으로 전환
                 let spaceFactor = Math.min(1, Math.max(0, (currentAltitude - 5000) / 10000));
 
-                // 1. 기본 우주 배경 (칠흑같은 블랙)
+                // 1. 기본 배경 (칠흑같은 블랙)
                 ctx.fillStyle = '#01010a';
                 ctx.fillRect(0, 0, width, height);
 
-                // 2. 대기권 배경 (고도에 따라 투명해짐)
+                // 2. 은하계(Galaxy) 효과 추가
+                if (spaceFactor > 0) {
+                    ctx.save();
+                    ctx.globalAlpha = spaceFactor * 0.3;
+                    const galaxyGrad = ctx.createRadialGradient(width * 0.5, height * 0.5, 0, width * 0.5, height * 0.5, width);
+                    galaxyGrad.addColorStop(0, '#1a0b35'); // 중심부 보라색
+                    galaxyGrad.addColorStop(0.5, '#050515');
+                    galaxyGrad.addColorStop(1, 'transparent');
+                    ctx.fillStyle = galaxyGrad;
+                    ctx.translate(width/2, height/2);
+                    ctx.rotate(Math.PI / 4); // 약간 대각선으로 기울어짐
+                    ctx.fillRect(-width, -height/4, width * 2, height / 2);
+                    ctx.restore();
+                }
+
+                // 3. 행성(Planets) 추가
+                if (spaceFactor > 0) {
+                    this.planets.forEach(p => {
+                        ctx.save();
+                        ctx.globalAlpha = spaceFactor;
+                        ctx.shadowBlur = 20;
+                        ctx.shadowColor = p.glow;
+                        ctx.fillStyle = p.color;
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y - camera.y * 0.05, p.r * scaleFactor, 0, Math.PI * 2);
+                        ctx.fill();
+                        // 행성 그림자 효과 (입체감)
+                        const grad = ctx.createRadialGradient(p.x - p.r/3, p.y - p.r/3 - camera.y * 0.05, 0, p.x, p.y - camera.y * 0.05, p.r);
+                        grad.addColorStop(0, 'rgba(255,255,255,0.2)');
+                        grad.addColorStop(1, 'rgba(0,0,0,0.6)');
+                        ctx.fillStyle = grad;
+                        ctx.fill();
+                        ctx.restore();
+                    });
+                }
+
+                // 4. 대기권 배경 (고도에 따라 투명해짐)
                 ctx.save();
                 ctx.globalAlpha = 1 - spaceFactor;
                 const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
@@ -662,22 +709,26 @@
                 ctx.fillRect(0, 0, width, height);
                 ctx.restore();
 
-                // 3. 별 (우주로 갈수록 또는 밤일 때 진해짐)
+                // 5. 별 (우주로 갈수록 또는 밤일 때 진해짐)
                 const starAlpha = Math.max(spaceFactor, Math.max(0, -sunHeight)); 
                 if(starAlpha > 0) { ctx.save(); ctx.globalAlpha = starAlpha; stars.forEach(s => s.draw(ctx)); ctx.restore(); }
                 
-                // 4. 태양과 달
+                // 6. 태양과 달
                 ctx.save(); ctx.shadowBlur = 50; ctx.shadowColor = '#ffff00'; ctx.fillStyle = '#ffaa00'; ctx.beginPath(); ctx.arc(this.sunX, this.sunY, 60 * scaleFactor, 0, Math.PI*2); ctx.fill(); ctx.restore();
                 ctx.save(); ctx.shadowBlur = 30; ctx.shadowColor = '#ffffff'; ctx.fillStyle = '#ffffee'; ctx.beginPath(); ctx.arc(this.moonX, this.moonY, 50 * scaleFactor, 0, Math.PI*2); ctx.fill();
                 ctx.fillStyle = 'rgba(200,200,200,0.3)'; ctx.beginPath(); ctx.arc(this.moonX - 10, this.moonY - 5, 10 * scaleFactor, 0, Math.PI*2); ctx.arc(this.moonX + 15, this.moonY + 10, 8 * scaleFactor, 0, Math.PI*2); ctx.fill(); ctx.restore();
                 
-                // 5. 구름 (우주에서는 사라짐)
+                // 7. 구름 (우주에서는 사라짐)
                 ctx.save();
                 ctx.globalAlpha = 1 - spaceFactor;
                 this.clouds.forEach(c => c.draw(ctx)); 
                 ctx.restore();
 
+                // 8. 기상 현상 (비/눈 - 우주에서는 사라짐)
+                ctx.save();
+                ctx.globalAlpha = 1 - spaceFactor;
                 this.precipitations.forEach(p => p.draw(ctx));
+                ctx.restore();
             }
         }
 
@@ -913,7 +964,6 @@
             checkCollision(p) {
                 if (!this.active) return false;
                 const dx = this.x - p.x; const dy = this.y - p.y; const dist = Math.sqrt(dx*dx + dy*dy);
-                // [수정] 200m 범위가 아닌 실제 아이템 반지름 범위로 수정
                 if (dist < p.radius + this.radius) { return true; } 
                 return false;
             }
@@ -1041,7 +1091,7 @@
                             else if (b.type === 'float') { Sound.playFloat(); this.floatTimer = 120; this.vx += 5 * scaleFactor; showFeedback("FLOAT!", "#fff"); shockwaves.push(new Shockwave(this.x, this.y, '#fff')); }
                             else if (b.type === 'magnet') { 
                                 Sound.playMagnet(); 
-                                this.magnetTimer = 75; // [수정] 1.25초 (75프레임) 유지
+                                this.magnetTimer = 75; 
                                 showFeedback("MAGNET!", "#f33"); 
                                 shockwaves.push(new Shockwave(this.x, this.y, '#f33')); 
                             }
@@ -1232,10 +1282,9 @@
                 let by = height - 100 - spawnHeight; 
                 
                 // 확률 계산 로직 추가: 고도가 높을수록 확률 감소
-                // 10000m 고도에서 약 50% 확률, 20000m 이상에서 최소 10% 확률 유지
                 let currentAltitude = Math.abs(spawnHeight / scaleFactor);
                 let spawnProbability = Math.max(0.1, 1.0 - (currentAltitude / 20000));
-                if (Math.random() > spawnProbability) continue; // 확률에 따라 생성을 건너뜀
+                if (Math.random() > spawnProbability) continue; 
 
                 if (Math.random() > 0.95) {
                     obstacles.push(new Obstacle(lastBoosterX, by));
