@@ -147,6 +147,20 @@
         }
         #btn-fullscreen:hover { background: rgba(0, 255, 255, 0.2); }
 
+        /* 저사양 모드 버튼 스타일 */
+        #btn-lowq {
+            padding: 8px 12px;
+            border-color: #0f0;
+            color: #0f0;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+        }
+        #btn-lowq.low-mode {
+            border-color: #555;
+            color: #888;
+            box-shadow: none;
+            background: rgba(0,0,0,0.8);
+        }
+
         #center-ui {
             position: absolute;
             top: 40%;
@@ -307,6 +321,7 @@
         </div>
         
         <div class="right-controls">
+            <button id="btn-lowq" class="ui-btn" title="저사양 모드">⚡ HQ</button>
             <button id="btn-fullscreen" class="ui-btn" title="전체화면">⛶</button>
             <button id="btn-show-ranking" class="ui-btn">🏆 랭킹</button>
         </div>
@@ -494,6 +509,7 @@
         const uiSpeed = document.getElementById('speed-val');
         const uiHeight = document.getElementById('height-val');
         const btnFullscreen = document.getElementById('btn-fullscreen');
+        const btnLowQ = document.getElementById('btn-lowq'); // 저사양 모드 버튼
         
         const modal = document.getElementById('ranking-modal');
         const modalTitle = document.getElementById('modal-title');
@@ -521,6 +537,7 @@
         let currentScore = 0;
         let hitFreeze = 0; 
         let specialEffects = [];
+        let isLowQuality = false; // 저사양 모드 플래그
 
         const camera = { x: 0, y: 0, shake: 0 };
         const GRAVITY_BASE = 0.25;
@@ -542,6 +559,18 @@
                 if (document.exitFullscreen) {
                     document.exitFullscreen();
                 }
+            }
+        });
+
+        // 저사양 모드 토글
+        btnLowQ.addEventListener('click', () => {
+            isLowQuality = !isLowQuality;
+            if(isLowQuality) {
+                btnLowQ.classList.add('low-mode');
+                btnLowQ.innerText = '🐢 LQ';
+            } else {
+                btnLowQ.classList.remove('low-mode');
+                btnLowQ.innerText = '⚡ HQ';
             }
         });
 
@@ -662,16 +691,20 @@
                 const moonAngle = sunAngle + Math.PI;
                 this.moonX = centerX + Math.cos(moonAngle) * radius; this.moonY = centerY + Math.sin(moonAngle) * radius;
                 this.weatherTimer += dt;
-                if(this.weatherTimer > 600) {
-                    this.weatherTimer = 0; const r = Math.random();
-                    if(r < 0.6) this.weather = 'clear'; else if(r < 0.8) this.weather = 'rain'; else this.weather = 'snow';
+                
+                // 저사양 모드에서는 날씨 효과 생략 가능
+                if(!isLowQuality) {
+                    if(this.weatherTimer > 600) {
+                        this.weatherTimer = 0; const r = Math.random();
+                        if(r < 0.6) this.weather = 'clear'; else if(r < 0.8) this.weather = 'rain'; else this.weather = 'snow';
+                    }
+                    this.clouds.forEach(c => c.update(dt));
+                    if(this.weather !== 'clear') {
+                        const count = Math.ceil(width / 200); 
+                        for(let i=0; i<count; i++) { if(Math.random() > 0.5) this.precipitations.push(new WeatherParticle(this.weather)); }
+                    }
+                    this.precipitations.forEach((p, i) => { p.update(dt); if(!p.active) this.precipitations.splice(i, 1); });
                 }
-                this.clouds.forEach(c => c.update(dt));
-                if(this.weather !== 'clear') {
-                    const count = Math.ceil(width / 200); 
-                    for(let i=0; i<count; i++) { if(Math.random() > 0.5) this.precipitations.push(new WeatherParticle(this.weather)); }
-                }
-                this.precipitations.forEach((p, i) => { p.update(dt); if(!p.active) this.precipitations.splice(i, 1); });
                 
                 this.planets.forEach(p => {
                     p.x += Math.cos(Date.now() * p.orbit) * 0.2;
@@ -689,7 +722,8 @@
                 ctx.fillStyle = '#01010a';
                 ctx.fillRect(0, 0, width, height);
 
-                if (spaceFactor > 0) {
+                // 저사양 모드 시 복잡한 그라데이션 생략
+                if (!isLowQuality && spaceFactor > 0) {
                     ctx.save();
                     
                     this.nebulae.forEach(n => {
@@ -739,13 +773,15 @@
                     ctx.restore();
                 }
 
+                // 행성 그리기 (저사양 모드에서도 단순하게는 표시)
                 if (spaceFactor > 0) {
                     this.planets.forEach(p => {
                         ctx.save();
                         ctx.globalAlpha = spaceFactor;
                         let py = p.y - camera.y * 0.05; 
                         
-                        if(p.hasRing) {
+                        // 저사양에서는 고리 단순화 또는 생략
+                        if(p.hasRing && !isLowQuality) {
                             ctx.save();
                             ctx.translate(p.x, py);
                             ctx.rotate(Math.PI / 6);
@@ -757,20 +793,24 @@
                             ctx.restore();
                         }
 
-                        ctx.shadowBlur = 15;
-                        ctx.shadowColor = p.glow;
+                        if (!isLowQuality) {
+                            ctx.shadowBlur = 15;
+                            ctx.shadowColor = p.glow;
+                        }
                         ctx.fillStyle = p.color;
                         ctx.beginPath();
                         ctx.arc(p.x, py, p.r * scaleFactor, 0, Math.PI * 2);
                         ctx.fill();
                         
-                        const grad = ctx.createRadialGradient(p.x - p.r/3, py - p.r/3, 0, p.x, py, p.r * scaleFactor);
-                        grad.addColorStop(0, 'rgba(255,255,255,0.3)');
-                        grad.addColorStop(1, 'rgba(0,0,0,0.7)');
-                        ctx.fillStyle = grad;
-                        ctx.fill();
+                        if(!isLowQuality) {
+                            const grad = ctx.createRadialGradient(p.x - p.r/3, py - p.r/3, 0, p.x, py, p.r * scaleFactor);
+                            grad.addColorStop(0, 'rgba(255,255,255,0.3)');
+                            grad.addColorStop(1, 'rgba(0,0,0,0.7)');
+                            ctx.fillStyle = grad;
+                            ctx.fill();
+                        }
 
-                        if(p.hasRing) {
+                        if(p.hasRing && !isLowQuality) {
                             ctx.save();
                             ctx.translate(p.x, py);
                             ctx.rotate(Math.PI / 6);
@@ -801,19 +841,26 @@
                 const starAlpha = Math.max(spaceFactor, Math.max(0, -sunHeight)); 
                 if(starAlpha > 0) { ctx.save(); ctx.globalAlpha = starAlpha; stars.forEach(s => s.draw(ctx)); ctx.restore(); }
                 
-                ctx.save(); ctx.shadowBlur = 50; ctx.shadowColor = '#ffff00'; ctx.fillStyle = '#ffaa00'; ctx.beginPath(); ctx.arc(this.sunX, this.sunY, 60 * scaleFactor, 0, Math.PI*2); ctx.fill(); ctx.restore();
-                ctx.save(); ctx.shadowBlur = 30; ctx.shadowColor = '#ffffff'; ctx.fillStyle = '#ffffee'; ctx.beginPath(); ctx.arc(this.moonX, this.moonY, 50 * scaleFactor, 0, Math.PI*2); ctx.fill();
+                ctx.save(); 
+                if(!isLowQuality) { ctx.shadowBlur = 50; ctx.shadowColor = '#ffff00'; }
+                ctx.fillStyle = '#ffaa00'; ctx.beginPath(); ctx.arc(this.sunX, this.sunY, 60 * scaleFactor, 0, Math.PI*2); ctx.fill(); ctx.restore();
+                
+                ctx.save(); 
+                if(!isLowQuality) { ctx.shadowBlur = 30; ctx.shadowColor = '#ffffff'; }
+                ctx.fillStyle = '#ffffee'; ctx.beginPath(); ctx.arc(this.moonX, this.moonY, 50 * scaleFactor, 0, Math.PI*2); ctx.fill();
                 ctx.fillStyle = 'rgba(200,200,200,0.3)'; ctx.beginPath(); ctx.arc(this.moonX - 10, this.moonY - 5, 10 * scaleFactor, 0, Math.PI*2); ctx.arc(this.moonX + 15, this.moonY + 10, 8 * scaleFactor, 0, Math.PI*2); ctx.fill(); ctx.restore();
                 
-                ctx.save();
-                ctx.globalAlpha = 1 - spaceFactor;
-                this.clouds.forEach(c => c.draw(ctx)); 
-                ctx.restore();
+                if (!isLowQuality) {
+                    ctx.save();
+                    ctx.globalAlpha = 1 - spaceFactor;
+                    this.clouds.forEach(c => c.draw(ctx)); 
+                    ctx.restore();
 
-                ctx.save();
-                ctx.globalAlpha = 1 - spaceFactor;
-                this.precipitations.forEach(p => p.draw(ctx));
-                ctx.restore();
+                    ctx.save();
+                    ctx.globalAlpha = 1 - spaceFactor;
+                    this.precipitations.forEach(p => p.draw(ctx));
+                    ctx.restore();
+                }
             }
         }
 
@@ -827,7 +874,7 @@
             update(dt) { this.x -= this.speed * dt * 0.5; if(this.x < -200) { this.x = width + 200; this.y = Math.random() * height * 0.4; } }
             draw(ctx) {
                 ctx.save(); ctx.translate(this.x, this.y); ctx.scale(this.size * scaleFactor, this.size * scaleFactor);
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'; ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(255, 255, 255, 0.4)';
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'; if(!isLowQuality) { ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(255, 255, 255, 0.4)'; }
                 ctx.beginPath(); this.circles.forEach(c => { ctx.moveTo(c.x + c.r, c.y); ctx.arc(c.x, c.y, c.r, 0, Math.PI*2); }); ctx.fill(); ctx.restore();
             }
         }
@@ -1019,9 +1066,65 @@
             update(dt) { this.x += this.vx * dt; this.y += this.vy * dt; this.vy += 0.05 * scaleFactor * dt; this.life -= this.decay * dt; }
             draw() {
                 if (this.life <= 0) return;
-                ctx.globalAlpha = this.life; ctx.fillStyle = this.color; ctx.shadowBlur = 10; ctx.shadowColor = this.color;
+                ctx.globalAlpha = this.life; ctx.fillStyle = this.color; 
+                if(!isLowQuality) {
+                    ctx.shadowBlur = 10; ctx.shadowColor = this.color;
+                }
                 ctx.beginPath(); ctx.arc(this.x - camera.x, this.y - camera.y, this.size, 0, Math.PI * 2); ctx.fill();
                 ctx.shadowBlur = 0; ctx.globalAlpha = 1.0;
+            }
+        }
+
+        // [신규] 불꽃 파티클 클래스
+        class FireParticle {
+            constructor(x, y, ballVx, ballVy) {
+                // 공 위치 근처에서 랜덤 생성
+                this.x = x + (Math.random() - 0.5) * 20 * scaleFactor;
+                this.y = y + (Math.random() - 0.5) * 20 * scaleFactor;
+                
+                // 공의 이동 반대 방향 + 랜덤 확산
+                const angle = Math.atan2(ballVy, ballVx) + Math.PI + (Math.random() - 0.5) * 0.5;
+                const speed = (Math.random() * 10 + 5) * scaleFactor;
+                
+                this.vx = Math.cos(angle) * speed + (Math.random() - 0.5) * 5;
+                this.vy = Math.sin(angle) * speed + (Math.random() - 0.5) * 5;
+                
+                this.life = 1.0;
+                this.decay = 0.05 + Math.random() * 0.05; // 수명 감쇠 속도
+                this.size = (15 + Math.random() * 15) * scaleFactor;
+                
+                // 색상 타입 (0: 노랑, 1: 주황, 2: 빨강)
+                this.colorType = Math.random(); 
+            }
+            update(dt) {
+                this.x += this.vx * dt;
+                this.y += this.vy * dt;
+                this.life -= this.decay * dt;
+                this.size *= 0.9; // 점점 작아짐
+            }
+            draw(ctx) {
+                if (this.life <= 0) return;
+                
+                let color;
+                if (this.life > 0.7) {
+                    color = `rgba(255, 255, ${Math.floor(Math.random()*100)}, ${this.life})`; // 노란색/흰색
+                } else if (this.life > 0.4) {
+                    color = `rgba(255, ${Math.floor(Math.random()*100 + 100)}, 0, ${this.life})`; // 주황색
+                } else {
+                    color = `rgba(${Math.floor(Math.random()*100 + 100)}, 50, 50, ${this.life})`; // 붉은색/검은색
+                }
+
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter'; // 발광 효과
+                ctx.fillStyle = color;
+                if (!isLowQuality) {
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = color;
+                }
+                ctx.beginPath();
+                ctx.arc(this.x - camera.x, this.y - camera.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
             }
         }
 
@@ -1043,7 +1146,11 @@
                 if (this.y - camera.y < -100 || this.y - camera.y > height + 100) return;
                 this.pulse += 0.1;
                 const r = this.radius + Math.sin(this.pulse) * 5;
-                ctx.save(); ctx.strokeStyle = this.color; ctx.lineWidth = 3; ctx.shadowBlur = 20; ctx.shadowColor = this.glow;
+                ctx.save(); 
+                ctx.strokeStyle = this.color; ctx.lineWidth = 3; 
+                if(!isLowQuality) {
+                    ctx.shadowBlur = 20; ctx.shadowColor = this.glow;
+                }
                 ctx.beginPath();
                 if (this.type === 'blast') {
                     const cx = this.x - camera.x; const cy = this.y - camera.y;
@@ -1203,6 +1310,17 @@
                         this.trail.push({x: this.x, y: this.y, alpha: 1.0}); 
                         if (this.trail.length > 25) this.trail.shift(); 
                     }
+                    
+                    // [신규] 공 속도에 따른 불꽃 효과 생성 (저사양 모드가 아닐 때)
+                    const speed = Math.sqrt(this.vx**2 + this.vy**2);
+                    if (speed > 15 * scaleFactor && !isLowQuality) {
+                        // 속도에 비례하여 생성 개수 조절
+                        const count = Math.min(5, Math.floor(speed / (10 * scaleFactor)));
+                        for(let i=0; i<count; i++) {
+                            particles.push(new FireParticle(this.x, this.y, this.vx, this.vy));
+                        }
+                    }
+
                     if (this.y + this.radius > height - 50) {
                         this.y = height - 50 - this.radius; this.vy *= -BOUNCE; this.vx *= Math.pow(FRICTION_GROUND, dt); 
                         if (combo > 0) { combo = 0; uiCombo.style.opacity = 0; }
@@ -1288,7 +1406,10 @@
                         grad.addColorStop(0, "red"); grad.addColorStop(0.2, "orange"); grad.addColorStop(0.4, "yellow"); grad.addColorStop(0.6, "green"); grad.addColorStop(0.8, "blue"); grad.addColorStop(1, "violet");
                         ctx.strokeStyle = grad; ctx.lineWidth = 4;
                     } else { ctx.strokeStyle = '#0ff'; ctx.lineWidth = 2; }
-                    ctx.shadowBlur = 10; ctx.shadowColor = '#0ff'; ctx.stroke(); ctx.shadowBlur = 0;
+                    if(!isLowQuality) {
+                        ctx.shadowBlur = 10; ctx.shadowColor = '#0ff';
+                    }
+                    ctx.stroke(); ctx.shadowBlur = 0;
                 }
                 
                 ctx.save(); ctx.translate(drawX, drawY); ctx.rotate(this.rotation);
@@ -1306,48 +1427,33 @@
                 }
 
                 if (this.hasShield) {
-                    ctx.shadowBlur = 20; ctx.shadowColor = '#a0f'; ctx.strokeStyle = '#a0f'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, this.radius + 5, 0, Math.PI*2); ctx.stroke();
+                    if(!isLowQuality) { ctx.shadowBlur = 20; ctx.shadowColor = '#a0f'; }
+                    ctx.strokeStyle = '#a0f'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, this.radius + 5, 0, Math.PI*2); ctx.stroke();
                 }
                 if (this.magnetTimer > 0) {
-                    ctx.shadowBlur = 15; ctx.shadowColor = '#f00'; ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, this.radius + 10 + Math.sin(frameId * 0.2)*5, 0, Math.PI*2); ctx.stroke();
+                    if(!isLowQuality) { ctx.shadowBlur = 15; ctx.shadowColor = '#f00'; }
+                    ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, this.radius + 10 + Math.sin(frameId * 0.2)*5, 0, Math.PI*2); ctx.stroke();
                 }
 
                 const speed = Math.sqrt(this.vx*this.vx + this.vy*this.vy) * 2;
                 
+                // 기존 단순 불꽃은 저사양 모드에서 사용하거나 제거
+                // 여기서는 제거하고 FireParticle로 대체됨. 
+                // 단, FireParticle 생성 전인 300 이하 속도에서는 기본 효과 유지
+                /*
                 if (speed > 300) {
-                    ctx.save();
-                    ctx.globalCompositeOperation = 'lighter';
-                    const fireIntensity = Math.min(2.0, (speed - 300) / 300);
-                    const fireScale = this.radius * (1.3 + Math.random() * 0.4 + fireIntensity * 0.5);
-                    let fireColor;
-                    if (speed < 500) fireColor = `rgba(255, ${200 - fireIntensity*50}, 0, 0.6)`;
-                    else if (speed < 800) fireColor = `rgba(255, ${60 - (speed-500)/5}, 0, 0.7)`;
-                    else fireColor = `rgba(${100 + Math.random()*155}, 100, 255, 0.8)`;
-                    ctx.shadowBlur = 30 + fireIntensity * 20; 
-                    ctx.shadowColor = fireColor; 
-                    ctx.fillStyle = fireColor;
-                    ctx.beginPath(); ctx.arc(0, 0, fireScale, 0, Math.PI*2); ctx.fill();
-                    for(let i=0; i<3 + fireIntensity*5; i++) {
-                        ctx.beginPath();
-                        const randomAngle = Math.atan2(this.vy, this.vx) + Math.PI + (Math.random() - 0.5) * 0.8;
-                        const distance = this.radius * (1 + Math.random() * 2 * fireIntensity); 
-                        const tailX = Math.cos(randomAngle) * distance;
-                        const tailY = Math.sin(randomAngle) * distance;
-                        const tailSize = this.radius * (0.1 + Math.random() * 0.2) * (1 + fireIntensity);
-
-                        ctx.arc(tailX, tailY, tailSize, 0, Math.PI*2); ctx.fill();
-                    }
-                    ctx.fillStyle = '#ffff00'; 
-                    ctx.beginPath(); ctx.arc((Math.random()-0.5)*5, (Math.random()-0.5)*5, this.radius * (0.8 + fireIntensity*0.2), 0, Math.PI*2); ctx.fill();
-                    ctx.restore();
+                    // ... 기존 로직 삭제 및 FireParticle로 대체 ...
                 }
+                */
 
-                ctx.shadowBlur = 15; ctx.shadowColor = '#0ff'; ctx.fillStyle = '#0ff';
+                if(!isLowQuality) { ctx.shadowBlur = 15; ctx.shadowColor = '#0ff'; }
+                ctx.fillStyle = '#0ff';
                 ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
                 ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, this.radius * 0.5, 0, Math.PI * 2); ctx.fill();
                 
                 if (this.floatTimer > 0) {
-                     ctx.shadowBlur = 10; ctx.shadowColor = '#fff'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+                     if(!isLowQuality) { ctx.shadowBlur = 10; ctx.shadowColor = '#fff'; }
+                     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
                      ctx.beginPath(); ctx.moveTo(-this.radius, 0); ctx.lineTo(-this.radius - 15, -10); ctx.stroke();
                      ctx.beginPath(); ctx.moveTo(this.radius, 0); ctx.lineTo(this.radius + 15, -10); ctx.stroke();
                 }
@@ -1363,12 +1469,12 @@
             document.addEventListener('webkitfullscreenchange', resize);
 
             const inputHandler = (e) => {
-                if(e.target.closest('#ranking-modal') || e.target.closest('#btn-show-ranking') || e.target.closest('#btn-fullscreen')) return;
+                if(e.target.closest('#ranking-modal') || e.target.closest('#btn-show-ranking') || e.target.closest('#btn-fullscreen') || e.target.closest('#btn-lowq')) return;
                 Sound.init(); handleInput();
             };
             window.addEventListener('mousedown', inputHandler);
             window.addEventListener('touchstart', (e) => {
-                 if(!e.target.closest('#ranking-modal') && !e.target.closest('#btn-show-ranking') && !e.target.closest('#btn-fullscreen')) e.preventDefault();
+                 if(!e.target.closest('#ranking-modal') && !e.target.closest('#btn-show-ranking') && !e.target.closest('#btn-fullscreen') && !e.target.closest('#btn-lowq')) e.preventDefault();
                  Sound.init(); handleInput();
             }, {passive: false});
 
@@ -1409,9 +1515,7 @@
                 
                 let by = height - 100 - spawnHeight; 
                 
-                // 확률 계산 로직 개선: 낮은 고도에서도 적당히 나오도록 조정
                 let currentAltitude = Math.abs(spawnHeight / scaleFactor);
-                // 20000m까지 확률 선형 감소, 하지만 최소 20% 보장, 낮은 고도(2000m 이하)에서는 100%
                 let spawnProbability = 1.0;
                 if (currentAltitude > 2000) {
                     spawnProbability = Math.max(0.2, 1.0 - ((currentAltitude - 2000) / 18000));
@@ -1631,7 +1735,11 @@
             const groundY = height - 50 - camera.y;
             const hueShift = (ball.x / (1000 * scaleFactor)) % 360;
             ctx.strokeStyle = `hsl(${300 + hueShift}, 100%, 50%)`; 
-            ctx.lineWidth = 2; ctx.shadowBlur = 10; ctx.shadowColor = ctx.strokeStyle; ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(width, groundY); ctx.stroke();
+            ctx.lineWidth = 2; 
+            if(!isLowQuality) {
+                ctx.shadowBlur = 10; ctx.shadowColor = ctx.strokeStyle; 
+            }
+            ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(width, groundY); ctx.stroke();
             const gridSize = 100 * scaleFactor; const offsetX = camera.x % gridSize; ctx.lineWidth = 1; ctx.globalAlpha = 0.3;
             ctx.beginPath(); for (let i = -gridSize; i < width + gridSize; i += gridSize) { let x = i - offsetX; ctx.moveTo(x, groundY); ctx.lineTo(x - (width/2 - x)*2, height); } ctx.stroke(); ctx.shadowBlur = 0; ctx.globalAlpha = 1.0;
             
@@ -1642,7 +1750,11 @@
                 ctx.fillStyle = 'rgba(0, 255, 0, 0.5)'; ctx.font = `12px Orbitron`; ctx.textAlign = 'center'; ctx.fillText("HIT HERE", 200 * scaleFactor, hitZoneY + 75 * scaleFactor);
             }
             batter.draw(); ball.draw();
-            ctx.globalCompositeOperation = 'lighter'; particles.forEach(p => p.draw()); shockwaves.forEach(s => s.draw()); 
+            
+            // 파티클은 lighter 모드 적용 (단 저사양 모드에서는 간단히)
+            if(!isLowQuality) ctx.globalCompositeOperation = 'lighter';
+            particles.forEach(p => p.draw(ctx)); 
+            shockwaves.forEach(s => s.draw()); 
             ctx.globalCompositeOperation = 'source-over'; ctx.restore(); 
         }
 
