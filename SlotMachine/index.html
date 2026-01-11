@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sea Story - Neon Jackpot (Achievement Update)</title>
+    <title>Sea Story - Neon Jackpot (Audio Files)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon&family=Orbitron:wght@700&display=swap');
@@ -155,7 +155,6 @@
         }
         .header-icons button:hover { color: #fff; border-color: #fff; background: rgba(255,255,255,0.1); }
         
-        /* 알림 배지 (빨간 점) */
         .badge {
             position: absolute;
             top: -2px; right: -2px;
@@ -839,6 +838,11 @@
         let isSoundOn = true;
         let spinOscillator = null; 
         let lfoOscillator = null;
+        
+        // 오디오 객체 생성
+        const spinAudio = new Audio('slotmachine.mp3');
+        spinAudio.loop = true;
+        const jackpotAudio = new Audio('jackpot.m4a');
 
         const backgroundConfig = [
             { filename: 'img/img1.jpg', ratio: 16 / 9 },
@@ -901,32 +905,55 @@
             osc.stop(audioCtx.currentTime + duration);
         }
 
-        function startSpinSound() {
-            if(!isSoundOn) return;
+        // 전자음 스타일: Sawtooth 파형 + 빠른 Square LFO 변조 (Fallback)
+        function startSynthesizedSpinSound() {
             if(spinOscillator) return;
             spinOscillator = audioCtx.createOscillator();
-            spinOscillator.type = 'triangle';
-            spinOscillator.frequency.setValueAtTime(800, audioCtx.currentTime); 
+            spinOscillator.type = 'sawtooth'; // 전자적인 느낌의 파형
+            spinOscillator.frequency.setValueAtTime(600, audioCtx.currentTime); 
+
             lfoOscillator = audioCtx.createOscillator();
             lfoOscillator.type = 'square';
-            lfoOscillator.frequency.setValueAtTime(20, audioCtx.currentTime); 
+            lfoOscillator.frequency.setValueAtTime(25, audioCtx.currentTime); // 빠르게 변조
+
             const modGain = audioCtx.createGain();
-            modGain.gain.value = 100; 
+            modGain.gain.value = 300; // 변조 깊이
+
             lfoOscillator.connect(modGain);
             modGain.connect(spinOscillator.frequency);
+
             const mainGain = audioCtx.createGain();
-            mainGain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            mainGain.gain.setValueAtTime(0.03, audioCtx.currentTime); // 볼륨 살짝 조절
+
             spinOscillator.connect(mainGain);
             mainGain.connect(audioCtx.destination);
+            
             spinOscillator.start();
             lfoOscillator.start();
         }
 
-        function stopSpinSound() {
+        function stopSynthesizedSpinSound() {
             if(spinOscillator) {
                 try { spinOscillator.stop(); if(lfoOscillator) lfoOscillator.stop(); } catch(e){}
                 spinOscillator = null; lfoOscillator = null;
             }
+        }
+
+        // 메인 회전 사운드 함수 (파일 우선, 실패시 신스)
+        function startSpinSound() {
+            if(!isSoundOn) return;
+            spinAudio.currentTime = 0;
+            spinAudio.play().catch(e => {
+                // 파일 재생 실패 시 신스음 재생
+                console.log("File play failed, using synth:", e);
+                startSynthesizedSpinSound();
+            });
+        }
+
+        function stopSpinSound() {
+            spinAudio.pause();
+            spinAudio.currentTime = 0;
+            stopSynthesizedSpinSound();
         }
 
         function playReelStopSound() {
@@ -1854,6 +1881,11 @@
                 drawWinEffects(winners);
                 if(totalWin >= totalBet * 50) {
                     showJackpot(totalWin);
+                    // 잭팟 사운드 재생
+                    if(isSoundOn) {
+                        jackpotAudio.currentTime = 0;
+                        jackpotAudio.play().catch(e => console.warn("Jackpot audio failed", e));
+                    }
                     diamonds += 20; 
                     gameState.stats.diamondsEarned += 20;
                     gameState.stats.jackpots++;
@@ -1978,7 +2010,18 @@
         function toggleSound() {
             isSoundOn = !isSoundOn;
             document.getElementById('btn-sound').innerText = isSoundOn ? '🔊' : '🔇';
+            
+            // Settings 팝업의 소리 버튼도 동기화
+            const settingsBtn = document.getElementById('btn-sound-settings');
+            if(settingsBtn) settingsBtn.innerText = isSoundOn ? '🔊 ON' : '🔇 OFF';
+
             if(isSoundOn && audioCtx.state === 'suspended') audioCtx.resume();
+            
+            // 스핀 오디오가 재생 중이라면 멈춤 (Mute 시 즉시 반영)
+            if(!isSoundOn) {
+                spinAudio.pause();
+                stopSynthesizedSpinSound();
+            }
         }
 
         function toggleFullscreen() {
