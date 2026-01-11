@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sea Story - Neon Jackpot (Shop Update v2)</title>
+    <title>Sea Story - Neon Jackpot (Settings Update)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon&family=Orbitron:wght@700&display=swap');
@@ -575,13 +576,13 @@
                     💎 <span id="diamond-display-val">50</span>
                 </div>
                 <div class="header-icons">
-                    <button id="btn-sound" onclick="toggleSound()">🔊</button>
                     <button onclick="toggleShop()">🛒</button>
                     <button onclick="toggleAchievements()" style="position:relative;">
                         🏆
                         <div id="ach-badge" class="badge"></div>
                     </button>
-                    <button id="btn-tip" onclick="toggleTipPopup()">ℹ️</button>
+                    <!-- Settings Button -->
+                    <button onclick="toggleSettings()">⚙️</button>
                     <button onclick="toggleFullscreen()">⛶</button>
                 </div>
             </div>
@@ -748,6 +749,34 @@
             </div>
             <div class="achievement-list" id="ach-list-container">
                 <!-- JS로 동적 생성됨 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 설정 팝업 (New) -->
+    <div id="settings-popup" class="popup-overlay" onclick="if(event.target===this)toggleSettings()">
+        <div class="popup-content" style="max-width: 400px; text-align: center;">
+            <div class="popup-header">
+                <div class="popup-title">설정</div>
+                <button class="popup-close" onclick="toggleSettings()">×</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px;">
+                    <span>사운드</span>
+                    <button id="btn-sound-settings" onclick="toggleSound()" style="background: none; border: 1px solid #fff; padding: 5px 15px; color: #fff; border-radius: 20px;">🔊 ON</button>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px;">
+                    <span>게임 정보 (TIP)</span>
+                    <button onclick="toggleTipPopup(); toggleSettings();" style="background: none; border: 1px solid var(--neon-cyan); padding: 5px 15px; color: var(--neon-cyan); border-radius: 20px;">보기</button>
+                </div>
+
+                <div style="margin-top: 20px; border-top: 1px solid #444; padding-top: 20px;">
+                    <button onclick="resetGameData()" style="background: #ff0055; color: white; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; width: 100%;">
+                        ⚠️ 데이터 초기화
+                    </button>
+                    <p style="font-size: 0.7rem; color: #888; margin-top: 5px;">모든 진행 상황이 삭제됩니다.</p>
+                </div>
             </div>
         </div>
     </div>
@@ -1368,7 +1397,7 @@
             }
 
             const speedBtn = document.getElementById('btn-upgrade-speed');
-            if(gameState.speedLevel < 2) {
+            if(gameState.speedLevel < 5) { // Max level is now 5
                 document.getElementById('speed-level-msg').innerText = `Lv. ${gameState.speedLevel + 1}`;
                 speedBtn.disabled = false;
             } else {
@@ -1420,7 +1449,7 @@
                     break;
                 case 'speed':
                     cost = 50;
-                    if(diamonds >= cost && gameState.speedLevel < 2) {
+                    if(diamonds >= cost && gameState.speedLevel < 5) { // Updated check for max level 5
                         diamonds -= cost; gameState.speedLevel++; success = true;
                     }
                     break;
@@ -1472,6 +1501,25 @@
                 } else {
                     if(confirm("오토 스핀 횟수가 부족합니다. 상점에서 구매하시겠습니까?")) toggleShop();
                 }
+            }
+        }
+
+        function toggleSettings() {
+            const popup = document.getElementById('settings-popup');
+            if(popup.style.display === 'flex') {
+                popup.style.display = 'none';
+            } else {
+                // Update sound button text based on current state
+                const btn = document.getElementById('btn-sound-settings');
+                btn.innerText = isSoundOn ? '🔊 ON' : '🔇 OFF';
+                popup.style.display = 'flex';
+            }
+        }
+
+        function resetGameData() {
+            if(confirm("정말로 모든 데이터를 초기화하시겠습니까? 복구할 수 없습니다.")) {
+                localStorage.removeItem('seaStorySaveV4');
+                location.reload();
             }
         }
 
@@ -1594,7 +1642,9 @@
 
                 requestAnimationFrame(() => {
                     const endY = -(symbolHeight);
-                    const speedMultiplier = 1 - (gameState.speedLevel * 0.2); 
+                    // Updated speed multiplier logic for 5 levels.
+                    // Max speed at level 5 is extremely fast (0.3x duration).
+                    const speedMultiplier = Math.max(0.3, 1 - (gameState.speedLevel * 0.14)); 
                     const baseDuration = (1.5 + (index * 0.6)) * speedMultiplier; 
                     
                     reel.style.transition = `transform ${baseDuration}s cubic-bezier(0.25, 1.15, 0.25, 1)`; 
@@ -1876,7 +1926,10 @@
 
         function toggleSound() {
             isSoundOn = !isSoundOn;
-            document.getElementById('btn-sound').innerText = isSoundOn ? '🔊' : '🔇';
+            // Update button text in Settings Popup if open
+            const btn = document.getElementById('btn-sound-settings');
+            if(btn) btn.innerText = isSoundOn ? '🔊 ON' : '🔇 OFF';
+            
             if(isSoundOn && audioCtx.state === 'suspended') audioCtx.resume();
         }
 
