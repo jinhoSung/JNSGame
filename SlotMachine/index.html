@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sea Story - Neon Jackpot (Settings Update)</title>
+    <title>Sea Story - Neon Jackpot (Achievement Update)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon&family=Orbitron:wght@700&display=swap');
@@ -485,6 +484,21 @@
         .popup-title { font-size: 1.5rem; color: var(--neon-gold); font-family: 'Black Han Sans', sans-serif; }
         .popup-close { background: none; border: none; font-size: 1.5rem; color: #fff; cursor: pointer; }
         
+        /* 모두 받기 버튼 */
+        .claim-all-btn {
+            background: linear-gradient(to right, #ff416c, #ff4b2b);
+            border: none;
+            padding: 5px 15px;
+            border-radius: 20px;
+            color: white;
+            font-weight: bold;
+            font-size: 0.8rem;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(255, 75, 43, 0.5);
+            margin-right: 10px;
+        }
+        .claim-all-btn:active { transform: scale(0.95); }
+
         /* 상점 스타일 */
         .shop-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
         .shop-item {
@@ -745,7 +759,10 @@
         <div class="popup-content">
             <div class="popup-header">
                 <div class="popup-title">업적 (Achievements)</div>
-                <button class="popup-close" onclick="toggleAchievements()">×</button>
+                <div style="display:flex; gap:10px;">
+                    <button class="claim-all-btn" onclick="claimAllAchievements()">모두 받기</button>
+                    <button class="popup-close" onclick="toggleAchievements()">×</button>
+                </div>
             </div>
             <div class="achievement-list" id="ach-list-container">
                 <!-- JS로 동적 생성됨 -->
@@ -985,19 +1002,19 @@
             localStorage.setItem('seaStorySaveV4', JSON.stringify(gameState));
         }
 
-        // --- 업적 시스템 데이터 생성 ---
+        // --- 업적 시스템 데이터 생성 (수정됨) ---
         const ACHIEVEMENTS = [];
         
         function generateAchievements() {
             // 1. 스핀 횟수 업적 (100단계)
-            // 지수적 증가 (10, 50, 100, 500, 1000, 5000, 10000...)
+            // 지수적 증가 (10, 100, 1000, 10000...)
             for(let i=1; i<=100; i++) {
                 let target;
-                if (i <= 10) target = i * 10;
-                else if (i <= 20) target = 100 + (i - 10) * 50;
-                else if (i <= 30) target = 600 + (i - 20) * 100;
-                else if (i <= 40) target = 1600 + (i - 30) * 500;
-                else target = 6600 + (i - 40) * 1000;
+                if (i <= 10) target = i * 10; // 10...100
+                else if (i <= 20) target = 100 + (i - 10) * 100; // 200...1100
+                else if (i <= 30) target = 1100 + (i - 20) * 1000; // 2100...11100
+                else if (i <= 40) target = 11100 + (i - 30) * 10000; // 21100...111100
+                else target = 111100 + (i - 40) * 50000;
 
                 ACHIEVEMENTS.push({
                     id: `spin_${i}`,
@@ -1005,15 +1022,17 @@
                     desc: `총 스핀 ${target.toLocaleString()}회 달성`,
                     type: 'spins',
                     target: target,
-                    reward: { credit: 1000 * i, diamond: 1 * i }
+                    // 보상 1/5 로 하향
+                    reward: { credit: 200 * i, diamond: Math.max(1, Math.floor(0.2 * i)) }
                 });
             }
-            // 2. 누적 당첨금 업적 (100단계)
+            // 2. 누적 당첨금 업적
             for(let i=1; i<=100; i++) {
                 let target;
                 if(i <= 10) target = i * 50000;
-                else if(i <= 20) target = 500000 + (i - 10) * 100000;
-                else target = 1500000 + (i - 20) * 500000;
+                else if(i <= 20) target = 500000 + (i - 10) * 100000; // 60만...150만
+                else if(i <= 30) target = 1500000 + (i - 20) * 500000; // 200만...650만
+                else target = 6500000 + (i - 30) * 1000000; // 750만...
 
                 ACHIEVEMENTS.push({
                     id: `win_${i}`,
@@ -1021,15 +1040,16 @@
                     desc: `누적 당첨금 ${target.toLocaleString()} 달성`,
                     type: 'totalWin',
                     target: target,
-                    reward: { credit: 5000 * i, diamond: 2 * i }
+                    // 보상 1/5 로 하향
+                    reward: { credit: 1000 * i, diamond: Math.max(1, Math.floor(0.5 * i)) }
                 });
             }
-            // 3. 다이아몬드 수집 업적 (100단계)
+            // 3. 다이아몬드 수집
             for(let i=1; i<=100; i++) {
                 let target;
                 if(i <= 10) target = i * 10;
-                else if(i <= 20) target = 100 + (i - 10) * 20;
-                else target = 300 + (i - 20) * 50;
+                else if(i <= 20) target = 100 + (i - 10) * 50; 
+                else target = 600 + (i - 20) * 100;
 
                 ACHIEVEMENTS.push({
                     id: `dia_${i}`,
@@ -1037,15 +1057,16 @@
                     desc: `다이아몬드 누적 획득 ${target.toLocaleString()}개`,
                     type: 'diamondsEarned',
                     target: target,
-                    reward: { credit: 10000 * i, diamond: 5 * i }
+                    // 보상 1/5 로 하향
+                    reward: { credit: 2000 * i, diamond: i }
                 });
             }
-            // 4. 잭팟 횟수 (50단계)
+            // 4. 잭팟
             for(let i=1; i<=50; i++) {
                 let target;
                 if(i <= 5) target = i;
-                else if(i <= 10) target = 5 + (i - 5) * 2;
-                else target = 15 + (i - 10) * 5;
+                else if(i <= 10) target = 5 + (i - 5) * 5; // 10...30
+                else target = 30 + (i - 10) * 10; // 40...
 
                 ACHIEVEMENTS.push({
                     id: `jackpot_${i}`,
@@ -1053,10 +1074,11 @@
                     desc: `잭팟 ${target}회 당첨`,
                     type: 'jackpots',
                     target: target,
-                    reward: { credit: 50000 * i, diamond: 20 * i }
+                    // 보상 1/5 로 하향
+                    reward: { credit: 10000 * i, diamond: 4 * i }
                 });
             }
-            // 5. 프리 스핀 횟수 (50단계)
+            // 5. 프리 스핀
             for(let i=1; i<=50; i++) {
                 let target;
                 if(i <= 5) target = i;
@@ -1069,10 +1091,10 @@
                     desc: `프리 스핀 ${target}회 진입`,
                     type: 'freeSpins',
                     target: target,
-                    reward: { credit: 20000 * i, diamond: 10 * i }
+                    // 보상 1/5 로 하향
+                    reward: { credit: 4000 * i, diamond: 2 * i }
                 });
             }
-            // 총합 약 400개 + @
         }
         generateAchievements();
 
@@ -1170,6 +1192,35 @@
                     container.appendChild(item);
                 }
             });
+        }
+
+        // --- 모두 받기 기능 ---
+        function claimAllAchievements() {
+            let totalCredit = 0;
+            let totalDiamond = 0;
+            let count = 0;
+
+            ACHIEVEMENTS.forEach(ach => {
+                if(gameState.achievements[ach.id] === 'unlocked') {
+                    gameState.achievements[ach.id] = 'claimed';
+                    totalCredit += ach.reward.credit;
+                    totalDiamond += ach.reward.diamond;
+                    count++;
+                }
+            });
+
+            if(count > 0) {
+                credit += totalCredit;
+                diamonds += totalDiamond;
+                playTone(1500, 'sine', 0.2); // Sound
+                saveData();
+                updateUI();
+                renderAchievements(); // Refresh list
+                updateBadge(); // Hide badge
+                alert(`총 ${count}개의 업적 보상을 수령했습니다!\n💰 +${totalCredit.toLocaleString()}\n💎 +${totalDiamond.toLocaleString()}`);
+            } else {
+                alert("수령할 보상이 없습니다.");
+            }
         }
 
         function claimAchievement(id) {
@@ -1926,10 +1977,7 @@
 
         function toggleSound() {
             isSoundOn = !isSoundOn;
-            // Update button text in Settings Popup if open
-            const btn = document.getElementById('btn-sound-settings');
-            if(btn) btn.innerText = isSoundOn ? '🔊 ON' : '🔇 OFF';
-            
+            document.getElementById('btn-sound').innerText = isSoundOn ? '🔊' : '🔇';
             if(isSoundOn && audioCtx.state === 'suspended') audioCtx.resume();
         }
 
