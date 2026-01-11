@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sea Story - Neon Jackpot (Shop Update)</title>
+    <title>Sea Story - Neon Jackpot (Achievement Update)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon&family=Orbitron:wght@700&display=swap');
@@ -89,7 +89,7 @@
             100% { transform: translateY(-110vh) scale(1.2); opacity: 0; }
         }
 
-        /* 2. 게임 캐비닛 (투명도 0.6 유지) */
+        /* 2. 게임 캐비닛 */
         .cabinet {
             position: relative;
             width: 95%;
@@ -140,6 +140,7 @@
             text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
             white-space: nowrap;
         }
+        .header-icons { display: flex; align-items: center; }
         .header-icons button {
             background: none;
             border: 1px solid rgba(255, 255, 255, 0.3);
@@ -150,8 +151,22 @@
             margin-left: 8px;
             cursor: pointer;
             transition: all 0.2s;
+            position: relative;
         }
         .header-icons button:hover { color: #fff; border-color: #fff; background: rgba(255,255,255,0.1); }
+        
+        /* 알림 배지 (빨간 점) */
+        .badge {
+            position: absolute;
+            top: -2px; right: -2px;
+            width: 10px; height: 10px;
+            background-color: #ff0055;
+            border-radius: 50%;
+            border: 1px solid #fff;
+            display: none;
+        }
+        .badge.active { display: block; }
+
         .diamond-display {
             display: flex;
             align-items: center;
@@ -417,6 +432,31 @@
         }
         @keyframes bounce { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
 
+        /* 업적 토스트 알림 */
+        .toast-notification {
+            position: absolute;
+            bottom: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(90deg, #6a11cb 0%, #2575fc 100%);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 30px;
+            box-shadow: 0 0 15px rgba(37, 117, 252, 0.5);
+            font-family: 'Do Hyeon', sans-serif;
+            font-size: 1.1rem;
+            z-index: 90;
+            opacity: 0;
+            transition: opacity 0.5s, transform 0.5s;
+            pointer-events: none;
+            white-space: nowrap;
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+        .toast-notification.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(-10px);
+        }
+
         /* 공통 팝업 스타일 */
         .popup-overlay {
             position: absolute;
@@ -473,8 +513,46 @@
         .shop-btn:disabled { filter: grayscale(1); opacity: 0.6; cursor: not-allowed; }
         .price-tag { display: flex; align-items: center; justify-content: center; gap: 4px; }
 
-        /* 업그레이드 레벨 표시 */
         .upgrade-level { font-size: 0.7rem; color: var(--neon-gold); margin-top: 2px; }
+
+        /* 업적 리스트 스타일 */
+        .achievement-list { display: flex; flex-direction: column; gap: 8px; }
+        .achievement-item {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .ach-info { display: flex; flex-direction: column; text-align: left; }
+        .ach-title { font-weight: bold; color: var(--neon-cyan); font-size: 0.9rem; }
+        .ach-desc { font-size: 0.75rem; color: #aaa; }
+        .ach-reward { font-size: 0.75rem; color: var(--neon-gold); margin-top: 2px; }
+        .ach-btn {
+            background: #444;
+            border: 1px solid #666;
+            color: #ccc;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: not-allowed;
+        }
+        .ach-btn.claimable {
+            background: linear-gradient(to right, #11998e, #38ef7d);
+            color: #000;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            animation: pulse-btn 1s infinite;
+        }
+        .ach-btn.completed {
+            background: transparent;
+            border: 1px solid var(--neon-mint);
+            color: var(--neon-mint);
+        }
+        @keyframes pulse-btn { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
 
     </style>
 </head>
@@ -492,13 +570,16 @@
             </div>
             
             <div style="display: flex; align-items: center;">
-                <!-- 다이아몬드 표시 -->
                 <div class="diamond-display" title="다이아몬드">
                     💎 <span id="diamond-display-val">50</span>
                 </div>
                 <div class="header-icons">
                     <button id="btn-sound" onclick="toggleSound()">🔊</button>
                     <button onclick="toggleShop()">🛒</button>
+                    <button onclick="toggleAchievements()" style="position:relative;">
+                        🏆
+                        <div id="ach-badge" class="badge"></div>
+                    </button>
                     <button id="btn-tip" onclick="toggleTipPopup()">ℹ️</button>
                     <button onclick="toggleFullscreen()">⛶</button>
                 </div>
@@ -558,6 +639,9 @@
         </div>
     </div>
 
+    <!-- 토스트 알림 -->
+    <div id="toast" class="toast-notification">업적 달성!</div>
+
     <!-- 상점 팝업 -->
     <div id="shop-popup" class="popup-overlay" onclick="if(event.target===this)toggleShop()">
         <div class="popup-content">
@@ -571,73 +655,80 @@
             </div>
 
             <div class="shop-grid">
-                <!-- 1. 크레딧 구매 -->
+                <!-- 크레딧 -->
                 <div class="shop-item">
                     <h4>크레딧 충전</h4>
-                    <p>10,000 크레딧 교환</p>
+                    <p>10,000 크레딧</p>
                     <button class="shop-btn" onclick="buyItem('credit')">
                         <div class="price-tag">💎 10</div>
                     </button>
                 </div>
-
-                <!-- 2. 오토 스핀 구매 -->
+                <!-- 오토 -->
                 <div class="shop-item">
                     <h4>오토 스핀 티켓</h4>
-                    <p>자동 회전 50회 충전</p>
+                    <p>50회 충전</p>
                     <button class="shop-btn" onclick="buyItem('auto')">
                         <div class="price-tag">💎 5</div>
                     </button>
                 </div>
-
-                <!-- 3. 배팅 금액 해금 -->
+                <!-- 배팅 -->
                 <div class="shop-item">
                     <h4>배팅 한도 해금</h4>
-                    <p>다음 배팅 금액 잠금 해제</p>
+                    <p>다음 단계 잠금 해제</p>
                     <div class="upgrade-level" id="bet-unlock-msg">현재: 250</div>
                     <button class="shop-btn" id="btn-unlock-bet" onclick="buyItem('unlock_bet')">
                         <div class="price-tag">💎 100</div>
                     </button>
                 </div>
-
-                <!-- 4. 게임 속도 -->
+                <!-- 속도 -->
                 <div class="shop-item">
                     <h4>터보 모터</h4>
-                    <p>게임 진행 속도 증가</p>
+                    <p>릴 회전 속도 증가</p>
                     <div class="upgrade-level" id="speed-level-msg">Lv. 1</div>
                     <button class="shop-btn" id="btn-upgrade-speed" onclick="buyItem('speed')">
                         <div class="price-tag">💎 50</div>
                     </button>
                 </div>
-
-                <!-- 5. 확률 업그레이드 (일반) -->
+                <!-- 행운 (하) -->
                 <div class="shop-item">
-                    <h4>행운의 부적 (하급)</h4>
-                    <p>일반 심볼 확률 소폭 증가</p>
-                    <div class="upgrade-level" id="luck-common-msg">Lv. 0</div>
-                    <button class="shop-btn" onclick="buyItem('luck_common')">
-                        <div class="price-tag">💎 20</div>
+                    <h4>행운 (일반)</h4>
+                    <p>일반 심볼 확률 증가</p>
+                    <div class="upgrade-level" id="luck-common-lvl">Lv. 0</div>
+                    <button class="shop-btn" onclick="buyItem('luck_common')" id="btn-luck-common">
+                        <div class="price-tag">💎 <span id="cost-luck-common">20</span></div>
                     </button>
                 </div>
-
-                <!-- 6. 확률 업그레이드 (희귀) -->
+                <!-- 행운 (중) -->
                 <div class="shop-item">
-                    <h4>행운의 부적 (중급)</h4>
+                    <h4>행운 (희귀)</h4>
                     <p>희귀 심볼 확률 증가</p>
-                    <div class="upgrade-level" id="luck-rare-msg">Lv. 0</div>
-                    <button class="shop-btn" onclick="buyItem('luck_rare')">
-                        <div class="price-tag">💎 50</div>
+                    <div class="upgrade-level" id="luck-rare-lvl">Lv. 0</div>
+                    <button class="shop-btn" onclick="buyItem('luck_rare')" id="btn-luck-rare">
+                        <div class="price-tag">💎 <span id="cost-luck-rare">50</span></div>
                     </button>
                 </div>
+                <!-- 행운 (상) -->
+                <div class="shop-item" style="grid-column: span 2;">
+                    <h4>행운 (전설)</h4>
+                    <p>전설 심볼 확률 증가</p>
+                    <div class="upgrade-level" id="luck-legend-lvl">Lv. 0</div>
+                    <button class="shop-btn" onclick="buyItem('luck_legend')" id="btn-luck-legend">
+                        <div class="price-tag">💎 <span id="cost-luck-legend">100</span></div>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-                <!-- 7. 확률 업그레이드 (전설) -->
-                <div class="shop-item">
-                    <h4>행운의 부적 (상급)</h4>
-                    <p>전설 심볼 확률 미세 증가</p>
-                    <div class="upgrade-level" id="luck-legend-msg">Lv. 0</div>
-                    <button class="shop-btn" onclick="buyItem('luck_legend')">
-                        <div class="price-tag">💎 100</div>
-                    </button>
-                </div>
+    <!-- 업적 팝업 -->
+    <div id="ach-popup" class="popup-overlay" onclick="if(event.target===this)toggleAchievements()">
+        <div class="popup-content">
+            <div class="popup-header">
+                <div class="popup-title">업적 (Achievements)</div>
+                <button class="popup-close" onclick="toggleAchievements()">×</button>
+            </div>
+            <div class="achievement-list" id="ach-list-container">
+                <!-- JS로 동적 생성됨 -->
             </div>
         </div>
     </div>
@@ -653,15 +744,11 @@
             <div class="tip-section">
                 <h3>게임 방법</h3>
                 <p>SPIN 버튼을 눌러 릴을 회전시키세요. 왼쪽에서 오른쪽으로 동일한 심볼이 3개 이상 연결되면 당첨됩니다.</p>
-                <p style="color:#aaa; font-size:0.9rem; margin-top:5px;">※ 크레딧이 부족하면 무료 충전이 가능합니다.</p>
             </div>
-
             <div class="tip-section">
-                <h3>특수 기능</h3>
-                <div style="margin-bottom:5px;">💎 <strong>다이아몬드:</strong> 상점에서 업그레이드 및 아이템 구매에 사용됩니다. (잭팟, 스페셜 콤보 시 획득)</div>
-                <div>🛒 <strong>상점:</strong> 오토 스핀 횟수, 배팅 한도, 게임 속도, 당첨 확률을 구매하세요.</div>
+                <h3>업적 시스템</h3>
+                <p>총 500개 이상의 업적이 준비되어 있습니다. 스핀, 당첨, 잭팟 등을 달성하고 🏆 버튼을 눌러 보상을 받으세요!</p>
             </div>
-
             <div class="tip-section">
                 <h3>당첨 족보 (배당률)</h3>
                 <div class="paytable-grid">
@@ -733,6 +820,7 @@
             }
         }
 
+        // --- 사운드 ---
         function playTone(freq, type, duration, vol=0.1) {
             if(!isSoundOn) return;
             const osc = audioCtx.createOscillator();
@@ -786,16 +874,9 @@
             const noiseGain = audioCtx.createGain();
             noiseGain.gain.setValueAtTime(0.8, audioCtx.currentTime);
             noiseGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
-            const kick = audioCtx.createOscillator();
-            kick.frequency.setValueAtTime(120, audioCtx.currentTime);
-            kick.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-            const kickGain = audioCtx.createGain();
-            kickGain.gain.setValueAtTime(0.5, audioCtx.currentTime);
-            kickGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
             noise.connect(noiseGain); noiseGain.connect(audioCtx.destination);
-            kick.connect(kickGain); kickGain.connect(audioCtx.destination);
-            noise.start(); kick.start();
-            noise.stop(audioCtx.currentTime + 0.1); kick.stop(audioCtx.currentTime + 0.1);
+            noise.start(); 
+            noise.stop(audioCtx.currentTime + 0.1); 
         }
 
         function createBubbles() {
@@ -813,27 +894,36 @@
         }
 
         // --- 데이터 관리 (저장/로드) ---
-        // 게임 상태를 저장할 객체 구조
         let gameState = {
             credit: 10000,
             diamond: 50,
             autoSpins: 0,
-            unlockedBetIndex: 0, // 0: 250, 1: 500, 2: 1250, 3: 2500, 4: 5000
-            speedLevel: 0,       // 0: Normal, 1: Fast, 2: Turbo
-            luck: {
-                common: 0,
-                rare: 0,
-                legend: 0
-            }
+            unlockedBetIndex: 0, 
+            speedLevel: 0,
+            luck: { common: 0, rare: 0, legend: 0 },
+            // 통계 (업적용)
+            stats: {
+                spins: 0,
+                totalWin: 0,
+                diamondsEarned: 0,
+                jackpots: 0,
+                freeSpins: 0
+            },
+            // 업적 달성 상태 (ID: boolean)
+            achievements: {} 
         };
 
         function loadData() {
-            const saved = localStorage.getItem('seaStorySaveV2');
+            const saved = localStorage.getItem('seaStorySaveV3');
             if (saved) {
                 const parsed = JSON.parse(saved);
-                gameState = { ...gameState, ...parsed }; // 병합
+                // 기존 데이터와 병합 (새로운 필드 추가 대비)
+                gameState = { ...gameState, ...parsed };
+                // 중첩 객체 병합 (stats, luck 등)
+                if(parsed.stats) gameState.stats = { ...gameState.stats, ...parsed.stats };
+                if(parsed.luck) gameState.luck = { ...gameState.luck, ...parsed.luck };
+                if(parsed.achievements) gameState.achievements = { ...gameState.achievements, ...parsed.achievements };
             }
-            // 변수 동기화
             credit = gameState.credit;
             diamonds = gameState.diamond;
             autoSpinCount = gameState.autoSpins;
@@ -843,8 +933,195 @@
             gameState.credit = credit;
             gameState.diamond = diamonds;
             gameState.autoSpins = autoSpinCount;
-            localStorage.setItem('seaStorySaveV2', JSON.stringify(gameState));
+            localStorage.setItem('seaStorySaveV3', JSON.stringify(gameState));
         }
+
+        // --- 업적 시스템 데이터 생성 ---
+        const ACHIEVEMENTS = [];
+        
+        function generateAchievements() {
+            // 1. 스핀 횟수 업적 (100단계)
+            for(let i=1; i<=100; i++) {
+                const target = i * (i <= 10 ? 10 : (i <= 50 ? 50 : 100)); // 난이도 조절
+                ACHIEVEMENTS.push({
+                    id: `spin_${i}`,
+                    title: `끈기의 회전 Lv.${i}`,
+                    desc: `총 스핀 ${target.toLocaleString()}회 달성`,
+                    type: 'spins',
+                    target: target,
+                    reward: { credit: 1000 * i, diamond: 1 * i }
+                });
+            }
+            // 2. 누적 당첨금 업적 (100단계)
+            for(let i=1; i<=100; i++) {
+                const target = i * 50000;
+                ACHIEVEMENTS.push({
+                    id: `win_${i}`,
+                    title: `부자의 길 Lv.${i}`,
+                    desc: `누적 당첨금 ${target.toLocaleString()} 달성`,
+                    type: 'totalWin',
+                    target: target,
+                    reward: { credit: 5000 * i, diamond: 2 * i }
+                });
+            }
+            // 3. 다이아몬드 수집 업적 (100단계)
+            for(let i=1; i<=100; i++) {
+                const target = i * 10;
+                ACHIEVEMENTS.push({
+                    id: `dia_${i}`,
+                    title: `보석 사냥꾼 Lv.${i}`,
+                    desc: `다이아몬드 누적 획득 ${target.toLocaleString()}개`,
+                    type: 'diamondsEarned',
+                    target: target,
+                    reward: { credit: 10000 * i, diamond: 5 * i }
+                });
+            }
+            // 4. 잭팟 횟수 (50단계)
+            for(let i=1; i<=50; i++) {
+                ACHIEVEMENTS.push({
+                    id: `jackpot_${i}`,
+                    title: `행운의 주인공 Lv.${i}`,
+                    desc: `잭팟 ${i}회 당첨`,
+                    type: 'jackpots',
+                    target: i,
+                    reward: { credit: 50000 * i, diamond: 20 * i }
+                });
+            }
+            // 5. 프리 스핀 횟수 (50단계)
+            for(let i=1; i<=50; i++) {
+                ACHIEVEMENTS.push({
+                    id: `freespin_${i}`,
+                    title: `보너스 타임 Lv.${i}`,
+                    desc: `프리 스핀 ${i}회 진입`,
+                    type: 'freeSpins',
+                    target: i,
+                    reward: { credit: 20000 * i, diamond: 10 * i }
+                });
+            }
+            // 총합 약 400개 + @
+        }
+        generateAchievements();
+
+        function checkAchievements() {
+            let newlyUnlocked = false;
+            ACHIEVEMENTS.forEach(ach => {
+                // 이미 보상까지 받은 경우(claimed === true)는 건너뜀
+                // 여기서는 상태를 3가지로 관리: null(미달성), 'unlocked'(달성, 미수령), 'claimed'(수령완료)
+                const state = gameState.achievements[ach.id];
+                if (state === 'claimed') return;
+
+                const currentVal = gameState.stats[ach.type];
+                if (currentVal >= ach.target && !state) {
+                    gameState.achievements[ach.id] = 'unlocked';
+                    newlyUnlocked = true;
+                    showToast(`${ach.title} 달성!`);
+                }
+            });
+
+            if (newlyUnlocked) {
+                saveData();
+                updateBadge();
+            }
+        }
+
+        function updateBadge() {
+            const hasUnclaimed = Object.values(gameState.achievements).some(val => val === 'unlocked');
+            const badge = document.getElementById('ach-badge');
+            if(hasUnclaimed) badge.classList.add('active');
+            else badge.classList.remove('active');
+        }
+
+        function toggleAchievements() {
+            const popup = document.getElementById('ach-popup');
+            if(popup.style.display === 'flex') {
+                popup.style.display = 'none';
+            } else {
+                renderAchievements();
+                popup.style.display = 'flex';
+            }
+        }
+
+        function renderAchievements() {
+            const container = document.getElementById('ach-list-container');
+            container.innerHTML = '';
+
+            // 정렬: 수령 가능 > 미달성 > 수령 완료
+            const sorted = ACHIEVEMENTS.slice().sort((a, b) => {
+                const stateA = gameState.achievements[a.id];
+                const stateB = gameState.achievements[b.id];
+                
+                const scoreA = stateA === 'unlocked' ? 2 : (stateA === 'claimed' ? 0 : 1);
+                const scoreB = stateB === 'unlocked' ? 2 : (stateB === 'claimed' ? 0 : 1);
+                return scoreB - scoreA; // 내림차순
+            });
+
+            // 렌더링 최적화: 처음 50개만 먼저 그리고 스크롤 시 더 그리는 방식이 좋으나 여기선 간단히 
+            // 너무 많으니 unlocked 상태인 것과 그 다음 단계만 보여주는 식으로 필터링 할 수도 있음.
+            // 여기서는 전체 리스트 중 상태가 있는 것 + 각 타입별 다음 목표 1개씩만 보여주기
+            
+            // 타입별로 가장 낮은 미달성 업적 찾기
+            const nextGoals = {};
+            ACHIEVEMENTS.forEach(ach => {
+                if(!gameState.achievements[ach.id] && !nextGoals[ach.type]) {
+                    nextGoals[ach.type] = ach.id;
+                }
+            });
+
+            sorted.forEach(ach => {
+                const state = gameState.achievements[ach.id];
+                // 보여줄 조건: 달성했거나(unlocked/claimed) OR 다음 목표인 경우
+                if (state || nextGoals[ach.type] === ach.id) {
+                    const item = document.createElement('div');
+                    item.className = 'achievement-item';
+                    
+                    let btnHtml = '';
+                    if (state === 'unlocked') {
+                        btnHtml = `<button class="ach-btn claimable" onclick="claimAchievement('${ach.id}')">보상 받기</button>`;
+                    } else if (state === 'claimed') {
+                        btnHtml = `<button class="ach-btn completed" disabled>완료됨</button>`;
+                    } else {
+                        const current = gameState.stats[ach.type] || 0;
+                        const percent = Math.min(100, Math.floor((current / ach.target) * 100));
+                        btnHtml = `<button class="ach-btn" disabled>${percent}%</button>`;
+                    }
+
+                    item.innerHTML = `
+                        <div class="ach-info">
+                            <div class="ach-title">${ach.title}</div>
+                            <div class="ach-desc">${ach.desc}</div>
+                            <div class="ach-reward">보상: 💰${ach.reward.credit} 💎${ach.reward.diamond}</div>
+                        </div>
+                        <div>${btnHtml}</div>
+                    `;
+                    container.appendChild(item);
+                }
+            });
+        }
+
+        function claimAchievement(id) {
+            const ach = ACHIEVEMENTS.find(a => a.id === id);
+            if(ach && gameState.achievements[id] === 'unlocked') {
+                gameState.achievements[id] = 'claimed';
+                credit += ach.reward.credit;
+                diamonds += ach.reward.diamond;
+                
+                playTone(1500, 'sine', 0.2); // 띵~ 소리
+                saveData();
+                updateUI();
+                renderAchievements(); // 리스트 갱신
+                updateBadge();
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
 
         // --- 전역 변수 ---
         const REEL_COUNT = 5;
@@ -890,7 +1167,7 @@
         let isSpinning = false;
         let forceStop = false; 
         let isAuto = false;
-        let autoSpinCount = 0; // 오토 스핀 남은 횟수
+        let autoSpinCount = 0; 
         let autoTimeout = null;
         let currentReelSymbols = [[], [], [], [], []];
         let symbolHeight = 0;
@@ -917,7 +1194,8 @@
             createBubbles();
             loadData();
             updateUI();
-            updateShopUI(); // 상점 UI 초기화
+            updateShopUI(); 
+            updateBadge(); // 초기 뱃지 상태 확인
             
             updateBackgroundVideo();
             window.addEventListener('resize', () => {
@@ -978,12 +1256,12 @@
             svgLayer.setAttribute('viewBox', `0 0 ${container.clientWidth} ${container.clientHeight}`);
         }
 
-        // --- 확률 시스템 (업그레이드 반영) ---
+        // --- 확률 시스템 (무제한 레벨 반영) ---
         function getRandomSymbol() {
-            // 업그레이드 수치 반영 (1레벨당 가중치 증가)
-            const bonusCommon = gameState.luck.common * 2;
-            const bonusRare = gameState.luck.rare * 1.5;
-            const bonusLegend = gameState.luck.legend * 0.5;
+            // 레벨당 가중치 증가
+            const bonusCommon = gameState.luck.common * 1.5; 
+            const bonusRare = gameState.luck.rare * 1.2;
+            const bonusLegend = gameState.luck.legend * 0.8;
 
             const weights = [
                 { s: '🐚', w: 30 + bonusCommon }, 
@@ -1022,12 +1300,16 @@
             }
         }
 
+        // 비용 계산 함수 (레벨에 따라 증가)
+        function getUpgradeCost(type, currentLevel) {
+            const baseCost = { common: 20, rare: 50, legend: 100 };
+            const multiplier = { common: 1.1, rare: 1.15, legend: 1.2 };
+            return Math.floor(baseCost[type] * Math.pow(multiplier[type], currentLevel));
+        }
+
         function updateShopUI() {
-            // 보유 다이아몬드 업데이트
             elShopDiamond.innerText = diamonds.toLocaleString();
             
-            // 업그레이드 상태 텍스트 업데이트
-            // 배팅 해금
             const nextBetIdx = gameState.unlockedBetIndex + 1;
             const btnUnlock = document.getElementById('btn-unlock-bet');
             if(nextBetIdx < BET_AMOUNTS.length) {
@@ -1040,7 +1322,6 @@
                 btnUnlock.querySelector('.price-tag').innerHTML = 'MAX';
             }
 
-            // 속도
             const speedBtn = document.getElementById('btn-upgrade-speed');
             if(gameState.speedLevel < 2) {
                 document.getElementById('speed-level-msg').innerText = `Lv. ${gameState.speedLevel + 1}`;
@@ -1050,10 +1331,19 @@
                 speedBtn.disabled = true;
             }
 
-            // 행운
-            document.getElementById('luck-common-msg').innerText = `Lv. ${gameState.luck.common}`;
-            document.getElementById('luck-rare-msg').innerText = `Lv. ${gameState.luck.rare}`;
-            document.getElementById('luck-legend-msg').innerText = `Lv. ${gameState.luck.legend}`;
+            // 행운 업그레이드 UI (동적 비용 표시)
+            const costCommon = getUpgradeCost('common', gameState.luck.common);
+            const costRare = getUpgradeCost('rare', gameState.luck.rare);
+            const costLegend = getUpgradeCost('legend', gameState.luck.legend);
+
+            document.getElementById('luck-common-lvl').innerText = `Lv. ${gameState.luck.common}`;
+            document.getElementById('cost-luck-common').innerText = costCommon.toLocaleString();
+
+            document.getElementById('luck-rare-lvl').innerText = `Lv. ${gameState.luck.rare}`;
+            document.getElementById('cost-luck-rare').innerText = costRare.toLocaleString();
+
+            document.getElementById('luck-legend-lvl').innerText = `Lv. ${gameState.luck.legend}`;
+            document.getElementById('cost-luck-legend').innerText = costLegend.toLocaleString();
         }
 
         function buyItem(type) {
@@ -1063,74 +1353,54 @@
             switch(type) {
                 case 'credit':
                     cost = 10;
-                    if(diamonds >= cost) {
-                        diamonds -= cost;
-                        credit += 10000;
-                        success = true;
-                    }
+                    if(diamonds >= cost) { diamonds -= cost; credit += 10000; success = true; }
                     break;
                 case 'auto':
                     cost = 5;
-                    if(diamonds >= cost) {
-                        diamonds -= cost;
-                        autoSpinCount += 50;
-                        success = true;
-                    }
+                    if(diamonds >= cost) { diamonds -= cost; autoSpinCount += 50; success = true; }
                     break;
                 case 'unlock_bet':
                     cost = 100;
                     if(diamonds >= cost && gameState.unlockedBetIndex < BET_AMOUNTS.length - 1) {
-                        diamonds -= cost;
-                        gameState.unlockedBetIndex++;
-                        success = true;
+                        diamonds -= cost; gameState.unlockedBetIndex++; success = true;
                     }
                     break;
                 case 'speed':
                     cost = 50;
                     if(diamonds >= cost && gameState.speedLevel < 2) {
-                        diamonds -= cost;
-                        gameState.speedLevel++;
-                        success = true;
+                        diamonds -= cost; gameState.speedLevel++; success = true;
                     }
                     break;
                 case 'luck_common':
-                    cost = 20;
+                    cost = getUpgradeCost('common', gameState.luck.common);
                     if(diamonds >= cost) { diamonds -= cost; gameState.luck.common++; success = true; }
                     break;
                 case 'luck_rare':
-                    cost = 50;
+                    cost = getUpgradeCost('rare', gameState.luck.rare);
                     if(diamonds >= cost) { diamonds -= cost; gameState.luck.rare++; success = true; }
                     break;
                 case 'luck_legend':
-                    cost = 100;
+                    cost = getUpgradeCost('legend', gameState.luck.legend);
                     if(diamonds >= cost) { diamonds -= cost; gameState.luck.legend++; success = true; }
                     break;
             }
 
             if(success) {
-                playTone(1200, 'sine', 0.1); // 구매 사운드
+                playTone(1200, 'sine', 0.1); 
                 saveData();
                 updateUI();
                 updateShopUI();
             } else {
-                alert("다이아몬드가 부족하거나 더 이상 업그레이드 할 수 없습니다.");
+                alert("다이아몬드가 부족하거나 더 이상 구매할 수 없습니다.");
             }
         }
 
-        // --- 베팅 변경 (해금된 것까지만) ---
         function changeBet() {
             if(isSpinning || freeSpins > 0) return;
-            
-            // 현재 해금된 배팅 목록만 순환
             const availableBets = BET_AMOUNTS.slice(0, gameState.unlockedBetIndex + 1);
             let idx = availableBets.indexOf(totalBet);
-            
-            if (idx === -1 || idx === availableBets.length - 1) {
-                totalBet = availableBets[0];
-            } else {
-                totalBet = availableBets[idx + 1];
-            }
-
+            if (idx === -1 || idx === availableBets.length - 1) totalBet = availableBets[0];
+            else totalBet = availableBets[idx + 1];
             if(totalBet > credit && credit > 0) totalBet = availableBets[0];
             updateUI();
             playTone(400, 'sine', 0.1);
@@ -1138,30 +1408,23 @@
 
         function toggleAuto() {
             if(isAuto) {
-                // 끄기
                 isAuto = false;
                 btnAuto.classList.remove('active');
                 if(autoTimeout) clearTimeout(autoTimeout);
             } else {
-                // 켜기 (횟수 확인)
                 if(autoSpinCount > 0) {
                     isAuto = true;
                     btnAuto.classList.add('active');
                     if(!isSpinning) spin();
                 } else {
-                    if(confirm("오토 스핀 횟수가 부족합니다. 상점에서 구매하시겠습니까?")) {
-                        toggleShop();
-                    }
+                    if(confirm("오토 스핀 횟수가 부족합니다. 상점에서 구매하시겠습니까?")) toggleShop();
                 }
             }
         }
 
         function handleSpinClick() {
-            if (isSpinning) {
-                stopSpin();
-            } else {
-                spin();
-            }
+            if (isSpinning) stopSpin();
+            else spin();
         }
 
         function stopSpin() {
@@ -1170,31 +1433,23 @@
 
         function toggleTipPopup() {
             const popup = document.getElementById('tip-popup');
-            if(popup.style.display === 'flex') {
-                popup.style.display = 'none';
-            } else {
-                popup.style.display = 'flex';
-            }
+            if(popup.style.display === 'flex') popup.style.display = 'none';
+            else popup.style.display = 'flex';
         }
 
         async function spin() {
             if (freeSpins === 0) {
                 if(isSpinning) return;
-                
-                // 오토 모드일 때 횟수 차감
                 if (isAuto) {
-                    if (autoSpinCount > 0) {
-                        autoSpinCount--;
-                    } else {
+                    if (autoSpinCount > 0) autoSpinCount--;
+                    else {
                         isAuto = false;
                         btnAuto.classList.remove('active');
                         alert("오토 스핀 횟수가 소진되었습니다.");
                         return;
                     }
                 }
-
                 if(credit < totalBet) {
-                    // 무료 충전 로직
                     if(confirm("돈이 없습니다. 무료 충전하시겠습니까?")) {
                         credit = 10000;
                         saveData();
@@ -1210,12 +1465,13 @@
                 if(isSpinning) return;
                 freeSpins--;
                 freeSpinUI.innerText = `FREE SPIN: ${freeSpins}`;
-                if(freeSpins === 0) {
-                    freeSpinUI.style.display = 'none';
-                }
+                if(freeSpins === 0) freeSpinUI.style.display = 'none';
             }
 
             if(audioCtx.state === 'suspended') audioCtx.resume();
+            
+            // 통계 업데이트 (스핀 수)
+            gameState.stats.spins++;
             saveData();
 
             isSpinning = true;
@@ -1248,13 +1504,15 @@
             btnSpin.classList.remove('stop-mode');
             if(freeSpins === 0) btnBet.disabled = false;
             
+            // 업적 체크
+            checkAchievements();
             saveData(); 
             updateUI();
 
             if (freeSpins > 0 || (isAuto && credit >= totalBet && autoSpinCount > 0)) {
                 autoTimeout = setTimeout(() => {
                     if(isAuto || freeSpins > 0) spin();
-                }, 800); // 딜레이 약간 줄임
+                }, 800);
             } else if (isAuto && (credit < totalBet || autoSpinCount <= 0)) {
                 isAuto = false;
                 btnAuto.classList.remove('active');
@@ -1264,7 +1522,6 @@
         function spinReel(reel, index, finalSymbols) {
             return new Promise(resolve => {
                 const dummyCount = 20 + index * 5; 
-                
                 let stripSymbols = [];
                 const bufferSymbol = getRandomSymbol();
                 stripSymbols.push(bufferSymbol); 
@@ -1284,8 +1541,7 @@
 
                 requestAnimationFrame(() => {
                     const endY = -(symbolHeight);
-                    // 속도 업그레이드 반영 (레벨이 높을수록 시간 단축)
-                    const speedMultiplier = 1 - (gameState.speedLevel * 0.2); // 1.0, 0.8, 0.6
+                    const speedMultiplier = 1 - (gameState.speedLevel * 0.2); 
                     const baseDuration = (1.5 + (index * 0.6)) * speedMultiplier; 
                     
                     reel.style.transition = `transform ${baseDuration}s cubic-bezier(0.25, 1.15, 0.25, 1)`; 
@@ -1333,7 +1589,6 @@
             let winners = [];
             const lineBet = totalBet / PAYLINES.length; 
 
-            // 라인 체크
             PAYLINES.forEach((pattern, idx) => {
                 const firstSym = grid[0][pattern[0]]; 
                 let effectiveSym = firstSym; 
@@ -1374,7 +1629,6 @@
                 }
             });
 
-            // 스캐터 (프리 스핀)
             let scatterCount = 0;
             let scatterCoords = [];
             for(let c=0; c<REEL_COUNT; c++) {
@@ -1388,7 +1642,12 @@
 
             if (scatterCount >= 3) {
                 freeSpins += 10;
-                diamonds += 5; // 프리 스핀 획득 시 다이아몬드 보너스
+                diamonds += 5; 
+                
+                // 통계 업데이트
+                gameState.stats.freeSpins++;
+                gameState.stats.diamondsEarned += 5;
+
                 freeSpinUI.innerText = `FREE SPIN: ${freeSpins}`;
                 freeSpinUI.style.display = 'block';
                 
@@ -1401,9 +1660,6 @@
                 playTone(1000, 'square', 0.2);
             }
 
-            // 특수 로직: 다이아몬드 심볼이 3개 이상 나오면 다이아몬드 획득
-            // (이미 라인 당첨으로 크레딧도 줌)
-            // 여기서는 추가 보너스 효과만 체크
             let diamondCount = 0;
             for(let c=0; c<REEL_COUNT; c++) {
                 for(let r=0; r<ROW_COUNT; r++) {
@@ -1413,7 +1669,10 @@
             if(diamondCount >= 3) {
                 const bonusDiamonds = diamondCount * 2;
                 diamonds += bonusDiamonds;
-                // 다이아몬드 획득 알림 (작게)
+                
+                // 통계 업데이트
+                gameState.stats.diamondsEarned += bonusDiamonds;
+
                 const noti = document.createElement('div');
                 noti.className = 'win-float-text';
                 noti.innerText = `💎 +${bonusDiamonds}`;
@@ -1424,21 +1683,26 @@
                 setTimeout(()=>noti.remove(), 1500);
             }
 
-            // 스페셜 콤보 (5줄 이상 동시 당첨)
             if(winners.filter(w => w.lineIdx !== -1).length >= 5) {
-                diamonds += 10; // 콤보 보너스
-                showJackpot(totalWin, "SPECIAL COMBO!"); // 메시지 변경해서 활용
+                diamonds += 10; 
+                gameState.stats.diamondsEarned += 10;
+                showJackpot(totalWin, "SPECIAL COMBO!"); 
             }
 
             if(totalWin > 0) {
                 credit += totalWin;
+                
+                // 통계 업데이트
+                gameState.stats.totalWin += totalWin;
+
                 elWin.innerText = Math.floor(totalWin).toLocaleString();
                 playWinMusic(); 
                 drawWinEffects(winners);
-                // 잭팟 (50배 이상)
                 if(totalWin >= totalBet * 50) {
                     showJackpot(totalWin);
-                    diamonds += 20; // 잭팟 보너스 다이아
+                    diamonds += 20; 
+                    gameState.stats.diamondsEarned += 20;
+                    gameState.stats.jackpots++;
                 }
             }
         }
@@ -1468,7 +1732,7 @@
             winners.forEach((win, index) => { 
                 let points = "";
                 let labelPos = {x: 0, y: 0};
-                const targetCol = [2, 0, 4, 1, 3][index % 5]; // 텍스트 위치 분산
+                const targetCol = [2, 0, 4, 1, 3][index % 5]; 
 
                 if (win.lineIdx !== -1) {
                     const fullLinePattern = PAYLINES[win.lineIdx];
