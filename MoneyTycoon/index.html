@@ -17,26 +17,28 @@ import {
   Calculator,
   Rocket,
   Globe,
-  Gem
+  Gem,
+  Save,
+  RotateCcw,
+  Medal,
+  Clock
 } from 'lucide-react';
 
 // --- 게임 데이터 및 상수 설정 ---
 
-// 초기 비즈니스 목록 (콘텐츠 대폭 추가)
 const INITIAL_BUSINESSES = [
   { id: 1, name: '편의점 알바', baseCost: 15, baseIncome: 3, count: 0, icon: 'store' },
   { id: 2, name: '노점상 운영', baseCost: 100, baseIncome: 15, count: 0, icon: 'shop' },
   { id: 3, name: '중소기업 운영', baseCost: 1100, baseIncome: 90, count: 0, icon: 'chart' },
   { id: 4, name: '프랜차이즈', baseCost: 12000, baseIncome: 450, count: 0, icon: 'building' },
-  { id: 5, name: '배달 앱 스타트업', baseCost: 130000, baseIncome: 2200, count: 0, icon: 'scooter' }, // New
+  { id: 5, name: '배달 앱 스타트업', baseCost: 130000, baseIncome: 2200, count: 0, icon: 'scooter' },
   { id: 6, name: 'IT 벤처기업', baseCost: 850000, baseIncome: 9500, count: 0, icon: 'rocket' },
   { id: 7, name: '글로벌 은행', baseCost: 5000000, baseIncome: 45000, count: 0, icon: 'bank' },
-  { id: 8, name: '에너지 발전소', baseCost: 45000000, baseIncome: 250000, count: 0, icon: 'zap' }, // New
-  { id: 9, name: '민간 우주 항공사', baseCost: 350000000, baseIncome: 1500000, count: 0, icon: 'space' }, // New
-  { id: 10, name: '화성 식민지', baseCost: 5000000000, baseIncome: 12000000, count: 0, icon: 'mars' }, // New (End Game)
+  { id: 8, name: '에너지 발전소', baseCost: 45000000, baseIncome: 250000, count: 0, icon: 'zap' },
+  { id: 9, name: '민간 우주 항공사', baseCost: 350000000, baseIncome: 1500000, count: 0, icon: 'space' },
+  { id: 10, name: '화성 식민지', baseCost: 5000000000, baseIncome: 12000000, count: 0, icon: 'mars' },
 ];
 
-// 초기 투자 자산 목록 (다양성 추가)
 const INITIAL_INVESTMENTS = [
   { 
     id: 'coin', 
@@ -44,7 +46,7 @@ const INITIAL_INVESTMENTS = [
     price: 30, 
     owned: 0, 
     avgPrice: 0, 
-    volatility: 0.20, // 변동성 상향
+    volatility: 0.20,
     type: 'high_risk',
     desc: '매우 위험하지만 대박 가능성',
     history: [30, 30, 30, 30, 30] 
@@ -55,7 +57,7 @@ const INITIAL_INVESTMENTS = [
     price: 1500, 
     owned: 0, 
     avgPrice: 0, 
-    volatility: 0.25, // 극심한 변동성
+    volatility: 0.25,
     type: 'high_risk',
     desc: '예측 불가능한 디지털 자산',
     history: [1500, 1500, 1500, 1500, 1500] 
@@ -66,7 +68,7 @@ const INITIAL_INVESTMENTS = [
     price: 5500, 
     owned: 0, 
     avgPrice: 0, 
-    volatility: 0.12, // 높은 변동성
+    volatility: 0.12,
     type: 'medium_risk',
     desc: '임상 결과에 따라 등락폭 큼',
     history: [5500, 5500, 5500, 5500, 5500]
@@ -88,7 +90,7 @@ const INITIAL_INVESTMENTS = [
     price: 350000, 
     owned: 0, 
     avgPrice: 0, 
-    volatility: 0.015, // 매우 낮은 변동성
+    volatility: 0.015,
     type: 'low_risk',
     desc: '불황에도 강한 최고의 안전자산',
     history: [350000, 350000, 350000, 350000, 350000]
@@ -106,7 +108,6 @@ const INITIAL_INVESTMENTS = [
   },
 ];
 
-// 업그레이드(연구) 목록
 const INITIAL_UPGRADES = [
   { 
     id: 'click_boost', 
@@ -165,7 +166,17 @@ const INITIAL_UPGRADES = [
   }
 ];
 
-// 시장 이벤트 타입
+// 초기 업적 목록
+const INITIAL_ACHIEVEMENTS = [
+  { id: 'first_money', name: '첫 걸음', desc: '누적 수익 1,000원 달성', condition: (state) => state.totalEarned >= 1000, unlocked: false },
+  { id: 'rich_1m', name: '백만장자', desc: '보유 자산 100만원 달성', condition: (state) => state.money >= 1000000, unlocked: false },
+  { id: 'rich_100m', name: '억만장자', desc: '보유 자산 1억원 달성', condition: (state) => state.money >= 100000000, unlocked: false },
+  { id: 'biz_king', name: '사업왕', desc: '모든 종류의 사업체 1개 이상 보유', condition: (state) => state.businesses.every(b => b.count > 0), unlocked: false },
+  { id: 'investor', name: '개미 투자자', desc: '주식 100주 보유', condition: (state) => state.investments.find(i => i.id === 'stock').owned >= 100, unlocked: false },
+  { id: 'landlord', name: '건물주', desc: '부동산 10채 보유', condition: (state) => state.investments.find(i => i.id === 'real_estate').owned >= 10, unlocked: false },
+  { id: 'researcher', name: '매드 사이언티스트', desc: '연구 레벨 총합 50 달성', condition: (state) => state.upgrades.reduce((acc, u) => acc + u.level, 0) >= 50, unlocked: false },
+];
+
 const MARKET_EVENTS = [
   { id: 'normal', name: '평온한 시장', multiplier: 1.0, priceBias: 0, color: 'text-gray-400', desc: '경제가 안정적입니다.' },
   { id: 'bull', name: '경제 호황', multiplier: 2.0, priceBias: 0.03, color: 'text-green-400', desc: '수익 폭발 & 주가 상승장!' },
@@ -173,18 +184,99 @@ const MARKET_EVENTS = [
 ];
 
 export default function App() {
+  // --- State 관리 ---
   const [money, setMoney] = useState(0);
   const [totalEarned, setTotalEarned] = useState(0);
   const [businesses, setBusinesses] = useState(INITIAL_BUSINESSES);
   const [investments, setInvestments] = useState(INITIAL_INVESTMENTS);
   const [upgrades, setUpgrades] = useState(INITIAL_UPGRADES);
+  const [achievements, setAchievements] = useState(INITIAL_ACHIEVEMENTS);
   const [marketStatus, setMarketStatus] = useState(MARKET_EVENTS[0]);
   const [timeLeftForEvent, setTimeLeftForEvent] = useState(30);
   const [activeTab, setActiveTab] = useState('business');
+  const [tradeAmount, setTradeAmount] = useState(1);
   
-  const [tradeAmount, setTradeAmount] = useState(1); 
+  // 오프라인 수익 모달 상태
+  const [offlineEarnings, setOfflineEarnings] = useState(0);
+  const [showOfflineModal, setShowOfflineModal] = useState(false);
   
   const formatMoney = (amount) => Math.floor(amount).toLocaleString('ko-KR');
+
+  // --- 저장 및 불러오기 로직 ---
+  const saveData = useCallback(() => {
+    const gameState = {
+      money,
+      totalEarned,
+      businesses,
+      investments,
+      upgrades,
+      achievements,
+      lastSaveTime: Date.now()
+    };
+    localStorage.setItem('moneyTycoonSave', JSON.stringify(gameState));
+  }, [money, totalEarned, businesses, investments, upgrades, achievements]);
+
+  // 자동 저장 (5초마다)
+  useEffect(() => {
+    const saveTimer = setInterval(saveData, 5000);
+    return () => clearInterval(saveTimer);
+  }, [saveData]);
+
+  // 최초 로드 시 데이터 불러오기 및 오프라인 수익 계산
+  useEffect(() => {
+    const savedData = localStorage.getItem('moneyTycoonSave');
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        setMoney(parsed.money || 0);
+        setTotalEarned(parsed.totalEarned || 0);
+        if (parsed.businesses) setBusinesses(parsed.businesses);
+        if (parsed.investments) setInvestments(parsed.investments);
+        if (parsed.upgrades) setUpgrades(parsed.upgrades);
+        if (parsed.achievements) setAchievements(parsed.achievements);
+
+        // 오프라인 수익 계산
+        if (parsed.lastSaveTime) {
+          const now = Date.now();
+          const timeDiffSeconds = (now - parsed.lastSaveTime) / 1000;
+          if (timeDiffSeconds > 60) { // 1분 이상 지났을 때만
+            // 현재 상태 기준으로 초당 수익 계산 (함수 재사용 불가하므로 로직 복사)
+            // 주의: 로드시점의 비즈니스/업그레이드 상태로 계산
+            const currentBusinesses = parsed.businesses || INITIAL_BUSINESSES;
+            const currentUpgrades = parsed.upgrades || INITIAL_UPGRADES;
+            
+            let businessIncome = currentBusinesses.reduce((acc, bus) => acc + (bus.baseIncome * bus.count), 0);
+            const bizUpgrade = currentUpgrades.find(u => u.id === 'biz_boost');
+            if (bizUpgrade) businessIncome *= (1 + (bizUpgrade.level * 0.2)); // getEffect 로직 하드코딩
+
+            // 오프라인은 시장상황 '평온' 기준 (1.0배)
+            // 업적 보너스 적용 (로드된 업적 기준)
+            const currentAchievements = parsed.achievements || INITIAL_ACHIEVEMENTS;
+            const unlockedCount = currentAchievements.filter(a => a.unlocked).length;
+            const achievementMultiplier = 1 + (unlockedCount * 0.01);
+
+            const earnings = Math.floor(businessIncome * achievementMultiplier * timeDiffSeconds);
+            
+            if (earnings > 0) {
+              setOfflineEarnings(earnings);
+              setShowOfflineModal(true);
+              setMoney(prev => prev + earnings);
+              setTotalEarned(prev => prev + earnings);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Save file corrupted", e);
+      }
+    }
+  }, []);
+
+  const resetData = () => {
+    if (window.confirm("정말로 모든 데이터를 초기화하시겠습니까? 복구할 수 없습니다.")) {
+      localStorage.removeItem('moneyTycoonSave');
+      window.location.reload();
+    }
+  };
 
   const getUpgradeCost = useCallback((upgrade) => {
     return Math.floor(upgrade.baseCost * Math.pow(upgrade.costScale, upgrade.level));
@@ -196,6 +288,7 @@ export default function App() {
     return Math.floor(baseCost * Math.pow(1.15, count) * discountMultiplier);
   }, [upgrades]);
 
+  // 초당 총 수익 계산 (사업 + 배당금 + 업적 보너스)
   const calculateIncomePerSecond = useCallback(() => {
     let businessIncome = businesses.reduce((acc, bus) => acc + (bus.baseIncome * bus.count), 0);
     
@@ -206,7 +299,6 @@ export default function App() {
     let dividendIncome = 0;
     if (divUpgrade && divUpgrade.level > 0) {
       const dividendRate = divUpgrade.getEffect(divUpgrade.level);
-      // 배당금 대상: 주식, 부동산, 금 (안전자산 포함)
       const dividendAssets = ['stock', 'real_estate', 'gold', 'bio_stock'];
       let assetValue = 0;
       investments.forEach(inv => {
@@ -223,8 +315,31 @@ export default function App() {
       if (marketUpgrade) currentMarketMult = marketUpgrade.getEffect(marketUpgrade.level);
     }
 
-    return (businessIncome + dividendIncome) * currentMarketMult;
-  }, [businesses, upgrades, marketStatus, investments]);
+    // 업적 보너스 (개당 1%)
+    const unlockedAchievements = achievements.filter(a => a.unlocked).length;
+    const achievementMultiplier = 1 + (unlockedAchievements * 0.01);
+
+    return (businessIncome + dividendIncome) * currentMarketMult * achievementMultiplier;
+  }, [businesses, upgrades, marketStatus, investments, achievements]);
+
+  // 업적 체크 루프
+  useEffect(() => {
+    const checkAchievements = () => {
+      setAchievements(prev => {
+        let hasChanges = false;
+        const next = prev.map(ach => {
+          if (!ach.unlocked && ach.condition({ money, totalEarned, businesses, investments, upgrades })) {
+            hasChanges = true;
+            return { ...ach, unlocked: true };
+          }
+          return ach;
+        });
+        return hasChanges ? next : prev;
+      });
+    };
+    const timer = setInterval(checkAchievements, 1000);
+    return () => clearInterval(timer);
+  }, [money, totalEarned, businesses, investments, upgrades]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -280,7 +395,11 @@ export default function App() {
     const clickMult = clickUpgrade ? clickUpgrade.getEffect(clickUpgrade.level) : 1;
     const passiveBonus = calculateIncomePerSecond() * 0.01; 
     
-    const clickValue = (baseClick + passiveBonus) * clickMult;
+    // 업적 보너스 적용
+    const unlockedAchievements = achievements.filter(a => a.unlocked).length;
+    const achievementMultiplier = 1 + (unlockedAchievements * 0.01);
+
+    const clickValue = (baseClick + passiveBonus) * clickMult * achievementMultiplier;
     setMoney(prev => prev + clickValue);
     setTotalEarned(prev => prev + clickValue);
   };
@@ -385,9 +504,42 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white p-4 md:p-8 flex flex-col md:flex-row gap-6">
       
+      {/* 오프라인 수익 모달 */}
+      {showOfflineModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl">
+            <Clock className="w-12 h-12 text-blue-400 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-white mb-2">환영합니다!</h2>
+            <p className="text-slate-400 mb-4">자리를 비운 동안 사업체들이 열심히 일했군요.</p>
+            <div className="bg-slate-700 rounded-xl p-4 mb-6">
+              <p className="text-sm text-slate-400">오프라인 수익</p>
+              <p className="text-3xl font-mono font-bold text-emerald-400">
+                + ₩ {formatMoney(offlineEarnings)}
+              </p>
+            </div>
+            <button 
+              onClick={() => setShowOfflineModal(false)}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-colors"
+            >
+              수익 받기
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 왼쪽 패널 */}
       <div className="w-full md:w-[400px] flex flex-col gap-6 shrink-0">
-        <div className="bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-700">
+        <div className="bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-700 relative">
+          {/* 상단 컨트롤 버튼 (저장/리셋) */}
+          <div className="absolute top-4 right-4 flex gap-2">
+            <button onClick={saveData} className="p-2 bg-slate-700 rounded-lg hover:bg-slate-600 text-slate-400 hover:text-white transition-colors" title="저장">
+              <Save size={18} />
+            </button>
+            <button onClick={resetData} className="p-2 bg-slate-700 rounded-lg hover:bg-red-900/50 text-slate-400 hover:text-red-400 transition-colors" title="초기화">
+              <RotateCcw size={18} />
+            </button>
+          </div>
+
           <div className="flex items-center gap-3 mb-2">
             <Coins className="text-yellow-400 w-8 h-8" />
             <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-200">
@@ -400,9 +552,15 @@ export default function App() {
               ₩ {formatMoney(money)}
             </p>
           </div>
-          <div className="mt-4 flex items-center gap-2 text-emerald-400 bg-emerald-400/10 w-fit px-3 py-1 rounded-full">
-            <TrendingUp size={18} />
-            <span className="font-bold">+{formatMoney(calculateIncomePerSecond())} / 초 (통합)</span>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+             <div className="flex items-center gap-2 text-emerald-400 bg-emerald-400/10 w-fit px-3 py-1 rounded-full">
+              <TrendingUp size={18} />
+              <span className="font-bold">+{formatMoney(calculateIncomePerSecond())} / 초</span>
+            </div>
+            <div className="flex items-center gap-2 text-purple-400 bg-purple-400/10 w-fit px-3 py-1 rounded-full text-xs">
+              <Medal size={14} />
+              <span className="font-bold">업적 보너스: +{achievements.filter(a => a.unlocked).length}%</span>
+            </div>
           </div>
         </div>
 
@@ -446,7 +604,8 @@ export default function App() {
           </button>
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 to-transparent pointer-events-none"></div>
           <p className="mt-6 text-slate-400 text-sm text-center">
-            클릭하여 시드머니를 모으세요.
+            클릭하여 시드머니를 모으세요.<br/>
+            (업적 달성 시 클릭 수익도 증가!)
           </p>
         </div>
       </div>
@@ -454,24 +613,30 @@ export default function App() {
       {/* 오른쪽 패널 */}
       <div className="flex-1 bg-slate-800 rounded-2xl shadow-lg border border-slate-700 flex flex-col overflow-hidden min-h-[600px]">
         {/* 탭 헤더 */}
-        <div className="flex border-b border-slate-700">
+        <div className="flex border-b border-slate-700 overflow-x-auto">
           <button 
             onClick={() => setActiveTab('business')}
-            className={`flex-1 py-4 font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === 'business' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-750'}`}
+            className={`flex-1 py-4 px-2 font-bold flex items-center justify-center gap-2 transition-colors min-w-[100px] ${activeTab === 'business' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-750'}`}
           >
-            <Briefcase size={18} /> 사업 운영
+            <Briefcase size={18} /> <span className="hidden sm:inline">사업</span>
           </button>
           <button 
             onClick={() => setActiveTab('investment')}
-            className={`flex-1 py-4 font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === 'investment' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-750'}`}
+            className={`flex-1 py-4 px-2 font-bold flex items-center justify-center gap-2 transition-colors min-w-[100px] ${activeTab === 'investment' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-750'}`}
           >
-            <LineChart size={18} /> 투자 거래소
+            <LineChart size={18} /> <span className="hidden sm:inline">투자</span>
           </button>
           <button 
             onClick={() => setActiveTab('upgrade')}
-            className={`flex-1 py-4 font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === 'upgrade' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-750'}`}
+            className={`flex-1 py-4 px-2 font-bold flex items-center justify-center gap-2 transition-colors min-w-[100px] ${activeTab === 'upgrade' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-750'}`}
           >
-            <Microscope size={18} /> 연구소
+            <Microscope size={18} /> <span className="hidden sm:inline">연구</span>
+          </button>
+           <button 
+            onClick={() => setActiveTab('achievement')}
+            className={`flex-1 py-4 px-2 font-bold flex items-center justify-center gap-2 transition-colors min-w-[100px] ${activeTab === 'achievement' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-750'}`}
+          >
+            <Medal size={18} /> <span className="hidden sm:inline">업적</span>
           </button>
         </div>
 
@@ -708,6 +873,42 @@ export default function App() {
               })}
             </div>
           )}
+
+          {/* 4. 업적 탭 (New) */}
+          {activeTab === 'achievement' && (
+            <div className="space-y-3">
+              <h3 className="text-lg font-bold text-slate-300 mb-4">나의 업적</h3>
+              <div className="bg-slate-700/50 p-4 rounded-lg border border-slate-600 text-sm text-slate-300 mb-4">
+                <p>🏆 업적을 달성할 때마다 전체 수익(클릭, 사업, 투자)이 <strong>1%씩 증가</strong>합니다.</p>
+              </div>
+              <div className="grid grid-cols-1 gap-3">
+                {achievements.map((ach) => (
+                  <div 
+                    key={ach.id} 
+                    className={`p-4 rounded-xl border flex items-center gap-4 ${
+                      ach.unlocked 
+                        ? 'bg-indigo-900/30 border-indigo-500/50' 
+                        : 'bg-slate-800 border-slate-700 opacity-60'
+                    }`}
+                  >
+                    <div className={`p-3 rounded-full ${ach.unlocked ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/50' : 'bg-slate-700 text-slate-500'}`}>
+                      <Medal size={24} />
+                    </div>
+                    <div>
+                      <h4 className={`font-bold ${ach.unlocked ? 'text-white' : 'text-slate-400'}`}>{ach.name}</h4>
+                      <p className="text-sm text-slate-400">{ach.desc}</p>
+                    </div>
+                    {ach.unlocked && (
+                      <div className="ml-auto text-xs font-bold text-indigo-400 bg-indigo-900/50 px-2 py-1 rounded">
+                        달성 완료
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
 
