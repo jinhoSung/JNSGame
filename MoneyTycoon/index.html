@@ -1,1052 +1,752 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { 
-  Coins, 
-  TrendingUp, 
-  TrendingDown,
-  Briefcase, 
-  Building2, 
-  Zap, 
-  MousePointer2, 
-  ArrowUpCircle,
-  Trophy,
-  Activity,
-  LineChart,
-  Wallet,
-  Landmark,
-  Microscope,
-  Calculator,
-  Rocket,
-  Globe,
-  Gem,
-  Save,
-  RotateCcw,
-  Medal,
-  Clock,
-  Crown
-} from 'lucide-react';
-
-// --- 게임 데이터 및 상수 설정 ---
-
-const INITIAL_BUSINESSES = [
-  { id: 1, name: '편의점 알바', baseCost: 15, baseIncome: 3, count: 0, icon: 'store' },
-  { id: 2, name: '노점상 운영', baseCost: 100, baseIncome: 15, count: 0, icon: 'shop' },
-  { id: 3, name: '중소기업 운영', baseCost: 1100, baseIncome: 90, count: 0, icon: 'chart' },
-  { id: 4, name: '프랜차이즈', baseCost: 12000, baseIncome: 450, count: 0, icon: 'building' },
-  { id: 5, name: '배달 앱 스타트업', baseCost: 130000, baseIncome: 2200, count: 0, icon: 'scooter' },
-  { id: 6, name: 'IT 벤처기업', baseCost: 850000, baseIncome: 9500, count: 0, icon: 'rocket' },
-  { id: 7, name: '글로벌 은행', baseCost: 5000000, baseIncome: 45000, count: 0, icon: 'bank' },
-  { id: 8, name: '에너지 발전소', baseCost: 45000000, baseIncome: 250000, count: 0, icon: 'zap' },
-  { id: 9, name: '민간 우주 항공사', baseCost: 350000000, baseIncome: 1500000, count: 0, icon: 'space' },
-  { id: 10, name: '화성 식민지', baseCost: 5000000000, baseIncome: 12000000, count: 0, icon: 'mars' },
-];
-
-const INITIAL_INVESTMENTS = [
-  { 
-    id: 'coin', 
-    name: '도지왕 코인', 
-    price: 30, 
-    owned: 0, 
-    avgPrice: 0, 
-    volatility: 0.20,
-    type: 'high_risk',
-    desc: '매우 위험하지만 대박 가능성',
-    history: Array(20).fill(30)
-  },
-  { 
-    id: 'nft', 
-    name: '희귀 NFT 아트', 
-    price: 1500, 
-    owned: 0, 
-    avgPrice: 0, 
-    volatility: 0.25,
-    type: 'high_risk',
-    desc: '예측 불가능한 디지털 자산',
-    history: Array(20).fill(1500)
-  },
-  { 
-    id: 'bio_stock', 
-    name: '바이오 주식', 
-    price: 5500, 
-    owned: 0, 
-    avgPrice: 0, 
-    volatility: 0.12,
-    type: 'medium_risk',
-    desc: '임상 결과에 따라 등락폭 큼',
-    history: Array(20).fill(5500)
-  },
-  { 
-    id: 'stock', 
-    name: '삼송전자', 
-    price: 8000, 
-    owned: 0, 
-    avgPrice: 0, 
-    volatility: 0.05, 
-    type: 'medium_risk',
-    desc: '안정적인 우량주 (배당금 대상)',
-    history: Array(20).fill(8000)
-  },
-  { 
-    id: 'gold', 
-    name: '순금 골드바', 
-    price: 350000, 
-    owned: 0, 
-    avgPrice: 0, 
-    volatility: 0.015,
-    type: 'low_risk',
-    desc: '불황에도 강한 최고의 안전자산',
-    history: Array(20).fill(350000)
-  },
-  { 
-    id: 'real_estate', 
-    name: '강남 아파트', 
-    price: 1500000, 
-    owned: 0, 
-    avgPrice: 0, 
-    volatility: 0.02, 
-    type: 'low_risk',
-    desc: '변동이 적은 부동산 (배당금 대상)',
-    history: Array(20).fill(1500000)
-  },
-];
-
-const INITIAL_UPGRADES = [
-  { 
-    id: 'click_boost', 
-    name: '나노 클릭 강화', 
-    type: 'click', 
-    level: 0, 
-    maxLevel: 50, 
-    baseCost: 500, 
-    costScale: 2.5, 
-    descTemplate: '클릭 수익 +{val}% (현재: {curr}배)',
-    getEffect: (lvl) => 1 + (lvl * 1) 
-  },
-  { 
-    id: 'biz_boost', 
-    name: '사업 자동화 AI', 
-    type: 'business', 
-    level: 0, 
-    maxLevel: 50, 
-    baseCost: 2000, 
-    costScale: 2.2, 
-    descTemplate: '모든 사업 수익 +{val}% (현재: +{curr}%)',
-    getEffect: (lvl) => 1 + (lvl * 0.2) 
-  },
-  { 
-    id: 'div_boost', 
-    name: '배당금 투자 전략', 
-    type: 'dividend', 
-    level: 0, 
-    maxLevel: 20, 
-    baseCost: 50000, 
-    costScale: 3.0, 
-    descTemplate: '주식/부동산 가치의 {val}% 초당 수익 (현재: {curr}%)',
-    getEffect: (lvl) => lvl * 0.002 
-  },
-  { 
-    id: 'market_boost', 
-    name: '시장 예측 모델', 
-    type: 'market', 
-    level: 0, 
-    maxLevel: 10, 
-    baseCost: 100000, 
-    costScale: 4.0, 
-    descTemplate: '호황기 보너스 배율 +{val} (현재: x{curr})',
-    getEffect: (lvl) => 2.0 + (lvl * 0.5) 
-  },
-  { 
-    id: 'cost_cut', 
-    name: '로비스트 고용', 
-    type: 'discount', 
-    level: 0, 
-    maxLevel: 10, 
-    baseCost: 500000, 
-    costScale: 5.0, 
-    descTemplate: '사업 인수 비용 {val}% 할인 (현재: -{curr}%)',
-    getEffect: (lvl) => Math.max(0.1, 1.0 - (lvl * 0.05)) 
-  }
-];
-
-const INITIAL_ACHIEVEMENTS = [
-  { id: 'first_money', name: '첫 걸음', desc: '누적 수익 1,000원 달성', condition: (state) => state.totalEarned >= 1000, unlocked: false },
-  { id: 'rich_1m', name: '백만장자', desc: '보유 자산 100만원 달성', condition: (state) => state.money >= 1000000, unlocked: false },
-  { id: 'rich_100m', name: '억만장자', desc: '보유 자산 1억원 달성', condition: (state) => state.money >= 100000000, unlocked: false },
-  { id: 'biz_king', name: '사업왕', desc: '모든 종류의 사업체 1개 이상 보유', condition: (state) => state.businesses.every(b => b.count > 0), unlocked: false },
-  { id: 'investor', name: '개미 투자자', desc: '주식 100주 보유', condition: (state) => state.investments.find(i => i.id === 'stock').owned >= 100, unlocked: false },
-  { id: 'landlord', name: '건물주', desc: '부동산 10채 보유', condition: (state) => state.investments.find(i => i.id === 'real_estate').owned >= 10, unlocked: false },
-  { id: 'researcher', name: '매드 사이언티스트', desc: '연구 레벨 총합 50 달성', condition: (state) => state.upgrades.reduce((acc, u) => acc + u.level, 0) >= 50, unlocked: false },
-  { id: 'prestige_1', name: '새로운 시작', desc: '첫 IPO(환생) 진행', condition: (state) => state.reputation > 0, unlocked: false },
-];
-
-const MARKET_EVENTS = [
-  { id: 'normal', name: '평온한 시장', multiplier: 1.0, priceBias: 0, color: 'text-gray-400', desc: '경제가 안정적입니다.' },
-  { id: 'bull', name: '경제 호황', multiplier: 2.0, priceBias: 0.03, color: 'text-green-400', desc: '수익 폭발 & 주가 상승장!' },
-  { id: 'bear', name: '경제 불황', multiplier: 0.5, priceBias: -0.03, color: 'text-red-400', desc: '수익 반토막 & 주가 하락장...' },
-];
-
-export default function App() {
-  // --- State 관리 ---
-  const [money, setMoney] = useState(0);
-  const [totalEarned, setTotalEarned] = useState(0);
-  const [businesses, setBusinesses] = useState(INITIAL_BUSINESSES);
-  const [investments, setInvestments] = useState(INITIAL_INVESTMENTS);
-  const [upgrades, setUpgrades] = useState(INITIAL_UPGRADES);
-  const [achievements, setAchievements] = useState(INITIAL_ACHIEVEMENTS);
-  const [reputation, setReputation] = useState(0); // 환생 포인트 (기업 명성)
-  const [marketStatus, setMarketStatus] = useState(MARKET_EVENTS[0]);
-  const [timeLeftForEvent, setTimeLeftForEvent] = useState(30);
-  const [activeTab, setActiveTab] = useState('business');
-  const [tradeAmount, setTradeAmount] = useState(1);
-  
-  // 모달 상태
-  const [offlineEarnings, setOfflineEarnings] = useState(0);
-  const [showOfflineModal, setShowOfflineModal] = useState(false);
-  const [showIPOModal, setShowIPOModal] = useState(false);
-  
-  const formatMoney = (amount) => Math.floor(amount).toLocaleString('ko-KR');
-
-  // 순자산 계산 (현금 + 투자 자산 가치)
-  const getNetWorth = useCallback(() => {
-    const assetsValue = investments.reduce((acc, inv) => acc + (inv.price * inv.owned), 0);
-    return money + assetsValue;
-  }, [money, investments]);
-
-  // --- 저장 및 불러오기 ---
-  const saveData = useCallback(() => {
-    const gameState = {
-      money,
-      totalEarned,
-      businesses,
-      investments,
-      upgrades,
-      achievements,
-      reputation,
-      lastSaveTime: Date.now()
-    };
-    localStorage.setItem('moneyTycoonSaveV2', JSON.stringify(gameState));
-  }, [money, totalEarned, businesses, investments, upgrades, achievements, reputation]);
-
-  useEffect(() => {
-    const saveTimer = setInterval(saveData, 5000);
-    return () => clearInterval(saveTimer);
-  }, [saveData]);
-
-  useEffect(() => {
-    const savedData = localStorage.getItem('moneyTycoonSaveV2');
-    if (savedData) {
-      try {
-        const parsed = JSON.parse(savedData);
-        setMoney(parsed.money || 0);
-        setTotalEarned(parsed.totalEarned || 0);
-        if (parsed.businesses) setBusinesses(parsed.businesses);
-        if (parsed.investments) setInvestments(parsed.investments);
-        if (parsed.upgrades) setUpgrades(parsed.upgrades);
-        if (parsed.achievements) setAchievements(parsed.achievements);
-        if (parsed.reputation) setReputation(parsed.reputation);
-
-        if (parsed.lastSaveTime) {
-          const now = Date.now();
-          const timeDiffSeconds = (now - parsed.lastSaveTime) / 1000;
-          if (timeDiffSeconds > 60) {
-            const currentBusinesses = parsed.businesses || INITIAL_BUSINESSES;
-            const currentUpgrades = parsed.upgrades || INITIAL_UPGRADES;
-            const currentReputation = parsed.reputation || 0;
-            
-            let businessIncome = currentBusinesses.reduce((acc, bus) => acc + (bus.baseIncome * bus.count), 0);
-            const bizUpgrade = currentUpgrades.find(u => u.id === 'biz_boost');
-            if (bizUpgrade) businessIncome *= (1 + (bizUpgrade.level * 0.2));
-
-            const unlockedCount = (parsed.achievements || INITIAL_ACHIEVEMENTS).filter(a => a.unlocked).length;
-            const achievementMultiplier = 1 + (unlockedCount * 0.01);
-            const prestigeMultiplier = 1 + (currentReputation * 0.1); 
-
-            const earnings = Math.floor(businessIncome * achievementMultiplier * prestigeMultiplier * timeDiffSeconds);
-            
-            if (earnings > 0) {
-              setOfflineEarnings(earnings);
-              setShowOfflineModal(true);
-              setMoney(prev => prev + earnings);
-              setTotalEarned(prev => prev + earnings);
-            }
-          }
-        }
-      } catch (e) {
-        console.error("Save file corrupted", e);
-      }
-    }
-  }, []);
-
-  const resetData = () => {
-    if (window.confirm("정말로 모든 데이터를 초기화하시겠습니까? (완전 초기화)")) {
-      localStorage.removeItem('moneyTycoonSaveV2');
-      window.location.reload();
-    }
-  };
-
-  // --- IPO (환생) 시스템 ---
-  const handleIPO = () => {
-    const netWorth = getNetWorth();
-    const potentialReputation = Math.floor(netWorth / 100000000); 
-
-    if (potentialReputation <= 0) return;
-
-    if (window.confirm(`기업 공개(IPO)를 진행하시겠습니까?\n\n현재 자산 가치: ₩${formatMoney(netWorth)}\n획득 가능한 명성: ${potentialReputation}점\n\n[주의] 돈, 사업, 투자가 모두 초기화되지만,\n명성 보너스로 인해 수익이 ${potentialReputation * 10}% 영구 증가합니다.`)) {
-      setReputation(prev => prev + potentialReputation);
-      setMoney(0);
-      setBusinesses(INITIAL_BUSINESSES);
-      setInvestments(INITIAL_INVESTMENTS);
-      setUpgrades(INITIAL_UPGRADES);
-      setTotalEarned(0);
-      setShowIPOModal(false);
-      alert(`IPO 성공! 명성 ${potentialReputation}점을 획득했습니다.\n새로운 경영을 시작하세요!`);
-    }
-  };
-
-  const getUpgradeCost = useCallback((upgrade) => {
-    return Math.floor(upgrade.baseCost * Math.pow(upgrade.costScale, upgrade.level));
-  }, []);
-
-  const calculateCost = useCallback((baseCost, count) => {
-    const discountUpgrade = upgrades.find(u => u.type === 'discount');
-    const discountMultiplier = discountUpgrade ? discountUpgrade.getEffect(discountUpgrade.level) : 1.0;
-    return Math.floor(baseCost * Math.pow(1.15, count) * discountMultiplier);
-  }, [upgrades]);
-
-  const calculateIncomePerSecond = useCallback(() => {
-    let businessIncome = businesses.reduce((acc, bus) => acc + (bus.baseIncome * bus.count), 0);
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>머니 타이쿤: 경제의 지배자</title>
     
-    const bizUpgrade = upgrades.find(u => u.type === 'business');
-    if (bizUpgrade) businessIncome *= bizUpgrade.getEffect(bizUpgrade.level);
-
-    const divUpgrade = upgrades.find(u => u.type === 'dividend');
-    let dividendIncome = 0;
-    if (divUpgrade && divUpgrade.level > 0) {
-      const dividendRate = divUpgrade.getEffect(divUpgrade.level);
-      const dividendAssets = ['stock', 'real_estate', 'gold', 'bio_stock'];
-      let assetValue = 0;
-      investments.forEach(inv => {
-        if (dividendAssets.includes(inv.id)) {
-          assetValue += inv.price * inv.owned;
-        }
-      });
-      dividendIncome = assetValue * dividendRate;
-    }
-
-    let currentMarketMult = marketStatus.multiplier;
-    if (marketStatus.id === 'bull') {
-      const marketUpgrade = upgrades.find(u => u.type === 'market');
-      if (marketUpgrade) currentMarketMult = marketUpgrade.getEffect(marketUpgrade.level);
-    }
-
-    const unlockedAchievements = achievements.filter(a => a.unlocked).length;
-    const achievementMultiplier = 1 + (unlockedAchievements * 0.01);
-    const prestigeMultiplier = 1 + (reputation * 0.1);
-
-    return (businessIncome + dividendIncome) * currentMarketMult * achievementMultiplier * prestigeMultiplier;
-  }, [businesses, upgrades, marketStatus, investments, achievements, reputation]);
-
-  useEffect(() => {
-    const checkAchievements = () => {
-      setAchievements(prev => {
-        let hasChanges = false;
-        const next = prev.map(ach => {
-          if (!ach.unlocked && ach.condition({ money, totalEarned, businesses, investments, upgrades, reputation })) {
-            hasChanges = true;
-            return { ...ach, unlocked: true };
-          }
-          return ach;
-        });
-        return hasChanges ? next : prev;
-      });
-    };
-    const timer = setInterval(checkAchievements, 1000);
-    return () => clearInterval(timer);
-  }, [money, totalEarned, businesses, investments, upgrades, reputation]);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const income = calculateIncomePerSecond();
-      if (income > 0) {
-        setMoney(prev => prev + income);
-        setTotalEarned(prev => prev + income);
-      }
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [calculateIncomePerSecond]);
-
-  useEffect(() => {
-    const priceTimer = setInterval(() => {
-      setInvestments(prevInvestments => {
-        return prevInvestments.map(item => {
-          const randomFactor = (Math.random() - 0.5) * 2; 
-          const marketBias = marketStatus.priceBias;
-          const changePercent = (randomFactor * item.volatility) + marketBias;
-          
-          let newPrice = Math.round(item.price * (1 + changePercent));
-          if (newPrice < 1) newPrice = 1;
-
-          const newHistory = [...item.history.slice(1), newPrice];
-          return { ...item, price: newPrice, history: newHistory };
-        });
-      });
-    }, 1500);
-    return () => clearInterval(priceTimer);
-  }, [marketStatus]);
-
-  useEffect(() => {
-    const eventTimer = setInterval(() => {
-      setTimeLeftForEvent(prev => {
-        if (prev <= 1) {
-          const random = Math.random();
-          let newEvent;
-          if (random < 0.6) newEvent = MARKET_EVENTS[0];
-          else if (random < 0.85) newEvent = MARKET_EVENTS[1];
-          else newEvent = MARKET_EVENTS[2];
-          setMarketStatus(newEvent);
-          return 30;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(eventTimer);
-  }, []);
-
-  const handleManualClick = () => {
-    const baseClick = 1;
-    const clickUpgrade = upgrades.find(u => u.type === 'click');
-    const clickMult = clickUpgrade ? clickUpgrade.getEffect(clickUpgrade.level) : 1;
-    const passiveBonus = calculateIncomePerSecond() * 0.01; 
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
     
-    const unlockedAchievements = achievements.filter(a => a.unlocked).length;
-    const achievementMultiplier = 1 + (unlockedAchievements * 0.01);
-    const prestigeMultiplier = 1 + (reputation * 0.1);
-
-    const clickValue = (baseClick + passiveBonus) * clickMult * achievementMultiplier * prestigeMultiplier;
-    setMoney(prev => prev + clickValue);
-    setTotalEarned(prev => prev + clickValue);
-  };
-
-  const buyBusiness = (id) => {
-    const idx = businesses.findIndex(b => b.id === id);
-    const cost = calculateCost(businesses[idx].baseCost, businesses[idx].count);
-    if (money >= cost) {
-      setMoney(prev => prev - cost);
-      const newBus = [...businesses];
-      newBus[idx].count += 1;
-      setBusinesses(newBus);
-    }
-  };
-
-  const buyUpgrade = (id) => {
-    const idx = upgrades.findIndex(u => u.id === id);
-    const upgrade = upgrades[idx];
-    const cost = getUpgradeCost(upgrade);
-
-    if (money >= cost && upgrade.level < upgrade.maxLevel) {
-      setMoney(prev => prev - cost);
-      const newUps = [...upgrades];
-      newUps[idx].level += 1;
-      setUpgrades(newUps);
-    }
-  };
-
-  const buyInvestment = (id) => {
-    const idx = investments.findIndex(i => i.id === id);
-    const item = investments[idx];
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     
-    let amountToBuy = 0;
-    if (tradeAmount === 'MAX') {
-      amountToBuy = Math.floor(money / item.price);
-    } else {
-      amountToBuy = tradeAmount;
-    }
-    if (amountToBuy <= 0) return;
+    <!-- Babel (JSX 컴파일러) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    const cost = item.price * amountToBuy;
-    if (money >= cost) {
-      setMoney(prev => prev - cost);
-      setInvestments(prev => {
-        const newInv = [...prev];
-        const totalValue = (newInv[idx].avgPrice * newInv[idx].owned) + cost;
-        const totalCount = newInv[idx].owned + amountToBuy;
-        newInv[idx].owned = totalCount;
-        newInv[idx].avgPrice = totalValue / totalCount;
-        return newInv;
-      });
-    }
-  };
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(30, 41, 59, 0.5); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(71, 85, 105, 0.8); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 1); }
+        
+        body { background-color: #0f172a; color: #f1f5f9; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-  const sellInvestment = (id) => {
-    const idx = investments.findIndex(i => i.id === id);
-    const item = investments[idx];
-    let amountToSell = 0;
-    if (tradeAmount === 'MAX') {
-      amountToSell = item.owned;
-    } else {
-      amountToSell = Math.min(item.owned, tradeAmount);
-    }
-    if (amountToSell <= 0) return;
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useRef } = React;
 
-    const revenue = item.price * amountToSell;
-    setMoney(prev => prev + revenue);
-    setInvestments(prev => {
-      const newInv = [...prev];
-      newInv[idx].owned -= amountToSell;
-      if (newInv[idx].owned === 0) newInv[idx].avgPrice = 0;
-      return newInv;
-    });
-  };
-
-  const InvestmentChart = ({ history, color }) => {
-    const min = Math.min(...history);
-    const max = Math.max(...history);
-    const range = max - min || 1;
-    const height = 40;
-    const width = 100;
-    
-    const points = history.map((price, i) => {
-      const x = (i / (history.length - 1)) * width;
-      const y = height - ((price - min) / range) * height;
-      return `${x},${y}`;
-    }).join(' ');
-
-    return (
-      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="overflow-visible">
-        <polyline
-          fill="none"
-          stroke={color}
-          strokeWidth="2"
-          points={points}
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-    );
-  };
-
-  const getProgressColor = () => {
-    if (marketStatus.id === 'bull') return 'bg-green-500';
-    if (marketStatus.id === 'bear') return 'bg-red-500';
-    return 'bg-blue-500';
-  };
-
-  const getUpgradeDesc = (upgrade) => {
-    let val, curr;
-    if (upgrade.type === 'click') {
-      val = 100; curr = upgrade.getEffect(upgrade.level);
-    } else if (upgrade.type === 'business') {
-      val = 20; curr = Math.round((upgrade.getEffect(upgrade.level) - 1) * 100);
-    } else if (upgrade.type === 'dividend') {
-      val = 0.2; curr = (upgrade.getEffect(upgrade.level) * 100).toFixed(1);
-    } else if (upgrade.type === 'market') {
-      val = 0.5; curr = upgrade.getEffect(upgrade.level).toFixed(1);
-    } else if (upgrade.type === 'discount') {
-      val = 5; curr = Math.round((1 - upgrade.getEffect(upgrade.level)) * 100);
-    }
-    return upgrade.descTemplate.replace('{val}', val).replace('{curr}', curr);
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white p-4 md:p-8 flex flex-col md:flex-row gap-6 relative">
-      
-      {/* IPO 모달 */}
-      {showIPOModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl p-6 max-w-md w-full text-center shadow-[0_0_50px_rgba(234,179,8,0.3)]">
-            <Crown className="w-16 h-16 text-yellow-400 mx-auto mb-4 animate-bounce" />
-            <h2 className="text-3xl font-bold text-white mb-2">기업 공개 (IPO)</h2>
-            <p className="text-slate-300 mb-6">
-              회사를 매각하고 새로운 전설을 쓰시겠습니까?
-            </p>
-            
-            <div className="bg-slate-700/50 rounded-xl p-4 mb-4 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-400">현재 순자산</span>
-                <span className="text-white font-mono">₩ {formatMoney(getNetWorth())}</span>
-              </div>
-              <div className="flex justify-between text-lg font-bold">
-                <span className="text-yellow-400">획득 명성</span>
-                <span className="text-yellow-400">+{Math.floor(getNetWorth() / 100000000)} 점</span>
-              </div>
-            </div>
-
-            <div className="text-left text-xs text-slate-400 mb-6 bg-slate-900/50 p-3 rounded-lg">
-              <p>⚠️ <strong>초기화 항목:</strong> 현금, 사업체, 투자 자산, 연구 레벨</p>
-              <p>✅ <strong>유지 항목:</strong> 업적, 기업 명성</p>
-              <p className="text-yellow-400 mt-2">🔥 명성 1점당 모든 수익 +10% 영구 증가</p>
-            </div>
-
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setShowIPOModal(false)}
-                className="flex-1 bg-slate-600 hover:bg-slate-500 text-white font-bold py-3 rounded-xl"
-              >
-                취소
-              </button>
-              <button 
-                onClick={handleIPO}
-                className="flex-1 bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-white font-bold py-3 rounded-xl shadow-lg"
-              >
-                IPO 진행
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 오프라인 수익 모달 */}
-      {showOfflineModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl">
-            <Clock className="w-12 h-12 text-blue-400 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-white mb-2">환영합니다!</h2>
-            <p className="text-slate-400 mb-4">자리를 비운 동안 사업체들이 열심히 일했군요.</p>
-            <div className="bg-slate-700 rounded-xl p-4 mb-6">
-              <p className="text-sm text-slate-400">오프라인 수익</p>
-              <p className="text-3xl font-mono font-bold text-emerald-400">
-                + ₩ {formatMoney(offlineEarnings)}
-              </p>
-            </div>
-            <button 
-              onClick={() => setShowOfflineModal(false)}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-colors"
+        // --- 아이콘 컴포넌트 (Lucide 아이콘을 SVG로 직접 구현) ---
+        // 수정 사항: 여러 경로를 가진 아이콘들은 <>...</> (Fragment)로 감싸주어야 합니다.
+        const Icon = ({ path, className, size = 24, color = "currentColor" }) => (
+            <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width={size} 
+                height={size} 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke={color} 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className={className}
             >
-              수익 받기
-            </button>
-          </div>
-        </div>
-      )}
+                {path}
+            </svg>
+        );
 
-      {/* 왼쪽 패널 (PC에서는 Sticky 고정, 모바일에서는 스크롤됨) */}
-      <div className="w-full md:w-[400px] flex flex-col gap-6 shrink-0 md:sticky md:top-8 h-fit">
-        <div className="bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-700 relative">
-          {/* 상단 컨트롤 버튼 */}
-          <div className="absolute top-4 right-4 flex gap-2">
-            {/* IPO 버튼 (1억 이상일 때 표시) */}
-            {getNetWorth() >= 100000000 && (
-              <button 
-                onClick={() => setShowIPOModal(true)} 
-                className="p-2 bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 rounded-lg hover:bg-yellow-500/40 transition-colors animate-pulse" 
-                title="IPO 진행"
-              >
-                <Crown size={18} />
-              </button>
-            )}
-            <button onClick={saveData} className="p-2 bg-slate-700 rounded-lg hover:bg-slate-600 text-slate-400 hover:text-white transition-colors" title="저장">
-              <Save size={18} />
-            </button>
-            <button onClick={resetData} className="p-2 bg-slate-700 rounded-lg hover:bg-red-900/50 text-slate-400 hover:text-red-400 transition-colors" title="초기화">
-              <RotateCcw size={18} />
-            </button>
-          </div>
+        const Icons = {
+            Coins: (props) => <Icon {...props} path={<><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></>} />,
+            TrendingUp: (props) => <Icon {...props} path={<><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></>} />,
+            TrendingDown: (props) => <Icon {...props} path={<><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></>} />,
+            Briefcase: (props) => <Icon {...props} path={<><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></>} />,
+            Building2: (props) => <Icon {...props} path={<><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></>} />,
+            Zap: (props) => <Icon {...props} path={<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>} />,
+            MousePointer2: (props) => <Icon {...props} path={<><path d="m12 6 2-2H6l8 18h2a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2Z"/><path d="m12 6-4 4H4v4h4l4 4"/></>} />,
+            ArrowUpCircle: (props) => <Icon {...props} path={<><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/><path d="M12 16V8"/></>} />,
+            Trophy: (props) => <Icon {...props} path={<><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></>} />,
+            Activity: (props) => <Icon {...props} path={<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>} />,
+            LineChart: (props) => <Icon {...props} path={<><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></>} />,
+            Wallet: (props) => <Icon {...props} path={<><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></>} />,
+            Landmark: (props) => <Icon {...props} path={<><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/></>} />,
+            Microscope: (props) => <Icon {...props} path={<><path d="M6 18h8"/><path d="M3 22h18"/><path d="M14 22a7 7 0 1 0 0-14h-1"/><path d="M9 14h2"/><path d="M9 12a2 2 0 0 1-2-2V6h6v4a2 2 0 0 1-2 2Z"/><path d="M12 6V3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3"/></>} />,
+            Calculator: (props) => <Icon {...props} path={<><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></>} />,
+            Rocket: (props) => <Icon {...props} path={<><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></>} />,
+            Globe: (props) => <Icon {...props} path={<><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></>} />,
+            Gem: (props) => <Icon {...props} path={<path d="M6 3h12l4 6-10 13L2 9Z"/>} />,
+            Save: (props) => <Icon {...props} path={<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>} />,
+            RotateCcw: (props) => <Icon {...props} path={<><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></>} />,
+            Medal: (props) => <Icon {...props} path={<><path d="M7.21 15 2.66 7.14a2 2 0 0 1 .13-2.2L4.4 2.8A2 2 0 0 1 6 2h12a2 2 0 0 1 1.6.8l1.6 2.14a2 2 0 0 1 .14 2.2L16.79 15"/><path d="M11 12 5.12 2.2"/><path d="m13 12 5.88-9.8"/><path d="M8 7h8"/><circle cx="12" cy="17" r="5"/><path d="M12 18v-2h-.5"/></>} />,
+            Clock: (props) => <Icon {...props} path={<><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>} />,
+            Crown: (props) => <Icon {...props} path={<><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></>} />,
+            AlertTriangle: (props) => <Icon {...props} path={<><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></>} />,
+            Info: (props) => <Icon {...props} path={<><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></>} />
+        };
 
-          <div className="flex items-center gap-3 mb-2">
-            <Coins className="text-yellow-400 w-8 h-8" />
-            <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-200">
-              머니 타이쿤
-            </h1>
-          </div>
-          <div className="mt-4">
-            <p className="text-slate-400 text-sm flex justify-between">
-              <span>보유 현금</span>
-              <span className="text-xs text-slate-500">순자산: ₩ {formatMoney(getNetWorth())}</span>
-            </p>
-            <p className="text-4xl font-mono font-bold text-white mt-1 break-all">
-              ₩ {formatMoney(money)}
-            </p>
-          </div>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-             <div className="flex items-center gap-2 text-emerald-400 bg-emerald-400/10 w-fit px-3 py-1 rounded-full">
-              <TrendingUp size={18} />
-              <span className="font-bold">+{formatMoney(calculateIncomePerSecond())} / 초</span>
-            </div>
-            {reputation > 0 && (
-              <div className="flex items-center gap-2 text-yellow-400 bg-yellow-400/10 w-fit px-3 py-1 rounded-full text-xs border border-yellow-500/30">
-                <Crown size={14} />
-                <span className="font-bold">명성 효과: +{reputation * 10}%</span>
-              </div>
-            )}
-          </div>
-        </div>
+        // --- 게임 데이터 ---
+        const getInitialBusinesses = () => [
+            { id: 1, name: '편의점 알바', baseCost: 15, baseIncome: 3, count: 0, icon: 'store' },
+            { id: 2, name: '노점상 운영', baseCost: 100, baseIncome: 15, count: 0, icon: 'shop' },
+            { id: 3, name: '중소기업 운영', baseCost: 1100, baseIncome: 90, count: 0, icon: 'chart' },
+            { id: 4, name: '프랜차이즈', baseCost: 12000, baseIncome: 450, count: 0, icon: 'building' },
+            { id: 5, name: '배달 앱 스타트업', baseCost: 130000, baseIncome: 2200, count: 0, icon: 'scooter' },
+            { id: 6, name: 'IT 벤처기업', baseCost: 850000, baseIncome: 9500, count: 0, icon: 'rocket' },
+            { id: 7, name: '글로벌 은행', baseCost: 5000000, baseIncome: 45000, count: 0, icon: 'bank' },
+            { id: 8, name: '에너지 발전소', baseCost: 45000000, baseIncome: 250000, count: 0, icon: 'zap' },
+            { id: 9, name: '민간 우주 항공사', baseCost: 350000000, baseIncome: 1500000, count: 0, icon: 'space' },
+            { id: 10, name: '화성 식민지', baseCost: 5000000000, baseIncome: 12000000, count: 0, icon: 'mars' },
+        ];
 
-        {/* 시장 현황 */}
-        <div className="bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-700 relative overflow-hidden">
-          <div className="flex justify-between items-center mb-2 relative z-10">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Activity size={20} /> 시장 경제 뉴스
-            </h2>
-            <span className="text-xs text-slate-400">{timeLeftForEvent}초 후 변동</span>
-          </div>
-          <div className="relative z-10">
-            <p className={`text-xl font-bold ${marketStatus.color}`}>
-              {marketStatus.name}
-            </p>
-            <div className="flex items-center gap-2 text-sm text-slate-400 mt-1">
-              <span>{marketStatus.desc}</span>
-              {marketStatus.id === 'bull' && (
-                <span className="text-green-400 font-bold bg-green-400/10 px-2 rounded">
-                  x{upgrades.find(u => u.type === 'market').getEffect(upgrades.find(u => u.type === 'market').level).toFixed(1)} 효과
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="absolute bottom-0 left-0 h-1 w-full bg-slate-700">
-            <div 
-              className={`h-full transition-all duration-1000 ease-linear ${getProgressColor()}`} 
-              style={{ width: `${(timeLeftForEvent / 30) * 100}%` }}
-            />
-          </div>
-        </div>
+        const getInitialInvestments = () => [
+            { id: 'coin', name: '도지왕 코인', price: 30, owned: 0, avgPrice: 0, volatility: 0.20, type: 'high_risk', desc: '매우 위험하지만 대박 가능성', history: Array(20).fill(30) },
+            { id: 'nft', name: '희귀 NFT 아트', price: 1500, owned: 0, avgPrice: 0, volatility: 0.25, type: 'high_risk', desc: '예측 불가능한 디지털 자산', history: Array(20).fill(1500) },
+            { id: 'bio_stock', name: '바이오 주식', price: 5500, owned: 0, avgPrice: 0, volatility: 0.12, type: 'medium_risk', desc: '임상 결과에 따라 등락폭 큼', history: Array(20).fill(5500) },
+            { id: 'stock', name: '삼송전자', price: 8000, owned: 0, avgPrice: 0, volatility: 0.05, type: 'medium_risk', desc: '안정적인 우량주 (배당금 대상)', history: Array(20).fill(8000) },
+            { id: 'gold', name: '순금 골드바', price: 350000, owned: 0, avgPrice: 0, volatility: 0.015, type: 'low_risk', desc: '불황에도 강한 최고의 안전자산', history: Array(20).fill(350000) },
+            { id: 'real_estate', name: '강남 아파트', price: 1500000, owned: 0, avgPrice: 0, volatility: 0.02, type: 'low_risk', desc: '변동이 적은 부동산 (배당금 대상)', history: Array(20).fill(1500000) },
+        ];
 
-        {/* 노동 버튼 (왼쪽 패널용) */}
-        <div className="flex-1 bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-700 flex flex-col items-center justify-center min-h-[200px] relative overflow-hidden group">
-          <button 
-            onClick={handleManualClick}
-            className="relative z-10 bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition-all w-48 h-48 rounded-full shadow-[0_0_40px_rgba(79,70,229,0.3)] flex flex-col items-center justify-center gap-2 group-hover:shadow-[0_0_60px_rgba(79,70,229,0.5)] border-4 border-indigo-400/30"
-          >
-            <MousePointer2 size={48} className="text-white mb-2" />
-            <span className="font-bold text-lg">노동하기</span>
-          </button>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 to-transparent pointer-events-none"></div>
-          <p className="mt-6 text-slate-400 text-sm text-center">
-            클릭하여 시드머니를 모으세요.<br/>
-            (업적 & 명성 보너스 적용 중)
-          </p>
-        </div>
-      </div>
+        const getInitialUpgrades = () => [
+            { id: 'click_boost', name: '나노 클릭 강화', type: 'click', level: 0, maxLevel: 50, baseCost: 500, costScale: 2.5, descTemplate: '클릭 수익 +{val}% (현재: {curr}배)', getEffect: (lvl) => 1 + (lvl * 1) },
+            { id: 'biz_boost', name: '사업 자동화 AI', type: 'business', level: 0, maxLevel: 50, baseCost: 2000, costScale: 2.2, descTemplate: '모든 사업 수익 +{val}% (현재: +{curr}%)', getEffect: (lvl) => 1 + (lvl * 0.2) },
+            { id: 'div_boost', name: '배당금 투자 전략', type: 'dividend', level: 0, maxLevel: 20, baseCost: 50000, costScale: 3.0, descTemplate: '주식/부동산 가치의 {val}% 초당 수익 (현재: {curr}%)', getEffect: (lvl) => lvl * 0.002 },
+            { id: 'market_boost', name: '시장 예측 모델', type: 'market', level: 0, maxLevel: 10, baseCost: 100000, costScale: 4.0, descTemplate: '호황기 보너스 배율 +{val} (현재: x{curr})', getEffect: (lvl) => 2.0 + (lvl * 0.5) },
+            { id: 'cost_cut', name: '로비스트 고용', type: 'discount', level: 0, maxLevel: 10, baseCost: 500000, costScale: 5.0, descTemplate: '사업 인수 비용 {val}% 할인 (현재: -{curr}%)', getEffect: (lvl) => Math.max(0.1, 1.0 - (lvl * 0.05)) }
+        ];
 
-      {/* 오른쪽 패널 */}
-      <div className="flex-1 bg-slate-800 rounded-2xl shadow-lg border border-slate-700 flex flex-col overflow-hidden min-h-[600px]">
-        {/* 탭 헤더 */}
-        <div className="flex border-b border-slate-700 overflow-x-auto">
-          <button 
-            onClick={() => setActiveTab('business')}
-            className={`flex-1 py-4 px-2 font-bold flex items-center justify-center gap-2 transition-colors min-w-[100px] ${activeTab === 'business' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-750'}`}
-          >
-            <Briefcase size={18} /> <span className="hidden sm:inline">사업</span>
-          </button>
-          <button 
-            onClick={() => setActiveTab('investment')}
-            className={`flex-1 py-4 px-2 font-bold flex items-center justify-center gap-2 transition-colors min-w-[100px] ${activeTab === 'investment' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-750'}`}
-          >
-            <LineChart size={18} /> <span className="hidden sm:inline">투자</span>
-          </button>
-          <button 
-            onClick={() => setActiveTab('upgrade')}
-            className={`flex-1 py-4 px-2 font-bold flex items-center justify-center gap-2 transition-colors min-w-[100px] ${activeTab === 'upgrade' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-750'}`}
-          >
-            <Microscope size={18} /> <span className="hidden sm:inline">연구</span>
-          </button>
-           <button 
-            onClick={() => setActiveTab('achievement')}
-            className={`flex-1 py-4 px-2 font-bold flex items-center justify-center gap-2 transition-colors min-w-[100px] ${activeTab === 'achievement' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-750'}`}
-          >
-            <Medal size={18} /> <span className="hidden sm:inline">업적</span>
-          </button>
-        </div>
+        const ACHIEVEMENT_DEFINITIONS = [
+            { id: 'first_money', name: '첫 걸음', desc: '누적 수익 1,000원 달성', condition: (state) => state.totalEarned >= 1000 },
+            { id: 'rich_1m', name: '백만장자', desc: '보유 자산 100만원 달성', condition: (state) => state.money >= 1000000 },
+            { id: 'rich_100m', name: '억만장자', desc: '보유 자산 1억원 달성', condition: (state) => state.money >= 100000000 },
+            { id: 'biz_king', name: '사업왕', desc: '모든 종류의 사업체 1개 이상 보유', condition: (state) => state.businesses.every(b => b.count > 0) },
+            { id: 'investor', name: '개미 투자자', desc: '주식 100주 보유', condition: (state) => state.investments.find(i => i.id === 'stock').owned >= 100 },
+            { id: 'landlord', name: '건물주', desc: '부동산 10채 보유', condition: (state) => state.investments.find(i => i.id === 'real_estate').owned >= 10 },
+            { id: 'researcher', name: '매드 사이언티스트', desc: '연구 레벨 총합 50 달성', condition: (state) => state.upgrades.reduce((acc, u) => acc + u.level, 0) >= 50 },
+            { id: 'prestige_1', name: '새로운 시작', desc: '첫 IPO(환생) 진행', condition: (state) => state.reputation > 0 },
+        ];
 
-        {/* 탭 컨텐츠 */}
-        <div className="flex-1 p-6 overflow-y-auto custom-scrollbar bg-slate-800">
-          
-          {/* 1. 사업 탭 */}
-          {activeTab === 'business' && (
-            <div className="space-y-3">
-              <h3 className="text-lg font-bold text-slate-300 mb-4">자동 수익원 매입</h3>
-              {businesses.map((biz) => {
-                const currentCost = calculateCost(biz.baseCost, biz.count);
-                const canAfford = money >= currentCost;
-                return (
-                  <button
-                    key={biz.id}
-                    onClick={() => buyBusiness(biz.id)}
-                    disabled={!canAfford}
-                    className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${
-                      canAfford 
-                        ? 'bg-slate-700 border-slate-600 hover:bg-slate-650' 
-                        : 'bg-slate-800/50 border-slate-700 opacity-60 cursor-not-allowed'
-                    }`}
-                  >
-                    <div className="flex items-center gap-4 text-left">
-                      <div className={`p-3 rounded-lg ${canAfford ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-600/20 text-slate-500'}`}>
-                        {biz.icon === 'store' && <Building2 size={24} />}
-                        {biz.icon === 'shop' && <Briefcase size={24} />}
-                        {biz.icon === 'chart' && <TrendingUp size={24} />}
-                        {biz.icon === 'building' && <Landmark size={24} />}
-                        {biz.icon === 'scooter' && <Briefcase size={24} />}
-                        {biz.icon === 'rocket' && <Zap size={24} />}
-                        {biz.icon === 'bank' && <Coins size={24} />}
-                        {biz.icon === 'zap' && <Zap size={24} />}
-                        {biz.icon === 'space' && <Rocket size={24} />}
-                        {biz.icon === 'mars' && <Globe size={24} />}
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-slate-200">{biz.name}</h3>
-                        <div className="text-xs text-slate-400">보유: <span className="text-white">{biz.count}</span></div>
-                        <div className="text-xs text-emerald-400">+{formatMoney(biz.baseIncome)}/초</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className={`font-mono font-bold ${canAfford ? 'text-yellow-400' : 'text-slate-500'}`}>
-                        ₩ {formatMoney(currentCost)}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+        const getInitialAchievements = () => ACHIEVEMENT_DEFINITIONS.map(a => ({ ...a, unlocked: false }));
 
-          {/* 2. 투자 탭 */}
-          {activeTab === 'investment' && (
-            <div className="space-y-4">
-              <div className="bg-slate-700/50 p-2 rounded-lg border border-slate-600 flex items-center justify-between gap-2">
-                <span className="text-sm text-slate-300 font-bold px-2 flex items-center gap-2">
-                  <Calculator size={16} /> 거래 수량
-                </span>
-                <div className="flex gap-1 flex-1 justify-end">
-                  {[1, 10, 100, 'MAX'].map((amt) => (
-                    <button
-                      key={amt}
-                      onClick={() => setTradeAmount(amt)}
-                      className={`px-3 py-1.5 rounded-md text-sm font-bold transition-all ${
-                        tradeAmount === amt 
-                        ? 'bg-indigo-500 text-white shadow-lg scale-105' 
-                        : 'bg-slate-600 text-slate-400 hover:bg-slate-500'
-                      }`}
-                    >
-                      {amt === 'MAX' ? 'MAX' : `x${amt}`}
-                    </button>
-                  ))}
-                </div>
-              </div>
+        const MARKET_EVENTS = [
+            { id: 'normal', name: '평온한 시장', multiplier: 1.0, priceBias: 0, color: 'text-gray-400', desc: '경제가 안정적입니다.' },
+            { id: 'bull', name: '경제 호황', multiplier: 2.0, priceBias: 0.03, color: 'text-green-400', desc: '수익 폭발 & 주가 상승장!' },
+            { id: 'bear', name: '경제 불황', multiplier: 0.5, priceBias: -0.03, color: 'text-red-400', desc: '수익 반토막 & 주가 하락장...' },
+        ];
 
-              <div className="bg-slate-700/50 p-4 rounded-lg border border-slate-600 text-sm text-slate-300">
-                <p>💡 <strong>투자 팁:</strong> 배달앱, 에너지 등 새로운 사업으로 돈을 벌고 <strong>NFT, 바이오 주식</strong> 등 다양한 자산에 투자해보세요.</p>
-              </div>
+        function App() {
+            const [money, setMoney] = useState(0);
+            const [totalEarned, setTotalEarned] = useState(0);
+            const [businesses, setBusinesses] = useState(getInitialBusinesses);
+            const [investments, setInvestments] = useState(getInitialInvestments);
+            const [upgrades, setUpgrades] = useState(getInitialUpgrades);
+            const [achievements, setAchievements] = useState(getInitialAchievements);
+            const [reputation, setReputation] = useState(0);
+            const [marketStatus, setMarketStatus] = useState(MARKET_EVENTS[0]);
+            const [timeLeftForEvent, setTimeLeftForEvent] = useState(30);
+            const [activeTab, setActiveTab] = useState('business');
+            const [tradeAmount, setTradeAmount] = useState(1);
+            
+            const [offlineEarnings, setOfflineEarnings] = useState(0);
+            const [showOfflineModal, setShowOfflineModal] = useState(false);
+            const [showIPOModal, setShowIPOModal] = useState(false);
+            const [showResetModal, setShowResetModal] = useState(false);
+            const [toastMessage, setToastMessage] = useState(null);
+            
+            const formatMoney = (amount) => Math.floor(amount).toLocaleString('ko-KR');
 
-              {investments.map((item) => {
-                let profitRate = 0;
-                let profitColor = 'text-slate-400';
-                if (item.owned > 0) {
-                  profitRate = ((item.price - item.avgPrice) / item.avgPrice) * 100;
-                  if (profitRate > 0) profitColor = 'text-red-400';
-                  else if (profitRate < 0) profitColor = 'text-blue-400';
+            const showToast = (msg) => {
+                setToastMessage(msg);
+                setTimeout(() => setToastMessage(null), 3000);
+            };
+
+            const getNetWorth = useCallback(() => {
+                const assetsValue = investments.reduce((acc, inv) => acc + (inv.price * inv.owned), 0);
+                return money + assetsValue;
+            }, [money, investments]);
+
+            const saveData = useCallback(() => {
+                const gameState = {
+                    money, totalEarned, businesses, investments, upgrades, achievements, reputation, lastSaveTime: Date.now()
+                };
+                localStorage.setItem('moneyTycoonSaveV3', JSON.stringify(gameState));
+            }, [money, totalEarned, businesses, investments, upgrades, achievements, reputation]);
+
+            useEffect(() => {
+                const saveTimer = setInterval(saveData, 5000);
+                return () => clearInterval(saveTimer);
+            }, [saveData]);
+
+            useEffect(() => {
+                const savedData = localStorage.getItem('moneyTycoonSaveV3');
+                if (savedData) {
+                    try {
+                        const parsed = JSON.parse(savedData);
+                        setMoney(parsed.money || 0);
+                        setTotalEarned(parsed.totalEarned || 0);
+                        if (parsed.businesses) setBusinesses(parsed.businesses);
+                        if (parsed.investments) setInvestments(parsed.investments);
+                        
+                        if (parsed.upgrades) {
+                            const mergedUpgrades = getInitialUpgrades().map(initUp => {
+                                const loaded = parsed.upgrades.find(u => u.id === initUp.id);
+                                return loaded ? { ...initUp, level: loaded.level } : initUp;
+                            });
+                            setUpgrades(mergedUpgrades);
+                        }
+
+                        if (parsed.achievements) {
+                            const mergedAch = getInitialAchievements().map(initAch => {
+                                const loaded = parsed.achievements.find(a => a.id === initAch.id);
+                                return loaded ? { ...initAch, unlocked: loaded.unlocked } : initAch;
+                            });
+                            setAchievements(mergedAch);
+                        }
+                        
+                        if (parsed.reputation) setReputation(parsed.reputation);
+
+                        if (parsed.lastSaveTime) {
+                            const now = Date.now();
+                            const timeDiffSeconds = (now - parsed.lastSaveTime) / 1000;
+                            if (timeDiffSeconds > 60) {
+                                const currentBusinesses = parsed.businesses || getInitialBusinesses();
+                                const currentUpgrades = parsed.upgrades || getInitialUpgrades();
+                                const currentReputation = parsed.reputation || 0;
+                                
+                                let businessIncome = currentBusinesses.reduce((acc, bus) => acc + (bus.baseIncome * bus.count), 0);
+                                const bizUpgrade = currentUpgrades.find(u => u.id === 'biz_boost');
+                                if (bizUpgrade) businessIncome *= (1 + (bizUpgrade.level * 0.2));
+
+                                const unlockedCount = (parsed.achievements || []).filter(a => a.unlocked).length;
+                                const achievementMultiplier = 1 + (unlockedCount * 0.01);
+                                const prestigeMultiplier = 1 + (currentReputation * 0.1); 
+
+                                const earnings = Math.floor(businessIncome * achievementMultiplier * prestigeMultiplier * timeDiffSeconds);
+                                
+                                if (earnings > 0) {
+                                    setOfflineEarnings(earnings);
+                                    setShowOfflineModal(true);
+                                    setMoney(prev => prev + earnings);
+                                    setTotalEarned(prev => prev + earnings);
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Save file corrupted", e);
+                    }
+                }
+            }, []);
+
+            const handleResetConfirm = () => {
+                localStorage.removeItem('moneyTycoonSaveV3');
+                setMoney(0);
+                setTotalEarned(0);
+                setBusinesses(getInitialBusinesses());
+                setInvestments(getInitialInvestments());
+                setUpgrades(getInitialUpgrades());
+                setAchievements(getInitialAchievements());
+                setReputation(0);
+                setShowResetModal(false);
+                showToast("데이터가 초기화되었습니다.");
+            };
+
+            const handleIPO = () => {
+                const netWorth = getNetWorth();
+                const potentialReputation = Math.floor(netWorth / 100000000); 
+
+                if (potentialReputation <= 0) return;
+
+                setReputation(prev => prev + potentialReputation);
+                setMoney(0);
+                setTotalEarned(0);
+                setBusinesses(getInitialBusinesses());
+                setInvestments(getInitialInvestments());
+                setUpgrades(getInitialUpgrades());
+                setShowIPOModal(false);
+                showToast(`IPO 성공! 명성 ${potentialReputation}점을 획득했습니다.`);
+            };
+
+            const getUpgradeCost = useCallback((upgrade) => {
+                return Math.floor(upgrade.baseCost * Math.pow(upgrade.costScale, upgrade.level));
+            }, []);
+
+            const calculateCost = useCallback((baseCost, count) => {
+                const discountUpgrade = upgrades.find(u => u.type === 'discount');
+                const discountMultiplier = discountUpgrade ? discountUpgrade.getEffect(discountUpgrade.level) : 1.0;
+                return Math.floor(baseCost * Math.pow(1.15, count) * discountMultiplier);
+            }, [upgrades]);
+
+            const calculateIncomePerSecond = useCallback(() => {
+                let businessIncome = businesses.reduce((acc, bus) => acc + (bus.baseIncome * bus.count), 0);
+                const bizUpgrade = upgrades.find(u => u.type === 'business');
+                if (bizUpgrade) businessIncome *= bizUpgrade.getEffect(bizUpgrade.level);
+
+                const divUpgrade = upgrades.find(u => u.type === 'dividend');
+                let dividendIncome = 0;
+                if (divUpgrade && divUpgrade.level > 0) {
+                    const dividendRate = divUpgrade.getEffect(divUpgrade.level);
+                    const dividendAssets = ['stock', 'real_estate', 'gold', 'bio_stock'];
+                    let assetValue = 0;
+                    investments.forEach(inv => {
+                        if (dividendAssets.includes(inv.id)) {
+                            assetValue += inv.price * inv.owned;
+                        }
+                    });
+                    dividendIncome = assetValue * dividendRate;
                 }
 
-                const isPriceUp = item.history[item.history.length - 1] > item.history[item.history.length - 2];
-                const chartColor = isPriceUp ? '#f87171' : '#60a5fa'; // Red or Blue
+                let currentMarketMult = marketStatus.multiplier;
+                if (marketStatus.id === 'bull') {
+                    const marketUpgrade = upgrades.find(u => u.type === 'market');
+                    if (marketUpgrade) currentMarketMult = marketUpgrade.getEffect(marketUpgrade.level);
+                }
 
-                let buyCostDisplay = 0;
-                let sellCountDisplay = 0;
-                let canBuy = false;
-                let canSell = false;
+                const unlockedAchievements = achievements.filter(a => a.unlocked).length;
+                const achievementMultiplier = 1 + (unlockedAchievements * 0.01);
+                const prestigeMultiplier = 1 + (reputation * 0.1);
 
+                return (businessIncome + dividendIncome) * currentMarketMult * achievementMultiplier * prestigeMultiplier;
+            }, [businesses, upgrades, marketStatus, investments, achievements, reputation]);
+
+            useEffect(() => {
+                const checkAchievements = () => {
+                    setAchievements(prev => {
+                        let hasChanges = false;
+                        const next = prev.map(ach => {
+                            if (!ach.unlocked && ach.condition({ money, totalEarned, businesses, investments, upgrades, reputation })) {
+                                hasChanges = true;
+                                return { ...ach, unlocked: true };
+                            }
+                            return ach;
+                        });
+                        return hasChanges ? next : prev;
+                    });
+                };
+                const timer = setInterval(checkAchievements, 1000);
+                return () => clearInterval(timer);
+            }, [money, totalEarned, businesses, investments, upgrades, reputation]);
+
+            useEffect(() => {
+                const timer = setInterval(() => {
+                    const income = calculateIncomePerSecond();
+                    if (income > 0) {
+                        setMoney(prev => prev + income);
+                        setTotalEarned(prev => prev + income);
+                    }
+                }, 1000);
+                return () => clearInterval(timer);
+            }, [calculateIncomePerSecond]);
+
+            useEffect(() => {
+                const priceTimer = setInterval(() => {
+                    setInvestments(prevInvestments => {
+                        return prevInvestments.map(item => {
+                            const randomFactor = (Math.random() - 0.5) * 2; 
+                            const marketBias = marketStatus.priceBias;
+                            const changePercent = (randomFactor * item.volatility) + marketBias;
+                            let newPrice = Math.round(item.price * (1 + changePercent));
+                            if (newPrice < 1) newPrice = 1;
+                            const newHistory = [...item.history.slice(1), newPrice];
+                            return { ...item, price: newPrice, history: newHistory };
+                        });
+                    });
+                }, 1500);
+                return () => clearInterval(priceTimer);
+            }, [marketStatus]);
+
+            useEffect(() => {
+                const eventTimer = setInterval(() => {
+                    setTimeLeftForEvent(prev => {
+                        if (prev <= 1) {
+                            const random = Math.random();
+                            let newEvent;
+                            if (random < 0.6) newEvent = MARKET_EVENTS[0];
+                            else if (random < 0.85) newEvent = MARKET_EVENTS[1];
+                            else newEvent = MARKET_EVENTS[2];
+                            setMarketStatus(newEvent);
+                            return 30;
+                        }
+                        return prev - 1;
+                    });
+                }, 1000);
+                return () => clearInterval(eventTimer);
+            }, []);
+
+            const handleManualClick = () => {
+                const baseClick = 1;
+                const clickUpgrade = upgrades.find(u => u.type === 'click');
+                const clickMult = clickUpgrade ? clickUpgrade.getEffect(clickUpgrade.level) : 1;
+                const passiveBonus = calculateIncomePerSecond() * 0.01; 
+                const unlockedAchievements = achievements.filter(a => a.unlocked).length;
+                const achievementMultiplier = 1 + (unlockedAchievements * 0.01);
+                const prestigeMultiplier = 1 + (reputation * 0.1);
+                const clickValue = (baseClick + passiveBonus) * clickMult * achievementMultiplier * prestigeMultiplier;
+                setMoney(prev => prev + clickValue);
+                setTotalEarned(prev => prev + clickValue);
+            };
+
+            const buyBusiness = (id) => {
+                const idx = businesses.findIndex(b => b.id === id);
+                const cost = calculateCost(businesses[idx].baseCost, businesses[idx].count);
+                if (money >= cost) {
+                    setMoney(prev => prev - cost);
+                    const newBus = [...businesses];
+                    newBus[idx].count += 1;
+                    setBusinesses(newBus);
+                }
+            };
+
+            const buyUpgrade = (id) => {
+                const idx = upgrades.findIndex(u => u.id === id);
+                const upgrade = upgrades[idx];
+                const cost = getUpgradeCost(upgrade);
+                if (money >= cost && upgrade.level < upgrade.maxLevel) {
+                    setMoney(prev => prev - cost);
+                    const newUps = [...upgrades];
+                    newUps[idx].level += 1;
+                    setUpgrades(newUps);
+                }
+            };
+
+            const buyInvestment = (id) => {
+                const idx = investments.findIndex(i => i.id === id);
+                const item = investments[idx];
+                let amountToBuy = 0;
                 if (tradeAmount === 'MAX') {
-                  const maxCanBuy = Math.floor(money / item.price);
-                  buyCostDisplay = maxCanBuy * item.price;
-                  canBuy = maxCanBuy > 0;
-                  sellCountDisplay = item.owned;
-                  canSell = item.owned > 0;
+                    amountToBuy = Math.floor(money / item.price);
                 } else {
-                  buyCostDisplay = item.price * tradeAmount;
-                  canBuy = money >= buyCostDisplay;
-                  sellCountDisplay = Math.min(item.owned, tradeAmount);
-                  canSell = sellCountDisplay > 0;
+                    amountToBuy = tradeAmount;
                 }
+                if (amountToBuy <= 0) return;
+                const cost = item.price * amountToBuy;
+                if (money >= cost) {
+                    setMoney(prev => prev - cost);
+                    setInvestments(prev => {
+                        const newInv = [...prev];
+                        const totalValue = (newInv[idx].avgPrice * newInv[idx].owned) + cost;
+                        const totalCount = newInv[idx].owned + amountToBuy;
+                        newInv[idx].owned = totalCount;
+                        newInv[idx].avgPrice = totalValue / totalCount;
+                        return newInv;
+                    });
+                }
+            };
 
+            const sellInvestment = (id) => {
+                const idx = investments.findIndex(i => i.id === id);
+                const item = investments[idx];
+                let amountToSell = 0;
+                if (tradeAmount === 'MAX') {
+                    amountToSell = item.owned;
+                } else {
+                    amountToSell = Math.min(item.owned, tradeAmount);
+                }
+                if (amountToSell <= 0) return;
+                const revenue = item.price * amountToSell;
+                setMoney(prev => prev + revenue);
+                setInvestments(prev => {
+                    const newInv = [...prev];
+                    newInv[idx].owned -= amountToSell;
+                    if (newInv[idx].owned === 0) newInv[idx].avgPrice = 0;
+                    return newInv;
+                });
+            };
+
+            const InvestmentChart = ({ history, color }) => {
+                const min = Math.min(...history);
+                const max = Math.max(...history);
+                const range = max - min || 1;
+                const height = 40;
+                const width = 100;
+                const points = history.map((price, i) => {
+                    const x = (i / (history.length - 1)) * width;
+                    const y = height - ((price - min) / range) * height;
+                    return `${x},${y}`;
+                }).join(' ');
                 return (
-                  <div key={item.id} className="bg-slate-700 rounded-xl p-5 border border-slate-600 shadow-md">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${item.type === 'high_risk' ? 'bg-orange-500/20 text-orange-400' : item.type === 'low_risk' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>
-                          {item.id === 'coin' && <Coins size={24} />}
-                          {item.id === 'nft' && <Gem size={24} />}
-                          {item.id === 'bio_stock' && <Activity size={24} />}
-                          {item.id === 'stock' && <TrendingUp size={24} />}
-                          {item.id === 'gold' && <Wallet size={24} />}
-                          {item.id === 'real_estate' && <Building2 size={24} />}
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-lg text-slate-100">{item.name}</h3>
-                          <p className="text-xs text-slate-400">{item.desc}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className={`text-2xl font-mono font-bold flex items-center justify-end gap-2 ${isPriceUp ? 'text-red-400' : 'text-blue-400'}`}>
-                           {isPriceUp ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
-                           ₩ {formatMoney(item.price)}
-                        </div>
-                        <div className="text-xs text-slate-400 mt-1">
-                          현재가 (실시간)
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 차트 시각화 (New) */}
-                    <div className="h-10 mb-4 bg-slate-800/50 rounded overflow-hidden">
-                      <InvestmentChart history={item.history} color={chartColor} />
-                    </div>
-
-                    <div className="bg-slate-800/80 rounded-lg p-3 mb-4 flex justify-between items-center text-sm">
-                      <div>
-                        <span className="text-slate-400">보유량: </span>
-                        <span className="text-white font-bold ml-1">{formatMoney(item.owned)} 주/개</span>
-                      </div>
-                      <div>
-                         <span className="text-slate-400">평단가: </span>
-                         <span className="text-slate-200 ml-1">₩ {formatMoney(item.avgPrice)}</span>
-                      </div>
-                      <div>
-                         <span className="text-slate-400">수익률: </span>
-                         <span className={`font-bold ml-1 ${profitColor}`}>{profitRate.toFixed(2)}%</span>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => buyInvestment(item.id)}
-                        className={`flex-1 py-3 rounded-lg font-bold text-sm transition-colors flex flex-col items-center justify-center gap-0.5 ${canBuy ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50' : 'bg-slate-600 text-slate-400 cursor-not-allowed'}`}
-                        disabled={!canBuy}
-                      >
-                        <span>{tradeAmount === 'MAX' ? '최대 매수' : `매수 (${tradeAmount}개)`}</span>
-                        <span className="text-xs font-mono opacity-80">
-                           -{formatMoney(buyCostDisplay)}
-                        </span>
-                      </button>
-                      <button 
-                        onClick={() => sellInvestment(item.id)}
-                        className={`flex-1 py-3 rounded-lg font-bold text-sm transition-colors flex flex-col items-center justify-center gap-0.5 ${canSell ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/50' : 'bg-slate-600 text-slate-400 cursor-not-allowed'}`}
-                        disabled={!canSell}
-                      >
-                        <span>{tradeAmount === 'MAX' ? '전량 매도' : `매도 (${tradeAmount}개)`}</span>
-                        <span className="text-xs font-mono opacity-80">
-                           +{formatMoney(item.price * sellCountDisplay)}
-                        </span>
-                      </button>
-                    </div>
-                  </div>
+                    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="overflow-visible">
+                        <polyline fill="none" stroke={color} strokeWidth="2" points={points} vectorEffect="non-scaling-stroke"/>
+                    </svg>
                 );
-              })}
-            </div>
-          )}
+            };
 
-          {/* 3. 연구 탭 */}
-          {activeTab === 'upgrade' && (
-            <div className="space-y-3">
-              <h3 className="text-lg font-bold text-slate-300 mb-4">경제학 연구소</h3>
-              {upgrades.map((upgrade) => {
-                const currentCost = getUpgradeCost(upgrade);
-                const isMaxed = upgrade.level >= upgrade.maxLevel;
-                const canBuy = !isMaxed && money >= currentCost;
+            const getProgressColor = () => {
+                if (marketStatus.id === 'bull') return 'bg-green-500';
+                if (marketStatus.id === 'bear') return 'bg-red-500';
+                return 'bg-blue-500';
+            };
 
-                return (
-                  <button
-                    key={upgrade.id}
-                    onClick={() => buyUpgrade(upgrade.id)}
-                    disabled={!canBuy}
-                    className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${
-                      isMaxed
-                        ? 'bg-green-900/10 border-green-800 opacity-80'
-                        : canBuy
-                        ? 'bg-slate-700 border-slate-600 hover:bg-slate-650'
-                        : 'bg-slate-800/50 border-slate-700 opacity-60'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 text-left">
-                      <div className={`p-2 rounded-lg ${isMaxed ? 'bg-green-500/20 text-green-400' : 'bg-purple-500/20 text-purple-400'}`}>
-                         {isMaxed ? <Trophy size={20} /> : <Microscope size={20} />}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className={`font-bold text-sm ${isMaxed ? 'text-green-400' : 'text-slate-200'}`}>
-                            {upgrade.name}
-                          </h3>
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
-                            Lv.{upgrade.level} / {upgrade.maxLevel}
-                          </span>
+            const getUpgradeDesc = (upgrade) => {
+                let val, curr;
+                if (upgrade.type === 'click') {
+                    val = 100; curr = upgrade.getEffect(upgrade.level);
+                } else if (upgrade.type === 'business') {
+                    val = 20; curr = Math.round((upgrade.getEffect(upgrade.level) - 1) * 100);
+                } else if (upgrade.type === 'dividend') {
+                    val = 0.2; curr = (upgrade.getEffect(upgrade.level) * 100).toFixed(1);
+                } else if (upgrade.type === 'market') {
+                    val = 0.5; curr = upgrade.getEffect(upgrade.level).toFixed(1);
+                } else if (upgrade.type === 'discount') {
+                    val = 5; curr = Math.round((1 - upgrade.getEffect(upgrade.level)) * 100);
+                }
+                return upgrade.descTemplate.replace('{val}', val).replace('{curr}', curr);
+            };
+
+            const getIcon = (iconName) => {
+                const icons = {
+                    'store': Icons.Building2,
+                    'shop': Icons.Briefcase,
+                    'chart': Icons.TrendingUp,
+                    'building': Icons.Landmark,
+                    'scooter': Icons.Briefcase,
+                    'rocket': Icons.Zap,
+                    'bank': Icons.Coins,
+                    'zap': Icons.Zap,
+                    'space': Icons.Rocket,
+                    'mars': Icons.Globe,
+                };
+                return icons[iconName] || Icons.Briefcase;
+            };
+
+            return (
+                <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white p-4 md:p-8 flex flex-col md:flex-row gap-6 relative">
+                    
+                    {toastMessage && (
+                        <div className="fixed bottom-24 md:bottom-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl border border-slate-600 z-50 animate-bounce flex items-center gap-2">
+                            <Icons.Info size={18} className="text-blue-400"/>
+                            {toastMessage}
                         </div>
-                        <p className="text-xs text-slate-400 mt-1">
-                          {getUpgradeDesc(upgrade)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right min-w-[80px]">
-                      {isMaxed ? (
-                        <span className="text-xs font-bold text-green-500">연구 완료</span>
-                      ) : (
-                        <span className={`text-sm font-mono font-bold ${canBuy ? 'text-yellow-400' : 'text-slate-500'}`}>
-                          ₩ {formatMoney(currentCost)}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* 4. 업적 탭 */}
-          {activeTab === 'achievement' && (
-            <div className="space-y-3">
-              <h3 className="text-lg font-bold text-slate-300 mb-4">나의 업적</h3>
-              <div className="bg-slate-700/50 p-4 rounded-lg border border-slate-600 text-sm text-slate-300 mb-4">
-                <p>🏆 업적을 달성할 때마다 전체 수익(클릭, 사업, 투자)이 <strong>1%씩 증가</strong>합니다.</p>
-              </div>
-              <div className="grid grid-cols-1 gap-3">
-                {achievements.map((ach) => (
-                  <div 
-                    key={ach.id} 
-                    className={`p-4 rounded-xl border flex items-center gap-4 ${
-                      ach.unlocked 
-                        ? 'bg-indigo-900/30 border-indigo-500/50' 
-                        : 'bg-slate-800 border-slate-700 opacity-60'
-                    }`}
-                  >
-                    <div className={`p-3 rounded-full ${ach.unlocked ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/50' : 'bg-slate-700 text-slate-500'}`}>
-                      <Medal size={24} />
-                    </div>
-                    <div>
-                      <h4 className={`font-bold ${ach.unlocked ? 'text-white' : 'text-slate-400'}`}>{ach.name}</h4>
-                      <p className="text-sm text-slate-400">{ach.desc}</p>
-                    </div>
-                    {ach.unlocked && (
-                      <div className="ml-auto text-xs font-bold text-indigo-400 bg-indigo-900/50 px-2 py-1 rounded">
-                        달성 완료
-                      </div>
                     )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
-        </div>
-      </div>
+                    {/* IPO 모달 */}
+                    {showIPOModal && (
+                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                            <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl p-6 max-w-md w-full text-center shadow-[0_0_50px_rgba(234,179,8,0.3)]">
+                                <Icons.Crown className="w-16 h-16 text-yellow-400 mx-auto mb-4 animate-bounce" />
+                                <h2 className="text-3xl font-bold text-white mb-2">기업 공개 (IPO)</h2>
+                                <p className="text-slate-300 mb-6">회사를 매각하고 새로운 전설을 쓰시겠습니까?</p>
+                                <div className="bg-slate-700/50 rounded-xl p-4 mb-4 space-y-2">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-400">현재 순자산</span>
+                                        <span className="text-white font-mono">₩ {formatMoney(getNetWorth())}</span>
+                                    </div>
+                                    <div className="flex justify-between text-lg font-bold">
+                                        <span className="text-yellow-400">획득 명성</span>
+                                        <span className="text-yellow-400">+{Math.floor(getNetWorth() / 100000000)} 점</span>
+                                    </div>
+                                </div>
+                                <div className="text-left text-xs text-slate-400 mb-6 bg-slate-900/50 p-3 rounded-lg">
+                                    <p>⚠️ <strong>초기화 항목:</strong> 현금, 사업체, 투자 자산, 연구 레벨</p>
+                                    <p>✅ <strong>유지 항목:</strong> 업적, 기업 명성</p>
+                                    <p className="text-yellow-400 mt-2">🔥 명성 1점당 모든 수익 +10% 영구 증가</p>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setShowIPOModal(false)} className="flex-1 bg-slate-600 hover:bg-slate-500 text-white font-bold py-3 rounded-xl">취소</button>
+                                    <button onClick={handleIPO} disabled={Math.floor(getNetWorth() / 100000000) <= 0} className={`flex-1 font-bold py-3 rounded-xl shadow-lg transition-all ${Math.floor(getNetWorth() / 100000000) > 0 ? 'bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-white' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}>{Math.floor(getNetWorth() / 100000000) > 0 ? 'IPO 진행' : '자산 부족 (1억↑)'}</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
-      {/* 플로팅 노동 버튼 추가 (모바일용) */}
-      <button
-        onClick={handleManualClick}
-        className="fixed bottom-8 right-8 z-50 bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-full shadow-[0_0_20px_rgba(79,70,229,0.5)] border-4 border-indigo-400/30 active:scale-95 transition-all md:hidden flex items-center justify-center"
-        aria-label="노동하기"
-      >
-        <MousePointer2 size={28} />
-      </button>
+                    {/* Reset Modal */}
+                    {showResetModal && (
+                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                            <div className="bg-slate-800 border-2 border-red-500 rounded-2xl p-6 max-w-md w-full text-center">
+                                <Icons.AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                                <h2 className="text-2xl font-bold text-white mb-2">데이터 완전 초기화</h2>
+                                <p className="text-slate-300 mb-6">정말로 모든 데이터를 삭제하시겠습니까?<br/><span className="text-red-400 font-bold">이 작업은 복구할 수 없습니다.</span></p>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setShowResetModal(false)} className="flex-1 bg-slate-600 hover:bg-slate-500 text-white font-bold py-3 rounded-xl">취소</button>
+                                    <button onClick={handleResetConfirm} className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl">초기화</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
+                    {/* Offline Modal */}
+                    {showOfflineModal && (
+                        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                            <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl">
+                                <Icons.Clock className="w-12 h-12 text-blue-400 mx-auto mb-4" />
+                                <h2 className="text-2xl font-bold text-white mb-2">환영합니다!</h2>
+                                <p className="text-slate-400 mb-4">자리를 비운 동안 사업체들이 열심히 일했군요.</p>
+                                <div className="bg-slate-700 rounded-xl p-4 mb-6">
+                                    <p className="text-sm text-slate-400">오프라인 수익</p>
+                                    <p className="text-3xl font-mono font-bold text-emerald-400">+ ₩ {formatMoney(offlineEarnings)}</p>
+                                </div>
+                                <button onClick={() => setShowOfflineModal(false)} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-colors">수익 받기</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Left Panel */}
+                    <div className="w-full md:w-[400px] flex flex-col gap-6 shrink-0 md:sticky md:top-8 h-fit">
+                        <div className="bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-700 relative">
+                            <div className="absolute top-4 right-4 flex gap-2">
+                                <button onClick={() => setShowIPOModal(true)} className={`p-2 border rounded-lg transition-colors ${getNetWorth() >= 100000000 ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50 hover:bg-yellow-500/40 animate-pulse' : 'bg-slate-700 text-slate-500 border-slate-600 hover:bg-slate-600'}`} title="IPO 진행 (기업 공개)"><Icons.Crown size={18} /></button>
+                                <button onClick={saveData} className="p-2 bg-slate-700 rounded-lg hover:bg-slate-600 text-slate-400 hover:text-white transition-colors" title="저장"><Icons.Save size={18} /></button>
+                                <button onClick={() => setShowResetModal(true)} className="p-2 bg-slate-700 rounded-lg hover:bg-red-900/50 text-slate-400 hover:text-red-400 transition-colors" title="초기화"><Icons.RotateCcw size={18} /></button>
+                            </div>
+                            <div className="flex items-center gap-3 mb-2">
+                                <Icons.Coins className="text-yellow-400 w-8 h-8" />
+                                <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-200">머니 타이쿤</h1>
+                            </div>
+                            <div className="mt-4">
+                                <p className="text-slate-400 text-sm flex justify-between"><span>보유 현금</span><span className="text-xs text-slate-500">순자산: ₩ {formatMoney(getNetWorth())}</span></p>
+                                <p className="text-4xl font-mono font-bold text-white mt-1 break-all">₩ {formatMoney(money)}</p>
+                            </div>
+                            <div className="mt-4 flex flex-wrap items-center gap-2">
+                                <div className="flex items-center gap-2 text-emerald-400 bg-emerald-400/10 w-fit px-3 py-1 rounded-full"><Icons.TrendingUp size={18} /><span className="font-bold">+{formatMoney(calculateIncomePerSecond())} / 초</span></div>
+                                {reputation > 0 && (<div className="flex items-center gap-2 text-yellow-400 bg-yellow-400/10 w-fit px-3 py-1 rounded-full text-xs border border-yellow-500/30"><Icons.Crown size={14} /><span className="font-bold">명성 효과: +{reputation * 10}%</span></div>)}
+                            </div>
+                        </div>
+
+                        {/* Market Status */}
+                        <div className="bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-700 relative overflow-hidden">
+                            <div className="flex justify-between items-center mb-2 relative z-10">
+                                <h2 className="text-lg font-semibold flex items-center gap-2"><Icons.Activity size={20} /> 시장 경제 뉴스</h2>
+                                <span className="text-xs text-slate-400">{timeLeftForEvent}초 후 변동</span>
+                            </div>
+                            <div className="relative z-10">
+                                <p className={`text-xl font-bold ${marketStatus.color}`}>{marketStatus.name}</p>
+                                <div className="flex items-center gap-2 text-sm text-slate-400 mt-1"><span>{marketStatus.desc}</span>{marketStatus.id === 'bull' && (<span className="text-green-400 font-bold bg-green-400/10 px-2 rounded">x{upgrades.find(u => u.type === 'market').getEffect(upgrades.find(u => u.type === 'market').level).toFixed(1)} 효과</span>)}</div>
+                            </div>
+                            <div className="absolute bottom-0 left-0 h-1 w-full bg-slate-700">
+                                <div className={`h-full transition-all duration-1000 ease-linear ${getProgressColor()}`} style={{ width: `${(timeLeftForEvent / 30) * 100}%` }} />
+                            </div>
+                        </div>
+
+                        {/* Work Button */}
+                        <div className="flex-1 bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-700 flex flex-col items-center justify-center min-h-[200px] relative overflow-hidden group">
+                            <button onClick={handleManualClick} className="relative z-10 bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition-all w-48 h-48 rounded-full shadow-[0_0_40px_rgba(79,70,229,0.3)] flex flex-col items-center justify-center gap-2 group-hover:shadow-[0_0_60px_rgba(79,70,229,0.5)] border-4 border-indigo-400/30">
+                                <Icons.MousePointer2 size={48} className="text-white mb-2" />
+                                <span className="font-bold text-lg">노동하기</span>
+                            </button>
+                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 to-transparent pointer-events-none"></div>
+                            <p className="mt-6 text-slate-400 text-sm text-center">클릭하여 시드머니를 모으세요.<br/>(업적 & 명성 보너스 적용 중)</p>
+                        </div>
+                    </div>
+
+                    {/* Right Panel */}
+                    <div className="flex-1 bg-slate-800 rounded-2xl shadow-lg border border-slate-700 flex flex-col overflow-hidden min-h-[600px]">
+                        <div className="flex border-b border-slate-700 overflow-x-auto">
+                            <button onClick={() => setActiveTab('business')} className={`flex-1 py-4 px-2 font-bold flex items-center justify-center gap-2 transition-colors min-w-[100px] ${activeTab === 'business' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-750'}`}><Icons.Briefcase size={18} /> <span className="hidden sm:inline">사업</span></button>
+                            <button onClick={() => setActiveTab('investment')} className={`flex-1 py-4 px-2 font-bold flex items-center justify-center gap-2 transition-colors min-w-[100px] ${activeTab === 'investment' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-750'}`}><Icons.LineChart size={18} /> <span className="hidden sm:inline">투자</span></button>
+                            <button onClick={() => setActiveTab('upgrade')} className={`flex-1 py-4 px-2 font-bold flex items-center justify-center gap-2 transition-colors min-w-[100px] ${activeTab === 'upgrade' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-750'}`}><Icons.Microscope size={18} /> <span className="hidden sm:inline">연구</span></button>
+                            <button onClick={() => setActiveTab('achievement')} className={`flex-1 py-4 px-2 font-bold flex items-center justify-center gap-2 transition-colors min-w-[100px] ${activeTab === 'achievement' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-750'}`}><Icons.Medal size={18} /> <span className="hidden sm:inline">업적</span></button>
+                        </div>
+
+                        <div className="flex-1 p-6 overflow-y-auto custom-scrollbar bg-slate-800">
+                            {/* Business Tab */}
+                            {activeTab === 'business' && (
+                                <div className="space-y-3">
+                                    <h3 className="text-lg font-bold text-slate-300 mb-4">자동 수익원 매입</h3>
+                                    {businesses.map((biz) => {
+                                        const currentCost = calculateCost(biz.baseCost, biz.count);
+                                        const canAfford = money >= currentCost;
+                                        const BusinessIcon = getIcon(biz.icon);
+                                        return (
+                                            <button key={biz.id} onClick={() => buyBusiness(biz.id)} disabled={!canAfford} className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${canAfford ? 'bg-slate-700 border-slate-600 hover:bg-slate-650' : 'bg-slate-800/50 border-slate-700 opacity-60 cursor-not-allowed'}`}>
+                                                <div className="flex items-center gap-4 text-left">
+                                                    <div className={`p-3 rounded-lg ${canAfford ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-600/20 text-slate-500'}`}><BusinessIcon size={24} /></div>
+                                                    <div><h3 className="font-bold text-slate-200">{biz.name}</h3><div className="text-xs text-slate-400">보유: <span className="text-white">{biz.count}</span></div><div className="text-xs text-emerald-400">+{formatMoney(biz.baseIncome)}/초</div></div>
+                                                </div>
+                                                <div className="text-right"><div className={`font-mono font-bold ${canAfford ? 'text-yellow-400' : 'text-slate-500'}`}>₩ {formatMoney(currentCost)}</div></div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Investment Tab */}
+                            {activeTab === 'investment' && (
+                                <div className="space-y-4">
+                                    <div className="bg-slate-700/50 p-2 rounded-lg border border-slate-600 flex items-center justify-between gap-2">
+                                        <span className="text-sm text-slate-300 font-bold px-2 flex items-center gap-2"><Icons.Calculator size={16} /> 거래 수량</span>
+                                        <div className="flex gap-1 flex-1 justify-end">
+                                            {[1, 10, 100, 'MAX'].map((amt) => (<button key={amt} onClick={() => setTradeAmount(amt)} className={`px-3 py-1.5 rounded-md text-sm font-bold transition-all ${tradeAmount === amt ? 'bg-indigo-500 text-white shadow-lg scale-105' : 'bg-slate-600 text-slate-400 hover:bg-slate-500'}`}>{amt === 'MAX' ? 'MAX' : `x${amt}`}</button>))}
+                                        </div>
+                                    </div>
+                                    <div className="bg-slate-700/50 p-4 rounded-lg border border-slate-600 text-sm text-slate-300"><p>💡 <strong>투자 팁:</strong> 배달앱, 에너지 등 새로운 사업으로 돈을 벌고 <strong>NFT, 바이오 주식</strong> 등 다양한 자산에 투자해보세요.</p></div>
+                                    {investments.map((item) => {
+                                        let profitRate = 0; let profitColor = 'text-slate-400';
+                                        if (item.owned > 0) { profitRate = ((item.price - item.avgPrice) / item.avgPrice) * 100; if (profitRate > 0) profitColor = 'text-red-400'; else if (profitRate < 0) profitColor = 'text-blue-400'; }
+                                        const isPriceUp = item.history[item.history.length - 1] > item.history[item.history.length - 2];
+                                        const chartColor = isPriceUp ? '#f87171' : '#60a5fa';
+                                        let buyCostDisplay = 0, sellCountDisplay = 0, canBuy = false, canSell = false;
+                                        if (tradeAmount === 'MAX') { const maxCanBuy = Math.floor(money / item.price); buyCostDisplay = maxCanBuy * item.price; canBuy = maxCanBuy > 0; sellCountDisplay = item.owned; canSell = item.owned > 0; }
+                                        else { buyCostDisplay = item.price * tradeAmount; canBuy = money >= buyCostDisplay; sellCountDisplay = Math.min(item.owned, tradeAmount); canSell = sellCountDisplay > 0; }
+                                        
+                                        // 아이콘 매핑
+                                        let InvIcon = Icons.TrendingUp;
+                                        if (item.id === 'coin') InvIcon = Icons.Coins;
+                                        else if (item.id === 'nft') InvIcon = Icons.Gem;
+                                        else if (item.id === 'bio_stock') InvIcon = Icons.Activity;
+                                        else if (item.id === 'gold') InvIcon = Icons.Wallet;
+                                        else if (item.id === 'real_estate') InvIcon = Icons.Building2;
+
+                                        return (
+                                            <div key={item.id} className="bg-slate-700 rounded-xl p-5 border border-slate-600 shadow-md">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`p-2 rounded-lg ${item.type === 'high_risk' ? 'bg-orange-500/20 text-orange-400' : item.type === 'low_risk' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}><InvIcon size={24} /></div>
+                                                        <div><h3 className="font-bold text-lg text-slate-100">{item.name}</h3><p className="text-xs text-slate-400">{item.desc}</p></div>
+                                                    </div>
+                                                    <div className="text-right"><div className={`text-2xl font-mono font-bold flex items-center justify-end gap-2 ${isPriceUp ? 'text-red-400' : 'text-blue-400'}`}>{isPriceUp ? <Icons.TrendingUp size={20} /> : <Icons.TrendingDown size={20} />} ₩ {formatMoney(item.price)}</div><div className="text-xs text-slate-400 mt-1">현재가 (실시간)</div></div>
+                                                </div>
+                                                <div className="h-10 mb-4 bg-slate-800/50 rounded overflow-hidden"><InvestmentChart history={item.history} color={chartColor} /></div>
+                                                <div className="bg-slate-800/80 rounded-lg p-3 mb-4 flex justify-between items-center text-sm"><div><span className="text-slate-400">보유량: </span><span className="text-white font-bold ml-1">{formatMoney(item.owned)} 주/개</span></div><div><span className="text-slate-400">평단가: </span><span className="text-slate-200 ml-1">₩ {formatMoney(item.avgPrice)}</span></div><div><span className="text-slate-400">수익률: </span><span className={`font-bold ml-1 ${profitColor}`}>{profitRate.toFixed(2)}%</span></div></div>
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => buyInvestment(item.id)} className={`flex-1 py-3 rounded-lg font-bold text-sm transition-colors flex flex-col items-center justify-center gap-0.5 ${canBuy ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50' : 'bg-slate-600 text-slate-400 cursor-not-allowed'}`} disabled={!canBuy}><span>{tradeAmount === 'MAX' ? '최대 매수' : `매수 (${tradeAmount}개)`}</span><span className="text-xs font-mono opacity-80">-{formatMoney(buyCostDisplay)}</span></button>
+                                                    <button onClick={() => sellInvestment(item.id)} className={`flex-1 py-3 rounded-lg font-bold text-sm transition-colors flex flex-col items-center justify-center gap-0.5 ${canSell ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/50' : 'bg-slate-600 text-slate-400 cursor-not-allowed'}`} disabled={!canSell}><span>{tradeAmount === 'MAX' ? '전량 매도' : `매도 (${tradeAmount}개)`}</span><span className="text-xs font-mono opacity-80">+{formatMoney(item.price * sellCountDisplay)}</span></button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Upgrade Tab */}
+                            {activeTab === 'upgrade' && (
+                                <div className="space-y-3">
+                                    <h3 className="text-lg font-bold text-slate-300 mb-4">경제학 연구소</h3>
+                                    {upgrades.map((upgrade) => {
+                                        const currentCost = getUpgradeCost(upgrade);
+                                        const isMaxed = upgrade.level >= upgrade.maxLevel;
+                                        const canBuy = !isMaxed && money >= currentCost;
+                                        const UpgIcon = isMaxed ? Icons.Trophy : Icons.Microscope;
+                                        return (
+                                            <button key={upgrade.id} onClick={() => buyUpgrade(upgrade.id)} disabled={!canBuy} className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${isMaxed ? 'bg-green-900/10 border-green-800 opacity-80' : canBuy ? 'bg-slate-700 border-slate-600 hover:bg-slate-650' : 'bg-slate-800/50 border-slate-700 opacity-60'}`}>
+                                                <div className="flex items-center gap-3 text-left">
+                                                    <div className={`p-2 rounded-lg ${isMaxed ? 'bg-green-500/20 text-green-400' : 'bg-purple-500/20 text-purple-400'}`}><UpgIcon size={20} /></div>
+                                                    <div><div className="flex items-center gap-2"><h3 className={`font-bold text-sm ${isMaxed ? 'text-green-400' : 'text-slate-200'}`}>{upgrade.name}</h3><span className="text-xs px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">Lv.{upgrade.level} / {upgrade.maxLevel}</span></div><p className="text-xs text-slate-400 mt-1">{getUpgradeDesc(upgrade)}</p></div>
+                                                </div>
+                                                <div className="text-right min-w-[80px]">{isMaxed ? (<span className="text-xs font-bold text-green-500">연구 완료</span>) : (<span className={`text-sm font-mono font-bold ${canBuy ? 'text-yellow-400' : 'text-slate-500'}`}>₩ {formatMoney(currentCost)}</span>)}</div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Achievement Tab */}
+                            {activeTab === 'achievement' && (
+                                <div className="space-y-3">
+                                    <h3 className="text-lg font-bold text-slate-300 mb-4">나의 업적</h3>
+                                    <div className="bg-slate-700/50 p-4 rounded-lg border border-slate-600 text-sm text-slate-300 mb-4"><p>🏆 업적을 달성할 때마다 전체 수익(클릭, 사업, 투자)이 <strong>1%씩 증가</strong>합니다.</p></div>
+                                    <div className="grid grid-cols-1 gap-3">
+                                        {achievements.map((ach) => (
+                                            <div key={ach.id} className={`p-4 rounded-xl border flex items-center gap-4 ${ach.unlocked ? 'bg-indigo-900/30 border-indigo-500/50' : 'bg-slate-800 border-slate-700 opacity-60'}`}>
+                                                <div className={`p-3 rounded-full ${ach.unlocked ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/50' : 'bg-slate-700 text-slate-500'}`}><Icons.Medal size={24} /></div>
+                                                <div><h4 className={`font-bold ${ach.unlocked ? 'text-white' : 'text-slate-400'}`}>{ach.name}</h4><p className="text-sm text-slate-400">{ach.desc}</p></div>
+                                                {ach.unlocked && (<div className="ml-auto text-xs font-bold text-indigo-400 bg-indigo-900/50 px-2 py-1 rounded">달성 완료</div>)}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <button onClick={handleManualClick} className="fixed bottom-8 right-8 z-50 bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-full shadow-[0_0_20px_rgba(79,70,229,0.5)] border-4 border-indigo-400/30 active:scale-95 transition-all md:hidden flex items-center justify-center" aria-label="노동하기"><Icons.MousePointer2 size={28} /></button>
+                </div>
+            );
         }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(30, 41, 59, 0.5);
-          border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(71, 85, 105, 0.8);
-          border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(100, 116, 139, 1);
-        }
-      `}</style>
-    </div>
-  );
-}
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
