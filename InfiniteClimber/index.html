@@ -441,9 +441,9 @@
     let currentShopTab = 'char';
     window.openShop = (e) => {
         if(e) e.stopPropagation();
+        // 게임 중이면 자동으로 일시정지 (PAUSED 화면 없이 로직만 정지)
         if (gameState === 'PLAYING') {
             isPaused = true;
-            document.getElementById('pause-screen').classList.add('active');
         }
         document.getElementById('shop-screen').classList.add('active');
         renderShop();
@@ -451,6 +451,10 @@
     window.closeShop = (e) => {
         if(e) e.stopPropagation();
         document.getElementById('shop-screen').classList.remove('active');
+        // 창 닫으면 게임 재개
+        if (gameState === 'PLAYING') {
+            isPaused = false;
+        }
     }
     window.switchShopTab = (tab) => {
         currentShopTab = tab;
@@ -510,9 +514,9 @@
     // 랭킹 로직 UI
     window.openLeaderboard = async function(e) {
         if(e) e.stopPropagation();
+        // 게임 중이면 자동으로 일시정지 (PAUSED 화면 없이 로직만 정지)
         if (gameState === 'PLAYING') {
             isPaused = true;
-            document.getElementById('pause-screen').classList.add('active');
         }
         document.getElementById('leaderboard-screen').classList.add('active');
         document.getElementById('ranking-loading').style.display = 'block';
@@ -531,6 +535,10 @@
     window.closeLeaderboard = (e) => {
         if(e) e.stopPropagation();
         document.getElementById('leaderboard-screen').classList.remove('active');
+        // 창 닫으면 게임 재개
+        if (gameState === 'PLAYING') {
+            isPaused = false;
+        }
     }
 
     window.submitScore = async function() {
@@ -940,6 +948,15 @@
         ctx.restore();
     }
 
+    function gameLoop() {
+        if (gameState === 'PLAYING' || gameState === 'GAMEOVER') { update(); draw(); requestAnimationFrame(gameLoop); }
+        else {
+            const biome = getBiome(score);
+            bgParticles.forEach(p => { p.y += p.speed; if (p.y > canvas.height) p.y = 0; });
+            draw(); requestAnimationFrame(gameLoop);
+        }
+    }
+
     // 헬퍼
     function createParticles(x, y, color) { for(let i=0; i<8; i++) particles.push({x, y, vx:(Math.random()-0.5)*10, vy:(Math.random()-1)*10, life:1.0, color, size:Math.random()*6+2}); }
     function showFloatingText(x, y, text, color) { particles.push({x, y, vx:0, vy:-2, life:1.5, text, color, isText:true}); }
@@ -992,23 +1009,6 @@
         canvas.height = window.innerHeight;
         initBackgroundParticles();
         if(gameState === 'MENU') draw();
-    }
-
-    // --- gameLoop 함수 추가 (ReferenceError 해결) ---
-    function gameLoop() {
-        if (gameState === 'PLAYING' || gameState === 'GAMEOVER') {
-            update();
-            draw();
-            requestAnimationFrame(gameLoop);
-        } else {
-            const biome = getBiome(score);
-            bgParticles.forEach(p => {
-                p.y += p.speed;
-                if (p.y > canvas.height) p.y = 0;
-            });
-            draw();
-            requestAnimationFrame(gameLoop);
-        }
     }
 
 </script>
