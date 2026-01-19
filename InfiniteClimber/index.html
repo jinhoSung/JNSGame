@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Infinite Climber : Ranking</title>
+    <title>Infinite Climber : UI Fix</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap');
 
@@ -435,13 +435,14 @@
             <div class="rank-msg highlight">축하합니다! TOP 50 진입!</div>
             <input type="text" id="rank-name-input" placeholder="이름 입력 (최대 8자)" maxlength="8">
             <button class="btn-main" onclick="submitScore()">등록하기</button>
+            <button class="btn-main btn-sub" onclick="startGame()">RETRY</button>
         </div>
 
         <!-- 재시도 영역 (순위 밖 or 등록 후) -->
         <div id="retry-area" class="retry-area">
             <div class="rank-msg" id="out-of-rank-msg">순위 밖입니다</div>
             <button class="btn-main" id="btn-retry">RETRY</button>
-            <button class="btn-main btn-sub" onclick="openLeaderboard()">RANKING</button>
+            <!-- 랭킹 등록 후 랭킹 보기 버튼 제거 요청 -->
         </div>
     </div>
 </div>
@@ -468,7 +469,8 @@
         auth: null,
         db: null,
         user: null,
-        collectionName: 'scores_infinite_climber', // 기존 scores와 구분
+        isInitialized: false, 
+        collectionName: 'scores_infinite_climber',
 
         init: async function() {
             try {
@@ -479,14 +481,13 @@
                 await signInAnonymously(this.auth);
                 onAuthStateChanged(this.auth, (user) => {
                     this.user = user;
-                    // console.log("Auth Success:", user.uid);
+                    this.isInitialized = true;
                 });
             } catch (e) {
                 console.error("Firebase Init Error:", e);
             }
         },
 
-        // 점수 저장
         saveScore: async function(name, score) {
             if (!this.db || !this.user) return false;
             try {
@@ -504,7 +505,6 @@
             }
         },
 
-        // 랭킹 가져오기
         getTopScores: async function(limitCount = 50) {
             if (!this.db) return [];
             try {
@@ -518,139 +518,38 @@
             }
         },
 
-        // 랭킹 진입 여부 확인 (최소 점수 리턴)
-        // 로직: 50개를 가져와서 50개 미만이거나, 내 점수가 50등보다 높으면 true
         checkIfRanked: async function(myScore) {
+            if (!this.isInitialized) return false;
             const top50 = await this.getTopScores(50);
             if (top50.length < 50) return true;
-            // 50번째 점수보다 내 점수가 높으면 랭킹 진입
             const lastScore = top50[top50.length - 1].score;
             return myScore > lastScore;
         }
     };
 
-    // 초기화 실행
     FB.init();
 
-    // --- 전역 함수 연결 (HTML onclick을 위해) ---
-    window.openLeaderboard = async function() {
-        document.getElementById('leaderboard-screen').classList.add('active');
-        document.getElementById('ranking-loading').style.display = 'block';
-        document.getElementById('ranking-list').innerHTML = '';
-
-        const scores = await FB.getTopScores(50);
-        
-        document.getElementById('ranking-loading').style.display = 'none';
-        const listEl = document.getElementById('ranking-list');
-        
-        if (scores.length === 0) {
-            listEl.innerHTML = '<div style="text-align:center; padding:20px;">아직 기록이 없습니다.</div>';
-            return;
-        }
-
-        let html = '';
-        scores.forEach((item, index) => {
-            let rank = index + 1;
-            let icon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank + '.';
-            html += `
-                <div class="rank-item">
-                    <div style="width: 50px;">${icon}</div>
-                    <div style="flex: 1; text-align: left; padding-left: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.name}</div>
-                    <div style="width: 80px; text-align: right;">${item.score}</div>
-                </div>
-            `;
-        });
-        listEl.innerHTML = html;
-    };
-
-    window.closeLeaderboard = function() {
-        document.getElementById('leaderboard-screen').classList.remove('active');
-    };
-
-    window.submitScore = async function() {
-        const input = document.getElementById('rank-name-input');
-        const name = input.value.trim();
-        if (!name) {
-            alert("이름을 입력해주세요.");
-            return;
-        }
-        
-        // 버튼 비활성화 (중복 클릭 방지)
-        const btn = document.querySelector('#rank-register-area button');
-        btn.disabled = true;
-        btn.innerText = "저장 중...";
-
-        const success = await FB.saveScore(name, score);
-        if (success) {
-            // 저장 성공 시 UI 전환
-            document.getElementById('rank-register-area').style.display = 'none';
-            document.getElementById('retry-area').style.display = 'flex';
-            document.getElementById('out-of-rank-msg').innerText = "등록 완료!";
-            
-            // 랭킹창 한번 보여주기
-            await window.openLeaderboard();
-        } else {
-            alert("저장에 실패했습니다. 인터넷 연결을 확인해주세요.");
-            btn.disabled = false;
-            btn.innerText = "등록하기";
-        }
-    };
-
-    // 게임 오버 로직 수정 (FB 연동)
-    window.handleGameOverLogic = async function(finalScore) {
-        const checkMsg = document.getElementById('checking-rank-msg');
-        const registerArea = document.getElementById('rank-register-area');
-        const retryArea = document.getElementById('retry-area');
-        const outMsg = document.getElementById('out-of-rank-msg');
-
-        // UI 초기화
-        checkMsg.style.display = 'block';
-        registerArea.style.display = 'none';
-        retryArea.style.display = 'none';
-        document.getElementById('rank-name-input').value = '';
-        const submitBtn = document.querySelector('#rank-register-area button');
-        submitBtn.disabled = false;
-        submitBtn.innerText = "등록하기";
-
-        // 랭킹 체크
-        try {
-            const isRanked = await FB.checkIfRanked(finalScore);
-            checkMsg.style.display = 'none';
-
-            if (isRanked) {
-                // 랭킹 진입
-                registerArea.style.display = 'flex';
-                // 키보드 입력 시 게임 조작 되지 않도록 포커스 처리 등 주의 필요하지만
-                // 현재 게임은 키다운 이벤트를 전역에서 막지 않으므로 
-                // input focus시에는 게임 입력을 무시하는 로직이 필요함.
-                // (아래 isTyping 변수 추가로 해결)
-            } else {
-                // 순위 밖
-                outMsg.innerText = "순위 밖입니다 (Top 50)";
-                retryArea.style.display = 'flex';
-            }
-        } catch (e) {
-            console.error(e);
-            checkMsg.innerText = "랭킹 서버 연결 실패";
-            retryArea.style.display = 'flex';
-        }
-    };
-    
-    // input 포커스 시 게임 키 입력 방지용 플래그 설정
-    const nameInput = document.getElementById('rank-name-input');
-    nameInput.addEventListener('focus', () => window.isTypingName = true);
-    nameInput.addEventListener('blur', () => window.isTypingName = false);
-
-
-    // --- 기존 게임 코드 ---
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d', { alpha: false }); 
-
+    // --- 1. 상수 및 설정 (최상단 배치) ---
     const STAIR_WIDTH = 100;
     const STAIR_HEIGHT = 60;
     const STAIR_DEPTH = 40; 
     const PLAYER_SIZE = 60;
-    
+
+    const BIOMES = {
+        CITY: { name: 'CITY', start: 0, top: '#a8e6cf', side: '#56ab91', bgTop: '#1a1a2e', bgBot: '#16213e', particle: 'STAR' },
+        SNOW: { name: 'FROZEN', start: 50, top: '#dff9fb', side: '#c7ecee', bgTop: '#7ed6df', bgBot: '#22a6b3', particle: 'SNOW' },
+        VOLCANO: { name: 'INFERNO', start: 100, top: '#30336b', side: '#130f40', bgTop: '#eb4d4b', bgBot: '#5333ed', particle: 'EMBER' },
+        SPACE: { name: 'GALAXY', start: 150, top: '#00d2ff', side: '#3a0ca3', bgTop: '#000000', bgBot: '#2c003e', particle: 'HYPER' }
+    };
+
+    function getBiome(currentScore) {
+        if (currentScore >= 150) return BIOMES.SPACE;
+        if (currentScore >= 100) return BIOMES.VOLCANO;
+        if (currentScore >= 50) return BIOMES.SNOW;
+        return BIOMES.CITY;
+    }
+
+    // --- 2. 변수 선언 ---
     let gameState = 'MENU';
     let isPaused = false;
     let isSoundOn = true;
@@ -659,12 +558,14 @@
     let bestScore = parseInt(localStorage.getItem('infiniteClimberGodBest')) || 0;
     let stamina = 100;
     const MAX_STAMINA = 100;
-    let staminaDrainRate = 0.15;
+    let staminaDrainRate = 0.25; 
     let isGameLoopRunning = false;
     let currentBiome = 'CITY';
     let tutorialStep = 0; 
     let lastInputTime = 0;
-    window.isTypingName = false; // 전역 변수
+    let lastTouchTime = 0; 
+    let isKeyDown = false; 
+    window.isTypingName = false; 
 
     let particles = [];
     let bgParticles = []; 
@@ -677,6 +578,27 @@
     let trail = []; 
     let camera = { x: 0, y: 0, shake: 0 };
 
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d', { alpha: false }); 
+    const scoreEl = document.getElementById('score');
+    const bestScoreEl = document.getElementById('best-score');
+    const biomeNameEl = document.getElementById('biome-name');
+    const staminaBar = document.getElementById('stamina-bar');
+    const menuScreen = document.getElementById('menu-screen');
+    const gameoverScreen = document.getElementById('gameover-screen');
+    const pauseScreen = document.getElementById('pause-screen');
+    const finalScoreEl = document.getElementById('final-score');
+    const comboText = document.getElementById('combo-text');
+    const gameContainer = document.getElementById('game-container');
+    const btnTurn = document.getElementById('btn-turn');
+    const btnClimb = document.getElementById('btn-climb');
+    const soundBtn = document.getElementById('sound-btn');
+    const handLeft = document.getElementById('tutorial-hand-left');
+    const handRight = document.getElementById('tutorial-hand-right');
+
+    bestScoreEl.innerText = `BEST: ${bestScore}`;
+
+    // --- 3. 오디오 및 함수 정의 ---
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     let audioCtx;
 
@@ -730,42 +652,8 @@
         }
     };
 
-    const scoreEl = document.getElementById('score');
-    const bestScoreEl = document.getElementById('best-score');
-    const biomeNameEl = document.getElementById('biome-name');
-    const staminaBar = document.getElementById('stamina-bar');
-    const menuScreen = document.getElementById('menu-screen');
-    const gameoverScreen = document.getElementById('gameover-screen');
-    const pauseScreen = document.getElementById('pause-screen');
-    const finalScoreEl = document.getElementById('final-score');
-    const comboText = document.getElementById('combo-text');
-    const gameContainer = document.getElementById('game-container');
-    const btnTurn = document.getElementById('btn-turn');
-    const btnClimb = document.getElementById('btn-climb');
-    const soundBtn = document.getElementById('sound-btn');
-    const handLeft = document.getElementById('tutorial-hand-left');
-    const handRight = document.getElementById('tutorial-hand-right');
-
-    bestScoreEl.innerText = `BEST: ${bestScore}`;
-
-    const BIOMES = {
-        CITY: { name: 'CITY', start: 0, top: '#a8e6cf', side: '#56ab91', bgTop: '#1a1a2e', bgBot: '#16213e', particle: 'STAR' },
-        SNOW: { name: 'FROZEN', start: 50, top: '#dff9fb', side: '#c7ecee', bgTop: '#7ed6df', bgBot: '#22a6b3', particle: 'SNOW' },
-        VOLCANO: { name: 'INFERNO', start: 100, top: '#30336b', side: '#130f40', bgTop: '#eb4d4b', bgBot: '#5333ed', particle: 'EMBER' },
-        SPACE: { name: 'GALAXY', start: 150, top: '#00d2ff', side: '#3a0ca3', bgTop: '#000000', bgBot: '#2c003e', particle: 'HYPER' }
-    };
-
-    function getBiome(currentScore) {
-        if (currentScore >= 150) return BIOMES.SPACE;
-        if (currentScore >= 100) return BIOMES.VOLCANO;
-        if (currentScore >= 50) return BIOMES.SNOW;
-        return BIOMES.CITY;
-    }
-
     function triggerHaptic(duration) {
-        if (navigator.vibrate) {
-            navigator.vibrate(duration);
-        }
+        if (navigator.vibrate) navigator.vibrate(duration);
     }
 
     function updateTutorialUI() {
@@ -788,31 +676,148 @@
         }
     }
 
-    // --- 전역 함수 할당 (onclick 대응) ---
+    // --- UI 및 게임 로직 연결 ---
+    window.openLeaderboard = async function() {
+        document.getElementById('leaderboard-screen').classList.add('active');
+        document.getElementById('ranking-loading').style.display = 'block';
+        document.getElementById('ranking-list').innerHTML = '';
+
+        const scores = await FB.getTopScores(50);
+        
+        document.getElementById('ranking-loading').style.display = 'none';
+        const listEl = document.getElementById('ranking-list');
+        
+        if (scores.length === 0) {
+            listEl.innerHTML = '<div style="text-align:center; padding:20px;">아직 기록이 없습니다.</div>';
+            return;
+        }
+
+        let html = '';
+        scores.forEach((item, index) => {
+            let rank = index + 1;
+            let icon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank + '.';
+            html += `
+                <div class="rank-item">
+                    <div style="width: 50px;">${icon}</div>
+                    <div style="flex: 1; text-align: left; padding-left: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.name}</div>
+                    <div style="width: 80px; text-align: right;">${item.score}</div>
+                </div>
+            `;
+        });
+        listEl.innerHTML = html;
+    };
+
+    window.closeLeaderboard = function() {
+        document.getElementById('leaderboard-screen').classList.remove('active');
+    };
+
+    window.submitScore = async function() {
+        const input = document.getElementById('rank-name-input');
+        const name = input.value.trim();
+        if (!name) {
+            alert("이름을 입력해주세요.");
+            return;
+        }
+        
+        const btn = document.querySelector('#rank-register-area button');
+        btn.disabled = true;
+        btn.innerText = "저장 중...";
+
+        const success = await FB.saveScore(name, score);
+        if (success) {
+            document.getElementById('rank-register-area').style.display = 'none';
+            document.getElementById('retry-area').style.display = 'flex';
+            document.getElementById('out-of-rank-msg').innerText = "등록 완료!";
+            document.getElementById('out-of-rank-msg').style.display = 'block';
+            
+            // --- 랭킹 확인 자동 전환 기능 제거 ---
+            // await window.openLeaderboard(); 
+        } else {
+            alert("저장에 실패했습니다. 인터넷 연결을 확인해주세요.");
+            btn.disabled = false;
+            btn.innerText = "등록하기";
+        }
+    };
+
+    window.handleGameOverLogic = async function(finalScore) {
+        const checkMsg = document.getElementById('checking-rank-msg');
+        const registerArea = document.getElementById('rank-register-area');
+        const retryArea = document.getElementById('retry-area');
+        const outMsg = document.getElementById('out-of-rank-msg');
+
+        checkMsg.style.display = 'block';
+        checkMsg.innerText = "랭킹 확인 중...";
+        registerArea.style.display = 'none';
+        retryArea.style.display = 'none';
+        outMsg.style.display = 'block';
+        document.getElementById('rank-name-input').value = '';
+        
+        const submitBtn = document.querySelector('#rank-register-area button');
+        submitBtn.disabled = false;
+        submitBtn.innerText = "등록하기";
+
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("TIMEOUT")), 3000)
+        );
+
+        try {
+            const isRanked = await Promise.race([
+                FB.checkIfRanked(finalScore),
+                timeoutPromise
+            ]);
+
+            checkMsg.style.display = 'none';
+
+            if (isRanked) {
+                registerArea.style.display = 'flex';
+                setTimeout(() => {
+                     const input = document.getElementById('rank-name-input');
+                     if(input) input.focus();
+                }, 100);
+            } else {
+                outMsg.innerText = "순위 밖입니다 (Top 50)";
+                retryArea.style.display = 'flex';
+            }
+        } catch (e) {
+            console.warn("Rank Check Failed:", e);
+            checkMsg.style.display = 'block';
+            if (e.message === "TIMEOUT") {
+                checkMsg.innerText = "서버 응답 지연 (오프라인 모드)";
+            } else {
+                checkMsg.innerText = "랭킹 서버 연결 불가";
+            }
+            retryArea.style.display = 'flex';
+            outMsg.style.display = 'none';
+        }
+    };
+    
+    const nameInput = document.getElementById('rank-name-input');
+    nameInput.addEventListener('focus', () => window.isTypingName = true);
+    nameInput.addEventListener('blur', () => window.isTypingName = false);
+
     window.togglePause = function() {
         if (gameState === 'MENU' || gameState === 'GAMEOVER') return;
         isPaused = !isPaused;
-        pauseScreen.classList.toggle('active', isPaused);
+        document.getElementById('pause-screen').classList.toggle('active', isPaused);
     };
 
     window.toggleSound = function() {
         isSoundOn = !isSoundOn;
-        soundBtn.innerText = isSoundOn ? "🔊" : "🔇";
+        document.getElementById('sound-btn').innerText = isSoundOn ? "🔊" : "🔇";
     };
 
     window.startGame = function() {
         Sound.init();
         initGame();
         gameState = 'PLAYING';
-        menuScreen.classList.remove('active');
-        gameoverScreen.classList.remove('active');
+        document.getElementById('menu-screen').classList.remove('active');
+        document.getElementById('gameover-screen').classList.remove('active');
         updateUI();
         if (!isGameLoopRunning) { isGameLoopRunning = true; gameLoop(); }
     }
     
     document.getElementById('btn-start').addEventListener('click', window.startGame);
     document.getElementById('btn-retry').addEventListener('click', window.startGame);
-
 
     function handleInput(action) {
         if (gameState !== 'PLAYING' || isPaused) return;
@@ -868,8 +873,8 @@
             }
 
             combo++;
-            stamina = Math.min(MAX_STAMINA, stamina + 10 + (combo > 10 ? 5 : 0));
-            staminaDrainRate = 0.15 + (score * 0.001); 
+            stamina = Math.min(MAX_STAMINA, stamina + 7 + (combo > 10 ? 8 : 0));
+            staminaDrainRate = 0.25 + (score * 0.002); 
             
             if (!isPerfect) Sound.play('step');
 
@@ -881,7 +886,7 @@
             const newBiome = getBiome(score);
             if (newBiome.name !== currentBiome) {
                 currentBiome = newBiome.name;
-                biomeNameEl.innerText = newBiome.name;
+                document.getElementById('biome-name').innerText = newBiome.name;
                 showFloatingText(player.x, player.y - 150, newBiome.name + " ZONE!", "#fff");
             }
 
@@ -896,8 +901,8 @@
         } else {
             triggerHaptic(200); 
             camera.shake = 20;
-            gameContainer.classList.add('shake');
-            setTimeout(() => gameContainer.classList.remove('shake'), 500);
+            document.getElementById('game-container').classList.add('shake');
+            setTimeout(() => document.getElementById('game-container').classList.remove('shake'), 500);
             Sound.play('gameover');
             gameOver();
         }
@@ -916,12 +921,11 @@
         });
     }
 
-    registerButtonEvents(btnTurn, 'turn');
-    registerButtonEvents(btnClimb, 'climb');
+    registerButtonEvents(document.getElementById('btn-turn'), 'turn');
+    registerButtonEvents(document.getElementById('btn-climb'), 'climb');
 
     document.addEventListener('keydown', (e) => {
         if (e.code === 'Escape') togglePause();
-        // 랭킹 이름 입력중이면 키 입력 무시
         if (window.isTypingName) return;
 
         if (gameState !== 'PLAYING' || isPaused || isKeyDown) return;
@@ -953,8 +957,6 @@
 
     function createStair(prevStair) {
         let direction = prevStair.direction;
-        
-        // 난이도 레벨 디자인
         let turnProbability = 0.2 + (Math.min(score, 100) / 100) * 0.3;
 
         if (stairs.length > 2 && Math.random() < turnProbability) {
@@ -988,11 +990,11 @@
         score = 0;
         combo = 0;
         stamina = MAX_STAMINA;
-        staminaDrainRate = 0.15;
+        staminaDrainRate = 0.25; 
         currentBiome = 'CITY';
-        biomeNameEl.innerText = 'CITY';
+        document.getElementById('biome-name').innerText = 'CITY';
         isPaused = false;
-        pauseScreen.classList.remove('active');
+        document.getElementById('pause-screen').classList.remove('active');
         tutorialStep = 0; 
 
         const capes = ['#ff4757', '#2ed573', '#1e90ff', '#ffa502', '#8e44ad'];
@@ -1042,35 +1044,31 @@
     }
 
     function showComboText(val) {
-        comboText.innerText = val + " COMBO!";
-        comboText.style.transform = 'translate(-50%, -50%) scale(1.5) rotate(-10deg)';
-        comboText.style.opacity = '1';
-        setTimeout(() => comboText.style.transform = 'translate(-50%, -50%) scale(0)', 500);
+        const ct = document.getElementById('combo-text');
+        ct.innerText = val + " COMBO!";
+        ct.style.transform = 'translate(-50%, -50%) scale(1.5) rotate(-10deg)';
+        ct.style.opacity = '1';
+        setTimeout(() => ct.style.transform = 'translate(-50%, -50%) scale(0)', 500);
     }
 
     function gameOver() {
         gameState = 'GAMEOVER';
-        handLeft.style.display = 'none'; 
-        handRight.style.display = 'none';
+        document.getElementById('tutorial-hand-left').style.display = 'none'; 
+        document.getElementById('tutorial-hand-right').style.display = 'none';
 
-        // 로컬 최고 점수 저장
         if (score > bestScore) {
             bestScore = score;
             localStorage.setItem('infiniteClimberGodBest', bestScore);
-            bestScoreEl.innerText = `BEST: ${bestScore}`;
-            finalScoreEl.style.color = '#FFD700';
-            finalScoreEl.innerText = score + " (NEW!)";
+            document.getElementById('best-score').innerText = `BEST: ${bestScore}`;
+            document.getElementById('final-score').style.color = '#FFD700';
+            document.getElementById('final-score').innerText = score + " (NEW!)";
         } else {
-            finalScoreEl.style.color = 'white';
-            finalScoreEl.innerText = score;
+            document.getElementById('final-score').style.color = 'white';
+            document.getElementById('final-score').innerText = score;
         }
 
-        // 게임오버 화면 표시
-        gameoverScreen.classList.add('active');
-        
-        // 랭킹 체크 로직 호출
+        document.getElementById('gameover-screen').classList.add('active');
         window.handleGameOverLogic(score);
-
         Sound.play('gameover');
     }
 
@@ -1130,14 +1128,15 @@
     }
 
     function updateUI() {
-        scoreEl.innerText = score;
-        staminaBar.style.width = `${(stamina / MAX_STAMINA) * 100}%`;
+        document.getElementById('score').innerText = score;
+        const bar = document.getElementById('stamina-bar');
+        bar.style.width = `${(stamina / MAX_STAMINA) * 100}%`;
         if (stamina < 30) {
-            staminaBar.style.background = '#ff4757';
-            staminaBar.style.boxShadow = '0 0 15px #ff4757';
+            bar.style.background = '#ff4757';
+            bar.style.boxShadow = '0 0 15px #ff4757';
         } else {
-            staminaBar.style.background = 'linear-gradient(90deg, #00f260, #0575e6)';
-            staminaBar.style.boxShadow = '0 0 10px rgba(5, 117, 230, 0.5)';
+            bar.style.background = 'linear-gradient(90deg, #00f260, #0575e6)';
+            bar.style.boxShadow = '0 0 10px rgba(5, 117, 230, 0.5)';
         }
     }
 
