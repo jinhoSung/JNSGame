@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Infinite Climber : Final Fixed</title>
+    <title>Infinite Climber : Ultimate</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap');
 
@@ -345,7 +345,14 @@
         animY: 0,     
         scaleY: 1,    
         targetX: 0,   
-        state: 'IDLE' 
+        state: 'IDLE',
+        // 랜덤 캐릭터 색상
+        colors: {
+            cape: '#ff4757',
+            body: '#2f3542',
+            belt: '#ffa502',
+            skin: '#ffccaa'
+        }
     };
 
     // --- 카메라 ---
@@ -380,16 +387,19 @@
             const now = audioCtx.currentTime;
 
             if (type === 'step') {
-                // 경쾌한 8비트 점프음
+                // 콤보가 높을수록 피치 상승 (300Hz ~ 800Hz)
+                // 최대 50콤보까지 피치 변화
+                let baseFreq = 300 + Math.min(combo, 50) * 10;
+                
                 osc.type = 'square';
-                osc.frequency.setValueAtTime(300, now);
-                osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+                osc.frequency.setValueAtTime(baseFreq, now);
+                osc.frequency.exponentialRampToValueAtTime(baseFreq * 2, now + 0.08); // 약간 짧게
                 
                 gainNode.gain.setValueAtTime(0.1, now);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
                 
                 osc.start(now);
-                osc.stop(now + 0.1);
+                osc.stop(now + 0.08);
             } 
             else if (type === 'gameover') {
                 // 실패음
@@ -604,6 +614,15 @@
         return newStair;
     }
 
+    function getRandomColor() {
+        const letters = '0123456789ABCDEF';
+        let color = '#';
+        for (let i = 0; i < 6; i++) {
+            color += letters[Math.floor(Math.random() * 16)];
+        }
+        return color;
+    }
+
     function initGame() {
         stairs = [];
         particles = [];
@@ -614,6 +633,16 @@
         isPaused = false;
         pauseScreen.classList.remove('active');
         
+        // 캐릭터 랜덤 색상 설정 (재미 요소)
+        const capes = ['#ff4757', '#2ed573', '#1e90ff', '#ffa502', '#8e44ad'];
+        const bodies = ['#2f3542', '#57606f', '#747d8c', '#a4b0be'];
+        player.colors = {
+            cape: capes[Math.floor(Math.random() * capes.length)],
+            body: bodies[Math.floor(Math.random() * bodies.length)],
+            belt: '#ffa502',
+            skin: '#ffccaa'
+        };
+
         stairs.push({ 
             x: 0, y: 0, 
             direction: 1, 
@@ -751,12 +780,21 @@
 
     // --- 렌더링 ---
     function draw() {
+        // 다이내믹 배경: 점수에 따라 색상(Hue)이 회전
+        // 점수가 오를수록 배경 분위기가 바뀜
+        const baseHue = (240 + score * 0.5) % 360; // 240(Blue)에서 시작
         const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-        bgGradient.addColorStop(0, '#0f0c29');
-        bgGradient.addColorStop(0.5, '#302b63');
-        bgGradient.addColorStop(1, '#24243e');
+        bgGradient.addColorStop(0, `hsl(${baseHue}, 60%, 10%)`);
+        bgGradient.addColorStop(0.5, `hsl(${baseHue}, 60%, 20%)`);
+        bgGradient.addColorStop(1, `hsl(${baseHue}, 60%, 30%)`);
+        
         ctx.fillStyle = bgGradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 스피드 라인 (콤보가 높을 때)
+        if (combo > 20) {
+            drawSpeedLines();
+        }
 
         ctx.fillStyle = '#ffffff';
         bgStars.forEach(star => {
@@ -800,6 +838,29 @@
         ctx.restore();
     }
 
+    function drawSpeedLines() {
+        ctx.save();
+        // 화면 중앙 기준
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 2;
+        
+        // 랜덤한 방사형 라인 그리기
+        for (let i = 0; i < 20; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const length = Math.random() * 300 + 200;
+            const innerRadius = 300 + Math.random() * 100;
+            
+            ctx.beginPath();
+            ctx.moveTo(cx + Math.cos(angle) * innerRadius, cy + Math.sin(angle) * innerRadius);
+            ctx.lineTo(cx + Math.cos(angle) * (innerRadius + length), cy + Math.sin(angle) * (innerRadius + length));
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
     function drawStair3D(x, y, colorTop, colorSide) {
         const w = STAIR_WIDTH;
         const h = STAIR_HEIGHT;
@@ -823,6 +884,7 @@
     function drawPlayer() {
         const x = player.x;
         const y = player.y + player.animY; 
+        const c = player.colors; // 현재 캐릭터 색상
         
         ctx.save();
         ctx.translate(x, y + STAIR_HEIGHT/2); 
@@ -833,32 +895,40 @@
 
         ctx.scale(1, player.scaleY);
 
-        ctx.fillStyle = '#ff4757';
+        // 망토
+        ctx.fillStyle = c.cape;
         ctx.beginPath();
         ctx.moveTo(-10, -40);
         ctx.lineTo(-25, -10);
         ctx.lineTo(0, -10);
         ctx.fill();
 
-        ctx.fillStyle = '#2f3542';
+        // 몸통
+        ctx.fillStyle = c.body;
         ctx.fillRect(-15, -45, 30, 25);
         
-        ctx.fillStyle = '#ffa502';
+        // 벨트
+        ctx.fillStyle = c.belt;
         ctx.fillRect(-15, -25, 30, 5);
 
-        ctx.fillStyle = '#ffccaa'; 
+        // 머리
+        ctx.fillStyle = c.skin; 
         ctx.fillRect(-15, -65, 30, 25);
         
+        // 머리카락
         ctx.fillStyle = '#57606f';
         ctx.fillRect(-17, -70, 35, 10);
         ctx.fillRect(-17, -70, 10, 25); 
 
+        // 눈
         ctx.fillStyle = 'black';
         ctx.fillRect(5, -55, 4, 4);
 
-        ctx.fillStyle = '#2f3542';
+        // 팔
+        ctx.fillStyle = c.body;
         ctx.fillRect(5, -40, 10, 8);
 
+        // 다리
         ctx.fillStyle = 'black';
         ctx.fillRect(-10, -20, 8, 20);
         ctx.fillRect(2, -20, 8, 20);
