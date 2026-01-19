@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Infinite Climber : Level Design</title>
+    <title>Infinite Climber : Ranking</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap');
 
@@ -172,14 +172,14 @@
             opacity: 0.8;
         }
 
-        /* 화면 오버레이 */
+        /* 화면 오버레이 공통 */
         .screen {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(16, 16, 30, 0.85);
+            background: rgba(16, 16, 30, 0.95);
             backdrop-filter: blur(8px);
             display: flex;
             flex-direction: column;
@@ -210,8 +210,8 @@
         }
 
         .btn-main {
-            margin-top: 30px;
-            padding: 15px 50px;
+            margin-top: 20px;
+            padding: 15px 40px;
             font-size: 24px;
             font-family: 'Black Han Sans', sans-serif;
             background: linear-gradient(to bottom, #FF4500, #CC3700);
@@ -226,6 +226,17 @@
         .btn-main:active {
             transform: translateY(6px);
             box-shadow: 0 0 0 #8B2500, 0 0 0 rgba(0,0,0,0);
+        }
+
+        .btn-sub {
+            background: #555;
+            box-shadow: 0 6px 0 #333;
+            font-size: 18px;
+            padding: 10px 30px;
+            margin-top: 10px;
+        }
+        .btn-sub:active {
+            box-shadow: 0 0 0 #333;
         }
 
         .info-text {
@@ -278,6 +289,72 @@
             40%, 60% { transform: translate3d(6px, 0, 0); }
         }
 
+        /* --- 랭킹 관련 스타일 --- */
+        #ranking-loading {
+            font-size: 20px;
+            color: #00d2ff;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink { 50% { opacity: 0.5; } }
+
+        .ranking-list {
+            width: 90%;
+            max-width: 400px;
+            height: 50vh;
+            overflow-y: auto;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .rank-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-size: 18px;
+        }
+        .rank-item:nth-child(1) { color: #FFD700; font-weight: bold; font-size: 20px; }
+        .rank-item:nth-child(2) { color: #C0C0C0; font-weight: bold; }
+        .rank-item:nth-child(3) { color: #CD7F32; font-weight: bold; }
+
+        .rank-input-area {
+            display: none; /* JS로 제어 */
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        #rank-name-input {
+            padding: 10px;
+            font-size: 20px;
+            border-radius: 5px;
+            border: none;
+            margin-bottom: 10px;
+            text-align: center;
+            font-family: 'Black Han Sans', sans-serif;
+            width: 200px;
+        }
+
+        .retry-area {
+            display: none; /* JS로 제어 */
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .rank-msg {
+            font-size: 1.2rem;
+            color: #aaa;
+            margin-bottom: 10px;
+        }
+        .rank-msg.highlight {
+            color: #00d2ff;
+            font-size: 1.5rem;
+            animation: bounce 0.5s infinite alternate;
+        }
+
     </style>
 </head>
 <body>
@@ -286,12 +363,12 @@
     <canvas id="gameCanvas"></canvas>
 
     <div id="combo-text">COMBO!</div>
-
     <div id="tutorial-hand-left" class="tutorial-hand" style="left: 25%;">👆</div>
     <div id="tutorial-hand-right" class="tutorial-hand" style="left: 75%;">👆</div>
 
     <div class="ui-layer">
         <div class="top-buttons">
+            <div class="icon-btn" id="rank-btn" onclick="openLeaderboard()">🏆</div>
             <div class="icon-btn" id="sound-btn" onclick="toggleSound()">🔊</div>
             <div class="icon-btn" id="pause-btn" onclick="togglePause()">⏸️</div>
         </div>
@@ -326,6 +403,7 @@
         <h1>INFINITE<br>CLIMBER</h1>
         <div class="info-text">PC: Z (오르기), X (전환) / 방향키</div>
         <button class="btn-main" id="btn-start">START</button>
+        <button class="btn-main btn-sub" onclick="openLeaderboard()">RANKING</button>
     </div>
 
     <!-- 일시정지 -->
@@ -334,16 +412,237 @@
         <button class="btn-main" onclick="togglePause()">RESUME</button>
     </div>
 
-    <!-- 게임오버 -->
+    <!-- 리더보드 화면 -->
+    <div id="leaderboard-screen" class="screen">
+        <h1 style="font-size: 2.5rem; margin-bottom: 10px;">TOP 50</h1>
+        <div id="ranking-loading">Loading...</div>
+        <div class="ranking-list" id="ranking-list">
+            <!-- JS로 채워짐 -->
+        </div>
+        <button class="btn-main" onclick="closeLeaderboard()">CLOSE</button>
+    </div>
+
+    <!-- 게임오버 화면 -->
     <div id="gameover-screen" class="screen">
         <h1 style="font-size: 3rem; color: #ff4757;">GAME OVER</h1>
         <p style="font-size: 1.5rem; margin: 10px;">SCORE</p>
         <p id="final-score" style="font-size: 4rem; margin: 0; font-weight: bold;">0</p>
-        <button class="btn-main" id="btn-retry">RETRY</button>
+        
+        <div id="checking-rank-msg" style="color: #00d2ff; margin: 20px;">랭킹 확인 중...</div>
+
+        <!-- 랭킹 등록 영역 (50위 안) -->
+        <div id="rank-register-area" class="rank-input-area">
+            <div class="rank-msg highlight">축하합니다! TOP 50 진입!</div>
+            <input type="text" id="rank-name-input" placeholder="이름 입력 (최대 8자)" maxlength="8">
+            <button class="btn-main" onclick="submitScore()">등록하기</button>
+        </div>
+
+        <!-- 재시도 영역 (순위 밖 or 등록 후) -->
+        <div id="retry-area" class="retry-area">
+            <div class="rank-msg" id="out-of-rank-msg">순위 밖입니다</div>
+            <button class="btn-main" id="btn-retry">RETRY</button>
+            <button class="btn-main btn-sub" onclick="openLeaderboard()">RANKING</button>
+        </div>
     </div>
 </div>
 
-<script>
+<script type="module">
+    // --- 파이어베이스 설정 및 모듈 ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+    import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyBUGN1Zlpk-Avfu-5s4G6qQrSfMaq_QXhw",
+        authDomain: "distancegame-f4bba.firebaseapp.com",
+        projectId: "distancegame-f4bba",
+        storageBucket: "distancegame-f4bba.firebasestorage.app",
+        messagingSenderId: "180425278674",
+        appId: "1:180425278674:web:af07ce51992cb622fc990b",
+        measurementId: "G-0PGCH52GKN"
+    };
+
+    // Firebase 관리 객체
+    const FB = {
+        app: null,
+        auth: null,
+        db: null,
+        user: null,
+        collectionName: 'scores_infinite_climber', // 기존 scores와 구분
+
+        init: async function() {
+            try {
+                this.app = initializeApp(firebaseConfig);
+                this.auth = getAuth(this.app);
+                this.db = getFirestore(this.app);
+                
+                await signInAnonymously(this.auth);
+                onAuthStateChanged(this.auth, (user) => {
+                    this.user = user;
+                    // console.log("Auth Success:", user.uid);
+                });
+            } catch (e) {
+                console.error("Firebase Init Error:", e);
+            }
+        },
+
+        // 점수 저장
+        saveScore: async function(name, score) {
+            if (!this.db || !this.user) return false;
+            try {
+                const colRef = collection(this.db, this.collectionName);
+                await addDoc(colRef, {
+                    name: name,
+                    score: score,
+                    userId: this.user.uid,
+                    timestamp: Date.now()
+                });
+                return true;
+            } catch (e) {
+                console.error("Save Error:", e);
+                return false;
+            }
+        },
+
+        // 랭킹 가져오기
+        getTopScores: async function(limitCount = 50) {
+            if (!this.db) return [];
+            try {
+                const colRef = collection(this.db, this.collectionName);
+                const q = query(colRef, orderBy("score", "desc"), limit(limitCount));
+                const snapshot = await getDocs(q);
+                return snapshot.docs.map(doc => doc.data());
+            } catch (e) {
+                console.error("Fetch Error:", e);
+                return [];
+            }
+        },
+
+        // 랭킹 진입 여부 확인 (최소 점수 리턴)
+        // 로직: 50개를 가져와서 50개 미만이거나, 내 점수가 50등보다 높으면 true
+        checkIfRanked: async function(myScore) {
+            const top50 = await this.getTopScores(50);
+            if (top50.length < 50) return true;
+            // 50번째 점수보다 내 점수가 높으면 랭킹 진입
+            const lastScore = top50[top50.length - 1].score;
+            return myScore > lastScore;
+        }
+    };
+
+    // 초기화 실행
+    FB.init();
+
+    // --- 전역 함수 연결 (HTML onclick을 위해) ---
+    window.openLeaderboard = async function() {
+        document.getElementById('leaderboard-screen').classList.add('active');
+        document.getElementById('ranking-loading').style.display = 'block';
+        document.getElementById('ranking-list').innerHTML = '';
+
+        const scores = await FB.getTopScores(50);
+        
+        document.getElementById('ranking-loading').style.display = 'none';
+        const listEl = document.getElementById('ranking-list');
+        
+        if (scores.length === 0) {
+            listEl.innerHTML = '<div style="text-align:center; padding:20px;">아직 기록이 없습니다.</div>';
+            return;
+        }
+
+        let html = '';
+        scores.forEach((item, index) => {
+            let rank = index + 1;
+            let icon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank + '.';
+            html += `
+                <div class="rank-item">
+                    <div style="width: 50px;">${icon}</div>
+                    <div style="flex: 1; text-align: left; padding-left: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.name}</div>
+                    <div style="width: 80px; text-align: right;">${item.score}</div>
+                </div>
+            `;
+        });
+        listEl.innerHTML = html;
+    };
+
+    window.closeLeaderboard = function() {
+        document.getElementById('leaderboard-screen').classList.remove('active');
+    };
+
+    window.submitScore = async function() {
+        const input = document.getElementById('rank-name-input');
+        const name = input.value.trim();
+        if (!name) {
+            alert("이름을 입력해주세요.");
+            return;
+        }
+        
+        // 버튼 비활성화 (중복 클릭 방지)
+        const btn = document.querySelector('#rank-register-area button');
+        btn.disabled = true;
+        btn.innerText = "저장 중...";
+
+        const success = await FB.saveScore(name, score);
+        if (success) {
+            // 저장 성공 시 UI 전환
+            document.getElementById('rank-register-area').style.display = 'none';
+            document.getElementById('retry-area').style.display = 'flex';
+            document.getElementById('out-of-rank-msg').innerText = "등록 완료!";
+            
+            // 랭킹창 한번 보여주기
+            await window.openLeaderboard();
+        } else {
+            alert("저장에 실패했습니다. 인터넷 연결을 확인해주세요.");
+            btn.disabled = false;
+            btn.innerText = "등록하기";
+        }
+    };
+
+    // 게임 오버 로직 수정 (FB 연동)
+    window.handleGameOverLogic = async function(finalScore) {
+        const checkMsg = document.getElementById('checking-rank-msg');
+        const registerArea = document.getElementById('rank-register-area');
+        const retryArea = document.getElementById('retry-area');
+        const outMsg = document.getElementById('out-of-rank-msg');
+
+        // UI 초기화
+        checkMsg.style.display = 'block';
+        registerArea.style.display = 'none';
+        retryArea.style.display = 'none';
+        document.getElementById('rank-name-input').value = '';
+        const submitBtn = document.querySelector('#rank-register-area button');
+        submitBtn.disabled = false;
+        submitBtn.innerText = "등록하기";
+
+        // 랭킹 체크
+        try {
+            const isRanked = await FB.checkIfRanked(finalScore);
+            checkMsg.style.display = 'none';
+
+            if (isRanked) {
+                // 랭킹 진입
+                registerArea.style.display = 'flex';
+                // 키보드 입력 시 게임 조작 되지 않도록 포커스 처리 등 주의 필요하지만
+                // 현재 게임은 키다운 이벤트를 전역에서 막지 않으므로 
+                // input focus시에는 게임 입력을 무시하는 로직이 필요함.
+                // (아래 isTyping 변수 추가로 해결)
+            } else {
+                // 순위 밖
+                outMsg.innerText = "순위 밖입니다 (Top 50)";
+                retryArea.style.display = 'flex';
+            }
+        } catch (e) {
+            console.error(e);
+            checkMsg.innerText = "랭킹 서버 연결 실패";
+            retryArea.style.display = 'flex';
+        }
+    };
+    
+    // input 포커스 시 게임 키 입력 방지용 플래그 설정
+    const nameInput = document.getElementById('rank-name-input');
+    nameInput.addEventListener('focus', () => window.isTypingName = true);
+    nameInput.addEventListener('blur', () => window.isTypingName = false);
+
+
+    // --- 기존 게임 코드 ---
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d', { alpha: false }); 
 
@@ -365,6 +664,7 @@
     let currentBiome = 'CITY';
     let tutorialStep = 0; 
     let lastInputTime = 0;
+    window.isTypingName = false; // 전역 변수
 
     let particles = [];
     let bgParticles = []; 
@@ -488,8 +788,31 @@
         }
     }
 
-    let lastTouchTime = 0;
-    let isKeyDown = false;
+    // --- 전역 함수 할당 (onclick 대응) ---
+    window.togglePause = function() {
+        if (gameState === 'MENU' || gameState === 'GAMEOVER') return;
+        isPaused = !isPaused;
+        pauseScreen.classList.toggle('active', isPaused);
+    };
+
+    window.toggleSound = function() {
+        isSoundOn = !isSoundOn;
+        soundBtn.innerText = isSoundOn ? "🔊" : "🔇";
+    };
+
+    window.startGame = function() {
+        Sound.init();
+        initGame();
+        gameState = 'PLAYING';
+        menuScreen.classList.remove('active');
+        gameoverScreen.classList.remove('active');
+        updateUI();
+        if (!isGameLoopRunning) { isGameLoopRunning = true; gameLoop(); }
+    }
+    
+    document.getElementById('btn-start').addEventListener('click', window.startGame);
+    document.getElementById('btn-retry').addEventListener('click', window.startGame);
+
 
     function handleInput(action) {
         if (gameState !== 'PLAYING' || isPaused) return;
@@ -580,17 +903,6 @@
         }
     }
 
-    window.togglePause = function() {
-        if (gameState === 'MENU' || gameState === 'GAMEOVER') return;
-        isPaused = !isPaused;
-        pauseScreen.classList.toggle('active', isPaused);
-    };
-
-    window.toggleSound = function() {
-        isSoundOn = !isSoundOn;
-        soundBtn.innerText = isSoundOn ? "🔊" : "🔇";
-    };
-
     function registerButtonEvents(btnElement, action) {
         btnElement.addEventListener('touchstart', (e) => {
             e.preventDefault(); e.stopPropagation();
@@ -609,6 +921,9 @@
 
     document.addEventListener('keydown', (e) => {
         if (e.code === 'Escape') togglePause();
+        // 랭킹 이름 입력중이면 키 입력 무시
+        if (window.isTypingName) return;
+
         if (gameState !== 'PLAYING' || isPaused || isKeyDown) return;
         if (e.code === 'ArrowRight' || e.code === 'KeyZ') { isKeyDown = true; handleInput('climb'); }
         if (e.code === 'ArrowLeft' || e.code === 'KeyX') { isKeyDown = true; handleInput('turn'); }
@@ -639,14 +954,9 @@
     function createStair(prevStair) {
         let direction = prevStair.direction;
         
-        // --- [수정된 부분] 난이도 레벨 디자인 ---
-        // 0점: 20% 확률 (20 + 0 * 0.3)
-        // 50점: 35% 확률 (0.2 + 0.15)
-        // 100점: 50% 확률 (0.2 + 0.3)
-        // 100점 이상: 고정 50%
+        // 난이도 레벨 디자인
         let turnProbability = 0.2 + (Math.min(score, 100) / 100) * 0.3;
 
-        // 2번째 계단부터 확률 적용
         if (stairs.length > 2 && Math.random() < turnProbability) {
             direction *= -1;
         }
@@ -731,19 +1041,6 @@
         });
     }
 
-    function startGame() {
-        Sound.init();
-        initGame();
-        gameState = 'PLAYING';
-        menuScreen.classList.remove('active');
-        gameoverScreen.classList.remove('active');
-        updateUI();
-        if (!isGameLoopRunning) { isGameLoopRunning = true; gameLoop(); }
-    }
-    
-    document.getElementById('btn-start').addEventListener('click', startGame);
-    document.getElementById('btn-retry').addEventListener('click', startGame);
-
     function showComboText(val) {
         comboText.innerText = val + " COMBO!";
         comboText.style.transform = 'translate(-50%, -50%) scale(1.5) rotate(-10deg)';
@@ -756,6 +1053,7 @@
         handLeft.style.display = 'none'; 
         handRight.style.display = 'none';
 
+        // 로컬 최고 점수 저장
         if (score > bestScore) {
             bestScore = score;
             localStorage.setItem('infiniteClimberGodBest', bestScore);
@@ -766,7 +1064,13 @@
             finalScoreEl.style.color = 'white';
             finalScoreEl.innerText = score;
         }
+
+        // 게임오버 화면 표시
         gameoverScreen.classList.add('active');
+        
+        // 랭킹 체크 로직 호출
+        window.handleGameOverLogic(score);
+
         Sound.play('gameover');
     }
 
