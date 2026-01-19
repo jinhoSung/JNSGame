@@ -813,6 +813,7 @@
         grad.addColorStop(0, biome.bgTop); grad.addColorStop(1, biome.bgBot);
         ctx.fillStyle = grad; ctx.fillRect(0,0,canvas.width, canvas.height);
 
+        // 배경 파티클
         ctx.fillStyle = biome.particle === 'EMBER' ? '#ff4757' : '#fff';
         bgParticles.forEach(p => {
             ctx.globalAlpha = p.alpha * (biome.particle === 'HYPER' ? 0.5 : 0.8);
@@ -825,27 +826,38 @@
         let shakeY = (Math.random()-0.5)*camera.shake;
         ctx.translate(-camera.x + shakeX, -camera.y + shakeY);
 
-        stairs.forEach(s => {
-            if(s.y > camera.y + canvas.height + 100 || s.y < camera.y - 100) return;
+        // [수정됨] 계단 그리기 순서 반전 (뒤에서 앞으로)
+        // 기존: stairs.forEach(s => { ... })
+        // 변경: 역순 for문 사용 -> 멀리 있는 계단 먼저 그리고, 가까운 계단을 나중에 그려서 덮어씀
+        for(let i = stairs.length - 1; i >= 0; i--) {
+            const s = stairs[i];
+            if(s.y > camera.y + canvas.height + 100 || s.y < camera.y - 100) continue;
+            
+            // 그림자
             ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(s.x, s.y+STAIR_DEPTH+10, STAIR_WIDTH/2, 10, 0, 0, Math.PI*2); ctx.fill();
+            // 몸체
             ctx.fillStyle = s.colorSide; ctx.fillRect(s.x-STAIR_WIDTH/2, s.y, STAIR_WIDTH, STAIR_HEIGHT+STAIR_DEPTH);
             ctx.fillStyle = s.colorTop; ctx.fillRect(s.x-STAIR_WIDTH/2, s.y, STAIR_WIDTH, STAIR_HEIGHT);
             ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(s.x-STAIR_WIDTH/2, s.y, STAIR_WIDTH, 4);
+            // 코인
             if(s.hasCoin) {
                 const scale = Math.abs(Math.cos(s.coinRotate));
                 ctx.fillStyle = '#FFD700'; ctx.beginPath(); ctx.ellipse(s.x, s.y-30, 15*scale, 15, 0, 0, Math.PI*2); ctx.fill();
             }
-        });
+        }
 
+        // 잔상
         trail.forEach(t => {
             ctx.save(); ctx.globalAlpha = t.alpha;
             drawCharacterSprite(ctx, UserData.equipChar, t.x, t.y, t.direction, 1, true);
             ctx.restore();
         });
 
+        // 펫 & 플레이어
         drawPetSprite(ctx, UserData.equipPet, pet.x, pet.y, Date.now());
         drawCharacterSprite(ctx, UserData.equipChar, player.x, player.y + player.animY, player.direction, player.scaleY, false);
 
+        // 파티클
         particles.forEach(p => {
             if(p.isText) {
                 ctx.globalAlpha = p.life; ctx.fillStyle = p.color; ctx.font = "bold 30px 'Black Han Sans'"; ctx.fillText(p.text, p.x, p.y);
