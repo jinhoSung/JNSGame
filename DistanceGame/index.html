@@ -3,1987 +3,1290 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Launcher - Item Boost</title>
+    <title>Infinite Climber : Ranking</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+KR:wght@400;700;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap');
 
         body {
             margin: 0;
+            padding: 0;
+            background-color: #1a1a2e;
             overflow: hidden;
-            background-color: #050510;
-            font-family: 'Orbitron', 'Noto Sans KR', sans-serif;
+            font-family: 'Black Han Sans', sans-serif;
             touch-action: none;
             user-select: none;
             -webkit-user-select: none;
-            color: #fff;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
         }
 
         canvas {
             display: block;
         }
 
-        #ui-layer {
+        /* UI 레이어 */
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            z-index: 10;
+        }
+
+        /* 상단 버튼 그룹 */
+        .top-buttons {
             position: absolute;
             top: 20px;
-            left: 20px;
-            width: calc(100% - 40px);
-            pointer-events: none;
-            text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-            z-index: 10;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-        }
-
-        .score-box {
-            text-align: left;
-        }
-
-        .right-controls {
+            right: 20px;
             display: flex;
             gap: 10px;
             pointer-events: auto;
+            z-index: 50;
         }
 
-        #center-top-ui {
+        .icon-btn {
+            font-size: 24px;
+            background: rgba(255, 255, 255, 0.2);
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            border: 2px solid rgba(255,255,255,0.3);
+            transition: transform 0.1s, background 0.1s;
+            color: white;
+            text-shadow: 0 1px 2px black;
+        }
+
+        .icon-btn:active {
+            transform: scale(0.9);
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        /* 점수판 */
+        .score-board {
+            text-align: center;
+            padding-top: 60px;
+            color: white;
+            text-shadow: 0 4px 0 rgba(0,0,0,0.5);
+            transform: scale(1);
+            transition: transform 0.1s;
+        }
+
+        #score {
+            font-size: 80px;
+            margin: 0;
+            line-height: 1;
+            background: -webkit-linear-gradient(#fff, #ddd);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 4px 0 rgba(0,0,0,0.3));
+        }
+
+        #best-score {
+            font-size: 24px;
+            color: #ffd700;
+            margin-top: 5px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        #biome-name {
+            font-size: 18px;
+            color: #00d2ff;
+            margin-top: 5px;
+            opacity: 0.8;
+            letter-spacing: 2px;
+        }
+
+        /* 체력 게이지 */
+        .stamina-wrapper {
             position: absolute;
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            text-align: center;
-            z-index: 10;
-            pointer-events: none;
+            width: 60%;
+            max-width: 300px;
+            height: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 12px;
+            padding: 3px;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
 
-        .best-score-badge {
-            background: rgba(0, 0, 0, 0.6);
-            border: 1px solid #ffd700;
-            color: #ffd700;
-            padding: 8px 20px;
-            border-radius: 20px;
-            font-weight: bold;
-            font-size: 18px;
-            box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
-            text-shadow: 0 0 5px #ffd700;
+        #stamina-bar {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #00f260, #0575e6);
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(5, 117, 230, 0.5);
+            transition: width 0.1s linear, background 0.3s;
+        }
+
+        /* 컨트롤 영역 */
+        .controls {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: auto;
+        }
+
+        .control-btn {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            padding-bottom: 60px;
+            font-size: 20px;
+            color: rgba(255,255,255,0.4);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            transition: background 0.05s;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .btn-left { border-right: 1px solid rgba(255,255,255,0.05); }
+        .control-btn:active { background: rgba(255,255,255,0.05); }
+
+        .btn-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+            display: block;
+            opacity: 0.8;
+        }
+
+        /* 화면 오버레이 공통 */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(16, 16, 30, 0.95);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 20;
+            pointer-events: auto;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+
+        .screen.active {
+            opacity: 1;
+            visibility: visible;
         }
 
         h1 {
-            margin: 0;
+            font-size: 3.5rem;
+            margin: 0 0 20px 0;
+            background: linear-gradient(to right, #FFD700, #FFA500);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 4px 0 rgba(0,0,0,0.5));
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .btn-main {
+            margin-top: 20px;
+            padding: 15px 40px;
             font-size: 24px;
-            color: #fff;
-            text-shadow: 0 0 10px #000;
-        }
-
-        #score-display {
-            font-size: 40px;
-            font-weight: bold;
-            color: #fff;
-            text-shadow: 0 0 10px #000;
-        }
-
-        .status-info {
-            font-size: 18px;
-            margin-top: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        .status-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .status-label {
-            color: #aaa;
-            font-size: 14px;
-            width: 70px;
-            text-transform: uppercase;
-        }
-
-        .status-value {
-            font-weight: bold;
-            font-size: 20px;
-        }
-
-        #speed-val { color: #0ff; text-shadow: 0 0 5px #0ff; }
-        #height-val { color: #f0f; text-shadow: 0 0 5px #f0f; }
-
-        #combo-display {
-            font-size: 24px;
-            color: #ff0;
-            text-shadow: 0 0 10px #000;
-            margin-top: 5px;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .ui-btn {
-            background: rgba(0, 0, 0, 0.5);
-            border: 2px solid #ffd700;
-            color: #ffd700;
-            padding: 8px 15px;
-            border-radius: 20px;
-            font-family: 'Noto Sans KR', sans-serif;
-            font-weight: bold;
+            font-family: 'Black Han Sans', sans-serif;
+            background: linear-gradient(to bottom, #FF4500, #CC3700);
+            color: white;
+            border: none;
+            border-radius: 50px;
             cursor: pointer;
-            text-transform: uppercase;
-            box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 5px;
-        }
-        .ui-btn:hover { background: rgba(255, 215, 0, 0.2); transform: scale(1.05); }
-        .ui-btn:active { transform: scale(0.95); }
-
-        #btn-fullscreen {
-            padding: 8px 12px;
-            border-color: #0ff;
-            color: #0ff;
-            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
-        }
-        #btn-fullscreen:hover { background: rgba(0, 255, 255, 0.2); }
-
-        /* 저사양 모드 버튼 스타일 */
-        #btn-lowq {
-            padding: 8px 12px;
-            border-color: #0f0;
-            color: #0f0;
-            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
-        }
-        #btn-lowq.low-mode {
-            border-color: #555;
-            color: #888;
-            box-shadow: none;
-            background: rgba(0,0,0,0.8);
+            box-shadow: 0 6px 0 #8B2500, 0 10px 20px rgba(0,0,0,0.4);
+            transition: transform 0.1s, box-shadow 0.1s;
         }
 
-        #center-ui {
+        .btn-main:active {
+            transform: translateY(6px);
+            box-shadow: 0 0 0 #8B2500, 0 0 0 rgba(0,0,0,0);
+        }
+
+        .btn-sub {
+            background: #555;
+            box-shadow: 0 6px 0 #333;
+            font-size: 18px;
+            padding: 10px 30px;
+            margin-top: 10px;
+        }
+        .btn-sub:active {
+            box-shadow: 0 0 0 #333;
+        }
+
+        .info-text {
+            font-size: 1rem;
+            color: #aaa;
+            margin-top: 20px;
+            background: rgba(255,255,255,0.1);
+            padding: 8px 16px;
+            border-radius: 20px;
+        }
+
+        #combo-text {
             position: absolute;
             top: 40%;
             left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            z-index: 20;
-            width: 100%;
+            transform: translate(-50%, -50%) scale(0);
+            font-size: 50px;
+            color: #FFD700;
+            text-shadow: 0 0 10px orange;
             pointer-events: none;
+            z-index: 15;
+            transition: transform 0.1s;
+            white-space: nowrap;
         }
 
-        #status-msg {
-            font-size: 24px;
-            text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
-            margin-bottom: 30px;
-            transition: opacity 0.2s;
-            line-height: 1.5;
-        }
-
-        #hit-feedback {
+        .tutorial-hand {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 48px;
-            font-weight: bold;
-            color: #ff0;
-            text-shadow: 0 0 20px #ff0;
-            opacity: 0;
+            bottom: 150px;
+            font-size: 60px;
+            filter: drop-shadow(0 5px 5px rgba(0,0,0,0.5));
+            animation: bounce 0.8s infinite alternate;
             pointer-events: none;
-            z-index: 30;
+            z-index: 100;
+            display: none;
         }
 
-        #ranking-modal {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-20px); }
+        }
+        
+        .shake {
+            animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-2px, 0, 0); }
+            20%, 80% { transform: translate3d(4px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+            40%, 60% { transform: translate3d(6px, 0, 0); }
+        }
+
+        /* --- 랭킹 관련 스타일 --- */
+        #ranking-loading {
+            font-size: 20px;
+            color: #00d2ff;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink { 50% { opacity: 0.5; } }
+
+        .ranking-list {
             width: 90%;
             max-width: 400px;
-            background: rgba(0, 0, 20, 0.95);
-            border: 2px solid #0ff;
-            box-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-            z-index: 50;
-            display: none;
-            font-family: 'Noto Sans KR', sans-serif;
-        }
-        #ranking-modal h2 { color: #0ff; margin: 0 0 20px 0; text-shadow: 0 0 10px #0ff; }
-
-        #btn-modal-close {
-            position: absolute;
-            top: 10px;
-            right: 15px;
-            background: none;
-            border: none;
-            color: #fff;
-            font-size: 24px;
-            cursor: pointer;
-            padding: 0;
-            margin: 0;
-            line-height: 1;
-        }
-        #btn-modal-close:hover { color: #f00; }
-
-        .rank-list {
-            list-style: none;
-            padding: 0;
-            margin: 0 0 20px 0;
-            text-align: left;
-            max-height: 250px;
+            height: 50vh;
             overflow-y: auto;
-            border-bottom: 1px solid #333;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
         }
+
         .rank-item {
             display: flex;
             justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            font-size: 14px;
-        }
-        .rank-item.my-score { color: #ff0; font-weight: bold; background: rgba(255, 255, 0, 0.1); }
-        .rank-rank { width: 30px; text-align: center; }
-        .rank-name { flex-grow: 1; padding-left: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .rank-score { width: 80px; text-align: right; }
-
-        input[type="text"] {
-            background: #111;
-            border: 1px solid #0ff;
-            color: #fff;
             padding: 10px;
-            width: 70%;
-            border-radius: 5px;
-            margin-bottom: 10px;
-            font-family: inherit;
-            outline: none;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-size: 18px;
+        }
+        .rank-item:nth-child(1) { color: #FFD700; font-weight: bold; font-size: 20px; }
+        .rank-item:nth-child(2) { color: #C0C0C0; font-weight: bold; }
+        .rank-item:nth-child(3) { color: #CD7F32; font-weight: bold; }
+
+        .rank-input-area {
+            display: none; /* JS로 제어 */
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
         }
 
-        button.action-btn {
-            background: linear-gradient(45deg, #0088ff, #00ffff);
+        #rank-name-input {
+            padding: 10px;
+            font-size: 20px;
+            border-radius: 5px;
             border: none;
-            color: #000;
-            padding: 10px 20px;
-            font-weight: bold;
-            border-radius: 5px;
-            cursor: pointer;
-            font-family: inherit;
-            transition: transform 0.1s;
-            margin: 5px;
-        }
-        button.action-btn:active { transform: scale(0.95); }
-        button.action-btn:disabled { background: #555; color: #888; cursor: not-allowed; }
-
-        #final-score {
-            font-size: 32px;
-            color: #f0f;
-            margin-bottom: 20px;
-            text-shadow: 0 0 15px #f0f;
-            font-family: 'Orbitron', sans-serif;
+            margin-bottom: 10px;
+            text-align: center;
+            font-family: 'Black Han Sans', sans-serif;
+            width: 200px;
         }
 
-        #my-rank-info { color: #aaa; font-size: 14px; margin-bottom: 15px; }
-        
-        #loading-msg {
-            color: #aaa; font-size: 14px; margin-bottom: 10px;
+        .retry-area {
+            display: none; /* JS로 제어 */
+            flex-direction: column;
+            align-items: center;
         }
 
-        @keyframes pop {
-            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
-            50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
-            100% { transform: translate(-50%, -50%) scale(1.0); opacity: 0; }
+        .rank-msg {
+            font-size: 1.2rem;
+            color: #aaa;
+            margin-bottom: 10px;
         }
-        .pop-anim { animation: pop 1s forwards; }
-        .hidden { display: none !important; }
+        .rank-msg.highlight {
+            color: #00d2ff;
+            font-size: 1.5rem;
+            animation: bounce 0.5s infinite alternate;
+        }
+
     </style>
 </head>
 <body>
 
-    <div id="center-top-ui">
-        <div class="best-score-badge">BEST: <span id="best-score">0</span> m</div>
-    </div>
-
-    <div id="ui-layer">
-        <div class="score-box">
-            <h1>NEON LAUNCHER</h1>
-            <div>Distance: <span id="score-display">0</span> m</div>
-            
-            <div class="status-info">
-                <div class="status-item">
-                    <span class="status-label">SPEED</span>
-                    <span id="speed-val" class="status-value">0</span> <span style="font-size:14px; color:#888;">km/h</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">HEIGHT</span>
-                    <span id="height-val" class="status-value">0</span> <span style="font-size:14px; color:#888;">m</span>
-                </div>
-            </div>
-
-            <div id="combo-display">COMBO x0</div>
-        </div>
-        
-        <div class="right-controls">
-            <button id="btn-lowq" class="ui-btn" title="저사양 모드">⚡ HQ</button>
-            <button id="btn-fullscreen" class="ui-btn" title="전체화면">⛶</button>
-            <button id="btn-show-ranking" class="ui-btn">🏆 랭킹</button>
-        </div>
-    </div>
-
-    <div id="hit-feedback">PERFECT!</div>
-
-    <div id="center-ui">
-        <div id="status-msg">화면을 클릭하면<br>공이 떨어집니다!</div>
-    </div>
-
-    <div id="ranking-modal">
-        <button id="btn-modal-close">&times;</button>
-        <h2 id="modal-title">GAME OVER</h2>
-        <div id="final-score" class="hidden">0 m</div>
-        
-        <div id="loading-msg" class="hidden">순위 확인 중...</div>
-
-        <div id="register-form" class="hidden">
-            <input type="text" id="player-name" placeholder="이름을 입력하세요 (최대 8자)" maxlength="8">
-            <div style="display: flex; gap: 5px; justify-content: center;">
-                <button id="btn-submit" class="action-btn" style="flex: 2;">랭킹 등록</button>
-                <button id="btn-skip" class="action-btn" style="flex: 1; background: #333; border: 1px solid #555; color: #aaa;">재시작</button>
-            </div>
-        </div>
-
-        <div id="ranking-container">
-            <div id="my-rank-info" class="hidden">내 순위 계산 중...</div>
-            <ul class="rank-list" id="rank-list">
-                <li style="padding:10px; color:#888;">데이터를 불러오는 중...</li>
-            </ul>
-            <button id="btn-retry" class="action-btn hidden">다시 하기</button>
-        </div>
-    </div>
-
+<div id="game-container">
     <canvas id="gameCanvas"></canvas>
 
-    <!-- Firebase SDK Modules -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, where, getCountFromServer } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <div id="combo-text">COMBO!</div>
+    <div id="tutorial-hand-left" class="tutorial-hand" style="left: 25%;">👆</div>
+    <div id="tutorial-hand-right" class="tutorial-hand" style="left: 75%;">👆</div>
 
-        window.GAME = {
-            db: null,
-            auth: null,
-            user: null,
-            initFirebase: async function() {
-                const firebaseConfig = {
-                    apiKey: "AIzaSyBUGN1Zlpk-Avfu-5s4G6qQrSfMaq_QXhw",
-                    authDomain: "distancegame-f4bba.firebaseapp.com",
-                    projectId: "distancegame-f4bba",
-                    storageBucket: "distancegame-f4bba.firebasestorage.app",
-                    messagingSenderId: "180425278674",
-                    appId: "1:180425278674:web:af07ce51992cb622fc990b",
-                    measurementId: "G-0PGCH52GKN"
-                };
-                try {
-                    const app = initializeApp(firebaseConfig);
-                    this.auth = getAuth(app);
-                    this.db = getFirestore(app);
-                    await signInAnonymously(this.auth);
-                    onAuthStateChanged(this.auth, (user) => {
-                        this.user = user;
-                    });
-                } catch (e) {
-                    console.error("Firebase Init Failed:", e);
-                }
-            },
-            saveScore: async function(name, score) {
-                const currentUser = this.auth?.currentUser || this.user;
-                if (!this.db || !currentUser) return false;
-                try {
-                    const scoresRef = collection(this.db, 'scores');
-                    await addDoc(scoresRef, {
-                        name: name,
-                        score: score,
-                        userId: currentUser.uid,
-                        timestamp: Date.now()
-                    });
-                    return true;
-                } catch (e) {
-                    return false;
-                }
-            },
-            getRanking: async function(myScore) {
-                if (!this.db) return { top10: [], myRank: '-' };
-                try {
-                    const scoresRef = collection(this.db, 'scores');
-                    const qTop = query(scoresRef, orderBy('score', 'desc'), limit(30));
-                    const snapshot = await getDocs(qTop);
-                    const top10 = snapshot.docs.map(doc => doc.data());
-                    let myRank = '-';
-                    if (myScore !== null && myScore !== undefined) {
-                        try {
-                            const qBetter = query(scoresRef, where("score", ">", myScore));
-                            const snapshotBetter = await getCountFromServer(qBetter);
-                            myRank = snapshotBetter.data().count + 1;
-                        } catch (e) {
-                            const idx = top10.findIndex(d => d.score === myScore);
-                            if(idx !== -1) myRank = idx + 1;
-                            else myRank = "집계중";
-                        }
-                    }
-                    return { top10, myRank };
-                } catch (e) {
-                    return { top10: [], myRank: '-' };
-                }
-            },
-            canRegisterRank: async function(score) {
-                if (!this.db) return false;
-                try {
-                    const scoresRef = collection(this.db, 'scores');
-                    const q = query(scoresRef, orderBy('score', 'desc'), limit(30));
-                    const snapshot = await getDocs(q);
-                    if (snapshot.size < 30) return true;
-                    const lastDoc = snapshot.docs[snapshot.docs.length - 1];
-                    const lastScore = lastDoc.data().score;
-                    return score > lastScore;
-                } catch (e) {
-                    console.error("Rank check failed", e);
-                    return true;
-                }
-            }
-        };
-        window.GAME.initFirebase();
-    </script>
+    <div class="ui-layer">
+        <div class="top-buttons">
+            <div class="icon-btn" id="rank-btn" onclick="openLeaderboard()">🏆</div>
+            <div class="icon-btn" id="sound-btn" onclick="toggleSound()">🔊</div>
+            <div class="icon-btn" id="pause-btn" onclick="togglePause()">⏸️</div>
+        </div>
 
-    <script>
-        const CUTSCENE_TYPES = [
-            { id: 'THUNDER', text: "네온의 호흡... 제1형...", sub: "벽력일섬 (Thunder) ⚡", textColor: "#fff", subColor: "#ffff00", bgColor: "rgba(0, 0, 0, ", speedMod: 1.1, angleMod: 0 },
-            { id: 'SUPERNOVA', text: "한계를 넘어선 힘...", sub: "초신성 폭발 (Supernova) 💥", textColor: "#ffaa00", subColor: "#ff5500", bgColor: "rgba(50, 10, 0, ", speedMod: 1.0, angleMod: -15 },
-            { id: 'DIMENSION', text: "차원을 가르는 일격...", sub: "공간 절단 (Dimension) ⚔️", textColor: "#00ffff", subColor: "#0088ff", bgColor: "rgba(0, 10, 50, ", speedMod: 1.3, angleMod: 15 }
-        ];
-
-        const Sound = {
-            ctx: null,
-            init: function() {
-                if (!this.ctx) { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
-                if (this.ctx.state === 'suspended') { this.ctx.resume(); }
-            },
-            playTone: function(freq, type, duration, vol = 0.1) {
-                if (!this.ctx) return;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = type;
-                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(this.ctx.currentTime + duration);
-            },
-            playHit: function(isPerfect) {
-                this.init();
-                if(!this.ctx) return;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                if (isPerfect) {
-                    osc.type = 'sawtooth';
-                    osc.frequency.setValueAtTime(600, this.ctx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.15);
-                    gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
-                } else {
-                    osc.type = 'triangle';
-                    osc.frequency.setValueAtTime(200, this.ctx.currentTime);
-                    osc.frequency.linearRampToValueAtTime(100, this.ctx.currentTime + 0.1); 
-                    gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
-                    gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.1);
-                }
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                osc.start();
-                osc.stop(this.ctx.currentTime + 0.2);
-            },
-            playBoost: function() { this.playTone(600, 'sine', 0.2); setTimeout(() => this.playTone(1200, 'sine', 0.4), 50); },
-            playJump: function() { this.playTone(300, 'square', 0.1); setTimeout(() => this.playTone(600, 'square', 0.3), 50); },
-            playBlast: function() { this.playTone(100, 'sawtooth', 0.5, 0.2); this.playTone(50, 'square', 0.5, 0.2); },
-            playBreath: function() {
-                this.playTone(100, 'sawtooth', 0.8, 0.3);
-                setTimeout(() => this.playTone(800, 'square', 0.2, 0.5), 600);
-            },
-            playCrash: function() { 
-                this.playTone(150, 'sawtooth', 0.1, 0.5);
-                setTimeout(() => this.playTone(80, 'square', 0.2, 0.5), 50);
-            },
-            playShield: function() { this.playTone(400, 'sine', 0.3, 0.3); },
-            playFloat: function() { this.playTone(800, 'sine', 0.5, 0.1); },
-            playMagnet: function() { this.playTone(200, 'sine', 0.5, 0.2); },
-            playWarp: function() { this.playTone(1500, 'sawtooth', 0.3, 0.1); }
-        };
-
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const uiScore = document.getElementById('score-display');
-        const uiCombo = document.getElementById('combo-display');
-        const uiBest = document.getElementById('best-score');
-        const uiMsg = document.getElementById('status-msg');
-        const uiFeedback = document.getElementById('hit-feedback');
-        const uiSpeed = document.getElementById('speed-val');
-        const uiHeight = document.getElementById('height-val');
-        const btnFullscreen = document.getElementById('btn-fullscreen');
-        const btnLowQ = document.getElementById('btn-lowq'); 
+        <div class="stamina-wrapper">
+            <div id="stamina-bar"></div>
+        </div>
+        <div class="score-board">
+            <h2 id="score">0</h2>
+            <div id="best-score">BEST: 0</div>
+            <div id="biome-name">CITY</div>
+        </div>
         
-        const modal = document.getElementById('ranking-modal');
-        const modalTitle = document.getElementById('modal-title');
-        const finalScoreEl = document.getElementById('final-score');
-        const loadingMsgEl = document.getElementById('loading-msg');
-        const registerForm = document.getElementById('register-form');
-        const rankingContainer = document.getElementById('ranking-container');
-        const rankListEl = document.getElementById('rank-list');
-        const myRankEl = document.getElementById('my-rank-info');
-        const playerNameInput = document.getElementById('player-name');
-        const btnSubmit = document.getElementById('btn-submit');
-        const btnRetry = document.getElementById('btn-retry');
-        const btnShowRanking = document.getElementById('btn-show-ranking');
-        const btnModalClose = document.getElementById('btn-modal-close');
-        const btnSkip = document.getElementById('btn-skip');
+        <div class="controls">
+            <div class="control-btn btn-left" id="btn-turn">
+                <div>
+                    <span class="btn-icon">↩️</span>
+                    <span>방향 전환</span>
+                </div>
+            </div>
+            <div class="control-btn btn-right" id="btn-climb">
+                <div>
+                    <span class="btn-icon">⬆️</span>
+                    <span>오르기</span>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        const STATE = { READY: 0, DROPPING: 1, FLYING: 2, STOPPED: 3, MISS: 4 };
-        let gameState = STATE.READY;
-        let width, height;
-        let frameId;
-        let bestDistance = 0;
-        let lastBoosterX = 0;
-        let scaleFactor = 1;
-        let lastTime = 0;
-        let combo = 0;
-        let currentScore = 0;
-        let hitFreeze = 0; 
-        let specialEffects = [];
-        let isLowQuality = false;
+    <!-- 메뉴 화면 -->
+    <div id="menu-screen" class="screen active">
+        <h1>INFINITE<br>CLIMBER</h1>
+        <div class="info-text">PC: Z (오르기), X (전환) / 방향키</div>
+        <button class="btn-main" id="btn-start">START</button>
+        <button class="btn-main btn-sub" onclick="openLeaderboard()">RANKING</button>
+    </div>
 
-        const camera = { x: 0, y: 0, shake: 0 };
-        const GRAVITY_BASE = 0.25;
-        let GRAVITY = GRAVITY_BASE;
-        const FRICTION_AIR = 0.998; 
-        const FRICTION_GROUND = 0.85; 
-        const BOUNCE = 0.6; 
-        const CHAR_SCALE = 1.3;
+    <!-- 일시정지 -->
+    <div id="pause-screen" class="screen">
+        <h1>PAUSED</h1>
+        <button class="btn-main" onclick="togglePause()">RESUME</button>
+    </div>
 
-        let ball, batter, particles = [], shockwaves = [], speedLines = [], stars = [], boosters = [], mountains = [], cityBuildings = [], obstacles = [];
-        let skyManager = null;
+    <!-- 리더보드 화면 -->
+    <div id="leaderboard-screen" class="screen">
+        <h1 style="font-size: 2.5rem; margin-bottom: 10px;">TOP 50</h1>
+        <div id="ranking-loading">Loading...</div>
+        <div class="ranking-list" id="ranking-list">
+            <!-- JS로 채워짐 -->
+        </div>
+        <button class="btn-main" onclick="closeLeaderboard()">CLOSE</button>
+    </div>
+
+    <!-- 게임오버 화면 -->
+    <div id="gameover-screen" class="screen">
+        <h1 style="font-size: 3rem; color: #ff4757;">GAME OVER</h1>
+        <p style="font-size: 1.5rem; margin: 10px;">SCORE</p>
+        <p id="final-score" style="font-size: 4rem; margin: 0; font-weight: bold;">0</p>
         
-        // [최적화] 오브젝트 풀 (재사용 대기소)
-        const particlePool = [];
-        const fireParticlePool = [];
-        const shockwavePool = [];
+        <div id="checking-rank-msg" style="color: #00d2ff; margin: 20px;">랭킹 확인 중...</div>
 
-        btnFullscreen.addEventListener('click', () => {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => {
-                    console.log(`Error: ${err.message}`);
+        <!-- 랭킹 등록 영역 (50위 안) -->
+        <div id="rank-register-area" class="rank-input-area">
+            <div class="rank-msg highlight">축하합니다! TOP 50 진입!</div>
+            <input type="text" id="rank-name-input" placeholder="이름 입력 (최대 8자)" maxlength="8">
+            <button class="btn-main" onclick="submitScore()">등록하기</button>
+        </div>
+
+        <!-- 재시도 영역 (순위 밖 or 등록 후) -->
+        <div id="retry-area" class="retry-area">
+            <div class="rank-msg" id="out-of-rank-msg">순위 밖입니다</div>
+            <button class="btn-main" id="btn-retry">RETRY</button>
+            <button class="btn-main btn-sub" onclick="openLeaderboard()">RANKING</button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    // --- 파이어베이스 설정 및 모듈 ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+    import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyBUGN1Zlpk-Avfu-5s4G6qQrSfMaq_QXhw",
+        authDomain: "distancegame-f4bba.firebaseapp.com",
+        projectId: "distancegame-f4bba",
+        storageBucket: "distancegame-f4bba.firebasestorage.app",
+        messagingSenderId: "180425278674",
+        appId: "1:180425278674:web:af07ce51992cb622fc990b",
+        measurementId: "G-0PGCH52GKN"
+    };
+
+    // Firebase 관리 객체
+    const FB = {
+        app: null,
+        auth: null,
+        db: null,
+        user: null,
+        collectionName: 'scores_infinite_climber', // 기존 scores와 구분
+
+        init: async function() {
+            try {
+                this.app = initializeApp(firebaseConfig);
+                this.auth = getAuth(this.app);
+                this.db = getFirestore(this.app);
+                
+                await signInAnonymously(this.auth);
+                onAuthStateChanged(this.auth, (user) => {
+                    this.user = user;
+                    // console.log("Auth Success:", user.uid);
                 });
+            } catch (e) {
+                console.error("Firebase Init Error:", e);
+            }
+        },
+
+        // 점수 저장
+        saveScore: async function(name, score) {
+            if (!this.db || !this.user) return false;
+            try {
+                const colRef = collection(this.db, this.collectionName);
+                await addDoc(colRef, {
+                    name: name,
+                    score: score,
+                    userId: this.user.uid,
+                    timestamp: Date.now()
+                });
+                return true;
+            } catch (e) {
+                console.error("Save Error:", e);
+                return false;
+            }
+        },
+
+        // 랭킹 가져오기
+        getTopScores: async function(limitCount = 50) {
+            if (!this.db) return [];
+            try {
+                const colRef = collection(this.db, this.collectionName);
+                const q = query(colRef, orderBy("score", "desc"), limit(limitCount));
+                const snapshot = await getDocs(q);
+                return snapshot.docs.map(doc => doc.data());
+            } catch (e) {
+                console.error("Fetch Error:", e);
+                return [];
+            }
+        },
+
+        // 랭킹 진입 여부 확인 (최소 점수 리턴)
+        // 로직: 50개를 가져와서 50개 미만이거나, 내 점수가 50등보다 높으면 true
+        checkIfRanked: async function(myScore) {
+            const top50 = await this.getTopScores(50);
+            if (top50.length < 50) return true;
+            // 50번째 점수보다 내 점수가 높으면 랭킹 진입
+            const lastScore = top50[top50.length - 1].score;
+            return myScore > lastScore;
+        }
+    };
+
+    // 초기화 실행
+    FB.init();
+
+    // --- 전역 함수 연결 (HTML onclick을 위해) ---
+    window.openLeaderboard = async function() {
+        document.getElementById('leaderboard-screen').classList.add('active');
+        document.getElementById('ranking-loading').style.display = 'block';
+        document.getElementById('ranking-list').innerHTML = '';
+
+        const scores = await FB.getTopScores(50);
+        
+        document.getElementById('ranking-loading').style.display = 'none';
+        const listEl = document.getElementById('ranking-list');
+        
+        if (scores.length === 0) {
+            listEl.innerHTML = '<div style="text-align:center; padding:20px;">아직 기록이 없습니다.</div>';
+            return;
+        }
+
+        let html = '';
+        scores.forEach((item, index) => {
+            let rank = index + 1;
+            let icon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank + '.';
+            html += `
+                <div class="rank-item">
+                    <div style="width: 50px;">${icon}</div>
+                    <div style="flex: 1; text-align: left; padding-left: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.name}</div>
+                    <div style="width: 80px; text-align: right;">${item.score}</div>
+                </div>
+            `;
+        });
+        listEl.innerHTML = html;
+    };
+
+    window.closeLeaderboard = function() {
+        document.getElementById('leaderboard-screen').classList.remove('active');
+    };
+
+    window.submitScore = async function() {
+        const input = document.getElementById('rank-name-input');
+        const name = input.value.trim();
+        if (!name) {
+            alert("이름을 입력해주세요.");
+            return;
+        }
+        
+        // 버튼 비활성화 (중복 클릭 방지)
+        const btn = document.querySelector('#rank-register-area button');
+        btn.disabled = true;
+        btn.innerText = "저장 중...";
+
+        const success = await FB.saveScore(name, score);
+        if (success) {
+            // 저장 성공 시 UI 전환
+            document.getElementById('rank-register-area').style.display = 'none';
+            document.getElementById('retry-area').style.display = 'flex';
+            document.getElementById('out-of-rank-msg').innerText = "등록 완료!";
+            
+            // 랭킹창 한번 보여주기
+            await window.openLeaderboard();
+        } else {
+            alert("저장에 실패했습니다. 인터넷 연결을 확인해주세요.");
+            btn.disabled = false;
+            btn.innerText = "등록하기";
+        }
+    };
+
+    // 게임 오버 로직 수정 (FB 연동)
+    window.handleGameOverLogic = async function(finalScore) {
+        const checkMsg = document.getElementById('checking-rank-msg');
+        const registerArea = document.getElementById('rank-register-area');
+        const retryArea = document.getElementById('retry-area');
+        const outMsg = document.getElementById('out-of-rank-msg');
+
+        // UI 초기화
+        checkMsg.style.display = 'block';
+        registerArea.style.display = 'none';
+        retryArea.style.display = 'none';
+        document.getElementById('rank-name-input').value = '';
+        const submitBtn = document.querySelector('#rank-register-area button');
+        submitBtn.disabled = false;
+        submitBtn.innerText = "등록하기";
+
+        // 랭킹 체크
+        try {
+            const isRanked = await FB.checkIfRanked(finalScore);
+            checkMsg.style.display = 'none';
+
+            if (isRanked) {
+                // 랭킹 진입
+                registerArea.style.display = 'flex';
+                // 키보드 입력 시 게임 조작 되지 않도록 포커스 처리 등 주의 필요하지만
+                // 현재 게임은 키다운 이벤트를 전역에서 막지 않으므로 
+                // input focus시에는 게임 입력을 무시하는 로직이 필요함.
+                // (아래 isTyping 변수 추가로 해결)
             } else {
-                if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                }
+                // 순위 밖
+                outMsg.innerText = "순위 밖입니다 (Top 50)";
+                retryArea.style.display = 'flex';
             }
-        });
+        } catch (e) {
+            console.error(e);
+            checkMsg.innerText = "랭킹 서버 연결 실패";
+            retryArea.style.display = 'flex';
+        }
+    };
+    
+    // input 포커스 시 게임 키 입력 방지용 플래그 설정
+    const nameInput = document.getElementById('rank-name-input');
+    nameInput.addEventListener('focus', () => window.isTypingName = true);
+    nameInput.addEventListener('blur', () => window.isTypingName = false);
 
-        btnLowQ.addEventListener('click', () => {
-            isLowQuality = !isLowQuality;
-            if(isLowQuality) {
-                btnLowQ.classList.add('low-mode');
-                btnLowQ.innerText = '🐢 LQ';
+
+    // --- 기존 게임 코드 ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d', { alpha: false }); 
+
+    const STAIR_WIDTH = 100;
+    const STAIR_HEIGHT = 60;
+    const STAIR_DEPTH = 40; 
+    const PLAYER_SIZE = 60;
+    
+    let gameState = 'MENU';
+    let isPaused = false;
+    let isSoundOn = true;
+    let score = 0;
+    let combo = 0;
+    let bestScore = parseInt(localStorage.getItem('infiniteClimberGodBest')) || 0;
+    let stamina = 100;
+    const MAX_STAMINA = 100;
+    let staminaDrainRate = 0.15;
+    let isGameLoopRunning = false;
+    let currentBiome = 'CITY';
+    let tutorialStep = 0; 
+    let lastInputTime = 0;
+    window.isTypingName = false; // 전역 변수
+
+    let particles = [];
+    let bgParticles = []; 
+    let stairs = [];
+    let player = {
+        x: 0, y: 0, index: 0, direction: 1, 
+        animY: 0, scaleY: 1,
+        colors: { cape: '#ff4757', body: '#2f3542', belt: '#ffa502', skin: '#ffccaa' }
+    };
+    let trail = []; 
+    let camera = { x: 0, y: 0, shake: 0 };
+
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx;
+
+    const Sound = {
+        init: function() {
+            if (!audioCtx) audioCtx = new AudioContext();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        },
+        play: function(type) {
+            if (!isSoundOn || !audioCtx) return;
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            if (type === 'step') {
+                let baseFreq = 300 + Math.min(combo, 50) * 10;
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(baseFreq, now);
+                osc.frequency.exponentialRampToValueAtTime(baseFreq * 2, now + 0.08);
+                gainNode.gain.setValueAtTime(0.05, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+                osc.start(now);
+                osc.stop(now + 0.08);
+            } else if (type === 'perfect') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.linearRampToValueAtTime(0.001, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            } else if (type === 'coin') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1000, now);
+                osc.frequency.linearRampToValueAtTime(1500, now + 0.1);
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.linearRampToValueAtTime(0.001, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } else if (type === 'gameover') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.linearRampToValueAtTime(50, now + 0.5);
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.linearRampToValueAtTime(0.001, now + 0.5);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            }
+        }
+    };
+
+    const scoreEl = document.getElementById('score');
+    const bestScoreEl = document.getElementById('best-score');
+    const biomeNameEl = document.getElementById('biome-name');
+    const staminaBar = document.getElementById('stamina-bar');
+    const menuScreen = document.getElementById('menu-screen');
+    const gameoverScreen = document.getElementById('gameover-screen');
+    const pauseScreen = document.getElementById('pause-screen');
+    const finalScoreEl = document.getElementById('final-score');
+    const comboText = document.getElementById('combo-text');
+    const gameContainer = document.getElementById('game-container');
+    const btnTurn = document.getElementById('btn-turn');
+    const btnClimb = document.getElementById('btn-climb');
+    const soundBtn = document.getElementById('sound-btn');
+    const handLeft = document.getElementById('tutorial-hand-left');
+    const handRight = document.getElementById('tutorial-hand-right');
+
+    bestScoreEl.innerText = `BEST: ${bestScore}`;
+
+    const BIOMES = {
+        CITY: { name: 'CITY', start: 0, top: '#a8e6cf', side: '#56ab91', bgTop: '#1a1a2e', bgBot: '#16213e', particle: 'STAR' },
+        SNOW: { name: 'FROZEN', start: 50, top: '#dff9fb', side: '#c7ecee', bgTop: '#7ed6df', bgBot: '#22a6b3', particle: 'SNOW' },
+        VOLCANO: { name: 'INFERNO', start: 100, top: '#30336b', side: '#130f40', bgTop: '#eb4d4b', bgBot: '#5333ed', particle: 'EMBER' },
+        SPACE: { name: 'GALAXY', start: 150, top: '#00d2ff', side: '#3a0ca3', bgTop: '#000000', bgBot: '#2c003e', particle: 'HYPER' }
+    };
+
+    function getBiome(currentScore) {
+        if (currentScore >= 150) return BIOMES.SPACE;
+        if (currentScore >= 100) return BIOMES.VOLCANO;
+        if (currentScore >= 50) return BIOMES.SNOW;
+        return BIOMES.CITY;
+    }
+
+    function triggerHaptic(duration) {
+        if (navigator.vibrate) {
+            navigator.vibrate(duration);
+        }
+    }
+
+    function updateTutorialUI() {
+        handLeft.style.display = 'none';
+        handRight.style.display = 'none';
+
+        if (tutorialStep >= 3 || gameState !== 'PLAYING') return;
+
+        const currentStair = stairs[player.index];
+        const nextStair = stairs[player.index + 1];
+        if (!nextStair) return;
+
+        const nextIsRight = nextStair.x > currentStair.x;
+        const requiredDir = nextIsRight ? 1 : -1;
+
+        if (player.direction === requiredDir) {
+            handRight.style.display = 'block';
+        } else {
+            handLeft.style.display = 'block';
+        }
+    }
+
+    // --- 전역 함수 할당 (onclick 대응) ---
+    window.togglePause = function() {
+        if (gameState === 'MENU' || gameState === 'GAMEOVER') return;
+        isPaused = !isPaused;
+        pauseScreen.classList.toggle('active', isPaused);
+    };
+
+    window.toggleSound = function() {
+        isSoundOn = !isSoundOn;
+        soundBtn.innerText = isSoundOn ? "🔊" : "🔇";
+    };
+
+    window.startGame = function() {
+        Sound.init();
+        initGame();
+        gameState = 'PLAYING';
+        menuScreen.classList.remove('active');
+        gameoverScreen.classList.remove('active');
+        updateUI();
+        if (!isGameLoopRunning) { isGameLoopRunning = true; gameLoop(); }
+    }
+    
+    document.getElementById('btn-start').addEventListener('click', window.startGame);
+    document.getElementById('btn-retry').addEventListener('click', window.startGame);
+
+
+    function handleInput(action) {
+        if (gameState !== 'PLAYING' || isPaused) return;
+        Sound.init();
+
+        const now = Date.now();
+        const delta = now - lastInputTime;
+        lastInputTime = now;
+
+        const currentStair = stairs[player.index];
+        const nextStair = stairs[player.index + 1];
+        const nextIsRight = nextStair.x > currentStair.x;
+        const requiredDir = nextIsRight ? 1 : -1;
+
+        let success = false;
+        if (action === 'climb' && player.direction === requiredDir) success = true;
+        else if (action === 'turn' && player.direction !== requiredDir) {
+            player.direction *= -1;
+            success = true;
+        }
+
+        if (success) {
+            triggerHaptic(10); 
+            if (tutorialStep < 3) {
+                tutorialStep++;
+                updateTutorialUI();
+            }
+
+            let isPerfect = false;
+            if (score > 1 && delta < 200 && delta > 50) {
+                isPerfect = true;
+                showFloatingText(player.x, player.y - 120, "PERFECT!", "#00d2ff");
+                Sound.play('perfect');
+                score += 2; 
+            }
+
+            if (combo > 5) {
+                trail.push({ x: player.x, y: player.y, direction: player.direction, alpha: 0.6 });
+                if (trail.length > 5) trail.shift();
+            }
+
+            player.index++;
+            player.x = nextStair.x;
+            player.y = nextStair.y;
+            
+            if (nextStair.hasCoin) {
+                score += 3;
+                Sound.play('coin');
+                showFloatingText(player.x, player.y - 80, "+3", "#FFD700");
+                nextStair.hasCoin = false; 
             } else {
-                btnLowQ.classList.remove('low-mode');
-                btnLowQ.innerText = '⚡ HQ';
+                if(!isPerfect) score++;
             }
-        });
 
-        btnSubmit.addEventListener('click', async () => {
-            const name = playerNameInput.value.trim();
-            if (!name) { alert("이름을 입력해주세요."); return; }
-            if (name.length > 8) { alert("이름은 8자 이하로 입력해주세요."); return; }
-            localStorage.setItem('neon_launcher_name', name);
-            btnSubmit.disabled = true;
-            btnSubmit.innerText = "등록 중...";
-            if (window.GAME) {
-                const success = await window.GAME.saveScore(name, currentScore);
-                if (success) {
-                    await updateRankingBoard(currentScore, name);
-                    registerForm.classList.add('hidden');
-                    rankingContainer.classList.remove('hidden');
-                    btnRetry.classList.remove('hidden'); 
-                } else {
-                    alert("점수 저장 실패.");
-                    btnSubmit.disabled = false;
-                    btnSubmit.innerText = "랭킹 등록";
-                }
-            } else { alert("랭킹 시스템 오류"); }
-        });
+            combo++;
+            stamina = Math.min(MAX_STAMINA, stamina + 10 + (combo > 10 ? 5 : 0));
+            staminaDrainRate = 0.15 + (score * 0.001); 
+            
+            if (!isPerfect) Sound.play('step');
 
-        btnRetry.addEventListener('click', () => { modal.style.display = 'none'; resetGame(); });
-        btnSkip.addEventListener('click', () => { modal.style.display = 'none'; resetGame(); });
-
-        btnShowRanking.addEventListener('click', async () => {
-            modalTitle.innerText = "TOP RANKING";
-            finalScoreEl.classList.add('hidden');
-            registerForm.classList.add('hidden');
-            btnRetry.classList.add('hidden'); 
-            rankingContainer.classList.remove('hidden');
-            myRankEl.classList.add('hidden'); 
-            modal.style.display = 'block';
-            await updateRankingBoard(null, null); 
-        });
-
-        btnModalClose.addEventListener('click', () => {
-            modal.style.display = 'none';
-            if (gameState === STATE.STOPPED || gameState === STATE.MISS) { resetGame(); }
-        });
-
-        async function updateRankingBoard(myScore, myName) {
-            rankListEl.innerHTML = '<li style="padding:10px; color:#888;">로딩 중...</li>';
-            const { top10, myRank } = await window.GAME.getRanking(myScore);
-            if (myScore !== null && myRank !== '-') {
-                myRankEl.innerText = `이번 기록 순위: ${myRank}위`;
-                myRankEl.classList.remove('hidden');
-            } else if (myScore !== null) {
-                myRankEl.innerText = "순위권 밖입니다";
-                myRankEl.classList.remove('hidden');
-            } else {
-                myRankEl.classList.add('hidden');
+            player.scaleY = 0.6; 
+            player.animY = -10;  
+            
+            createParticles(player.x, player.y, nextStair.colorTop);
+            
+            const newBiome = getBiome(score);
+            if (newBiome.name !== currentBiome) {
+                currentBiome = newBiome.name;
+                biomeNameEl.innerText = newBiome.name;
+                showFloatingText(player.x, player.y - 150, newBiome.name + " ZONE!", "#fff");
             }
-            rankListEl.innerHTML = '';
-            if (top10.length === 0) {
-                rankListEl.innerHTML = '<li style="padding:10px; color:#888;">등록된 랭킹이 없습니다.</li>';
-                return;
+
+            stairs.push(createStair(stairs[stairs.length - 1]));
+            
+            if (stairs.length > 100) {
+                stairs.shift();
+                player.index--;
             }
-            top10.forEach((item, index) => {
-                const li = document.createElement('li');
-                li.className = 'rank-item';
-                if (myName && item.name === myName && item.score === myScore) li.classList.add('my-score');
-                let rankIcon = index + 1;
-                if (index === 0) rankIcon = '🥇'; else if (index === 1) rankIcon = '🥈'; else if (index === 2) rankIcon = '🥉';
-                li.innerHTML = `<span class="rank-rank">${rankIcon}</span><span class="rank-name">${item.name}</span><span class="rank-score">${item.score}m</span>`;
-                rankListEl.appendChild(li);
+
+            if (combo % 10 === 0) showComboText(combo);
+        } else {
+            triggerHaptic(200); 
+            camera.shake = 20;
+            gameContainer.classList.add('shake');
+            setTimeout(() => gameContainer.classList.remove('shake'), 500);
+            Sound.play('gameover');
+            gameOver();
+        }
+    }
+
+    function registerButtonEvents(btnElement, action) {
+        btnElement.addEventListener('touchstart', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            lastTouchTime = Date.now();
+            handleInput(action);
+        }, { passive: false });
+        btnElement.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            if (Date.now() - lastTouchTime < 500) return;
+            handleInput(action);
+        });
+    }
+
+    registerButtonEvents(btnTurn, 'turn');
+    registerButtonEvents(btnClimb, 'climb');
+
+    document.addEventListener('keydown', (e) => {
+        if (e.code === 'Escape') togglePause();
+        // 랭킹 이름 입력중이면 키 입력 무시
+        if (window.isTypingName) return;
+
+        if (gameState !== 'PLAYING' || isPaused || isKeyDown) return;
+        if (e.code === 'ArrowRight' || e.code === 'KeyZ') { isKeyDown = true; handleInput('climb'); }
+        if (e.code === 'ArrowLeft' || e.code === 'KeyX') { isKeyDown = true; handleInput('turn'); }
+    });
+    document.addEventListener('keyup', () => isKeyDown = false);
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        initBackgroundParticles();
+        if(gameState === 'MENU') draw();
+    }
+    window.addEventListener('resize', resize);
+
+    function initBackgroundParticles() {
+        bgParticles = [];
+        for(let i=0; i<60; i++) {
+            bgParticles.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: Math.random() * 3 + 1,
+                speed: Math.random() * 1 + 0.5,
+                alpha: Math.random()
             });
         }
+    }
 
-        const savedName = localStorage.getItem('neon_launcher_name');
-        if (savedName) playerNameInput.value = savedName;
+    function createStair(prevStair) {
+        let direction = prevStair.direction;
+        
+        // 난이도 레벨 디자인
+        let turnProbability = 0.2 + (Math.min(score, 100) / 100) * 0.3;
 
-        // [최적화] 파티클 생성 도우미 함수 (풀링 사용)
-        function spawnParticle(x, y, color, speed, sizeObj) {
-            let p;
-            if (particlePool.length > 0) {
-                p = particlePool.pop();
-                p.activate(x, y, color, speed, sizeObj);
+        if (stairs.length > 2 && Math.random() < turnProbability) {
+            direction *= -1;
+        }
+
+        const biome = getBiome(score);
+        const hasCoin = Math.random() < 0.1; 
+
+        const newStair = {
+            x: prevStair.x + (direction * STAIR_WIDTH * 0.8), 
+            y: prevStair.y - STAIR_HEIGHT,
+            direction: direction,
+            colorTop: biome.top,
+            colorSide: biome.side,
+            hasCoin: hasCoin,
+            coinRotate: 0
+        };
+
+        if (Math.random() > 0.9) {
+            newStair.colorTop = '#fff'; 
+        }
+
+        return newStair;
+    }
+
+    function initGame() {
+        stairs = [];
+        particles = [];
+        trail = [];
+        score = 0;
+        combo = 0;
+        stamina = MAX_STAMINA;
+        staminaDrainRate = 0.15;
+        currentBiome = 'CITY';
+        biomeNameEl.innerText = 'CITY';
+        isPaused = false;
+        pauseScreen.classList.remove('active');
+        tutorialStep = 0; 
+
+        const capes = ['#ff4757', '#2ed573', '#1e90ff', '#ffa502', '#8e44ad'];
+        player.colors = {
+            cape: capes[Math.floor(Math.random() * capes.length)],
+            body: '#2f3542', belt: '#ffa502', skin: '#ffccaa'
+        };
+
+        stairs.push({ 
+            x: 0, y: 0, direction: 1, 
+            colorTop: '#ffffff', colorSide: '#cccccc', 
+            hasCoin: false, coinRotate: 0 
+        });
+
+        for (let i = 0; i < 30; i++) stairs.push(createStair(stairs[stairs.length - 1]));
+
+        player.index = 0;
+        player.x = stairs[0].x;
+        player.y = stairs[0].y;
+        player.direction = 1;
+        player.animY = 0;
+        player.scaleY = 1;
+
+        camera.y = player.y - canvas.height * 0.75;
+        camera.x = player.x - canvas.width / 2;
+
+        updateTutorialUI();
+    }
+
+    function createParticles(x, y, color) {
+        for(let i=0; i<8; i++) {
+            particles.push({
+                x: x, y: y,
+                vx: (Math.random() - 0.5) * 10,
+                vy: (Math.random() - 1) * 10,
+                life: 1.0, color: color,
+                size: Math.random() * 6 + 2
+            });
+        }
+    }
+
+    function showFloatingText(x, y, text, color) {
+        particles.push({
+            x: x, y: y, vx: 0, vy: -2, life: 1.5,
+            text: text, color: color, isText: true
+        });
+    }
+
+    function showComboText(val) {
+        comboText.innerText = val + " COMBO!";
+        comboText.style.transform = 'translate(-50%, -50%) scale(1.5) rotate(-10deg)';
+        comboText.style.opacity = '1';
+        setTimeout(() => comboText.style.transform = 'translate(-50%, -50%) scale(0)', 500);
+    }
+
+    function gameOver() {
+        gameState = 'GAMEOVER';
+        handLeft.style.display = 'none'; 
+        handRight.style.display = 'none';
+
+        // 로컬 최고 점수 저장
+        if (score > bestScore) {
+            bestScore = score;
+            localStorage.setItem('infiniteClimberGodBest', bestScore);
+            bestScoreEl.innerText = `BEST: ${bestScore}`;
+            finalScoreEl.style.color = '#FFD700';
+            finalScoreEl.innerText = score + " (NEW!)";
+        } else {
+            finalScoreEl.style.color = 'white';
+            finalScoreEl.innerText = score;
+        }
+
+        // 게임오버 화면 표시
+        gameoverScreen.classList.add('active');
+        
+        // 랭킹 체크 로직 호출
+        window.handleGameOverLogic(score);
+
+        Sound.play('gameover');
+    }
+
+    function update() {
+        if (isPaused) return;
+
+        stamina -= staminaDrainRate;
+        if (stamina <= 0) { stamina = 0; gameOver(); }
+
+        player.scaleY += (1 - player.scaleY) * 0.2;
+        player.animY += (0 - player.animY) * 0.2;
+
+        const targetCamY = player.y - canvas.height * 0.7;
+        const targetCamX = player.x - canvas.width / 2;
+        camera.y += (targetCamY - camera.y) * 0.1;
+        camera.x += (targetCamX - camera.x) * 0.1;
+        
+        if (camera.shake > 0) { camera.shake *= 0.9; if (camera.shake < 0.5) camera.shake = 0; }
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            if (p.isText) {
+                p.y += p.vy; p.life -= 0.02;
             } else {
-                p = new Particle(x, y, color, speed, sizeObj);
+                p.x += p.vx; p.y += p.vy; p.vy += 0.5; p.life -= 0.05;
             }
-            particles.push(p);
+            if (p.life <= 0) particles.splice(i, 1);
         }
 
-        function spawnFireParticle(x, y, ballVx, ballVy) {
-            let p;
-            if (fireParticlePool.length > 0) {
-                p = fireParticlePool.pop();
-                p.activate(x, y, ballVx, ballVy);
+        const biome = getBiome(score);
+        bgParticles.forEach(p => {
+            if (biome.particle === 'SNOW') {
+                p.y += p.speed;
+                p.x += Math.sin(p.y * 0.01) * 0.5;
+            } else if (biome.particle === 'EMBER') {
+                p.y -= p.speed; 
+                p.x += (Math.random() - 0.5) * 2;
+            } else if (biome.particle === 'HYPER') {
+                p.y += p.speed * 5; 
+            } else { 
+                p.y += p.speed * 0.5;
+            }
+            if (p.y > canvas.height) p.y = 0;
+            if (p.y < 0) p.y = canvas.height;
+        });
+        
+        for(let i=trail.length-1; i>=0; i--) {
+            trail[i].alpha -= 0.05;
+            if(trail[i].alpha <= 0) trail.splice(i, 1);
+        }
+
+        stairs.forEach(stair => {
+            if (stair.hasCoin) stair.coinRotate += 0.1;
+        });
+
+        updateUI();
+    }
+
+    function updateUI() {
+        scoreEl.innerText = score;
+        staminaBar.style.width = `${(stamina / MAX_STAMINA) * 100}%`;
+        if (stamina < 30) {
+            staminaBar.style.background = '#ff4757';
+            staminaBar.style.boxShadow = '0 0 15px #ff4757';
+        } else {
+            staminaBar.style.background = 'linear-gradient(90deg, #00f260, #0575e6)';
+            staminaBar.style.boxShadow = '0 0 10px rgba(5, 117, 230, 0.5)';
+        }
+    }
+
+    function draw() {
+        const biome = getBiome(score);
+
+        const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        bgGradient.addColorStop(0, biome.bgTop);
+        bgGradient.addColorStop(1, biome.bgBot);
+        ctx.fillStyle = bgGradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = (biome.particle === 'EMBER') ? '#ff4757' : '#ffffff';
+        bgParticles.forEach(p => {
+            ctx.globalAlpha = p.alpha * (biome.particle === 'HYPER' ? 0.5 : 0.8);
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+
+        ctx.save();
+        let shakeX = (Math.random() - 0.5) * camera.shake;
+        let shakeY = (Math.random() - 0.5) * camera.shake;
+        ctx.translate(-camera.x + shakeX, -camera.y + shakeY);
+
+        stairs.forEach((stair) => {
+            if (stair.y > camera.y + canvas.height + 100 || stair.y < camera.y - 100) return;
+            drawStair3D(stair);
+        });
+
+        trail.forEach(t => {
+            ctx.save();
+            ctx.globalAlpha = t.alpha;
+            drawPlayerBody(t.x, t.y, t.direction, 1, false);
+            ctx.restore();
+        });
+
+        drawPlayerBody(player.x, player.y + player.animY, player.direction, player.scaleY, true);
+
+        particles.forEach(p => {
+            if (p.isText) {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.font = "bold 30px 'Black Han Sans'";
+                ctx.fillText(p.text, p.x, p.y);
             } else {
-                p = new FireParticle(x, y, ballVx, ballVy);
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
             }
-            particles.push(p);
-        }
+        });
+        ctx.globalAlpha = 1;
 
-        function spawnShockwave(x, y, color) {
-            let s;
-            if (shockwavePool.length > 0) {
-                s = shockwavePool.pop();
-                s.activate(x, y, color);
-            } else {
-                s = new Shockwave(x, y, color);
-            }
-            shockwaves.push(s);
-        }
+        ctx.restore();
+    }
 
-        class SkyManager {
-            constructor() {
-                this.time = 0.25; this.dayDuration = 6000; this.weather = 'clear'; this.weatherTimer = 0;
-                this.clouds = []; this.precipitations = []; this.sunX = 0; this.sunY = 0; this.moonX = 0; this.moonY = 0;
-                
-                // [수정] 행성 배치 로직 개선: 화면 전체에 골고루 분포하도록 변경
-                this.planets = [];
-                const planetStyles = [
-                    { r: 60, color: '#eec', glow: '#aa8', orbit: 0.00003, hasRing: true, ringColor: 'rgba(200, 200, 255, 0.6)' },
-                    { r: 40, color: '#3af', glow: '#05d', orbit: 0.00008, hasRing: false },
-                    { r: 25, color: '#f44', glow: '#a22', orbit: 0.0001, hasRing: false },
-                    { r: 55, color: '#fa5', glow: '#d80', orbit: 0.00005, hasRing: true, ringColor: 'rgba(255, 200, 150, 0.5)' },
-                    { r: 30, color: '#5f5', glow: '#2a2', orbit: 0.00012, hasRing: false },
-                    { r: 20, color: '#d5f', glow: '#82a', orbit: 0.00015, hasRing: false },
-                    { r: 45, color: '#b5f', glow: '#72a', orbit: 0.00007, hasRing: false },
-                    { r: 35, color: '#f88', glow: '#c44', orbit: 0.00009, hasRing: true, ringColor: 'rgba(255, 100, 100, 0.4)' }
-                ];
+    function drawStair3D(stair) {
+        const x = stair.x;
+        const y = stair.y;
+        const w = STAIR_WIDTH;
+        const h = STAIR_HEIGHT;
+        const d = STAIR_DEPTH;
 
-                // 화면을 격자로 나누어 행성을 하나씩 배치 (겹침 방지 및 균등 분포)
-                const cols = 2; // 2열
-                const rows = 4; // 4행
-                const cellW = width / cols;
-                const cellH = (height * 1.2) / rows; // 화면 위아래로 약간 더 여유 있게
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.beginPath();
+        ctx.ellipse(x, y + d + 20, w/2 + 10, 10, 0, 0, Math.PI*2);
+        ctx.fill();
 
-                // 섞기
-                planetStyles.sort(() => Math.random() - 0.5);
-                const cells = Array.from({length: cols * rows}, (_, i) => i).sort(() => Math.random() - 0.5);
+        ctx.fillStyle = stair.colorSide;
+        ctx.fillRect(x - w/2, y, w, h + d);
+        ctx.fillStyle = stair.colorTop;
+        ctx.fillRect(x - w/2, y, w, h);
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.fillRect(x - w/2, y, w, 4);
 
-                for(let i=0; i<Math.min(planetStyles.length, cells.length); i++) {
-                    const style = planetStyles[i];
-                    const cellIdx = cells[i];
-                    const c = cellIdx % cols;
-                    const r = Math.floor(cellIdx / cols);
-
-                    // 격자 내 랜덤 위치 (가장자리 여백 둠)
-                    const x = c * cellW + (Math.random() * 0.6 + 0.2) * cellW;
-                    // Y좌표는 화면 상단(-0.2h)부터 하단(1.0h)까지 분포
-                    const startY = -height * 0.2;
-                    const y = startY + r * cellH + (Math.random() * 0.6 + 0.2) * cellH;
-
-                    this.planets.push({ x, y, ...style });
-                }
-
-                this.nebulae = [];
-                for(let i=0; i<6; i++) {
-                    this.nebulae.push({
-                        x: Math.random() * width,
-                        y: Math.random() * height * 0.8,
-                        r: 150 + Math.random() * 250,
-                        color: i % 3 === 0 ? '255, 0, 100' : (i % 3 === 1 ? '0, 100, 255' : '150, 0, 255'),
-                        pulseOffset: Math.random() * 100
-                    });
-                }
-
-                this.constellations = [];
-                const cCount = 3;
-                for(let i=0; i<cCount; i++) {
-                    let cx = Math.random() * width * 0.8 + width * 0.1;
-                    let cy = Math.random() * height * 0.6 + height * 0.1;
-                    let stars = [];
-                    let sCount = 4 + Math.floor(Math.random() * 3);
-                    for(let j=0; j<sCount; j++) {
-                        stars.push({x: (Math.random()-0.5)*150, y: (Math.random()-0.5)*150});
-                    }
-                    this.constellations.push({cx, cy, stars, rot: Math.random() * Math.PI * 2});
-                }
-
-                for(let i=0; i<8; i++) { this.clouds.push(new Cloud()); }
-            }
-            update(dt) {
-                this.time = (this.time + (dt / this.dayDuration)) % 1.0;
-                const centerX = width / 2; const centerY = height + 200; const radius = Math.max(width, height) * 0.9;
-                const sunAngle = Math.PI + (this.time * Math.PI * 2); 
-                this.sunX = centerX + Math.cos(sunAngle) * radius; this.sunY = centerY + Math.sin(sunAngle) * radius;
-                const moonAngle = sunAngle + Math.PI;
-                this.moonX = centerX + Math.cos(moonAngle) * radius; this.moonY = centerY + Math.sin(moonAngle) * radius;
-                this.weatherTimer += dt;
-                
-                // [수정] 우주 고도 체크 (3000m 이상이면 날씨 없음)
-                let currentAltitude = ball ? (height - 50 - ball.y) / scaleFactor : 0;
-                let isSpace = currentAltitude > 3000;
-
-                if(!isLowQuality) {
-                    if (isSpace) {
-                        // 우주에서는 구름/비/눈 강제 제거
-                        this.weather = 'clear';
-                        this.precipitations = []; 
-                    } else {
-                        // 대기권 내에서만 날씨 변화 및 생성
-                        if(this.weatherTimer > 600) {
-                            this.weatherTimer = 0; const r = Math.random();
-                            if(r < 0.6) this.weather = 'clear'; else if(r < 0.8) this.weather = 'rain'; else this.weather = 'snow';
-                        }
-                        this.clouds.forEach(c => c.update(dt));
-                        if(this.weather !== 'clear') {
-                            const count = Math.ceil(width / 200); 
-                            for(let i=0; i<count; i++) { if(Math.random() > 0.5) this.precipitations.push(new WeatherParticle(this.weather)); }
-                        }
-                        this.precipitations.forEach((p, i) => { p.update(dt); if(!p.active) this.precipitations.splice(i, 1); });
-                    }
-                }
-                
-                this.planets.forEach(p => {
-                    p.x += Math.cos(Date.now() * p.orbit) * 0.2;
-                    p.y += Math.sin(Date.now() * p.orbit) * 0.1;
-                });
-                
-                this.constellations.forEach(c => {
-                    c.rot += 0.0001;
-                });
-            }
-            draw(ctx) {
-                let currentAltitude = ball ? (height - 50 - ball.y) / scaleFactor : 0;
-                // 우주 배경 진입 (5000m부터 어두워짐)
-                let spaceFactor = Math.min(1, Math.max(0, (currentAltitude - 5000) / 10000));
-                
-                // [수정] 대기권 요소 투명도 (3000m부터 흐려져서 5000m에 완전히 사라짐)
-                let atmosphereAlpha = 1 - Math.min(1, Math.max(0, (currentAltitude - 3000) / 2000));
-
-                ctx.fillStyle = '#01010a';
-                ctx.fillRect(0, 0, width, height);
-
-                if (!isLowQuality && spaceFactor > 0) {
-                    ctx.save();
-                    
-                    this.nebulae.forEach(n => {
-                        let pulse = Math.sin(Date.now() * 0.001 + n.pulseOffset);
-                        let r = n.r * (1 + pulse * 0.1);
-                        let g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r);
-                        g.addColorStop(0, `rgba(${n.color}, ${0.4 * spaceFactor})`);
-                        g.addColorStop(1, `rgba(${n.color}, 0)`);
-                        ctx.fillStyle = g;
-                        ctx.fillRect(n.x - r, n.y - r, r*2, r*2);
-                    });
-
-                    ctx.globalAlpha = spaceFactor * 0.8;
-                    const galaxyGrad = ctx.createRadialGradient(width * 0.5, height * 0.5, 0, width * 0.5, height * 0.5, width * 1.2);
-                    galaxyGrad.addColorStop(0, 'rgba(100, 50, 180, 0.5)'); 
-                    galaxyGrad.addColorStop(0.3, 'rgba(50, 50, 150, 0.4)'); 
-                    galaxyGrad.addColorStop(0.7, 'rgba(20, 20, 60, 0.2)');
-                    galaxyGrad.addColorStop(1, 'transparent');
-                    
-                    ctx.fillStyle = galaxyGrad;
-                    ctx.translate(width/2, height/2);
-                    ctx.rotate(Date.now() * 0.00005); 
-                    ctx.fillRect(-width*1.5, -height*1.5, width*3, height*3);
-                    ctx.rotate(-Date.now() * 0.00005);
-                    ctx.translate(-width/2, -height/2);
-                    
-                    ctx.globalAlpha = spaceFactor * 0.6;
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-                    ctx.lineWidth = 1;
-                    this.constellations.forEach(c => {
-                        ctx.save();
-                        ctx.translate(c.cx, c.cy - camera.y * 0.02);
-                        ctx.rotate(c.rot);
-                        ctx.beginPath();
-                        c.stars.forEach((s, i) => {
-                            if(i===0) ctx.moveTo(s.x, s.y);
-                            else ctx.lineTo(s.x, s.y);
-                            ctx.save();
-                            ctx.fillStyle = '#fff';
-                            ctx.beginPath(); ctx.arc(s.x, s.y, 2, 0, Math.PI*2); ctx.fill();
-                            ctx.restore();
-                        });
-                        ctx.stroke();
-                        ctx.restore();
-                    });
-
-                    ctx.restore();
-                }
-
-                if (spaceFactor > 0) {
-                    this.planets.forEach(p => {
-                        ctx.save();
-                        ctx.globalAlpha = spaceFactor;
-                        let py = p.y - camera.y * 0.05; 
-                        
-                        if(p.hasRing && !isLowQuality) {
-                            ctx.save();
-                            ctx.translate(p.x, py);
-                            ctx.rotate(Math.PI / 6);
-                            ctx.beginPath();
-                            ctx.ellipse(0, 0, p.r * 2.2, p.r * 0.6, 0, Math.PI, 0); 
-                            ctx.lineWidth = p.r * 0.3;
-                            ctx.strokeStyle = p.ringColor;
-                            ctx.stroke();
-                            ctx.restore();
-                        }
-
-                        if (!isLowQuality) {
-                            ctx.shadowBlur = 15;
-                            ctx.shadowColor = p.glow;
-                        }
-                        ctx.fillStyle = p.color;
-                        ctx.beginPath();
-                        ctx.arc(p.x, py, p.r * scaleFactor, 0, Math.PI * 2);
-                        ctx.fill();
-                        
-                        if(!isLowQuality) {
-                            const grad = ctx.createRadialGradient(p.x - p.r/3, py - p.r/3, 0, p.x, py, p.r * scaleFactor);
-                            grad.addColorStop(0, 'rgba(255,255,255,0.3)');
-                            grad.addColorStop(1, 'rgba(0,0,0,0.7)');
-                            ctx.fillStyle = grad;
-                            ctx.fill();
-                        }
-
-                        if(p.hasRing && !isLowQuality) {
-                            ctx.save();
-                            ctx.translate(p.x, py);
-                            ctx.rotate(Math.PI / 6);
-                            ctx.beginPath();
-                            ctx.ellipse(0, 0, p.r * 2.2, p.r * 0.6, 0, 0, Math.PI); 
-                            ctx.lineWidth = p.r * 0.3;
-                            ctx.strokeStyle = p.ringColor;
-                            ctx.stroke();
-                            ctx.restore();
-                        }
-
-                        ctx.restore();
-                    });
-                }
-
-                ctx.save();
-                ctx.globalAlpha = 1 - spaceFactor;
-                const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-                let sunHeight = -Math.cos(this.time * Math.PI * 2); 
-                const L = Math.max(10, 10 + (sunHeight + 1) * 20);
-                const H = 220 + sunHeight * 20; 
-                bgGrad.addColorStop(0, `hsl(${H}, 60%, ${L * 0.5}%)`); 
-                bgGrad.addColorStop(1, `hsl(${H + 20}, 70%, ${L}%)`);
-                ctx.fillStyle = bgGrad; 
-                ctx.fillRect(0, 0, width, height);
-                ctx.restore();
-
-                const starAlpha = Math.max(spaceFactor, Math.max(0, -sunHeight)); 
-                if(starAlpha > 0) { ctx.save(); ctx.globalAlpha = starAlpha; stars.forEach(s => s.draw(ctx)); ctx.restore(); }
-                
-                ctx.save(); 
-                if(!isLowQuality) { ctx.shadowBlur = 50; ctx.shadowColor = '#ffff00'; }
-                ctx.fillStyle = '#ffaa00'; ctx.beginPath(); ctx.arc(this.sunX, this.sunY, 60 * scaleFactor, 0, Math.PI*2); ctx.fill(); ctx.restore();
-                
-                ctx.save(); 
-                if(!isLowQuality) { ctx.shadowBlur = 30; ctx.shadowColor = '#ffffff'; }
-                ctx.fillStyle = '#ffffee'; ctx.beginPath(); ctx.arc(this.moonX, this.moonY, 50 * scaleFactor, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = 'rgba(200,200,200,0.3)'; ctx.beginPath(); ctx.arc(this.moonX - 10, this.moonY - 5, 10 * scaleFactor, 0, Math.PI*2); ctx.arc(this.moonX + 15, this.moonY + 10, 8 * scaleFactor, 0, Math.PI*2); ctx.fill(); ctx.restore();
-                
-                if (!isLowQuality && atmosphereAlpha > 0) {
-                    ctx.save();
-                    // [수정] 우주로 갈수록 구름 투명해짐
-                    ctx.globalAlpha = atmosphereAlpha;
-                    this.clouds.forEach(c => c.draw(ctx)); 
-                    ctx.restore();
-
-                    ctx.save();
-                    // [수정] 우주로 갈수록 비/눈 투명해짐
-                    ctx.globalAlpha = atmosphereAlpha;
-                    this.precipitations.forEach(p => p.draw(ctx));
-                    ctx.restore();
-                }
-            }
-        }
-
-        class Cloud {
-            constructor(x, y) {
-                this.x = x || Math.random() * width; this.y = y || Math.random() * height * 0.4;
-                this.speed = 0.3 + Math.random() * 0.5; this.size = 0.8 + Math.random() * 1.5; this.circles = [];
-                const count = 4 + Math.floor(Math.random() * 5); 
-                for(let i=0; i<count; i++) { this.circles.push({ x: (Math.random() - 0.5) * 80, y: (Math.random() - 0.5) * 20, r: 20 + Math.random() * 25 }); }
-            }
-            update(dt) { this.x -= this.speed * dt * 0.5; if(this.x < -200) { this.x = width + 200; this.y = Math.random() * height * 0.4; } }
-            draw(ctx) {
-                ctx.save(); ctx.translate(this.x, this.y); ctx.scale(this.size * scaleFactor, this.size * scaleFactor);
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'; if(!isLowQuality) { ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(255, 255, 255, 0.4)'; }
-                ctx.beginPath(); this.circles.forEach(c => { ctx.moveTo(c.x + c.r, c.y); ctx.arc(c.x, c.y, c.r, 0, Math.PI*2); }); ctx.fill(); ctx.restore();
-            }
-        }
-
-        class WeatherParticle {
-            constructor(type) {
-                this.type = type; this.x = Math.random() * width; this.y = -10; this.active = true;
-                if(type === 'rain') { this.vy = 15 + Math.random() * 10; this.vx = -2 - Math.random() * 2; this.len = 10 + Math.random() * 10; } 
-                else { this.vy = 2 + Math.random() * 3; this.vx = (Math.random() - 0.5) * 2; this.size = 2 + Math.random() * 3; this.angle = Math.random() * Math.PI * 2; }
-            }
-            update(dt) {
-                this.x += this.vx * dt; this.y += this.vy * dt;
-                if(this.type === 'snow') { this.angle += 0.1; this.x += Math.sin(this.angle) * 0.5; }
-                if(this.y > height) this.active = false;
-            }
-            draw(ctx) {
-                ctx.save();
-                if(this.type === 'rain') { ctx.strokeStyle = 'rgba(150, 200, 255, 0.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x + this.vx, this.y + this.len); ctx.stroke(); } 
-                else { ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill(); }
-                ctx.restore();
-            }
-        }
-
-        class Obstacle {
-            constructor(x, y) {
-                this.x = x; this.y = y; this.size = 40 * scaleFactor; this.active = true;
-                this.rotation = Math.random() * Math.PI * 2; this.rotSpeed = (Math.random() - 0.5) * 0.1;
-            }
-            update(dt) { this.rotation += this.rotSpeed * dt; }
-            draw() {
-                if (!this.active) return;
-                if (this.x - camera.x < -100 || this.x - camera.x > width + 100) return;
-                ctx.save(); ctx.translate(this.x - camera.x, this.y - camera.y); ctx.rotate(this.rotation);
-                const gx = (Math.random() - 0.5) * 5; const gy = (Math.random() - 0.5) * 5;
-                ctx.fillStyle = 'rgba(255, 0, 0, 0.2)'; ctx.fillRect(-this.size/2 + gx, -this.size/2 + gy, this.size, this.size);
-                ctx.strokeStyle = '#f00'; ctx.lineWidth = 2; ctx.strokeRect(-this.size/2, -this.size/2, this.size, this.size);
-                ctx.beginPath(); ctx.moveTo(-this.size/3, -this.size/3); ctx.lineTo(this.size/3, this.size/3);
-                ctx.moveTo(this.size/3, -this.size/3); ctx.lineTo(-this.size/3, this.size/3); ctx.stroke(); ctx.restore();
-            }
-            checkCollision(p, prevX, prevY) {
-                if (!this.active) return false;
-                
-                const hitRadius = p.radius + this.size / 2;
-                
-                const dx = this.x - p.x; 
-                const dy = this.y - p.y;
-                if (dx*dx + dy*dy < hitRadius*hitRadius) { 
-                    this.active = false; return true; 
-                }
-
-                if (prevX !== undefined && prevY !== undefined) {
-                    const vX = p.x - prevX;
-                    const vY = p.y - prevY;
-                    const lenSq = vX*vX + vY*vY;
-                    
-                    if (lenSq > 0.0001) { 
-                        const cX = this.x - prevX;
-                        const cY = this.y - prevY;
-                        
-                        let t = (cX * vX + cY * vY) / lenSq;
-                        t = Math.max(0, Math.min(1, t));
-                        
-                        const closeX = prevX + t * vX;
-                        const closeY = prevY + t * vY;
-                        
-                        const dist2X = this.x - closeX;
-                        const dist2Y = this.y - closeY;
-                        
-                        if (dist2X*dist2X + dist2Y*dist2Y < hitRadius*hitRadius) {
-                            this.active = false;
-                            return true;
-                        }
-                    }
-                }
-                return false;
-            }
-        }
-
-        class Building {
-            constructor(x, w, h, z) {
-                this.x = x; this.w = w; this.h = h; this.z = z; this.windows = [];
-                const rows = Math.floor(h / 30); const cols = Math.floor(w / 20);
-                for(let r=0; r<rows; r++) { for(let c=0; c<cols; c++) { if(Math.random() > 0.4) { this.windows.push({x: c*20 + 5, y: r*30 + 10, on: true}); } } }
-                const colors = ['#f0f', '#0ff', '#a0f']; this.neonColor = colors[Math.floor(Math.random() * colors.length)];
-            }
-            draw() {
-                const parallax = 1 / this.z; let rx = (this.x - camera.x * parallax);
-                const totalWidth = 3000; rx = rx % totalWidth; if(rx < -this.w) rx += totalWidth;
-                if (rx > width || rx + this.w < 0) return;
-                const gy = height - 50 - camera.y; const by = gy - this.h * scaleFactor;
-                ctx.fillStyle = '#050510'; ctx.strokeStyle = this.neonColor; ctx.lineWidth = 2;
-                ctx.beginPath(); ctx.rect(rx, by, this.w * scaleFactor, this.h * scaleFactor); ctx.fill(); ctx.stroke();
-                ctx.fillStyle = this.neonColor;
-                this.windows.forEach(win => { if(win.on) { ctx.globalAlpha = 0.5; ctx.fillRect(rx + win.x * scaleFactor, by + win.y * scaleFactor, 10 * scaleFactor, 15 * scaleFactor); } });
-                ctx.globalAlpha = 1.0;
-            }
-        }
-
-        class CutsceneEffect {
-            constructor(specificType) { 
-                this.active = true; this.life = 1.0;
-                this.type = specificType || CUTSCENE_TYPES[Math.floor(Math.random() * CUTSCENE_TYPES.length)];
-            }
-            update(dt) { this.life -= 0.02 * dt; if (this.life <= 0) this.active = false; }
-            draw() {
-                if (!this.active) return;
-                ctx.save(); 
-                ctx.fillStyle = `${this.type.bgColor}${this.life * 0.7})`; 
-                ctx.fillRect(0, 0, width, height);
-                
-                const slashWidth = width * 1.5;
-                ctx.translate(width/2, height/2); ctx.rotate(-Math.PI / 6); 
-                
-                ctx.shadowBlur = 50; ctx.shadowColor = this.type.subColor; ctx.fillStyle = '#fff'; ctx.globalAlpha = this.life;
-                ctx.beginPath(); ctx.moveTo(-slashWidth/2, 0); ctx.lineTo(slashWidth/2, 0); ctx.lineWidth = 10 * scaleFactor; ctx.strokeStyle = '#fff'; ctx.stroke();
-                
-                ctx.rotate(Math.PI / 6); 
-                ctx.shadowBlur = 20; ctx.shadowColor = this.type.subColor; 
-                ctx.textAlign = 'center';
-                
-                ctx.fillStyle = this.type.textColor;
-                ctx.font = `bold ${40 * scaleFactor}px 'Noto Sans KR', sans-serif`; 
-                ctx.fillText(this.type.text, 0, -50 * scaleFactor);
-                
-                ctx.fillStyle = this.type.subColor; 
-                ctx.shadowColor = '#fff'; 
-                ctx.font = `900 ${60 * scaleFactor}px 'Noto Sans KR', sans-serif`; 
-                ctx.fillText(this.type.sub, 0, 50 * scaleFactor);
-                
-                ctx.restore();
-            }
-        }
-
-        class SpeedLine {
-            constructor() { this.reset(); }
-            reset() { this.x = Math.random() * width; this.y = Math.random() * height; this.length = 50 + Math.random() * 150; this.speed = 20 + Math.random() * 30; this.width = 1 + Math.random() * 2; this.alpha = 0; }
-            update(ballSpeed) {
-                if (ballSpeed > 15) {
-                    this.alpha = Math.min(0.5, (ballSpeed - 15) * 0.05); this.x -= this.speed * (ballSpeed / 20); 
-                    if (this.x < 0) { this.x = width + Math.random() * 200; this.y = Math.random() * height; }
-                } else { this.alpha = 0; }
-            }
-            draw() {
-                if (this.alpha <= 0) return;
-                ctx.save(); ctx.globalAlpha = this.alpha; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.rect(this.x, this.y, this.length, this.width); ctx.fill(); ctx.globalAlpha = 1.0; ctx.restore();
-            }
-        }
-
-        class Shockwave {
-            constructor(x, y, color) { 
-                this.init(x, y, color);
-            }
-            init(x, y, color) {
-                this.x = x; this.y = y; this.color = color; this.radius = 10; this.maxRadius = 100 * scaleFactor; this.alpha = 1.0; this.lineWidth = 5 * scaleFactor; this.active = true;
-            }
-            activate(x, y, color) {
-                this.init(x, y, color);
-            }
-            update(dt) { 
-                this.radius += 8 * scaleFactor * dt; this.alpha -= 0.08 * dt; this.lineWidth -= 0.2 * dt; 
-                if (this.lineWidth < 0) this.lineWidth = 0; 
-                if (this.alpha <= 0) this.active = false;
-            }
-            draw() {
-                if (this.alpha <= 0) return;
-                // [최적화] 상태 저장 최소화
-                ctx.globalAlpha = this.alpha; 
-                ctx.strokeStyle = this.color; 
-                ctx.lineWidth = this.lineWidth; 
-                
-                if(!isLowQuality) {
-                    ctx.shadowBlur = 10; ctx.shadowColor = this.color;
-                } else {
-                    ctx.shadowBlur = 0; // 명시적 해제
-                }
-
-                ctx.beginPath(); 
-                ctx.arc(this.x - camera.x, this.y - camera.y, this.radius, 0, Math.PI * 2); 
-                ctx.stroke(); 
-                
-                // 복구
-                ctx.globalAlpha = 1.0;
-            }
-        }
-
-        class Star {
-            constructor() { this.reset(); }
-            reset() { this.x = Math.random() * width; this.y = Math.random() * height; this.size = Math.random() * 2; this.blinkSpeed = 0.01 + Math.random() * 0.05; this.alpha = Math.random(); this.parallax = 0.05 + Math.random() * 0.2; this.isShooting = false; }
-            update(dt) {
-                if (Math.random() < 0.001 && !this.isShooting) { this.isShooting = true; this.vx = -10 - Math.random() * 10; this.vy = 5 + Math.random() * 5; this.life = 60; }
-                if (this.isShooting) { this.x += this.vx * dt; this.y += this.vy * dt; this.life -= dt; if (this.life <= 0) { this.reset(); this.isShooting = false; } }
-            }
-            draw(ctx) {
-                if(this.isShooting) {
-                    ctx.save(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x - this.vx * 3, this.y - this.vy * 3); ctx.stroke(); ctx.restore();
-                } else {
-                    let rx = (this.x - camera.x * this.parallax) % width; if (rx < 0) rx += width;
-                    let ry = this.y - camera.y * this.parallax;
-                    this.alpha += this.blinkSpeed; if (this.alpha > 1 || this.alpha < 0) this.blinkSpeed *= -1;
-                    
-                    // [최적화] 별 그리기에서 save/restore 제거하고 globalAlpha만 조작
-                    const currentAlpha = ctx.globalAlpha;
-                    ctx.globalAlpha = currentAlpha * Math.abs(this.alpha); 
-                    ctx.fillStyle = '#fff'; 
-                    ctx.beginPath(); ctx.arc(rx, ry, this.size, 0, Math.PI * 2); ctx.fill(); 
-                    ctx.globalAlpha = currentAlpha; // 복구
-                }
-            }
-        }
-
-        class Particle {
-            constructor(x, y, color, speed, sizeObj = 2) {
-                this.init(x, y, color, speed, sizeObj);
-            }
-            init(x, y, color, speed, sizeObj) {
-                this.x = x; this.y = y; this.color = color;
-                const a = Math.random() * Math.PI * 2; const v = Math.random() * speed * scaleFactor;
-                this.vx = Math.cos(a) * v; this.vy = Math.sin(a) * v;
-                this.life = 1.0; this.decay = 0.02 + Math.random() * 0.03;
-                this.size = (sizeObj + Math.random() * 3) * scaleFactor;
-                this.active = true;
-                this.isFire = false;
-            }
-            activate(x, y, color, speed, sizeObj) {
-                this.init(x, y, color, speed, sizeObj);
-            }
-            update(dt) { 
-                this.x += this.vx * dt; this.y += this.vy * dt; this.vy += 0.05 * scaleFactor * dt; this.life -= this.decay * dt; 
-                if (this.life <= 0) this.active = false;
-            }
-            draw(ctx) {
-                if (this.life <= 0) return;
-                // [최적화] save/restore 제거. 메인 루프에서 설정한 상태 이용
-                ctx.globalAlpha = this.life; 
-                ctx.fillStyle = this.color; 
-                
-                if(!isLowQuality) {
-                    ctx.shadowBlur = 10; ctx.shadowColor = this.color;
-                } else {
-                    ctx.shadowBlur = 0;
-                }
-
-                ctx.beginPath(); ctx.arc(this.x - camera.x, this.y - camera.y, this.size, 0, Math.PI * 2); ctx.fill();
-            }
-        }
-
-        class FireParticle {
-            constructor(x, y, ballVx, ballVy) {
-                this.init(x, y, ballVx, ballVy);
-            }
-            init(x, y, ballVx, ballVy) {
-                const offsetR = (Math.random() * 8) * scaleFactor;
-                const offsetAngle = Math.random() * Math.PI * 2;
-                this.x = x + Math.cos(offsetAngle) * offsetR;
-                this.y = y + Math.sin(offsetAngle) * offsetR;
-                
-                const speed = Math.sqrt(ballVx*ballVx + ballVy*ballVy);
-                let nx = 0, ny = 0;
-                if(speed > 0) { nx = -ballVx / speed; ny = -ballVy / speed; }
-
-                const spreadAngle = (Math.random() - 0.5) * 0.8; 
-                const baseAngle = Math.atan2(ny, nx);
-                const finalAngle = baseAngle + spreadAngle;
-
-                const fireSpeed = (1 + Math.random() * 4) * scaleFactor; 
-                this.vx = Math.cos(finalAngle) * fireSpeed + (ballVx * 0.1); 
-                this.vy = Math.sin(finalAngle) * fireSpeed + (ballVy * 0.1);
-                
-                this.life = 1.0;
-                this.decay = 0.08 + Math.random() * 0.07; 
-                this.size = (8 + Math.random() * 12) * scaleFactor; 
-                this.maxSize = this.size;
-                this.active = true;
-                this.isFire = true;
-            }
-            activate(x, y, ballVx, ballVy) {
-                this.init(x, y, ballVx, ballVy);
-            }
-            update(dt) {
-                this.x += this.vx * dt;
-                this.y += this.vy * dt;
-                this.life -= this.decay * dt;
-                // [최적화] Math.pow 대신 단순 곱셈 사용 (성능 향상)
-                // this.size = this.maxSize * Math.pow(this.life, 1.5);
-                this.size = this.maxSize * (this.life * this.life); // 비슷하게 보임
-                
-                if (this.life <= 0) this.active = false;
-            }
-            draw(ctx) {
-                if (this.life <= 0) return;
-                
-                let color;
-                if (this.life > 0.8) {
-                    color = `rgba(255, 255, ${200 + Math.floor(Math.random()*55)}, ${this.life})`; 
-                } else if (this.life > 0.5) {
-                    color = `rgba(255, ${Math.floor(Math.random()*150 + 50)}, 0, ${this.life})`; 
-                } else {
-                    color = `rgba(${Math.floor(Math.random()*100 + 155)}, 0, 0, ${this.life})`; 
-                }
-
-                // [최적화] save/restore 제거하고 속성 직접 제어
-                // ctx.globalCompositeOperation = 'lighter'; // 상위에서 설정됨
-                ctx.fillStyle = color;
-                
-                // [중요 수정] HQ 모드일지라도 수백 개의 파티클에 shadowBlur를 거는 건 성능상 치명적임.
-                // 이미 lighter 모드로 겹치면서 빛나는 효과가 있으므로 blur는 제거하여 성능 확보.
-                ctx.shadowBlur = 0; 
-                
-                ctx.beginPath();
-                ctx.arc(this.x - camera.x, this.y - camera.y, this.size, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        }
-
-        class Booster {
-            constructor(x, y, type) {
-                this.x = x; this.y = y; this.type = type || 'speed';
-                this.radius = 35 * scaleFactor; this.active = true; this.pulse = 0;
-                if (this.type === 'speed') { this.color = '#ffd700'; this.glow = '#ff8800'; }
-                else if (this.type === 'jump') { this.color = '#00ffff'; this.glow = '#0088ff'; }
-                else if (this.type === 'blast') { this.color = '#ff0055'; this.glow = '#ff0000'; }
-                else if (this.type === 'shield') { this.color = '#aa00ff'; this.glow = '#ff00ff'; }
-                else if (this.type === 'float') { this.color = '#ffffff'; this.glow = '#aaffff'; }
-                else if (this.type === 'magnet') { this.color = '#ff3333'; this.glow = '#ffaaaa'; } 
-                else if (this.type === 'warp') { this.color = '#77ff77'; this.glow = '#00ff00'; }
-            }
-            draw() {
-                if (!this.active) return;
-                if (this.x - camera.x < -100 || this.x - camera.x > width + 100) return;
-                if (this.y - camera.y < -100 || this.y - camera.y > height + 100) return;
-                this.pulse += 0.1;
-                const r = this.radius + Math.sin(this.pulse) * 5;
-                ctx.save(); 
-                ctx.strokeStyle = this.color; ctx.lineWidth = 3; 
-                if(!isLowQuality) {
-                    ctx.shadowBlur = 20; ctx.shadowColor = this.glow;
-                }
-                ctx.beginPath();
-                if (this.type === 'blast') {
-                    const cx = this.x - camera.x; const cy = this.y - camera.y;
-                    ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy); ctx.lineTo(cx, cy + r); ctx.lineTo(cx - r, cy); ctx.closePath();
-                } else if (this.type === 'shield') {
-                    for (let i = 0; i < 6; i++) {
-                        const angle = i * Math.PI / 3;
-                        const bx = this.x - camera.x + Math.cos(angle) * r;
-                        const by = this.y - camera.y + Math.sin(angle) * r;
-                        if (i === 0) ctx.moveTo(bx, by); else ctx.lineTo(bx, by);
-                    }
-                    ctx.closePath();
-                } else if (this.type === 'magnet') {
-                    const cx = this.x - camera.x; const cy = this.y - camera.y;
-                    ctx.arc(cx, cy, r, 0, Math.PI, false); 
-                    ctx.lineTo(cx - r, cy - r*0.5); ctx.moveTo(cx + r, cy); ctx.lineTo(cx + r, cy - r*0.5);
-                } else if (this.type === 'warp') {
-                    for(let i=0; i<3; i++) {
-                        ctx.arc(this.x - camera.x, this.y - camera.y, r * (1 - i*0.3), this.pulse + i, this.pulse + i + Math.PI);
-                    }
-                } else { ctx.arc(this.x - camera.x, this.y - camera.y, r, 0, Math.PI * 2); }
-                ctx.stroke();
-                ctx.fillStyle = this.color; ctx.globalAlpha = 0.2; ctx.fill(); ctx.globalAlpha = 1.0; ctx.shadowBlur = 0;
-                ctx.fillStyle = '#fff'; ctx.font = `bold ${16 * scaleFactor}px Arial`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                let icon = '>>'; 
-                if (this.type === 'jump') icon = 'UP'; if (this.type === 'blast') icon = '★';
-                if (this.type === 'shield') icon = 'SHD'; if (this.type === 'float') icon = 'FLT';
-                if (this.type === 'magnet') icon = '🧲'; if (this.type === 'warp') icon = '🌀';
-                ctx.fillText(icon, this.x - camera.x, this.y - camera.y);
-                ctx.restore();
-            }
-            checkCollision(p, prevX, prevY) {
-                if (!this.active) return false;
-                const hitRadius = p.radius + this.radius;
-                const dx = this.x - p.x; 
-                const dy = this.y - p.y; 
-                if (dx*dx + dy*dy < hitRadius*hitRadius) { 
-                    this.active = false; 
-                    return true; 
-                } 
-                if (prevX !== undefined && prevY !== undefined) {
-                    const vX = p.x - prevX; const vY = p.y - prevY;
-                    const lenSq = vX*vX + vY*vY;
-                    if (lenSq > 0.0001) {
-                        const cX = this.x - prevX; const cY = this.y - prevY;
-                        let t = (cX * vX + cY * vY) / lenSq;
-                        t = Math.max(0, Math.min(1, t));
-                        const closeX = prevX + t * vX; const closeY = prevY + t * vY;
-                        const dist2X = this.x - closeX; const dist2Y = this.y - closeY;
-                        if (dist2X*dist2X + dist2Y*dist2Y < hitRadius*hitRadius) {
-                            this.active = false; 
-                            return true;
-                        }
-                    }
-                }
-                return false;
-            }
-        }
-
-        class Batter {
-            constructor() { this.x = 200 * scaleFactor; this.y = height - 50; this.armAngle = -Math.PI / 2; this.swinging = false; this.swingSpeed = 0; this.idleTime = 0; }
-            reset() { this.x = 200 * scaleFactor; this.y = height - 50; this.armAngle = -Math.PI * 0.65; this.swinging = false; this.swingSpeed = 0; this.idleTime = 0; }
-            swing() { if (!this.swinging) { this.swinging = true; this.swingSpeed = 0.15; } }
-            update(dt) {
-                if (this.swinging) {
-                    this.armAngle += this.swingSpeed * dt; this.swingSpeed += 0.05 * dt;
-                    if (this.armAngle > Math.PI * 0.2) { this.swinging = false; this.armAngle = Math.PI * 0.2; if (gameState === STATE.DROPPING) endGame("MISS"); }
-                } else if (gameState === STATE.READY || gameState === STATE.DROPPING) {
-                     this.idleTime += dt * 0.05;
-                     const breath = Math.sin(this.idleTime) * 0.05;
-                     const targetAngle = -Math.PI * 0.65 + breath;
-                     this.armAngle += (targetAngle - this.armAngle) * 0.1 * dt;
-                }
-            }
-            draw() {
-                const drawX = this.x - camera.x; const drawY = this.y - camera.y; const s = scaleFactor * CHAR_SCALE;
-                if (drawX < -100 || drawX > width + 100) return;
-                const breathY = Math.sin(this.idleTime) * 2 * s;
-                ctx.save(); ctx.translate(drawX, drawY);
-                ctx.strokeStyle = '#0ff'; ctx.fillStyle = '#000'; ctx.lineWidth = 3 * s;
-                ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.shadowBlur = 10; ctx.shadowColor = '#0ff';
-                ctx.beginPath(); ctx.moveTo(-5*s, -55*s); ctx.lineTo(-20*s, -25*s); ctx.lineTo(-35*s, 0); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(5*s, -55*s); ctx.lineTo(25*s, -25*s); ctx.lineTo(30*s, 0); ctx.stroke();
-                ctx.save(); ctx.translate(0, breathY);
-                ctx.fillStyle = '#051515'; ctx.beginPath(); ctx.moveTo(-12*s, -100*s); ctx.lineTo(12*s, -100*s); ctx.lineTo(6*s, -55*s); ctx.lineTo(-6*s, -55*s); ctx.closePath(); ctx.fill(); ctx.stroke();
-                ctx.fillStyle = '#0ff'; ctx.beginPath(); ctx.arc(0, -80*s, 5*s, 0, Math.PI * 2); ctx.fill();
-                ctx.save(); ctx.translate(0, -105*s); ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(0, 0, 16*s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-                ctx.shadowColor = '#f0f'; ctx.fillStyle = '#f0f'; ctx.beginPath(); ctx.moveTo(7*s, -5*s); ctx.lineTo(16*s, -3*s); ctx.lineTo(16*s, 5*s); ctx.lineTo(7*s, 7*s); ctx.closePath(); ctx.fill(); ctx.restore();
-                ctx.save(); ctx.translate(0, -95*s); ctx.rotate(this.armAngle);
-                ctx.strokeStyle = '#fff'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(30*s, 0); ctx.stroke();
-                ctx.translate(30*s, 0); ctx.fillStyle = '#555'; ctx.fillRect(0, -5*s, 12*s, 10*s);
-                ctx.shadowColor = '#0f0'; ctx.shadowBlur = 20;
-                const batGrad = ctx.createLinearGradient(0, 0, 110*s, 0);
-                batGrad.addColorStop(0, '#fff'); batGrad.addColorStop(0.3, '#0f0'); batGrad.addColorStop(1, 'rgba(0, 255, 0, 0.5)');
-                ctx.fillStyle = batGrad; ctx.beginPath(); ctx.moveTo(12*s, -6*s); ctx.lineTo(110*s, -9*s); ctx.lineTo(115*s, 0); ctx.lineTo(110*s, 9*s); ctx.lineTo(12*s, 6*s); ctx.closePath(); ctx.fill();
-                ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.moveTo(12*s, 0); ctx.lineTo(105*s, 0); ctx.stroke();
-                ctx.restore(); 
-                ctx.restore();
-                ctx.restore();
-            }
-        }
-
-        class Ball {
-            constructor() { this.radius = 15; this.reset(); }
-            reset() { 
-                this.x = 200 * scaleFactor; this.y = -50 * scaleFactor; this.vx = 0; this.vy = 0; 
-                this.rotation = 0; this.trail = []; this.isStopped = false; this.radius = 15 * scaleFactor; 
-                this.hasShield = false;
-                this.floatTimer = 0;
-                this.magnetTimer = 0;
-            }
-            drop() { this.x = 200 * scaleFactor; this.y = -180 * scaleFactor; this.vx = 0; this.vy = 0; }
-            hit(speed, angleDeg) {
-                const rad = angleDeg * Math.PI / 180;
-                this.vx = Math.cos(rad) * speed * scaleFactor;
-                this.vy = Math.sin(rad) * speed * scaleFactor;
-                camera.shake = 20; 
-                spawnShockwave(this.x, this.y, '#fff');
-                for(let i=0; i<30; i++) spawnParticle(this.x, this.y, '#fff', 8);
-            }
-            update(dt) { 
-                if (gameState === STATE.READY) return;
-                if (gameState === STATE.DROPPING) {
-                    this.vy += GRAVITY * 0.5 * dt; this.y += this.vy * dt;
-                    if (this.y > height - 50) endGame("MISS");
-                    return;
-                }
-                if (gameState === STATE.FLYING) {
-                    const prevX = this.x;
-                    const prevY = this.y;
-
-                    this.x += this.vx * dt; this.y += this.vy * dt; 
-                    
-                    if (this.magnetTimer > 0) {
-                        this.magnetTimer -= dt;
-                        const magnetRange = 200 * scaleFactor; 
-                        boosters.forEach(b => {
-                            if (b.active) {
-                                const dx = this.x - b.x; const dy = this.y - b.y; const dist = Math.sqrt(dx*dx + dy*dy);
-                                if (dist < magnetRange) { 
-                                    b.x += (this.x - b.x) * 0.5 * dt; 
-                                    b.y += (this.y - b.y) * 0.5 * dt; 
-                                }
-                            }
-                        });
-                    }
-
-                    if (this.floatTimer > 0) {
-                        this.floatTimer -= dt; this.vy *= 0.9; 
-                    } else {
-                        this.vy += GRAVITY * dt; 
-                    }
-
-                    this.vx *= Math.pow(FRICTION_AIR, dt); this.vy *= Math.pow(FRICTION_AIR, dt);
-                    this.rotation += this.vx * 0.1 * dt;
-                    if (frameId % 3 === 0) { 
-                        this.trail.push({x: this.x, y: this.y, alpha: 1.0}); 
-                        if (this.trail.length > 25) this.trail.shift(); 
-                    }
-                    
-                    const speed = Math.sqrt(this.vx**2 + this.vy**2);
-                    const speedKmh = speed * 2; 
-                    
-                    if (speedKmh > 100 && !isLowQuality) {
-                        const moveDist = Math.sqrt((this.x - prevX)**2 + (this.y - prevY)**2);
-                        
-                        // [최적화] 파티클 생성 간격을 늘려 렌더링 부하 감소 (4px -> 12px)
-                        const stepSize = 12 * scaleFactor; 
-                        const steps = Math.floor(moveDist / stepSize);
-                        
-                        const loopCount = Math.max(1, steps);
-                        
-                        // 화면 내 파티클 총량 제한 (Safety Lock)
-                        // 이미 너무 많으면 새로 생성하지 않음
-                        if (particles.length < 800) { 
-                            for(let i=0; i <= loopCount; i++) {
-                                const t = i / loopCount;
-                                
-                                const spawnX = prevX + (this.x - prevX) * t;
-                                const spawnY = prevY + (this.y - prevY) * t;
-                                
-                                const density = speedKmh > 300 ? 3 : 2; 
-                                
-                                for(let j=0; j<density; j++) {
-                                    spawnFireParticle(spawnX, spawnY, this.vx, this.vy);
-                                }
-                            }
-                        }
-                    }
-
-                    if (this.y + this.radius > height - 50) {
-                        this.y = height - 50 - this.radius; this.vy *= -BOUNCE; this.vx *= Math.pow(FRICTION_GROUND, dt); 
-                        if (combo > 0) { combo = 0; uiCombo.style.opacity = 0; }
-                        if (Math.abs(this.vx) < 1.0 && Math.abs(this.vy) < 2.0) { this.vx = 0; this.vy = 0; this.stop(); }
-                        else if (Math.abs(this.vx) > 0.5 && Math.random() > 0.7) spawnParticle(this.x, this.y + 10, '#555', 2);
-                    }
-                    boosters.forEach(b => {
-                        if (b.checkCollision(this, prevX, prevY)) {
-                            combo++; uiCombo.innerText = `COMBO x${combo}`; uiCombo.style.opacity = 1;
-                            const comboBonus = 1 + (combo * 0.1);
-                            const boostPower = 15 * scaleFactor * comboBonus;
-                            const jumpPower = 25 * scaleFactor * comboBonus;
-                            const blastPower = 25 * scaleFactor * comboBonus;
-                            
-                            if (b.type === 'speed') { Sound.playBoost(); this.vx += boostPower; this.vy = -12 * scaleFactor; showFeedback("SPEED!", "#ff0"); camera.shake = 5; spawnShockwave(this.x, this.y, '#ff0'); for(let i=0; i<15; i++) spawnParticle(this.x, this.y, '#ff0', 8); } 
-                            else if (b.type === 'jump') { Sound.playJump(); this.vx += 5 * scaleFactor; this.vy = -jumpPower; showFeedback("HIGH JUMP!", "#0ff"); camera.shake = 8; spawnShockwave(this.x, this.y, '#0ff'); for(let i=0; i<20; i++) spawnParticle(this.x, this.y, '#0ff', 10); }
-                            else if (b.type === 'blast') { Sound.playBlast(); this.vx += blastPower; this.vy = -20 * scaleFactor; showFeedback("EXPLOSION!", "#f05"); camera.shake = 15; spawnShockwave(this.x, this.y, '#f05'); for(let i=0; i<30; i++) spawnParticle(this.x, this.y, '#f05', 12); }
-                            else if (b.type === 'shield') { Sound.playShield(); this.hasShield = true; showFeedback("SHIELD UP!", "#a0f"); spawnShockwave(this.x, this.y, '#a0f'); }
-                            else if (b.type === 'float') { Sound.playFloat(); this.floatTimer = 120; this.vx += 5 * scaleFactor; showFeedback("FLOAT!", "#fff"); spawnShockwave(this.x, this.y, '#fff'); }
-                            else if (b.type === 'magnet') { 
-                                Sound.playMagnet(); 
-                                this.magnetTimer = 75; 
-                                showFeedback("MAGNET!", "#f33"); 
-                                spawnShockwave(this.x, this.y, '#f33'); 
-                            }
-                            else if (b.type === 'warp') {
-                                Sound.playWarp(); 
-                                this.x += 300 * scaleFactor; 
-                                this.vx += 10 * scaleFactor;
-                                this.vy -= 10 * scaleFactor;
-                                showFeedback("WARP!", "#7f7"); 
-                                camera.shake = 25; 
-                                spawnShockwave(this.x, this.y, '#7f7'); 
-                            }
-                        }
-                    });
-                    
-                    obstacles.forEach(o => {
-                        if(o.checkCollision(this, prevX, prevY)) {
-                            if (this.hasShield) {
-                                this.hasShield = false; showFeedback("BLOCKED!", "#a0f"); Sound.playShield(); spawnShockwave(this.x, this.y, '#a0f'); return; 
-                            }
-                            this.vx *= 0.5; this.vy *= 0.5; camera.shake = 15; showFeedback("CRASH!", "#f00"); Sound.playCrash(); spawnShockwave(this.x, this.y, '#f00'); combo = 0; uiCombo.style.opacity = 0;
-                        }
-                    });
-                }
-            }
-            async stop() {
-                if (this.isStopped) return;
-                this.isStopped = true;
-                gameState = STATE.STOPPED;
-                currentScore = Math.floor((this.x - 200 * scaleFactor) / scaleFactor);
-                checkBestScore();
-                
-                modalTitle.innerText = "GAME OVER";
-                finalScoreEl.innerText = `${currentScore} m`;
-                finalScoreEl.classList.remove('hidden');
-                
-                // UI 초기화: 모두 숨김
-                registerForm.classList.add('hidden');
-                rankingContainer.classList.add('hidden');
-                btnRetry.classList.add('hidden');
-                loadingMsgEl.classList.remove('hidden'); // 로딩 메시지 표시
-                modal.style.display = 'block';
-
-                if (window.GAME) {
-                    const canRegister = await window.GAME.canRegisterRank(currentScore);
-                    loadingMsgEl.classList.add('hidden'); // 로딩 숨김
-
-                    if (canRegister) {
-                        // 랭킹 등록 가능 -> 폼 표시
-                        registerForm.classList.remove('hidden');
-                        btnSubmit.disabled = false;
-                        btnSubmit.innerText = "랭킹 등록";
-                    } else {
-                        // 랭킹 등록 불가 -> 리스트 & 재시작 표시
-                        rankingContainer.classList.remove('hidden');
-                        btnRetry.classList.remove('hidden');
-                        await updateRankingBoard(currentScore, null); // 랭킹판 업데이트 (내 점수는 하이라이트 없이)
-                    }
-                } else {
-                    // 오류 시 기본 동작
-                    loadingMsgEl.classList.add('hidden');
-                    registerForm.classList.remove('hidden');
-                }
-            }
-            draw() {
-                if (gameState === STATE.DROPPING && this.y < 0) {
-                    ctx.save(); ctx.fillStyle = '#f00'; ctx.shadowBlur = 10; ctx.shadowColor = '#f00'; ctx.translate(this.x - camera.x, 30);
-                    if (Math.floor(Date.now() / 100) % 2 === 0) { ctx.beginPath(); ctx.moveTo(-10, -10); ctx.lineTo(10, -10); ctx.lineTo(0, 10); ctx.fill(); }
-                    ctx.restore();
-                }
-                if (gameState === STATE.READY && this.y < 0) return;
-                const drawX = this.x - camera.x; const drawY = this.y - camera.y;
-                if (gameState === STATE.FLYING && this.trail.length > 1) {
-                    if (Math.abs(this.vx) > 15) {
-                        this.trail.forEach(t => {
-                            ctx.fillStyle = `rgba(0, 255, 255, ${t.alpha * 0.2})`; ctx.beginPath(); ctx.arc(t.x - camera.x, t.y - camera.y, this.radius * 0.8, 0, Math.PI*2); ctx.fill(); t.alpha -= 0.05;
-                        });
-                    }
-                    ctx.beginPath(); ctx.moveTo(this.trail[0].x - camera.x, this.trail[0].y - camera.y);
-                    for (let i = 1; i < this.trail.length; i++) ctx.lineTo(this.trail[i].x - camera.x, this.trail[i].y - camera.y);
-                    if (combo >= 5) {
-                        const grad = ctx.createLinearGradient(0,0,width,0);
-                        grad.addColorStop(0, "red"); grad.addColorStop(0.2, "orange"); grad.addColorStop(0.4, "yellow"); grad.addColorStop(0.6, "green"); grad.addColorStop(0.8, "blue"); grad.addColorStop(1, "violet");
-                        ctx.strokeStyle = grad; ctx.lineWidth = 4;
-                    } else { ctx.strokeStyle = '#0ff'; ctx.lineWidth = 2; }
-                    if(!isLowQuality) {
-                        ctx.shadowBlur = 10; ctx.shadowColor = '#0ff';
-                    }
-                    ctx.stroke(); ctx.shadowBlur = 0;
-                }
-                
-                ctx.save(); ctx.translate(drawX, drawY); ctx.rotate(this.rotation);
-                
-                if (this.magnetTimer > 0) {
-                    const magnetRadius = 200 * scaleFactor;
-                    const pulseAlpha = 0.2 + Math.abs(Math.sin(frameId * 0.1)) * 0.1;
-                    ctx.save();
-                    ctx.globalAlpha = pulseAlpha;
-                    ctx.fillStyle = '#ff3333';
-                    ctx.beginPath();
-                    ctx.arc(0, 0, magnetRadius, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.restore();
-                }
-
-                if (this.hasShield) {
-                    if(!isLowQuality) { ctx.shadowBlur = 20; ctx.shadowColor = '#a0f'; }
-                    ctx.strokeStyle = '#a0f'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, this.radius + 5, 0, Math.PI*2); ctx.stroke();
-                }
-                if (this.magnetTimer > 0) {
-                    if(!isLowQuality) { ctx.shadowBlur = 15; ctx.shadowColor = '#f00'; }
-                    ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, this.radius + 10 + Math.sin(frameId * 0.2)*5, 0, Math.PI*2); ctx.stroke();
-                }
-
-                if(!isLowQuality) { ctx.shadowBlur = 15; ctx.shadowColor = '#0ff'; }
-                ctx.fillStyle = '#0ff';
-                ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, this.radius * 0.5, 0, Math.PI * 2); ctx.fill();
-                
-                if (this.floatTimer > 0) {
-                     if(!isLowQuality) { ctx.shadowBlur = 10; ctx.shadowColor = '#fff'; }
-                     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-                     ctx.beginPath(); ctx.moveTo(-this.radius, 0); ctx.lineTo(-this.radius - 15, -10); ctx.stroke();
-                     ctx.beginPath(); ctx.moveTo(this.radius, 0); ctx.lineTo(this.radius + 15, -10); ctx.stroke();
-                }
-
-                ctx.restore();
-            }
-        }
-
-        function init() {
-            resize(); 
-            window.addEventListener('resize', resize);
-            document.addEventListener('fullscreenchange', resize);
-            document.addEventListener('webkitfullscreenchange', resize);
-
-            const inputHandler = (e) => {
-                if(e.target.closest('#ranking-modal') || e.target.closest('#btn-show-ranking') || e.target.closest('#btn-fullscreen') || e.target.closest('#btn-lowq')) return;
-                Sound.init(); handleInput();
-            };
-            window.addEventListener('mousedown', inputHandler);
-            window.addEventListener('touchstart', (e) => {
-                 if(!e.target.closest('#ranking-modal') && !e.target.closest('#btn-show-ranking') && !e.target.closest('#btn-fullscreen') && !e.target.closest('#btn-lowq')) e.preventDefault();
-                 Sound.init(); handleInput();
-            }, {passive: false});
-
-            skyManager = new SkyManager();
-            batter = new Batter(); ball = new Ball();
-            for(let i=0; i<80; i++) stars.push(new Star());
-            for(let i=0; i<20; i++) {
-                let bw = 60 + Math.random() * 80; let bh = 100 + Math.random() * 300; let bx = i * 200 - 500; let bz = 1 + Math.random() * 2; 
-                cityBuildings.push(new Building(bx, bw, bh, bz));
-            }
-            for(let i=0; i<20; i++) speedLines.push(new SpeedLine());
-            initBoosters();
-            requestAnimationFrame(loop);
-        }
-
-        function initBoosters() {
-            boosters = [];
-            obstacles = [];
-            lastBoosterX = 600 * scaleFactor; 
-            addBoosters(25); 
-        }
-
-        function addBoosters(count) {
-             for(let i=0; i<count; i++) {
-                let gap = (50 + Math.random() * 150) * scaleFactor;
-                lastBoosterX += gap;
-                
-                let limitY = 2000;
-                if (ball && ball.y < -1000 * scaleFactor) {
-                    limitY = Math.abs(ball.y / scaleFactor) + 2000;
-                }
-                
-                let spawnHeight = Math.random() * limitY * scaleFactor;
-                
-                if (ball && ball.y < -5000 * scaleFactor && Math.random() < 0.5) {
-                    spawnHeight = Math.abs(ball.y) + (Math.random() - 0.5) * 1000 * scaleFactor;
-                }
-                
-                let by = height - 100 - spawnHeight; 
-                
-                let currentAltitude = Math.abs(spawnHeight / scaleFactor);
-                let spawnProbability = 1.0;
-                if (currentAltitude > 2000) {
-                    spawnProbability = Math.max(0.2, 1.0 - ((currentAltitude - 2000) / 18000));
-                }
-                
-                if (Math.random() > spawnProbability) continue; 
-
-                if (Math.random() > 0.95) {
-                    obstacles.push(new Obstacle(lastBoosterX, by));
-                } else {
-                    let rand = Math.random();
-                    let type = 'speed'; 
-                    if (rand > 0.90) type = 'blast';  
-                    else if (rand > 0.80) type = 'shield'; 
-                    else if (rand > 0.70) type = 'float';
-                    else if (rand > 0.60) type = 'magnet';
-                    else if (rand > 0.50) type = 'warp';   
-                    else if (rand > 0.30) type = 'jump'; 
-                    
-                    boosters.push(new Booster(lastBoosterX, by, type));
-                }
-            }
-        }
-
-        function resize() {
-            const oldWidth = width;
-            const oldHeight = height;
-
-            width = window.innerWidth;
-            height = window.innerHeight;
-            canvas.width = width;
-            canvas.height = height;
-
-            scaleFactor = Math.min(width, height) / 800; 
-            if (scaleFactor < 0.6) scaleFactor = 0.6; 
-            if (scaleFactor > 1.2) scaleFactor = 1.2; 
-            GRAVITY = GRAVITY_BASE * scaleFactor;
+        if (stair.hasCoin) {
+            const coinY = y - 30 + Math.sin(stair.coinRotate) * 5;
+            const coinScale = Math.abs(Math.cos(stair.coinRotate)); 
             
-            if (gameState !== STATE.READY) {
-                if (oldWidth && oldHeight) {
-                    const ratioX = width / oldWidth;
-                    const ratioY = height / oldHeight;
-
-                    ball.x *= ratioX;
-                    ball.y *= ratioY;
-                    batter.x *= ratioX;
-                    batter.y = height - 50; 
-
-                    camera.x *= ratioX;
-                    camera.y *= ratioY;
-                }
-            } else {
-                if (batter) batter.reset(); 
-                if (ball) ball.reset();
-            }
-        }
-
-        function handleInput() {
-            if (gameState === STATE.READY) {
-                gameState = STATE.DROPPING; ball.drop(); uiMsg.classList.add('hidden');
-            } else if (gameState === STATE.DROPPING) { attemptHit(); }
-        }
-
-        function attemptHit() {
-            batter.swing(); 
-            const shoulderY = batter.y - (95 * scaleFactor * CHAR_SCALE); 
-            const hitZoneY = shoulderY + 10 * scaleFactor; 
-            const distY = ball.y - hitZoneY; 
-
-            if (Math.abs(distY) < 90 * scaleFactor) {
-                let isPerfect = false;
-                let cutsceneType = null;
-
-                if (Math.abs(distY) < 20 * scaleFactor) {
-                    isPerfect = true;
-                    hitFreeze = 45; 
-                    cutsceneType = CUTSCENE_TYPES[Math.floor(Math.random() * CUTSCENE_TYPES.length)];
-                    specialEffects.push(new CutsceneEffect(cutsceneType)); 
-                    Sound.playBreath();
-                }
-
-                gameState = STATE.FLYING;
-                let power = 25 * scaleFactor; let angle = -45; 
-                
-                if (isPerfect) {
-                    let basePower = 40 * scaleFactor;
-                    let baseAngle = -45;
-                    if (cutsceneType) {
-                        power = basePower * cutsceneType.speedMod;
-                        angle = baseAngle + cutsceneType.angleMod;
-                    } else {
-                        power = basePower;
-                    }
-                    showFeedback("PERFECT!", "#0ff"); Sound.playHit(true);
-                } else {
-                    power = (28 * scaleFactor) - (Math.abs(distY) * 0.15); 
-                    if (distY < 0) { angle = -45 + (distY * 0.5); showFeedback("TOO EARLY", "#ff8"); } 
-                    else { angle = -45 + (distY * 0.8); showFeedback("TOO LATE", "#f88"); }
-                    Sound.playHit(false);
-                }
-                if (power < 10 * scaleFactor) power = 10 * scaleFactor;
-                ball.hit(power / scaleFactor, angle); 
-            }
-        }
-
-        function endGame(type) {
-            gameState = STATE.STOPPED; 
-            if (type === "MISS") {
-                currentScore = 0;
-                modalTitle.innerText = "GAME OVER";
-                finalScoreEl.innerText = "MISS";
-                finalScoreEl.classList.remove('hidden');
-                
-                // MISS인 경우 점수가 0이므로 랭킹 등록 불가 (보통)
-                // 바로 리스트 보여주기
-                registerForm.classList.add('hidden');
-                rankingContainer.classList.remove('hidden');
-                btnRetry.classList.remove('hidden');
-                modal.style.display = 'block';
-                
-                // 랭킹판 업데이트 (0점, 등록 안함)
-                updateRankingBoard(0, null);
-                
-                btnSubmit.disabled = false;
-                btnSubmit.innerText = "랭킹 등록";
-            }
-        }
-
-        function resetGame() {
-            gameState = STATE.READY;
-            camera.x = 0;
-            camera.y = 0;
-            batter.reset();
-            ball.reset();
-            combo = 0;
-            uiCombo.style.opacity = 0;
-            uiMsg.classList.remove('hidden');
-            uiMsg.innerHTML = "화면을 클릭하면<br>공이 떨어집니다!";
-            modal.style.display = 'none';
-            initBoosters();
-        }
-
-        function checkBestScore() {
-            if (currentScore > bestDistance) {
-                bestDistance = currentScore;
-                uiBest.innerText = bestDistance;
-            }
-        }
-
-        function showFeedback(text, color) {
-            uiFeedback.innerText = text; uiFeedback.style.color = color; uiFeedback.style.textShadow = `0 0 20px ${color}`;
-            uiFeedback.classList.remove('pop-anim'); void uiFeedback.offsetWidth; uiFeedback.classList.add('pop-anim');
-        }
-
-        function loop(timestamp) {
-            if (!lastTime) lastTime = timestamp;
-            const deltaTime = timestamp - lastTime; lastTime = timestamp;
-            const dt = Math.min(deltaTime, 100) / (1000 / 60);
-
-            if (hitFreeze > 0) {
-                hitFreeze -= dt;
-                specialEffects.forEach(e => e.update(dt));
-                draw();
-                specialEffects.forEach(e => e.draw());
-            } else {
-                update(dt);
-                draw();
-                specialEffects.forEach(e => e.draw());
-            }
+            ctx.fillStyle = '#FFD700'; 
+            ctx.beginPath();
+            ctx.ellipse(x, coinY, 15 * coinScale, 15, 0, 0, Math.PI * 2);
+            ctx.fill();
             
-            frameId = requestAnimationFrame(loop);
+            ctx.strokeStyle = '#FFA500';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            ctx.fillStyle = '#FFF';
+            ctx.beginPath();
+            ctx.ellipse(x - 5 * coinScale, coinY - 5, 4 * coinScale, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
         }
+    }
 
-        function update(dt) {
-            skyManager.update(dt);
-            batter.update(dt); ball.update(dt);
-            stars.forEach(s => s.update(dt)); 
-            obstacles.forEach(o => o.update(dt));
-            
-            for (let i = specialEffects.length - 1; i >= 0; i--) {
-                let e = specialEffects[i];
-                if(!e.active) specialEffects.splice(i, 1);
-                else e.update(dt);
-            }
+    function drawPlayerBody(x, y, dir, scaleY, isMain) {
+        ctx.save();
+        ctx.translate(x, y + STAIR_HEIGHT/2); 
+        if (dir === -1) ctx.scale(-1, 1);
+        ctx.scale(1, scaleY);
 
-            if (gameState === STATE.FLYING) {
-                let targetCamX = ball.x - width * 0.2; if (targetCamX < 0) targetCamX = 0;
-                camera.x += (targetCamX - camera.x) * 0.15 * dt;
-                
-                if (ball.x - camera.x > width * 0.7) {
-                    camera.x = ball.x - width * 0.7;
-                }
+        const c = player.colors;
+        
+        ctx.fillStyle = c.cape;
+        ctx.beginPath();
+        ctx.moveTo(-10, -40); ctx.lineTo(-25, -10); ctx.lineTo(0, -10); ctx.fill();
 
-                let targetCamY = ball.y - height * 0.5; if (targetCamY > 0) targetCamY = 0; 
-                camera.y += (targetCamY - camera.y) * 0.1 * dt;
-                
-                if (ball.x > lastBoosterX - width * 2) addBoosters(10); 
-                
-                if (boosters.length > 50) { while(boosters.length > 0 && boosters[0].x < ball.x - width * 2) boosters.shift(); }
-                if (obstacles.length > 20) { while(obstacles.length > 0 && obstacles[0].x < ball.x - width * 2) obstacles.shift(); }
-            } else { camera.y += (0 - camera.y) * 0.1 * dt; }
-            if (camera.shake > 0) { camera.shake *= Math.pow(0.9, dt); if(camera.shake < 0.5) camera.shake = 0; }
+        ctx.fillStyle = isMain ? c.body : '#ffffff'; 
+        ctx.fillRect(-15, -45, 30, 25);
+        
+        if (isMain) {
+            ctx.fillStyle = c.belt; ctx.fillRect(-15, -25, 30, 5);
+            ctx.fillStyle = c.skin; ctx.fillRect(-15, -65, 30, 25);
+            ctx.fillStyle = '#57606f'; ctx.fillRect(-17, -70, 35, 10); ctx.fillRect(-17, -70, 10, 25);
+            ctx.fillStyle = 'black'; ctx.fillRect(5, -55, 4, 4);
+            ctx.fillStyle = c.body; ctx.fillRect(5, -40, 10, 8);
+            ctx.fillStyle = 'black'; ctx.fillRect(-10, -20, 8, 20); ctx.fillRect(2, -20, 8, 20);
             
-            // [최적화] 풀링된 파티클 관리
-            // splice는 O(N)으로 느림. 
-            // 여기선 편의상 역순 루프 + splice 사용하되, 죽은 객체는 풀로 되돌려 보냄
-            for (let i = particles.length - 1; i >= 0; i--) { 
-                const p = particles[i];
-                p.update(dt); 
-                if (p.life <= 0) {
-                    particles.splice(i, 1);
-                    if (p.isFire) fireParticlePool.push(p); // 불꽃 풀로 반환
-                    else particlePool.push(p);              // 일반 풀로 반환
-                }
+            if (stamina < 30) {
+                ctx.fillStyle = '#00a8ff';
+                ctx.beginPath(); ctx.arc(-20, -60, 4, 0, Math.PI*2); ctx.fill();
             }
-            
-            for (let i = shockwaves.length - 1; i >= 0; i--) { 
-                const s = shockwaves[i];
-                s.update(dt); 
-                if (s.alpha <= 0) {
-                    shockwaves.splice(i, 1);
-                    shockwavePool.push(s); // 풀로 반환
-                }
-            }
-            
-            const ballSpeed = Math.abs(ball.vx); speedLines.forEach(l => l.update(ballSpeed));
-            
-            if (gameState === STATE.FLYING || gameState === STATE.STOPPED) {
-                let dist = Math.floor((ball.x - 200 * scaleFactor) / scaleFactor); if (dist < 0) dist = 0; uiScore.innerText = dist;
-                let speedKmh = Math.floor(Math.sqrt(ball.vx*ball.vx + ball.vy*ball.vy) * 2); uiSpeed.innerText = speedKmh;
-                let altitude = Math.floor((height - 50 - ball.y) / scaleFactor); if (altitude < 0) altitude = 0; uiHeight.innerText = altitude;
-            }
+        } else {
+            ctx.fillStyle = '#ffffff';
+            ctx.globalAlpha = 0.5;
+            ctx.fillRect(-15, -65, 30, 25); 
         }
+        ctx.restore();
+    }
 
-        function draw() {
-            const shakeX = (Math.random() - 0.5) * camera.shake; const shakeY = (Math.random() - 0.5) * camera.shake;
-            ctx.save(); ctx.translate(shakeX, shakeY);
-            
-            skyManager.draw(ctx);
-            cityBuildings.forEach(b => b.draw()); 
-            speedLines.forEach(l => l.draw());
-            obstacles.forEach(o => o.draw()); 
-            boosters.forEach(b => b.draw());
-
-            const groundY = height - 50 - camera.y;
-            const hueShift = (ball.x / (1000 * scaleFactor)) % 360;
-            ctx.strokeStyle = `hsl(${300 + hueShift}, 100%, 50%)`; 
-            ctx.lineWidth = 2; 
-            if(!isLowQuality) {
-                ctx.shadowBlur = 10; ctx.shadowColor = ctx.strokeStyle; 
-            }
-            ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(width, groundY); ctx.stroke();
-            const gridSize = 100 * scaleFactor; const offsetX = camera.x % gridSize; ctx.lineWidth = 1; ctx.globalAlpha = 0.3;
-            ctx.beginPath(); for (let i = -gridSize; i < width + gridSize; i += gridSize) { let x = i - offsetX; ctx.moveTo(x, groundY); ctx.lineTo(x - (width/2 - x)*2, height); } ctx.stroke(); ctx.shadowBlur = 0; ctx.globalAlpha = 1.0;
-            
-            if (gameState === STATE.DROPPING) {
-                const hitZoneY = batter.y - (85 * scaleFactor * CHAR_SCALE); 
-                ctx.fillStyle = 'rgba(0, 255, 0, 0.15)'; ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)'; ctx.setLineDash([5, 5]);
-                ctx.beginPath(); ctx.arc(200 * scaleFactor, hitZoneY, 60 * scaleFactor, 0, Math.PI*2); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
-                ctx.fillStyle = 'rgba(0, 255, 0, 0.5)'; ctx.font = `12px Orbitron`; ctx.textAlign = 'center'; ctx.fillText("HIT HERE", 200 * scaleFactor, hitZoneY + 75 * scaleFactor);
-            }
-            batter.draw(); ball.draw();
-            
-            // 파티클은 lighter 모드 적용 (단 저사양 모드에서는 간단히)
-            if(!isLowQuality) ctx.globalCompositeOperation = 'lighter';
-            particles.forEach(p => p.draw(ctx)); 
-            shockwaves.forEach(s => s.draw()); 
-            ctx.globalCompositeOperation = 'source-over'; ctx.restore(); 
+    function gameLoop() {
+        if (gameState === 'PLAYING' || gameState === 'GAMEOVER') {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        } else {
+            const biome = getBiome(score);
+            bgParticles.forEach(p => {
+                p.y += p.speed;
+                if (p.y > canvas.height) p.y = 0;
+            });
+            draw();
+            requestAnimationFrame(gameLoop);
         }
+    }
 
-        init();
-    </script>
+    resize();
+    if (!isGameLoopRunning) { isGameLoopRunning = true; gameLoop(); }
+</script>
 </body>
 </html>
