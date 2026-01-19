@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Infinite Climber : Legendary</title>
+    <title>Infinite Climber : Level Design</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap');
 
@@ -159,6 +159,7 @@
             text-shadow: 0 2px 4px rgba(0,0,0,0.8);
             transition: background 0.05s;
             cursor: pointer;
+            position: relative;
         }
 
         .btn-left { border-right: 1px solid rgba(255,255,255,0.05); }
@@ -236,7 +237,6 @@
             border-radius: 20px;
         }
 
-        /* 콤보 효과 */
         #combo-text {
             position: absolute;
             top: 40%;
@@ -249,6 +249,22 @@
             z-index: 15;
             transition: transform 0.1s;
             white-space: nowrap;
+        }
+
+        .tutorial-hand {
+            position: absolute;
+            bottom: 150px;
+            font-size: 60px;
+            filter: drop-shadow(0 5px 5px rgba(0,0,0,0.5));
+            animation: bounce 0.8s infinite alternate;
+            pointer-events: none;
+            z-index: 100;
+            display: none;
+        }
+
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-20px); }
         }
         
         .shake {
@@ -270,6 +286,9 @@
     <canvas id="gameCanvas"></canvas>
 
     <div id="combo-text">COMBO!</div>
+
+    <div id="tutorial-hand-left" class="tutorial-hand" style="left: 25%;">👆</div>
+    <div id="tutorial-hand-right" class="tutorial-hand" style="left: 75%;">👆</div>
 
     <div class="ui-layer">
         <div class="top-buttons">
@@ -304,7 +323,7 @@
 
     <!-- 메뉴 화면 -->
     <div id="menu-screen" class="screen active">
-        <h1>INFINITE<br>LEGEND</h1>
+        <h1>INFINITE<br>CLIMBER</h1>
         <div class="info-text">PC: Z (오르기), X (전환) / 방향키</div>
         <button class="btn-main" id="btn-start">START</button>
     </div>
@@ -328,40 +347,36 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d', { alpha: false }); 
 
-    // --- 설정 변수 ---
     const STAIR_WIDTH = 100;
     const STAIR_HEIGHT = 60;
     const STAIR_DEPTH = 40; 
     const PLAYER_SIZE = 60;
     
-    // --- 게임 상태 ---
     let gameState = 'MENU';
     let isPaused = false;
     let isSoundOn = true;
     let score = 0;
     let combo = 0;
-    let bestScore = parseInt(localStorage.getItem('infiniteClimberLegendaryBest')) || 0;
+    let bestScore = parseInt(localStorage.getItem('infiniteClimberGodBest')) || 0;
     let stamina = 100;
     const MAX_STAMINA = 100;
     let staminaDrainRate = 0.15;
     let isGameLoopRunning = false;
     let currentBiome = 'CITY';
+    let tutorialStep = 0; 
+    let lastInputTime = 0;
 
-    // --- 그래픽 객체 ---
     let particles = [];
-    let bgParticles = []; // 눈, 별, 불티 등
+    let bgParticles = []; 
     let stairs = [];
     let player = {
         x: 0, y: 0, index: 0, direction: 1, 
         animY: 0, scaleY: 1,
         colors: { cape: '#ff4757', body: '#2f3542', belt: '#ffa502', skin: '#ffccaa' }
     };
-    let trail = []; // 잔상
-
-    // --- 카메라 ---
+    let trail = []; 
     let camera = { x: 0, y: 0, shake: 0 };
 
-    // --- 오디오 시스템 ---
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     let audioCtx;
 
@@ -387,6 +402,14 @@
                 gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
                 osc.start(now);
                 osc.stop(now + 0.08);
+            } else if (type === 'perfect') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.linearRampToValueAtTime(0.001, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
             } else if (type === 'coin') {
                 osc.type = 'sine';
                 osc.frequency.setValueAtTime(1000, now);
@@ -407,7 +430,6 @@
         }
     };
 
-    // --- DOM 요소 ---
     const scoreEl = document.getElementById('score');
     const bestScoreEl = document.getElementById('best-score');
     const biomeNameEl = document.getElementById('biome-name');
@@ -421,10 +443,11 @@
     const btnTurn = document.getElementById('btn-turn');
     const btnClimb = document.getElementById('btn-climb');
     const soundBtn = document.getElementById('sound-btn');
+    const handLeft = document.getElementById('tutorial-hand-left');
+    const handRight = document.getElementById('tutorial-hand-right');
 
     bestScoreEl.innerText = `BEST: ${bestScore}`;
 
-    // --- 바이옴 데이터 ---
     const BIOMES = {
         CITY: { name: 'CITY', start: 0, top: '#a8e6cf', side: '#56ab91', bgTop: '#1a1a2e', bgBot: '#16213e', particle: 'STAR' },
         SNOW: { name: 'FROZEN', start: 50, top: '#dff9fb', side: '#c7ecee', bgTop: '#7ed6df', bgBot: '#22a6b3', particle: 'SNOW' },
@@ -439,13 +462,42 @@
         return BIOMES.CITY;
     }
 
-    // --- 입력 처리 ---
+    function triggerHaptic(duration) {
+        if (navigator.vibrate) {
+            navigator.vibrate(duration);
+        }
+    }
+
+    function updateTutorialUI() {
+        handLeft.style.display = 'none';
+        handRight.style.display = 'none';
+
+        if (tutorialStep >= 3 || gameState !== 'PLAYING') return;
+
+        const currentStair = stairs[player.index];
+        const nextStair = stairs[player.index + 1];
+        if (!nextStair) return;
+
+        const nextIsRight = nextStair.x > currentStair.x;
+        const requiredDir = nextIsRight ? 1 : -1;
+
+        if (player.direction === requiredDir) {
+            handRight.style.display = 'block';
+        } else {
+            handLeft.style.display = 'block';
+        }
+    }
+
     let lastTouchTime = 0;
     let isKeyDown = false;
 
     function handleInput(action) {
         if (gameState !== 'PLAYING' || isPaused) return;
         Sound.init();
+
+        const now = Date.now();
+        const delta = now - lastInputTime;
+        lastInputTime = now;
 
         const currentStair = stairs[player.index];
         const nextStair = stairs[player.index + 1];
@@ -460,7 +512,20 @@
         }
 
         if (success) {
-            // 잔상 저장 (최대 5개)
+            triggerHaptic(10); 
+            if (tutorialStep < 3) {
+                tutorialStep++;
+                updateTutorialUI();
+            }
+
+            let isPerfect = false;
+            if (score > 1 && delta < 200 && delta > 50) {
+                isPerfect = true;
+                showFloatingText(player.x, player.y - 120, "PERFECT!", "#00d2ff");
+                Sound.play('perfect');
+                score += 2; 
+            }
+
             if (combo > 5) {
                 trail.push({ x: player.x, y: player.y, direction: player.direction, alpha: 0.6 });
                 if (trail.length > 5) trail.shift();
@@ -470,27 +535,26 @@
             player.x = nextStair.x;
             player.y = nextStair.y;
             
-            // 코인 체크
             if (nextStair.hasCoin) {
                 score += 3;
                 Sound.play('coin');
                 showFloatingText(player.x, player.y - 80, "+3", "#FFD700");
-                nextStair.hasCoin = false; // 먹음 처리
+                nextStair.hasCoin = false; 
             } else {
-                score++;
+                if(!isPerfect) score++;
             }
 
             combo++;
             stamina = Math.min(MAX_STAMINA, stamina + 10 + (combo > 10 ? 5 : 0));
             staminaDrainRate = 0.15 + (score * 0.001); 
             
-            Sound.play('step');
+            if (!isPerfect) Sound.play('step');
+
             player.scaleY = 0.6; 
             player.animY = -10;  
             
             createParticles(player.x, player.y, nextStair.colorTop);
             
-            // 바이옴 체크
             const newBiome = getBiome(score);
             if (newBiome.name !== currentBiome) {
                 currentBiome = newBiome.name;
@@ -507,6 +571,7 @@
 
             if (combo % 10 === 0) showComboText(combo);
         } else {
+            triggerHaptic(200); 
             camera.shake = 20;
             gameContainer.classList.add('shake');
             setTimeout(() => gameContainer.classList.remove('shake'), 500);
@@ -515,7 +580,6 @@
         }
     }
 
-    // --- 기능 함수들 ---
     window.togglePause = function() {
         if (gameState === 'MENU' || gameState === 'GAMEOVER') return;
         isPaused = !isPaused;
@@ -551,7 +615,6 @@
     });
     document.addEventListener('keyup', () => isKeyDown = false);
 
-    // --- 초기화 및 생성 ---
     function resize() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
@@ -575,11 +638,21 @@
 
     function createStair(prevStair) {
         let direction = prevStair.direction;
-        let turnChance = score < 20 ? 0.2 : 0.4;
-        if (score > 10 && Math.random() < turnChance) direction *= -1;
+        
+        // --- [수정된 부분] 난이도 레벨 디자인 ---
+        // 0점: 20% 확률 (20 + 0 * 0.3)
+        // 50점: 35% 확률 (0.2 + 0.15)
+        // 100점: 50% 확률 (0.2 + 0.3)
+        // 100점 이상: 고정 50%
+        let turnProbability = 0.2 + (Math.min(score, 100) / 100) * 0.3;
+
+        // 2번째 계단부터 확률 적용
+        if (stairs.length > 2 && Math.random() < turnProbability) {
+            direction *= -1;
+        }
 
         const biome = getBiome(score);
-        const hasCoin = Math.random() < 0.1; // 10% 확률로 코인
+        const hasCoin = Math.random() < 0.1; 
 
         const newStair = {
             x: prevStair.x + (direction * STAIR_WIDTH * 0.8), 
@@ -591,9 +664,8 @@
             coinRotate: 0
         };
 
-        // 특별한 경우 색상 변주 (랜덤)
         if (Math.random() > 0.9) {
-            newStair.colorTop = '#fff'; // 반짝이는 계단
+            newStair.colorTop = '#fff'; 
         }
 
         return newStair;
@@ -611,8 +683,8 @@
         biomeNameEl.innerText = 'CITY';
         isPaused = false;
         pauseScreen.classList.remove('active');
+        tutorialStep = 0; 
 
-        // 캐릭터 색상 랜덤
         const capes = ['#ff4757', '#2ed573', '#1e90ff', '#ffa502', '#8e44ad'];
         player.colors = {
             cape: capes[Math.floor(Math.random() * capes.length)],
@@ -636,6 +708,8 @@
 
         camera.y = player.y - canvas.height * 0.75;
         camera.x = player.x - canvas.width / 2;
+
+        updateTutorialUI();
     }
 
     function createParticles(x, y, color) {
@@ -651,14 +725,12 @@
     }
 
     function showFloatingText(x, y, text, color) {
-        // 간단한 플로팅 텍스트 효과 (파티클 배열 활용)
         particles.push({
             x: x, y: y, vx: 0, vy: -2, life: 1.5,
             text: text, color: color, isText: true
         });
     }
 
-    // --- 게임 루프 및 로직 ---
     function startGame() {
         Sound.init();
         initGame();
@@ -681,9 +753,12 @@
 
     function gameOver() {
         gameState = 'GAMEOVER';
+        handLeft.style.display = 'none'; 
+        handRight.style.display = 'none';
+
         if (score > bestScore) {
             bestScore = score;
-            localStorage.setItem('infiniteClimberLegendaryBest', bestScore);
+            localStorage.setItem('infiniteClimberGodBest', bestScore);
             bestScoreEl.innerText = `BEST: ${bestScore}`;
             finalScoreEl.style.color = '#FFD700';
             finalScoreEl.innerText = score + " (NEW!)";
@@ -711,7 +786,6 @@
         
         if (camera.shake > 0) { camera.shake *= 0.9; if (camera.shake < 0.5) camera.shake = 0; }
 
-        // 파티클 업데이트
         for (let i = particles.length - 1; i >= 0; i--) {
             let p = particles[i];
             if (p.isText) {
@@ -722,31 +796,28 @@
             if (p.life <= 0) particles.splice(i, 1);
         }
 
-        // 배경 입자 업데이트 (바이옴별 동작)
         const biome = getBiome(score);
         bgParticles.forEach(p => {
             if (biome.particle === 'SNOW') {
                 p.y += p.speed;
                 p.x += Math.sin(p.y * 0.01) * 0.5;
             } else if (biome.particle === 'EMBER') {
-                p.y -= p.speed; // 위로 상승
+                p.y -= p.speed; 
                 p.x += (Math.random() - 0.5) * 2;
             } else if (biome.particle === 'HYPER') {
-                p.y += p.speed * 5; // 아주 빠르게
-            } else { // STAR
+                p.y += p.speed * 5; 
+            } else { 
                 p.y += p.speed * 0.5;
             }
             if (p.y > canvas.height) p.y = 0;
             if (p.y < 0) p.y = canvas.height;
         });
         
-        // 잔상 흐리게
         for(let i=trail.length-1; i>=0; i--) {
             trail[i].alpha -= 0.05;
             if(trail[i].alpha <= 0) trail.splice(i, 1);
         }
 
-        // 코인 회전
         stairs.forEach(stair => {
             if (stair.hasCoin) stair.coinRotate += 0.1;
         });
@@ -769,14 +840,12 @@
     function draw() {
         const biome = getBiome(score);
 
-        // 1. 배경 (바이옴별 그라데이션)
         const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
         bgGradient.addColorStop(0, biome.bgTop);
         bgGradient.addColorStop(1, biome.bgBot);
         ctx.fillStyle = bgGradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // 2. 배경 파티클
         ctx.fillStyle = (biome.particle === 'EMBER') ? '#ff4757' : '#ffffff';
         bgParticles.forEach(p => {
             ctx.globalAlpha = p.alpha * (biome.particle === 'HYPER' ? 0.5 : 0.8);
@@ -786,19 +855,16 @@
         });
         ctx.globalAlpha = 1;
 
-        // 카메라 적용
         ctx.save();
         let shakeX = (Math.random() - 0.5) * camera.shake;
         let shakeY = (Math.random() - 0.5) * camera.shake;
         ctx.translate(-camera.x + shakeX, -camera.y + shakeY);
 
-        // 3. 계단 & 코인
         stairs.forEach((stair) => {
             if (stair.y > camera.y + canvas.height + 100 || stair.y < camera.y - 100) return;
             drawStair3D(stair);
         });
 
-        // 4. 잔상 (플레이어 뒤)
         trail.forEach(t => {
             ctx.save();
             ctx.globalAlpha = t.alpha;
@@ -806,10 +872,8 @@
             ctx.restore();
         });
 
-        // 5. 플레이어
         drawPlayerBody(player.x, player.y + player.animY, player.direction, player.scaleY, true);
 
-        // 6. 파티클 & 텍스트 효과
         particles.forEach(p => {
             if (p.isText) {
                 ctx.globalAlpha = p.life;
@@ -834,28 +898,23 @@
         const h = STAIR_HEIGHT;
         const d = STAIR_DEPTH;
 
-        // 그림자
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
         ctx.beginPath();
         ctx.ellipse(x, y + d + 20, w/2 + 10, 10, 0, 0, Math.PI*2);
         ctx.fill();
 
-        // 옆면
         ctx.fillStyle = stair.colorSide;
         ctx.fillRect(x - w/2, y, w, h + d);
-        // 윗면
         ctx.fillStyle = stair.colorTop;
         ctx.fillRect(x - w/2, y, w, h);
-        // 하이라이트
         ctx.fillStyle = 'rgba(255,255,255,0.2)';
         ctx.fillRect(x - w/2, y, w, 4);
 
-        // 코인 그리기
         if (stair.hasCoin) {
             const coinY = y - 30 + Math.sin(stair.coinRotate) * 5;
-            const coinScale = Math.abs(Math.cos(stair.coinRotate)); // 회전 효과
+            const coinScale = Math.abs(Math.cos(stair.coinRotate)); 
             
-            ctx.fillStyle = '#FFD700'; // 금색
+            ctx.fillStyle = '#FFD700'; 
             ctx.beginPath();
             ctx.ellipse(x, coinY, 15 * coinScale, 15, 0, 0, Math.PI * 2);
             ctx.fill();
@@ -864,7 +923,6 @@
             ctx.lineWidth = 2;
             ctx.stroke();
             
-            // 광택
             ctx.fillStyle = '#FFF';
             ctx.beginPath();
             ctx.ellipse(x - 5 * coinScale, coinY - 5, 4 * coinScale, 4, 0, 0, Math.PI * 2);
@@ -880,39 +938,29 @@
 
         const c = player.colors;
         
-        // 망토
         ctx.fillStyle = c.cape;
         ctx.beginPath();
         ctx.moveTo(-10, -40); ctx.lineTo(-25, -10); ctx.lineTo(0, -10); ctx.fill();
 
-        // 몸통
-        ctx.fillStyle = isMain ? c.body : '#ffffff'; // 잔상은 흰색 실루엣 느낌
+        ctx.fillStyle = isMain ? c.body : '#ffffff'; 
         ctx.fillRect(-15, -45, 30, 25);
         
         if (isMain) {
-            // 벨트
             ctx.fillStyle = c.belt; ctx.fillRect(-15, -25, 30, 5);
-            // 머리
             ctx.fillStyle = c.skin; ctx.fillRect(-15, -65, 30, 25);
-            // 머리카락
             ctx.fillStyle = '#57606f'; ctx.fillRect(-17, -70, 35, 10); ctx.fillRect(-17, -70, 10, 25);
-            // 눈
             ctx.fillStyle = 'black'; ctx.fillRect(5, -55, 4, 4);
-            // 팔
             ctx.fillStyle = c.body; ctx.fillRect(5, -40, 10, 8);
-            // 다리
             ctx.fillStyle = 'black'; ctx.fillRect(-10, -20, 8, 20); ctx.fillRect(2, -20, 8, 20);
             
-            // 땀 (위기)
             if (stamina < 30) {
                 ctx.fillStyle = '#00a8ff';
                 ctx.beginPath(); ctx.arc(-20, -60, 4, 0, Math.PI*2); ctx.fill();
             }
         } else {
-            // 잔상은 단순화
             ctx.fillStyle = '#ffffff';
             ctx.globalAlpha = 0.5;
-            ctx.fillRect(-15, -65, 30, 25); // 머리
+            ctx.fillRect(-15, -65, 30, 25); 
         }
         ctx.restore();
     }
@@ -923,7 +971,6 @@
             draw();
             requestAnimationFrame(gameLoop);
         } else {
-            // 메뉴화면에서도 배경 효과 계속
             const biome = getBiome(score);
             bgParticles.forEach(p => {
                 p.y += p.speed;
