@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Infinite Climber : Final Fixed</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a2e;
+            overflow: hidden;
+            font-family: 'Black Han Sans', sans-serif;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent; /* 터치 하이라이트 제거 */
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* UI 레이어 */
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            z-index: 10;
+        }
+
+        /* 점수판 */
+        .score-board {
+            text-align: center;
+            padding-top: 60px;
+            color: white;
+            text-shadow: 0 4px 0 rgba(0,0,0,0.5);
+            transform: scale(1);
+            transition: transform 0.1s;
+        }
+
+        #score {
+            font-size: 80px;
+            margin: 0;
+            line-height: 1;
+            background: -webkit-linear-gradient(#fff, #ddd);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 4px 0 rgba(0,0,0,0.3));
+        }
+
+        #best-score {
+            font-size: 24px;
+            color: #ffd700;
+            margin-top: 5px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        /* 일시정지 버튼 */
+        #pause-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 30px;
+            background: rgba(255, 255, 255, 0.2);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            pointer-events: auto;
+            backdrop-filter: blur(5px);
+            border: 2px solid rgba(255,255,255,0.3);
+            transition: transform 0.1s, background 0.1s;
+            z-index: 50;
+        }
+
+        #pause-btn:active {
+            transform: scale(0.9);
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        /* 체력 게이지 */
+        .stamina-wrapper {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 400px;
+            height: 24px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 12px;
+            padding: 3px;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        #stamina-bar {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #00f260, #0575e6);
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(5, 117, 230, 0.5);
+            transition: width 0.1s linear, background 0.3s;
+        }
+
+        /* 컨트롤 영역 (모바일) */
+        .controls {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: auto;
+        }
+
+        .control-btn {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            padding-bottom: 60px;
+            font-size: 20px;
+            color: rgba(255,255,255,0.4);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            transition: background 0.05s;
+            cursor: pointer;
+        }
+
+        .btn-left {
+            border-right: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .control-btn:active {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .btn-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+            display: block;
+            opacity: 0.8;
+        }
+
+        /* 팝업 화면들 */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(16, 16, 30, 0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 20;
+            pointer-events: auto;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+
+        .screen.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        h1 {
+            font-size: 4rem;
+            margin: 0 0 20px 0;
+            background: linear-gradient(to right, #FFD700, #FFA500);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 4px 0 rgba(0,0,0,0.5));
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .btn-main {
+            margin-top: 40px;
+            padding: 15px 50px;
+            font-size: 28px;
+            font-family: 'Black Han Sans', sans-serif;
+            background: linear-gradient(to bottom, #FF4500, #CC3700);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 6px 0 #8B2500, 0 10px 20px rgba(0,0,0,0.4);
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+
+        .btn-main:active {
+            transform: translateY(6px);
+            box-shadow: 0 0 0 #8B2500, 0 0 0 rgba(0,0,0,0);
+        }
+
+        .info-text {
+            font-size: 1.2rem;
+            color: #aaa;
+            margin-top: 20px;
+            background: rgba(255,255,255,0.1);
+            padding: 10px 20px;
+            border-radius: 20px;
+        }
+
+        /* 콤보 효과 */
+        #combo-text {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            font-size: 50px;
+            color: #FFD700;
+            text-shadow: 0 0 10px orange;
+            pointer-events: none;
+            z-index: 15;
+            transition: transform 0.1s;
+        }
+        
+        .shake {
+            animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-2px, 0, 0); }
+            20%, 80% { transform: translate3d(4px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+            40%, 60% { transform: translate3d(6px, 0, 0); }
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- 콤보 텍스트 -->
+    <div id="combo-text">COMBO!</div>
+
+    <!-- UI 레이어 -->
+    <div class="ui-layer">
+        <div id="pause-btn" onclick="togglePause()">⏸️</div>
+
+        <div class="stamina-wrapper">
+            <div id="stamina-bar"></div>
+        </div>
+        <div class="score-board">
+            <h2 id="score">0</h2>
+            <div id="best-score">BEST: 0</div>
+        </div>
+        
+        <div class="controls">
+            <!-- ontouchstart 등의 인라인 이벤트 제거하고 JS로 통합 관리 -->
+            <div class="control-btn btn-left" id="btn-turn">
+                <div>
+                    <span class="btn-icon">↩️</span>
+                    <span>방향 전환</span>
+                </div>
+            </div>
+            <div class="control-btn btn-right" id="btn-climb">
+                <div>
+                    <span class="btn-icon">⬆️</span>
+                    <span>오르기</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 메인 메뉴 -->
+    <div id="menu-screen" class="screen active">
+        <h1>INFINITE<br>CLIMBER</h1>
+        <div class="info-text">PC: Z (오르기), X (전환) / 방향키</div>
+        <button class="btn-main" id="btn-start">START</button>
+    </div>
+
+    <!-- 일시정지 화면 -->
+    <div id="pause-screen" class="screen">
+        <h1>PAUSED</h1>
+        <button class="btn-main" onclick="togglePause()">RESUME</button>
+    </div>
+
+    <!-- 게임 오버 -->
+    <div id="gameover-screen" class="screen">
+        <h1 style="font-size: 3rem; color: #ff4757;">GAME OVER</h1>
+        <p style="font-size: 1.5rem; margin: 10px;">SCORE</p>
+        <p id="final-score" style="font-size: 4rem; margin: 0; font-weight: bold;">0</p>
+        <button class="btn-main" id="btn-retry">RETRY</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d', { alpha: false }); 
+
+    // --- 설정 변수 ---
+    const STAIR_WIDTH = 100;
+    const STAIR_HEIGHT = 60;
+    const STAIR_DEPTH = 40; 
+    const PLAYER_SIZE = 60;
+    
+    // --- 게임 상태 ---
+    let gameState = 'MENU'; // MENU, PLAYING, PAUSED, GAMEOVER
+    let isPaused = false;
+    let score = 0;
+    let combo = 0;
+    let bestScore = parseInt(localStorage.getItem('infiniteClimberBest_v2')) || 0;
+    let stamina = 100;
+    const MAX_STAMINA = 100;
+    let staminaDrainRate = 0.15; // 난이도 완화
+    let isGameLoopRunning = false; // 게임 루프 중복 방지
+
+    // --- 그래픽 객체 ---
+    let particles = [];
+    let bgStars = [];
+    let stairs = [];
+    let player = {
+        x: 0,
+        y: 0,
+        index: 0,
+        direction: 1, 
+        animY: 0,     
+        scaleY: 1,    
+        targetX: 0,   
+        state: 'IDLE' 
+    };
+
+    // --- 카메라 ---
+    let camera = {
+        x: 0,
+        y: 0,
+        shake: 0
+    };
+
+    // --- 오디오 시스템 (Web Audio API) ---
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx;
+
+    const Sound = {
+        init: function() {
+            if (!audioCtx) {
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        },
+        play: function(type) {
+            if (!audioCtx) return;
+            
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'step') {
+                // 경쾌한 8비트 점프음
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+                
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } 
+            else if (type === 'gameover') {
+                // 실패음
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.linearRampToValueAtTime(50, now + 0.5);
+                
+                gainNode.gain.setValueAtTime(0.2, now);
+                gainNode.gain.linearRampToValueAtTime(0.01, now + 0.5);
+                
+                osc.start(now);
+                osc.stop(now + 0.5);
+            }
+        }
+    };
+
+    // --- DOM 요소 ---
+    const scoreEl = document.getElementById('score');
+    const bestScoreEl = document.getElementById('best-score');
+    const staminaBar = document.getElementById('stamina-bar');
+    const menuScreen = document.getElementById('menu-screen');
+    const gameoverScreen = document.getElementById('gameover-screen');
+    const pauseScreen = document.getElementById('pause-screen');
+    const finalScoreEl = document.getElementById('final-score');
+    const comboText = document.getElementById('combo-text');
+    const gameContainer = document.getElementById('game-container');
+    const btnTurn = document.getElementById('btn-turn');
+    const btnClimb = document.getElementById('btn-climb');
+    const pauseBtn = document.getElementById('pause-btn');
+
+    bestScoreEl.innerText = `BEST: ${bestScore}`;
+
+    // --- 입력 처리 (더블 입력 방지 핵심 로직) ---
+    let lastTouchTime = 0; // 마지막 터치 시간 기록
+    let isKeyDown = false; // 키보드 꾹 누름 방지
+
+    function handleInput(action) {
+        if (gameState !== 'PLAYING' || isPaused) return;
+
+        // 사운드 컨텍스트 초기화 (혹시 안되어있다면)
+        Sound.init();
+
+        const currentStair = stairs[player.index];
+        const nextStair = stairs[player.index + 1];
+
+        // 다음 계단 위치 판별
+        const nextIsRight = nextStair.x > currentStair.x;
+        const requiredDir = nextIsRight ? 1 : -1;
+
+        let success = false;
+
+        if (action === 'climb') { // 현재 방향 유지
+            if (player.direction === requiredDir) success = true;
+        } else if (action === 'turn') { // 방향 전환
+            if (player.direction !== requiredDir) {
+                player.direction *= -1;
+                success = true;
+            }
+        }
+
+        if (success) {
+            player.index++;
+            player.x = nextStair.x;
+            player.y = nextStair.y;
+            
+            // 효과
+            score++;
+            combo++;
+            stamina = Math.min(MAX_STAMINA, stamina + 10 + (combo > 10 ? 5 : 0));
+            staminaDrainRate = 0.15 + (score * 0.001); 
+            
+            // 사운드 재생
+            Sound.play('step');
+
+            // 애니메이션
+            player.scaleY = 0.6; 
+            player.animY = -10;  
+            
+            createParticles(player.x, player.y, nextStair.colorTop);
+
+            // 새 계단
+            stairs.push(createStair(stairs[stairs.length - 1]));
+            
+            // 메모리 관리 (배열 너무 커지면 자르기)
+            if (stairs.length > 100) {
+                stairs.shift();
+                player.index--; // 배열이 줄었으니 인덱스도 감소
+            }
+
+            // 콤보 이펙트
+            if (combo % 10 === 0) {
+                showComboText(combo);
+            }
+        } else {
+            camera.shake = 20;
+            gameContainer.classList.add('shake');
+            setTimeout(() => gameContainer.classList.remove('shake'), 500);
+            
+            Sound.play('gameover');
+            gameOver();
+        }
+    }
+
+    // --- 일시정지 기능 ---
+    window.togglePause = function() {
+        if (gameState === 'MENU' || gameState === 'GAMEOVER') return;
+        
+        isPaused = !isPaused;
+        
+        if (isPaused) {
+            pauseScreen.classList.add('active');
+            // pauseBtn.innerText = "▶️";
+        } else {
+            pauseScreen.classList.remove('active');
+            // pauseBtn.innerText = "⏸️";
+        }
+    };
+
+    // --- 이벤트 리스너 등록 (중복 방지) ---
+    function registerButtonEvents(btnElement, action) {
+        // 터치 이벤트
+        btnElement.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // 기본 동작(마우스 이벤트 발생 등) 차단
+            e.stopPropagation();
+            lastTouchTime = Date.now();
+            handleInput(action);
+        }, { passive: false });
+
+        // 마우스 이벤트
+        btnElement.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            // 터치 후 500ms 이내에 발생한 마우스 이벤트는 무시 (중복 입력 방지)
+            if (Date.now() - lastTouchTime < 500) return;
+            handleInput(action);
+        });
+    }
+
+    registerButtonEvents(btnTurn, 'turn');
+    registerButtonEvents(btnClimb, 'climb');
+
+    // 키보드 이벤트
+    document.addEventListener('keydown', (e) => {
+        if (e.code === 'Escape') togglePause();
+        
+        if (gameState !== 'PLAYING' || isPaused) return;
+        if (isKeyDown) return; // 이미 눌려있으면 무시
+
+        if (e.code === 'ArrowRight' || e.code === 'KeyZ') {
+            isKeyDown = true;
+            handleInput('climb');
+        }
+        if (e.code === 'ArrowLeft' || e.code === 'KeyX') {
+            isKeyDown = true;
+            handleInput('turn');
+        }
+    });
+
+    document.addEventListener('keyup', (e) => {
+        isKeyDown = false; // 키를 떼면 다시 입력 가능
+    });
+
+
+    // --- 초기화 ---
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        initBackgroundStars();
+        if(gameState === 'MENU' || gameState === 'PAUSED') draw();
+    }
+    window.addEventListener('resize', resize);
+
+    function initBackgroundStars() {
+        bgStars = [];
+        for(let i=0; i<50; i++) {
+            bgStars.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: Math.random() * 2 + 0.5,
+                speed: Math.random() * 0.5 + 0.1,
+                alpha: Math.random()
+            });
+        }
+    }
+
+    // --- 계단 생성 로직 ---
+    function createStair(prevStair) {
+        let direction = prevStair.direction;
+        
+        let turnChance = score < 20 ? 0.2 : 0.4;
+        if (score > 10 && Math.random() < turnChance) {
+            direction *= -1;
+        }
+
+        const newStair = {
+            x: prevStair.x + (direction * STAIR_WIDTH * 0.8), 
+            y: prevStair.y - STAIR_HEIGHT,
+            direction: direction,
+            colorTop: '#a8e6cf',
+            colorSide: '#56ab91',
+            type: Math.random() > 0.9 ? 'GOLD' : 'NORMAL'
+        };
+
+        if (newStair.type === 'GOLD') {
+            newStair.colorTop = '#ffd700';
+            newStair.colorSide = '#daa520';
+        } else {
+            const hue = (score * 2) % 360;
+            newStair.colorTop = `hsl(${hue}, 70%, 80%)`;
+            newStair.colorSide = `hsl(${hue}, 70%, 50%)`;
+        }
+
+        return newStair;
+    }
+
+    function initGame() {
+        stairs = [];
+        particles = [];
+        score = 0;
+        combo = 0;
+        stamina = MAX_STAMINA;
+        staminaDrainRate = 0.15;
+        isPaused = false;
+        pauseScreen.classList.remove('active');
+        
+        stairs.push({ 
+            x: 0, y: 0, 
+            direction: 1, 
+            colorTop: '#ffffff', 
+            colorSide: '#cccccc', 
+            type: 'START' 
+        });
+
+        for (let i = 0; i < 30; i++) {
+            stairs.push(createStair(stairs[stairs.length - 1]));
+        }
+
+        player.index = 0;
+        player.x = stairs[0].x;
+        player.y = stairs[0].y;
+        player.direction = 1;
+        player.animY = 0;
+        player.scaleY = 1;
+
+        camera.y = player.y - canvas.height * 0.75;
+        camera.x = player.x - canvas.width / 2;
+    }
+
+    // --- 파티클 시스템 ---
+    function createParticles(x, y, color) {
+        for(let i=0; i<8; i++) {
+            particles.push({
+                x: x,
+                y: y,
+                vx: (Math.random() - 0.5) * 10,
+                vy: (Math.random() - 1) * 10,
+                life: 1.0,
+                color: color,
+                size: Math.random() * 6 + 2
+            });
+        }
+    }
+
+    // --- 게임 로직 ---
+    function startGame() {
+        Sound.init(); // 오디오 컨텍스트 시작
+        initGame();
+        gameState = 'PLAYING';
+        menuScreen.classList.remove('active');
+        gameoverScreen.classList.remove('active');
+        updateUI();
+        
+        if (!isGameLoopRunning) {
+            isGameLoopRunning = true;
+            gameLoop();
+        }
+    }
+    
+    // 버튼 연결
+    document.getElementById('btn-start').addEventListener('click', startGame);
+    document.getElementById('btn-retry').addEventListener('click', startGame);
+
+
+    function showComboText(val) {
+        comboText.innerText = val + " COMBO!";
+        comboText.style.transform = 'translate(-50%, -50%) scale(1.5) rotate(-10deg)';
+        comboText.style.opacity = '1';
+        setTimeout(() => {
+            comboText.style.transform = 'translate(-50%, -50%) scale(0)';
+        }, 500);
+    }
+
+    function gameOver() {
+        gameState = 'GAMEOVER';
+        if (score > bestScore) {
+            bestScore = score;
+            localStorage.setItem('infiniteClimberBest_v2', bestScore);
+            bestScoreEl.innerText = `BEST: ${bestScore}`;
+            finalScoreEl.style.color = '#FFD700';
+            finalScoreEl.innerText = score + " (NEW!)";
+        } else {
+            finalScoreEl.style.color = 'white';
+            finalScoreEl.innerText = score;
+        }
+        gameoverScreen.classList.add('active');
+    }
+
+    // --- 메인 루프 ---
+    function update() {
+        if (isPaused) return; // 일시정지 시 업데이트 중단
+
+        stamina -= staminaDrainRate;
+        if (stamina <= 0) {
+            stamina = 0;
+            Sound.play('gameover');
+            gameOver();
+        }
+
+        player.scaleY += (1 - player.scaleY) * 0.2;
+        player.animY += (0 - player.animY) * 0.2;
+
+        const targetCamY = player.y - canvas.height * 0.7;
+        const targetCamX = player.x - canvas.width / 2;
+
+        camera.y += (targetCamY - camera.y) * 0.1;
+        camera.x += (targetCamX - camera.x) * 0.1;
+
+        if (camera.shake > 0) camera.shake *= 0.9;
+        if (camera.shake < 0.5) camera.shake = 0;
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vy += 0.5;
+            p.life -= 0.05;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+
+        bgStars.forEach(star => {
+            star.y += star.speed;
+            if (star.y > canvas.height) star.y = 0;
+        });
+
+        updateUI();
+    }
+
+    function updateUI() {
+        scoreEl.innerText = score;
+        staminaBar.style.width = `${(stamina / MAX_STAMINA) * 100}%`;
+        
+        if (stamina < 30) {
+            staminaBar.style.background = '#ff4757';
+            staminaBar.style.boxShadow = '0 0 15px #ff4757';
+        } else {
+            staminaBar.style.background = 'linear-gradient(90deg, #00f260, #0575e6)';
+            staminaBar.style.boxShadow = '0 0 10px rgba(5, 117, 230, 0.5)';
+        }
+    }
+
+    // --- 렌더링 ---
+    function draw() {
+        const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        bgGradient.addColorStop(0, '#0f0c29');
+        bgGradient.addColorStop(0.5, '#302b63');
+        bgGradient.addColorStop(1, '#24243e');
+        ctx.fillStyle = bgGradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#ffffff';
+        bgStars.forEach(star => {
+            ctx.globalAlpha = star.alpha * 0.8;
+            ctx.beginPath();
+            ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#ffffaa';
+        ctx.fillStyle = '#ffffe0';
+        ctx.beginPath();
+        ctx.arc(100, 100, 40, 0, Math.PI*2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.save();
+        let shakeX = (Math.random() - 0.5) * camera.shake;
+        let shakeY = (Math.random() - 0.5) * camera.shake;
+        ctx.translate(-camera.x + shakeX, -camera.y + shakeY);
+
+        stairs.forEach((stair) => {
+            // 화면 밖 최적화 (카메라 기준)
+            if (stair.y > camera.y + canvas.height + 100) return;
+            if (stair.y < camera.y - 100) return;
+
+            drawStair3D(stair.x, stair.y, stair.colorTop, stair.colorSide);
+        });
+
+        drawPlayer();
+
+        particles.forEach(p => {
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = p.life;
+            ctx.fillRect(p.x, p.y, p.size, p.size);
+        });
+        ctx.globalAlpha = 1;
+
+        ctx.restore();
+    }
+
+    function drawStair3D(x, y, colorTop, colorSide) {
+        const w = STAIR_WIDTH;
+        const h = STAIR_HEIGHT;
+        const d = STAIR_DEPTH; 
+
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.beginPath();
+        ctx.ellipse(x, y + d + 20, w/2 + 10, 10, 0, 0, Math.PI*2);
+        ctx.fill();
+
+        ctx.fillStyle = colorSide;
+        ctx.fillRect(x - w/2, y, w, h + d);
+
+        ctx.fillStyle = colorTop;
+        ctx.fillRect(x - w/2, y, w, h);
+        
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.fillRect(x - w/2, y, w, 4);
+    }
+
+    function drawPlayer() {
+        const x = player.x;
+        const y = player.y + player.animY; 
+        
+        ctx.save();
+        ctx.translate(x, y + STAIR_HEIGHT/2); 
+
+        if (player.direction === -1) {
+            ctx.scale(-1, 1);
+        }
+
+        ctx.scale(1, player.scaleY);
+
+        ctx.fillStyle = '#ff4757';
+        ctx.beginPath();
+        ctx.moveTo(-10, -40);
+        ctx.lineTo(-25, -10);
+        ctx.lineTo(0, -10);
+        ctx.fill();
+
+        ctx.fillStyle = '#2f3542';
+        ctx.fillRect(-15, -45, 30, 25);
+        
+        ctx.fillStyle = '#ffa502';
+        ctx.fillRect(-15, -25, 30, 5);
+
+        ctx.fillStyle = '#ffccaa'; 
+        ctx.fillRect(-15, -65, 30, 25);
+        
+        ctx.fillStyle = '#57606f';
+        ctx.fillRect(-17, -70, 35, 10);
+        ctx.fillRect(-17, -70, 10, 25); 
+
+        ctx.fillStyle = 'black';
+        ctx.fillRect(5, -55, 4, 4);
+
+        ctx.fillStyle = '#2f3542';
+        ctx.fillRect(5, -40, 10, 8);
+
+        ctx.fillStyle = 'black';
+        ctx.fillRect(-10, -20, 8, 20);
+        ctx.fillRect(2, -20, 8, 20);
+
+        if (stamina < 30) {
+            ctx.fillStyle = '#00a8ff';
+            ctx.beginPath();
+            ctx.arc(-20, -60, 4, 0, Math.PI*2);
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    function gameLoop() {
+        if (gameState === 'PLAYING') {
+            update(); // 일시정지라면 update 함수 내부에서 return 처리됨
+            draw();
+            requestAnimationFrame(gameLoop);
+        } else if (gameState === 'GAMEOVER') {
+            update(); 
+            draw();
+            requestAnimationFrame(gameLoop);
+        } else {
+            // MENU, PAUSED 상태에서도 배경 별은 움직이게 하려면 여기서 업데이트
+            // 하지만 PAUSED때는 멈추는게 나을 수도 있음. 
+            // 여기선 메뉴화면일 때만 별 움직임
+            if (gameState === 'MENU') {
+                bgStars.forEach(star => {
+                    star.y += star.speed;
+                    if (star.y > canvas.height) star.y = 0;
+                });
+            }
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+    }
+
+    resize();
+    if (!isGameLoopRunning) {
+        isGameLoopRunning = true;
+        gameLoop();
+    }
+
+</script>
+</body>
+</html>
