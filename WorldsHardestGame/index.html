@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>세상에서 가장 어려운 게임 - 50레벨 (레벨 선택/저장/모바일)</title>
+  <title>세상에서 가장 어려운 게임 - Firebase 기록</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <style>
     :root { --panel: rgba(0,0,0,0.72); --panel2: rgba(0,0,0,0.86); }
@@ -37,9 +37,10 @@
       line-height: 1.35;
       pointer-events: none;
       text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+      white-space: nowrap;
     }
 
-    /* 조이스틱 */
+    /* joystick */
     #joystickArea {
       position: absolute;
       left: 10px;
@@ -72,12 +73,12 @@
       background: rgba(255, 255, 255, 0.82);
     }
 
-    /* 오버레이(메뉴/레벨 선택/일시정지) */
+    /* overlay */
     #overlay {
       position: absolute;
       inset: 0;
       display: none;
-      z-index: 20;
+      z-index: 50;
       align-items: center;
       justify-content: center;
       background: var(--panel);
@@ -85,8 +86,8 @@
     #overlay.show { display: flex; }
 
     #panel {
-      width: min(560px, 92%);
-      max-height: min(420px, 86%);
+      width: min(640px, 94%);
+      max-height: min(520px, 90%);
       background: var(--panel2);
       border: 2px solid rgba(255,255,255,0.15);
       border-radius: 10px;
@@ -94,39 +95,46 @@
       overflow: auto;
       box-shadow: 0 10px 30px rgba(0,0,0,0.45);
     }
-    #panel h2 {
-      margin: 6px 0 10px;
-      font-size: 18px;
-      font-weight: 700;
-    }
-    #panel p {
-      margin: 6px 0 10px;
-      font-size: 13px;
-      opacity: 0.92;
-      line-height: 1.35;
-    }
-    .row {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      align-items: center;
-      margin: 10px 0 10px;
-    }
-    button {
-      appearance: none;
-      border: 1px solid rgba(255,255,255,0.18);
-      background: rgba(255,255,255,0.12);
-      color: #fff;
+    #panel h2 { margin: 6px 0 10px; font-size: 18px; font-weight: 700; }
+    #panel p { margin: 6px 0 10px; font-size: 13px; opacity: 0.92; line-height: 1.35; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin: 10px 0; }
+    button, input, select {
       border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.10);
+      color: #fff;
       padding: 10px 12px;
       font-size: 14px;
-      cursor: pointer;
     }
-    button:hover { background: rgba(255,255,255,0.18); }
-    button:active { transform: translateY(1px); }
+    button { cursor: pointer; }
     button.primary { background: rgba(0,170,0,0.55); border-color: rgba(0,170,0,0.6); }
-    button.danger { background: rgba(200,0,0,0.45); border-color: rgba(200,0,0,0.55); }
+    button.danger  { background: rgba(200,0,0,0.45); border-color: rgba(200,0,0,0.55); }
     button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 560px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+      padding: 8px 6px;
+      text-align: left;
+    }
+    th { opacity: 0.9; }
+    .muted { opacity: 0.75; font-size: 12px; }
+    .ok { color: #8fff8f; }
+    .warn { color: #ffd26a; }
+    .err { color: #ff8f8f; }
 
     #levelGrid {
       display: grid;
@@ -134,9 +142,7 @@
       gap: 6px;
       margin-top: 10px;
     }
-    @media (max-width: 520px) {
-      #levelGrid { grid-template-columns: repeat(5, 1fr); }
-    }
+    @media (max-width: 520px) { #levelGrid { grid-template-columns: repeat(5, 1fr); } }
     .lvlBtn {
       padding: 10px 0;
       text-align: center;
@@ -148,17 +154,16 @@
     .lvlBtn.unlocked { background: rgba(0,140,255,0.24); }
     .lvlBtn.cleared  { background: rgba(0,200,0,0.35); }
     .lvlBtn.locked   { background: rgba(255,255,255,0.05); opacity: 0.55; }
-
-    .hint {
-      font-size: 12px;
-      opacity: 0.8;
-      margin-top: 8px;
-    }
   </style>
 </head>
 <body>
 <div id="uiTop">
-  <div>레벨: <span id="levelDisplay">1</span> / 50 · 죽은 횟수: <span id="deathDisplay">0</span></div>
+  <div>
+    유저: <span id="userDisplay">-</span> ·
+    레벨: <span id="levelDisplay">1</span> / <span id="totalDisplay">50</span> ·
+    시간: <span id="timeDisplay">0.000</span>s ·
+    죽음: <span id="deathDisplay">0</span>
+  </div>
   <div>PC: 방향키, P=일시정지, M=메뉴 · 모바일: 조이스틱/탭</div>
 </div>
 
@@ -175,58 +180,106 @@
       <h2 id="panelTitle">메뉴</h2>
       <p id="panelDesc"></p>
       <div class="row" id="panelButtons"></div>
-      <div id="levelGrid" style="display:none;"></div>
-      <div class="hint" id="panelHint"></div>
+      <div id="panelBody"></div>
+      <div class="muted" id="panelHint"></div>
     </div>
   </div>
 </div>
 
-<script>
+<script type="module">
 /* ==========================
-   환경/상태/저장 (localStorage)
+   Firebase 설정 (사용자 제공 값 적용)
    ========================== */
-const canvas = document.getElementById("gameCanvas");
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBUGN1Zlpk-Avfu-5s4G6qQrSfMaq_QXhw",
+  authDomain: "distancegame-f4bba.firebaseapp.com",
+  projectId: "distancegame-f4bba",
+  storageBucket: "distancegame-f4bba.firebasestorage.app",
+  messagingSenderId: "180425278674",
+  appId: "1:180425278674:web:af07ce51992cb622fc990b"
+};
+
+// 게임 이름(컬렉션 중복 방지 규칙: 변수명 뒤에 _게임이름)
+const GAME_NAME = "distancegame";
+
+// 컬렉션/문서 경로 규칙(요청사항 반영)
+const COL_USERS = `users_${GAME_NAME}`;
+const COL_LEVEL_BEST = `levelBest_${GAME_NAME}`;
+const COL_LEVEL_RUNS = `levelRuns_${GAME_NAME}`;
+
+// Firebase v9+ Firestore 모듈 [web:153][web:159]
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import {
+  getFirestore, doc, setDoc, getDoc, updateDoc, collection, query, where,
+  getDocs, orderBy, limit, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+/* Firebase 초기화 */
+const app = initializeApp(FIREBASE_CONFIG);
+const db = getFirestore(app);
+
+/* ==========================
+   공통 유틸
+   ========================== */
+const $ = (id) => document.getElementById(id);
+const canvas = $("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-const overlay = document.getElementById("overlay");
-const panelTitle = document.getElementById("panelTitle");
-const panelDesc = document.getElementById("panelDesc");
-const panelButtons = document.getElementById("panelButtons");
-const panelHint = document.getElementById("panelHint");
-const levelGrid = document.getElementById("levelGrid");
+const overlay = $("overlay");
+const panelTitle = $("panelTitle");
+const panelDesc = $("panelDesc");
+const panelButtons = $("panelButtons");
+const panelBody = $("panelBody");
+const panelHint = $("panelHint");
 
-const levelDisplay = document.getElementById("levelDisplay");
-const deathDisplay = document.getElementById("deathDisplay");
+const userDisplay = $("userDisplay");
+const levelDisplay = $("levelDisplay");
+const totalDisplay = $("totalDisplay");
+const timeDisplay = $("timeDisplay");
+const deathDisplay = $("deathDisplay");
 
-const joystickArea = document.getElementById("joystickArea");
-const joystickStick = document.getElementById("joystickStick");
+const joystickArea = $("joystickArea");
+const joystickStick = $("joystickStick");
 
-const keys = {};
 const DESIGN_WIDTH = 640;
 const DESIGN_HEIGHT = 480;
 const TOTAL_LEVELS = 50;
+totalDisplay.textContent = String(TOTAL_LEVELS);
 
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobi/i.test(navigator.userAgent);
 
-let currentLevelIndex = 0; // 0-based
-let deaths = 0;
+/* ==========================
+   사용자/저장(local)
+   ========================== */
+const LOCAL_USER_KEY = `username_${GAME_NAME}`;
+let username = localStorage.getItem(LOCAL_USER_KEY) || "";
+let userId = "";
 
-// 진행 저장: unlockedUpTo(0-based index), clearedSet
-const SAVE_KEY = "whg_save_v2";
-let unlockedUpTo = 0;
-let cleared = new Set();
-
-// 게임 상태
-let mode = "menu"; // "menu" | "playing" | "paused" | "message" | "levelSelect"
-let messageText = "";
-let messageNextAction = null;
-
-function saveProgress() {
-  const data = { unlockedUpTo, cleared: Array.from(cleared), deaths };
-  localStorage.setItem(SAVE_KEY, JSON.stringify(data)); // [web:128][web:127]
+function sanitizeId(s) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_\-]/g, "")
+    .slice(0, 40);
 }
 
-function loadProgress() {
+/* ==========================
+   진행/기록(로컬)
+   ========================== */
+const SAVE_KEY = `save_${GAME_NAME}`;
+let unlockedUpTo = 0;
+let cleared = new Set();
+let deaths = 0;
+
+let levelStartMs = 0;
+let elapsedMs = 0;
+
+function saveLocalProgress() {
+  const data = { unlockedUpTo, cleared: Array.from(cleared), deaths };
+  localStorage.setItem(SAVE_KEY, JSON.stringify(data)); // [web:128]
+}
+function loadLocalProgress() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return;
@@ -234,77 +287,58 @@ function loadProgress() {
     if (typeof data.unlockedUpTo === "number") unlockedUpTo = Math.max(0, Math.min(TOTAL_LEVELS - 1, data.unlockedUpTo));
     if (Array.isArray(data.cleared)) cleared = new Set(data.cleared.filter(n => Number.isInteger(n)));
     if (typeof data.deaths === "number") deaths = Math.max(0, data.deaths | 0);
-  } catch (_) {}
+  } catch {}
 }
-
-function resetProgress() {
-  unlockedUpTo = 0;
-  cleared = new Set();
-  deaths = 0;
-  localStorage.removeItem(SAVE_KEY);
-  updateTopUI();
-}
-
-loadProgress();
+loadLocalProgress();
 
 /* ==========================
-   반응형 캔버스
+   게임 상태/입력
    ========================== */
-function resizeCanvas() {
-  const wrapper = document.getElementById("gameWrapper");
-  const maxWidth = window.innerWidth;
-  const maxHeight = window.innerHeight;
+const keys = {};
+let mode = "boot"; // boot | menu | playing | paused | message | levelSelect | records
+let messageText = "";
+let messageNextAction = null;
 
-  const scaleX = maxWidth / DESIGN_WIDTH;
-  const scaleY = maxHeight / DESIGN_HEIGHT;
-  const scale = Math.min(scaleX, scaleY);
-
-  const displayWidth = DESIGN_WIDTH * scale;
-  const displayHeight = DESIGN_HEIGHT * scale;
-
-  canvas.style.width = displayWidth + "px";
-  canvas.style.height = displayHeight + "px";
-
-  wrapper.style.width = displayWidth + "px";
-  wrapper.style.height = displayHeight + "px";
+function updateTopUI() {
+  userDisplay.textContent = username ? username : "-";
+  levelDisplay.textContent = String(currentLevelIndex + 1);
+  deathDisplay.textContent = String(deaths);
 }
-window.addEventListener("resize", resizeCanvas);
-resizeCanvas();
+function showOverlay(title, desc, buttons, bodyHtml = "", hint = "") {
+  panelTitle.textContent = title;
+  panelDesc.textContent = desc || "";
+  panelButtons.innerHTML = "";
+  panelBody.innerHTML = bodyHtml || "";
+  panelHint.textContent = hint || "";
+  buttons.forEach(b => {
+    const el = document.createElement("button");
+    el.textContent = b.text;
+    if (b.kind) el.classList.add(b.kind);
+    if (b.disabled) el.disabled = true;
+    el.addEventListener("click", b.onClick);
+    panelButtons.appendChild(el);
+  });
+  overlay.classList.add("show");
+}
+function hideOverlay() { overlay.classList.remove("show"); }
 
-/* ==========================
-   입력: 키보드/터치
-   ========================== */
 window.addEventListener("keydown", (e) => {
-  if (e.key === "m" || e.key === "M") {
-    if (mode === "playing" || mode === "paused") openMainMenu();
-    return;
-  }
-  if (e.key === "p" || e.key === "P") {
-    if (mode === "playing") openPauseMenu();
-    else if (mode === "paused") resumeFromPause();
-    return;
-  }
-
+  if (e.key === "m" || e.key === "M") { if (mode === "playing" || mode === "paused") openMainMenu(); return; }
+  if (e.key === "p" || e.key === "P") { if (mode === "playing") openPauseMenu(); else if (mode === "paused") resumeFromPause(); return; }
   if (mode === "message") {
     if (e.key === " " || e.key === "Enter") closeMessageAndContinue();
     return;
   }
-
-  if (mode === "menu" || mode === "levelSelect" || mode === "paused") return;
+  if (mode !== "playing") return;
   keys[e.key] = true;
 });
-window.addEventListener("keyup", (e) => {
-  keys[e.key] = false;
-});
+window.addEventListener("keyup", (e) => { keys[e.key] = false; });
 
-// 메시지 화면에서: 탭/클릭으로 진행 (Touch events)[web:102]
+// 메시지 화면: 탭/클릭으로 진행 [web:102]
 canvas.addEventListener("click", () => { if (mode === "message") closeMessageAndContinue(); });
 canvas.addEventListener("touchstart", (e) => {
-  if (mode === "message") {
-    e.preventDefault();
-    closeMessageAndContinue();
-  }
-}, { passive: false }); // preventDefault 필요 시 passive:false가 필요할 수 있음[web:147][web:145]
+  if (mode === "message") { e.preventDefault(); closeMessageAndContinue(); }
+}, { passive: false });
 
 /* ==========================
    조이스틱(모바일)
@@ -334,13 +368,8 @@ if (isMobile) {
     joystickStick.style.left = (stickX - joystickStick.offsetWidth / 2) + "px";
     joystickStick.style.top  = (stickY - joystickStick.offsetHeight / 2) + "px";
 
-    if (dist > 5) {
-      joystickVector.x = Math.cos(angle);
-      joystickVector.y = Math.sin(angle);
-    } else {
-      joystickVector.x = 0;
-      joystickVector.y = 0;
-    }
+    if (dist > 5) { joystickVector.x = Math.cos(angle); joystickVector.y = Math.sin(angle); }
+    else { joystickVector.x = 0; joystickVector.y = 0; }
   }
 
   joystickArea.addEventListener("touchstart", (e) => {
@@ -368,7 +397,7 @@ if (isMobile) {
 }
 
 /* ==========================
-   게임 오브젝트
+   게임 로직(레벨 자동 생성 포함)
    ========================== */
 const player = { x: 0, y: 0, w: 18, h: 18, speed: 3, startX: 0, startY: 0 };
 let goal = { x: 0, y: 0, w: 40, h: 80 };
@@ -376,186 +405,84 @@ let walls = [];
 let enemies = [];
 let coins = [];
 
-/* ==========================
-   레벨 1~10 수동(5번 통로 수정) + 11~50 자동
-   ========================== */
+function rectIntersect(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+function circleRectCollide(circle, rect) {
+  const closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.w));
+  const closestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.h));
+  const dx = circle.x - closestX;
+  const dy = circle.y - closestY;
+  return (dx * dx + dy * dy) < (circle.r * circle.r);
+}
+
 const baseLevels = [
-  // 1
-  {
-    start: { x: 50, y: 230 },
-    goal:  { x: 550, y: 200, w: 60, h: 80 },
-    walls: [{ x: 0, y: 0, w: 640, h: 120 }, { x: 0, y: 360, w: 640, h: 120 }],
-    enemies: [
-      { x: 200, y: 150, r: 10, dx: 0, dy: 2,  minY: 140, maxY: 340 },
-      { x: 260, y: 340, r: 10, dx: 0, dy: -2, minY: 140, maxY: 340 },
-      { x: 320, y: 150, r: 10, dx: 0, dy: 2,  minY: 140, maxY: 340 },
-      { x: 380, y: 340, r: 10, dx: 0, dy: -2, minY: 140, maxY: 340 }
+  { start:{x:50,y:230}, goal:{x:550,y:200,w:60,h:80},
+    walls:[{x:0,y:0,w:640,h:120},{x:0,y:360,w:640,h:120}],
+    enemies:[
+      {x:200,y:150,r:10,dx:0,dy:2,minY:140,maxY:340},
+      {x:260,y:340,r:10,dx:0,dy:-2,minY:140,maxY:340},
+      {x:320,y:150,r:10,dx:0,dy:2,minY:140,maxY:340},
+      {x:380,y:340,r:10,dx:0,dy:-2,minY:140,maxY:340}
     ],
-    coins: []
+    coins:[]
   },
-  // 2
-  {
-    start: { x: 40, y: 230 },
-    goal:  { x: 560, y: 210, w: 50, h: 60 },
-    walls: [{ x: 0, y: 0, w: 640, h: 160 }, { x: 0, y: 320, w: 640, h: 160 }],
-    enemies: [
-      { x: 150, y: 170, r: 9, dx: 0, dy: 3,  minY: 170, maxY: 310 },
-      { x: 220, y: 310, r: 9, dx: 0, dy: -3, minY: 170, maxY: 310 },
-      { x: 290, y: 170, r: 9, dx: 0, dy: 3,  minY: 170, maxY: 310 },
-      { x: 360, y: 310, r: 9, dx: 0, dy: -3, minY: 170, maxY: 310 },
-      { x: 430, y: 170, r: 9, dx: 0, dy: 3,  minY: 170, maxY: 310 }
+  { start:{x:40,y:230}, goal:{x:560,y:210,w:50,h:60},
+    walls:[{x:0,y:0,w:640,h:160},{x:0,y:320,w:640,h:160}],
+    enemies:[
+      {x:150,y:170,r:9,dx:0,dy:3,minY:170,maxY:310},
+      {x:220,y:310,r:9,dx:0,dy:-3,minY:170,maxY:310},
+      {x:290,y:170,r:9,dx:0,dy:3,minY:170,maxY:310},
+      {x:360,y:310,r:9,dx:0,dy:-3,minY:170,maxY:310},
+      {x:430,y:170,r:9,dx:0,dy:3,minY:170,maxY:310}
     ],
-    coins: [
-      { x: 120, y: 240, r: 6, taken: false },
-      { x: 320, y: 240, r: 6, taken: false },
-      { x: 520, y: 240, r: 6, taken: false }
-    ]
+    coins:[{x:120,y:240,r:6,taken:false},{x:320,y:240,r:6,taken:false},{x:520,y:240,r:6,taken:false}]
   },
-  // 3
-  {
-    start: { x: 50, y: 230 },
-    goal:  { x: 550, y: 210, w: 60, h: 60 },
-    walls: [
-      { x: 0, y: 0, w: 640, h: 120 },
-      { x: 0, y: 360, w: 640, h: 120 },
-      { x: 280, y: 180, w: 80, h: 120 }
+  { start:{x:50,y:230}, goal:{x:550,y:210,w:60,h:60},
+    walls:[{x:0,y:0,w:640,h:120},{x:0,y:360,w:640,h:120},{x:280,y:180,w:80,h:120}],
+    enemies:[
+      {x:120,y:170,r:9,dx:2.5,dy:0,minX:120,maxX:520},
+      {x:520,y:310,r:9,dx:-2.5,dy:0,minX:120,maxX:520},
+      {x:120,y:285,r:9,dx:2.5,dy:0,minX:120,maxX:520}
     ],
-    enemies: [
-      { x: 120, y: 170, r: 9, dx: 2.5, dy: 0, minX: 120, maxX: 520 },
-      { x: 520, y: 310, r: 9, dx: -2.5, dy: 0, minX: 120, maxX: 520 },
-      { x: 120, y: 285, r: 9, dx: 2.5, dy: 0, minX: 120, maxX: 520 }
-    ],
-    coins: [{ x: 320, y: 150, r: 6, taken: false }, { x: 320, y: 330, r: 6, taken: false }]
+    coins:[{x:320,y:150,r:6,taken:false},{x:320,y:330,r:6,taken:false}]
   },
-  // 4
-  {
-    start: { x: 300, y: 400 },
-    goal:  { x: 300, y: 40, w: 40, h: 40 },
-    walls: [
-      { x: 0, y: 0, w: 640, h: 40 }, { x: 0, y: 440, w: 640, h: 40 },
-      { x: 0, y: 0, w: 40, h: 480 }, { x: 600, y: 0, w: 40, h: 480 }
+  { start:{x:300,y:400}, goal:{x:300,y:40,w:40,h:40},
+    walls:[{x:0,y:0,w:640,h:40},{x:0,y:440,w:640,h:40},{x:0,y:0,w:40,h:480},{x:600,y:0,w:40,h:480}],
+    enemies:[
+      {x:200,y:80,r:9,dx:0,dy:3,minY:80,maxY:400},
+      {x:440,y:400,r:9,dx:0,dy:-3,minY:80,maxY:400},
+      {x:80,y:260,r:9,dx:3,dy:0,minX:80,maxX:560},
+      {x:560,y:220,r:9,dx:-3,dy:0,minX:80,maxX:560}
     ],
-    enemies: [
-      { x: 200, y: 80, r: 9, dx: 0, dy: 3, minY: 80, maxY: 400 },
-      { x: 440, y: 400, r: 9, dx: 0, dy: -3, minY: 80, maxY: 400 },
-      { x: 80,  y: 260, r: 9, dx: 3, dy: 0, minX: 80, maxX: 560 },
-      { x: 560, y: 220, r: 9, dx: -3, dy: 0, minX: 80, maxX: 560 }
-    ],
-    coins: [{ x: 320, y: 260, r: 6, taken: false }]
+    coins:[{x:320,y:260,r:6,taken:false}]
   },
-  // 5 (통로 수정)
-  {
-    start: { x: 60, y: 400 },
-    goal:  { x: 560, y: 60, w: 40, h: 40 },
-    walls: [
-      { x: 0, y: 0, w: 640, h: 40 }, { x: 0, y: 440, w: 640, h: 40 },
-      { x: 0, y: 80, w: 200, h: 40 }, { x: 440, y: 80, w: 200, h: 40 },
-      { x: 200, y: 80, w: 40, h: 240 }, { x: 400, y: 200, w: 40, h: 240 },
-      { x: 240, y: 280, w: 60, h: 40 }, { x: 340, y: 280, w: 60, h: 40 }
+  { start:{x:60,y:400}, goal:{x:560,y:60,w:40,h:40},
+    walls:[
+      {x:0,y:0,w:640,h:40},{x:0,y:440,w:640,h:40},
+      {x:0,y:80,w:200,h:40},{x:440,y:80,w:200,h:40},
+      {x:200,y:80,w:40,h:240},{x:400,y:200,w:40,h:240},
+      {x:240,y:280,w:60,h:40},{x:340,y:280,w:60,h:40}
     ],
-    enemies: [
-      { x: 120, y: 120, r: 8, dx: 2, dy: 0, minX: 60, maxX: 340 },
-      { x: 520, y: 160, r: 8, dx: -2, dy: 0, minX: 300, maxX: 580 },
-      { x: 220, y: 360, r: 8, dx: 2.5, dy: 0, minX: 60, maxX: 380 },
-      { x: 420, y: 240, r: 8, dx: 0, dy: 2.5, minY: 120, maxY: 360 }
+    enemies:[
+      {x:120,y:120,r:8,dx:2,dy:0,minX:60,maxX:340},
+      {x:520,y:160,r:8,dx:-2,dy:0,minX:300,maxX:580},
+      {x:220,y:360,r:8,dx:2.5,dy:0,minX:60,maxX:380},
+      {x:420,y:240,r:8,dx:0,dy:2.5,minY:120,maxY:360}
     ],
-    coins: [{ x: 320, y: 260, r: 6, taken: false }, { x: 100, y: 420, r: 6, taken: false }]
-  },
-  // 6
-  {
-    start: { x: 40, y: 220 },
-    goal:  { x: 580, y: 220, w: 40, h: 40 },
-    walls: [{ x: 0, y: 0, w: 640, h: 80 }, { x: 0, y: 400, w: 640, h: 80 }, { x: 280, y: 80, w: 80, h: 240 }],
-    enemies: [
-      { x: 160, y: 120, r: 9, dx: 0, dy: 3, minY: 100, maxY: 380 },
-      { x: 480, y: 380, r: 9, dx: 0, dy: -3, minY: 100, maxY: 380 },
-      { x: 160, y: 380, r: 9, dx: 0, dy: -3, minY: 100, maxY: 380 },
-      { x: 480, y: 100, r: 9, dx: 0, dy: 3, minY: 100, maxY: 380 }
-    ],
-    coins: [
-      { x: 120, y: 120, r: 6, taken: false }, { x: 520, y: 120, r: 6, taken: false },
-      { x: 120, y: 360, r: 6, taken: false }, { x: 520, y: 360, r: 6, taken: false }
-    ]
-  },
-  // 7
-  {
-    start: { x: 40, y: 230 },
-    goal:  { x: 560, y: 230, w: 60, h: 60 },
-    walls: [{ x: 0, y: 0, w: 640, h: 100 }, { x: 0, y: 380, w: 640, h: 100 }],
-    enemies: [
-      { x: 160, y: 150, r: 8, dx: 3.5, dy: 0, minX: 80, maxX: 560 },
-      { x: 160, y: 330, r: 8, dx: 3.5, dy: 0, minX: 80, maxX: 560 },
-      { x: 560, y: 190, r: 8, dx: -3.5, dy: 0, minX: 80, maxX: 560 },
-      { x: 80,  y: 290, r: 8, dx: 3.5, dy: 0, minX: 80, maxX: 560 },
-      { x: 320, y: 150, r: 8, dx: 0, dy: 3.5, minY: 120, maxY: 360 }
-    ],
-    coins: [{ x: 320, y: 230, r: 6, taken: false }]
-  },
-  // 8
-  {
-    start: { x: 40, y: 230 },
-    goal:  { x: 560, y: 230, w: 60, h: 60 },
-    walls: [
-      { x: 0, y: 0, w: 640, h: 80 }, { x: 0, y: 400, w: 640, h: 80 },
-      { x: 280, y: 80, w: 80, h: 140 }, { x: 280, y: 260, w: 80, h: 140 }
-    ],
-    enemies: [
-      { x: 160, y: 120, r: 9, dx: 0, dy: 3, minY: 100, maxY: 380 },
-      { x: 480, y: 380, r: 9, dx: 0, dy: -3, minY: 100, maxY: 380 },
-      { x: 160, y: 380, r: 9, dx: 0, dy: -3, minY: 100, maxY: 380 },
-      { x: 480, y: 100, r: 9, dx: 0, dy: 3, minY: 100, maxY: 380 },
-      { x: 320, y: 120, r: 9, dx: 3, dy: 0, minX: 80, maxX: 560 },
-      { x: 320, y: 360, r: 9, dx: -3, dy: 0, minX: 80, maxX: 560 }
-    ],
-    coins: [{ x: 100, y: 240, r: 6, taken: false }, { x: 540, y: 240, r: 6, taken: false }]
-  },
-  // 9
-  {
-    start: { x: 60, y: 420 },
-    goal:  { x: 560, y: 60, w: 40, h: 40 },
-    walls: [{ x: 0, y: 0, w: 640, h: 40 }, { x: 0, y: 440, w: 640, h: 40 }, { x: 200, y: 80, w: 40, h: 320 }, { x: 400, y: 80, w: 40, h: 320 }],
-    enemies: [
-      { x: 120, y: 120, r: 8, dx: 3.2, dy: 0, minX: 60, maxX: 180 },
-      { x: 320, y: 200, r: 8, dx: -3.2, dy: 0, minX: 220, maxX: 420 },
-      { x: 520, y: 360, r: 8, dx: -3.3, dy: 0, minX: 460, maxX: 580 },
-      { x: 320, y: 360, r: 8, dx: 0, dy: -3.2, minY: 120, maxY: 360 }
-    ],
-    coins: [{ x: 120, y: 420, r: 6, taken: false }, { x: 320, y: 60, r: 6, taken: false }, { x: 520, y: 420, r: 6, taken: false }]
-  },
-  // 10
-  {
-    start: { x: 40, y: 230 },
-    goal:  { x: 580, y: 40, w: 40, h: 40 },
-    walls: [
-      { x: 0, y: 0, w: 640, h: 40 }, { x: 0, y: 440, w: 640, h: 40 },
-      { x: 200, y: 80, w: 40, h: 320 }, { x: 400, y: 80, w: 40, h: 320 },
-      { x: 0, y: 200, w: 200, h: 40 }, { x: 440, y: 280, w: 200, h: 40 }
-    ],
-    enemies: [
-      { x: 120, y: 120, r: 9, dx: 0, dy: 3.6, minY: 80, maxY: 400 },
-      { x: 520, y: 400, r: 9, dx: 0, dy: -3.6, minY: 80, maxY: 400 },
-      { x: 220, y: 120, r: 9, dx: 3.6, dy: 0, minX: 220, maxX: 380 },
-      { x: 420, y: 400, r: 9, dx: -3.6, dy: 0, minX: 260, maxX: 580 },
-      { x: 320, y: 240, r: 9, dx: 3.2, dy: 0, minX: 220, maxX: 420 }
-    ],
-    coins: [
-      { x: 100, y: 60, r: 6, taken: false }, { x: 100, y: 420, r: 6, taken: false },
-      { x: 540, y: 60, r: 6, taken: false }, { x: 540, y: 420, r: 6, taken: false },
-      { x: 320, y: 240, r: 6, taken: false }
-    ]
+    coins:[{x:320,y:260,r:6,taken:false},{x:100,y:420,r:6,taken:false}]
   }
 ];
 
 const levels = [...baseLevels];
-
 function generateAutoLevels() {
-  for (let lvl = 11; lvl <= TOTAL_LEVELS; lvl++) {
-    const progress = (lvl - 11) / (TOTAL_LEVELS - 11);
-    const enemyCount = 4 + Math.floor(progress * 7); // 4~11
-    const coinCount  = Math.floor(progress * 4);     // 0~4
-    const speedBase  = 2 + progress * 3;             // 2~5
-
+  for (let lvl = levels.length + 1; lvl <= TOTAL_LEVELS; lvl++) {
+    const progress = (lvl - 1) / (TOTAL_LEVELS - 1);
+    const enemyCount = 4 + Math.floor(progress * 7);
+    const coinCount = Math.floor(progress * 4);
+    const speedBase = 2 + progress * 3;
     const isHorizontal = (lvl % 2 === 1);
+
     const start = isHorizontal ? { x: 40, y: 240 } : { x: 320, y: 420 };
     const goal  = isHorizontal ? { x: 560, y: 220, w: 50, h: 80 } : { x: 320, y: 40, w: 50, h: 50 };
 
@@ -564,7 +491,6 @@ function generateAutoLevels() {
     walls.push({ x: 0, y: 0, w: 640, h: pad });
     walls.push({ x: 0, y: 480 - pad, w: 640, h: pad });
 
-    // 자동 레벨도 “길이 막히지 않도록” 중앙 통로를 남기는 구조
     if (isHorizontal) {
       for (let i = 0; i < 3; i++) {
         walls.push({ x: 200 + i * 80, y: pad + 30 + (i % 2) * 80, w: 28, h: 150 });
@@ -582,8 +508,7 @@ function generateAutoLevels() {
     for (let i = 0; i < enemyCount; i++) {
       const speed = speedBase + (i % 3) * 0.55;
       if (i % 2 === 0) {
-        const yMin = pad + 20;
-        const yMax = 480 - pad - 20;
+        const yMin = pad + 20, yMax = 480 - pad - 20;
         enemies.push({ x: 110 + (i * 43) % 420, y: (yMin + yMax) / 2, r: 8, dx: 0, dy: (i % 4 < 2 ? speed : -speed), minY: yMin, maxY: yMax });
       } else {
         const xMin = 70, xMax = 570;
@@ -593,126 +518,219 @@ function generateAutoLevels() {
 
     const coins = [];
     for (let i = 0; i < coinCount; i++) coins.push({ x: 140 + i * 120, y: 130 + ((i + lvl) % 3) * 110, r: 6, taken: false });
-
     levels.push({ start, goal, walls, enemies, coins });
   }
 }
 generateAutoLevels();
 
 /* ==========================
-   충돌/레벨 로드
+   타이머 / 반응형
    ========================== */
-function rectIntersect(a, b) {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+function resetTimer() { levelStartMs = performance.now(); elapsedMs = 0; }
+function updateTimer() {
+  if (mode === "playing") elapsedMs = performance.now() - levelStartMs;
+  timeDisplay.textContent = (elapsedMs / 1000).toFixed(3);
 }
-function circleRectCollide(circle, rect) {
-  const closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.w));
-  const closestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.h));
-  const dx = circle.x - closestX;
-  const dy = circle.y - closestY;
-  return (dx * dx + dy * dy) < (circle.r * circle.r);
+
+function resizeCanvas() {
+  const wrapper = document.getElementById("gameWrapper");
+  const maxWidth = window.innerWidth;
+  const maxHeight = window.innerHeight;
+  const scaleX = maxWidth / DESIGN_WIDTH;
+  const scaleY = maxHeight / DESIGN_HEIGHT;
+  const scale = Math.min(scaleX, scaleY);
+  const displayWidth = DESIGN_WIDTH * scale;
+  const displayHeight = DESIGN_HEIGHT * scale;
+  canvas.style.width = displayWidth + "px";
+  canvas.style.height = displayHeight + "px";
+  wrapper.style.width = displayWidth + "px";
+  wrapper.style.height = displayHeight + "px";
 }
-function updateTopUI() {
-  levelDisplay.textContent = String(currentLevelIndex + 1);
-  deathDisplay.textContent = String(deaths);
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+/* ==========================
+   Firestore 저장/조회
+   ========================== */
+async function ensureUserDoc() {
+  const ref = doc(db, COL_USERS, userId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      userId,
+      username,
+      createdAt: serverTimestamp(),
+      maxLevel: 1,
+      updatedAt: serverTimestamp()
+    }); // [web:153]
+  }
 }
-function loadLevel(index) {
-  const level = levels[index];
-  currentLevelIndex = index;
 
-  player.x = level.start.x;
-  player.y = level.start.y;
-  player.startX = level.start.x;
-  player.startY = level.start.y;
+async function updateUserMaxLevel(levelNumber1Based) {
+  const ref = doc(db, COL_USERS, userId);
+  await setDoc(ref, { userId, username, maxLevel: levelNumber1Based, updatedAt: serverTimestamp() }, { merge: true }); // [web:153]
+}
 
-  goal = { ...level.goal };
-  walls = level.walls.map(w => ({ ...w }));
-  enemies = level.enemies.map(e => ({ ...e }));
-  coins = level.coins.map(c => ({ ...c }));
+function bestDocId(levelNumber1Based) { return `${userId}_${levelNumber1Based}`; }
 
-  for (const k in keys) keys[k] = false;
-  joystickVector.x = 0; joystickVector.y = 0; joystickActive = false;
+async function upsertBestTime(levelNumber1Based, timeMs) {
+  const ref = doc(db, COL_LEVEL_BEST, bestDocId(levelNumber1Based));
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      userId, username, level: levelNumber1Based,
+      bestTimeMs: timeMs,
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp()
+    }); // [web:153]
+    return true;
+  } else {
+    const prev = snap.data()?.bestTimeMs;
+    if (typeof prev !== "number" || timeMs < prev) {
+      await updateDoc(ref, { bestTimeMs: timeMs, username, updatedAt: serverTimestamp() }); // [web:154]
+      return true;
+    }
+  }
+  return false;
+}
 
-  updateTopUI();
+async function logRun(levelNumber1Based, timeMs) {
+  const runId = `${userId}_${Date.now()}_${levelNumber1Based}`;
+  const ref = doc(db, COL_LEVEL_RUNS, runId);
+  await setDoc(ref, { userId, username, level: levelNumber1Based, timeMs, createdAt: serverTimestamp() }); // [web:153]
+}
+
+async function fetchMySummary() {
+  const userRef = doc(db, COL_USERS, userId);
+  const userSnap = await getDoc(userRef);
+
+  const qy = query(
+    collection(db, COL_LEVEL_BEST),
+    where("userId", "==", userId),
+    orderBy("level", "asc")
+  ); // [web:159]
+  const bestSnap = await getDocs(qy);
+  const bestRows = [];
+  bestSnap.forEach(d => bestRows.push(d.data()));
+  return { user: userSnap.exists() ? userSnap.data() : null, bestRows };
+}
+
+async function fetchTopForLevel(levelNumber1Based) {
+  const qy = query(
+    collection(db, COL_LEVEL_BEST),
+    where("level", "==", levelNumber1Based),
+    orderBy("bestTimeMs", "asc"),
+    limit(10)
+  ); // [web:159]
+  const snap = await getDocs(qy);
+  const rows = [];
+  snap.forEach(d => rows.push(d.data()));
+  return rows;
 }
 
 /* ==========================
-   메뉴 UI
+   UI(메뉴/기록)
    ========================== */
-function showOverlay(title, desc, buttons, gridMode=false) {
-  panelTitle.textContent = title;
-  panelDesc.textContent = desc || "";
-  panelButtons.innerHTML = "";
-  levelGrid.style.display = gridMode ? "grid" : "none";
-  panelHint.textContent = "";
-
-  buttons.forEach(btn => {
-    const b = document.createElement("button");
-    b.textContent = btn.text;
-    if (btn.kind) b.classList.add(btn.kind);
-    if (btn.disabled) b.disabled = true;
-    b.addEventListener("click", btn.onClick);
-    panelButtons.appendChild(b);
-  });
-
-  overlay.classList.add("show");
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 }
-function hideOverlay() { overlay.classList.remove("show"); }
+
+function openUserSetup() {
+  mode = "menu";
+  showOverlay(
+    "사용자 정보 입력",
+    "닉네임을 입력하면 DB에 최고 스테이지/최고 기록을 저장하고 볼 수 있습니다.",
+    [
+      { text: "시작", kind: "primary", onClick: async () => {
+        const input = document.getElementById("nameInput");
+        const name = (input?.value || "").trim();
+        if (!name) { panelHint.textContent = "닉네임을 입력하세요."; return; }
+        username = name;
+        localStorage.setItem(LOCAL_USER_KEY, username);
+        userId = sanitizeId(username);
+        if (!userId) { panelHint.textContent = "닉네임이 유효하지 않습니다."; return; }
+
+        try {
+          await ensureUserDoc();
+          panelHint.textContent = "DB 연결 성공.";
+        } catch (e) {
+          panelHint.textContent = "DB 오류(규칙/설정 확인): " + (e?.message || e);
+        }
+        hideOverlay();
+        openMainMenu();
+      }},
+      { text: "오프라인", onClick: () => { hideOverlay(); openMainMenu(); } }
+    ],
+    `
+      <div class="grid">
+        <div>
+          <p class="muted">컬렉션: ${COL_USERS}, ${COL_LEVEL_BEST}, ${COL_LEVEL_RUNS}</p>
+          <p class="muted">보안 규칙이 잠겨있으면 읽기/쓰기가 실패할 수 있습니다.</p>
+        </div>
+        <div>
+          <p>닉네임</p>
+          <input id="nameInput" placeholder="예: player01" value="${escapeHtml(username)}" />
+        </div>
+      </div>
+    `,
+    isMobile ? "모바일: 조이스틱 이동 · 메시지는 탭" : "PC: 방향키 이동 · P 일시정지 · M 메뉴"
+  );
+}
 
 function openMainMenu() {
   mode = "menu";
+  const canUseDb = !!userId;
+
   showOverlay(
     "메뉴",
-    "레벨 선택/진행 저장/리셋을 할 수 있습니다.",
+    "레벨 선택, DB 기록 보기, 랭킹 조회 등을 할 수 있습니다.",
     [
       { text: "이어하기", kind: "primary", onClick: () => { hideOverlay(); startFromSavedOr1(); } },
       { text: "레벨 선택", onClick: () => openLevelSelect() },
-      { text: "진행 저장", onClick: () => { saveProgress(); panelHint.textContent = "저장 완료."; } },
-      { text: "진행 리셋", kind: "danger", onClick: () => { resetProgress(); openMainMenu(); } }
+      { text: "내 기록(DB)", disabled: !canUseDb, onClick: () => openMyRecords() },
+      { text: "레벨 랭킹(Top10)", disabled: !canUseDb, onClick: () => openLevelRanking() },
+      { text: "닉네임 변경", onClick: () => openUserSetup() },
+      { text: "로컬 리셋", kind: "danger", onClick: () => { resetLocal(); openMainMenu(); } }
     ],
-    false
+    `
+      <p class="muted">유저: <b>${escapeHtml(username || "-")}</b> · 해금: ${unlockedUpTo + 1}레벨까지</p>
+      <p class="muted">DB 컬렉션 접미사: _${GAME_NAME}</p>
+    `,
+    ""
   );
-  panelHint.textContent = isMobile
-    ? "모바일: 조이스틱 이동 · 메시지는 탭으로 진행"
-    : "PC: 방향키 이동 · P 일시정지 · M 메뉴";
+}
+
+function resetLocal() {
+  unlockedUpTo = 0;
+  cleared = new Set();
+  deaths = 0;
+  saveLocalProgress();
+  updateTopUI();
 }
 
 function openPauseMenu() {
   if (mode !== "playing") return;
   mode = "paused";
-  showOverlay(
-    "일시정지",
-    "게임이 멈췄습니다.",
-    [
-      { text: "계속하기", kind: "primary", onClick: () => resumeFromPause() },
-      { text: "레벨 선택", onClick: () => openLevelSelect() },
-      { text: "메뉴", onClick: () => openMainMenu() }
-    ],
-    false
-  );
-  panelHint.textContent = isMobile ? "모바일: 버튼 탭" : "PC: P로도 재개 가능";
+  showOverlay("일시정지", "게임이 멈췄습니다.", [
+    { text: "계속하기", kind: "primary", onClick: () => resumeFromPause() },
+    { text: "메뉴", onClick: () => openMainMenu() }
+  ], `<p class="muted">현재 레벨: ${currentLevelIndex + 1}</p>`, isMobile ? "모바일: 버튼 탭" : "PC: P로도 재개");
 }
 function resumeFromPause() { hideOverlay(); mode = "playing"; }
 
-function startFromSavedOr1() {
-  const idx = Math.min(unlockedUpTo, TOTAL_LEVELS - 1);
-  loadLevel(idx);
-  mode = "playing";
-}
-
 function openLevelSelect() {
   mode = "levelSelect";
-  showOverlay(
-    "레벨 선택",
-    "클리어=초록 · 해금=파랑 · 잠김=회색",
-    [
-      { text: "뒤로", onClick: () => openMainMenu() },
-      { text: "저장", onClick: () => { saveProgress(); panelHint.textContent = "저장 완료."; } }
-    ],
-    true
-  );
+  showOverlay("레벨 선택", "클리어=초록 · 해금=파랑 · 잠김=회색", [
+    { text: "뒤로", onClick: () => openMainMenu() }
+  ], `<div id="levelGrid"></div>`, `해금: ${unlockedUpTo + 1}레벨까지`);
 
-  levelGrid.innerHTML = "";
+  const grid = document.getElementById("levelGrid");
+  grid.style.display = "grid";
+  grid.style.gridTemplateColumns = window.innerWidth <= 520 ? "repeat(5, 1fr)" : "repeat(10, 1fr)";
+  grid.style.gap = "6px";
+  grid.style.marginTop = "10px";
+  grid.innerHTML = "";
+
   for (let i = 0; i < TOTAL_LEVELS; i++) {
     const btn = document.createElement("button");
     btn.className = "lvlBtn";
@@ -729,14 +747,79 @@ function openLevelSelect() {
       loadLevel(i);
       mode = "playing";
     });
-
-    levelGrid.appendChild(btn);
+    grid.appendChild(btn);
   }
-  panelHint.textContent = "해금: 현재 " + (unlockedUpTo + 1) + "레벨까지";
+}
+
+async function openMyRecords() {
+  mode = "records";
+  showOverlay("내 기록", "불러오는 중...", [{ text: "뒤로", onClick: () => openMainMenu() }], "", "");
+  try {
+    const { user, bestRows } = await fetchMySummary();
+    const maxLevel = user?.maxLevel ?? "-";
+    let rowsHtml = bestRows.map(r => `<tr><td>${r.level}</td><td>${(r.bestTimeMs/1000).toFixed(3)}s</td></tr>`).join("");
+    if (!rowsHtml) rowsHtml = `<tr><td colspan="2" class="muted">기록이 없습니다.</td></tr>`;
+
+    showOverlay(
+      "내 기록",
+      `최고 도달 스테이지: ${maxLevel}`,
+      [{ text: "뒤로", onClick: () => openMainMenu() }],
+      `<table><thead><tr><th>레벨</th><th>최고 기록</th></tr></thead><tbody>${rowsHtml}</tbody></table>`,
+      "클리어 시 자동 저장됩니다."
+    );
+  } catch (e) {
+    showOverlay("내 기록", "불러오기 실패", [{ text: "뒤로", onClick: () => openMainMenu() }],
+      `<p class="err">오류: ${String(e?.message || e)}</p>`,
+      "Firestore 규칙/인덱스 설정을 확인하세요."
+    );
+  }
+}
+
+async function openLevelRanking() {
+  mode = "records";
+  const defaultLvl = Math.min(unlockedUpTo + 1, TOTAL_LEVELS);
+
+  showOverlay(
+    "레벨 랭킹(Top10)",
+    "레벨을 선택하고 Top10을 조회합니다.",
+    [
+      { text: "뒤로", onClick: () => openMainMenu() },
+      { text: "조회", kind: "primary", onClick: async () => {
+        const sel = document.getElementById("rankLevelSel");
+        const levelNum = parseInt(sel.value, 10);
+        await renderRanking(levelNum);
+      }}
+    ],
+    `
+      <div class="row">
+        <span>레벨</span>
+        <select id="rankLevelSel">
+          ${Array.from({length: TOTAL_LEVELS}, (_,i)=>`<option value="${i+1}" ${i+1===defaultLvl?'selected':''}>${i+1}</option>`).join("")}
+        </select>
+      </div>
+      <div id="rankTable"></div>
+    `,
+    "Top10은 레벨별 최고기록(bestTimeMs) 기준입니다."
+  );
+
+  await renderRanking(defaultLvl);
+}
+
+async function renderRanking(levelNum) {
+  const box = document.getElementById("rankTable");
+  box.innerHTML = `<p class="muted">불러오는 중...</p>`;
+  try {
+    const rows = await fetchTopForLevel(levelNum);
+    let html = rows.map((r, idx) => `<tr><td>${idx+1}</td><td>${escapeHtml(r.username || r.userId)}</td><td>${(r.bestTimeMs/1000).toFixed(3)}s</td></tr>`).join("");
+    if (!html) html = `<tr><td colspan="3" class="muted">기록이 없습니다.</td></tr>`;
+    box.innerHTML = `<table><thead><tr><th>#</th><th>유저</th><th>기록</th></tr></thead><tbody>${html}</tbody></table>`;
+  } catch (e) {
+    box.innerHTML = `<p class="err">오류: ${String(e?.message || e)}</p>`;
+  }
 }
 
 /* ==========================
-   메시지 모드(클리어/완료)
+   메시지 / 진행
    ========================== */
 function openMessage(text, nextAction) {
   mode = "message";
@@ -752,27 +835,82 @@ function closeMessageAndContinue() {
   if (action) action();
 }
 
+function startFromSavedOr1() {
+  const idx = Math.min(unlockedUpTo, TOTAL_LEVELS - 1);
+  loadLevel(idx);
+  mode = "playing";
+}
+
 /* ==========================
-   게임 루프
+   레벨 로드 / 업데이트 / 그리기
    ========================== */
+let currentLevelIndex = 0;
+
+function loadLevel(index) {
+  const level = levels[index];
+  currentLevelIndex = index;
+
+  player.x = level.start.x; player.y = level.start.y;
+  player.startX = level.start.x; player.startY = level.start.y;
+  goal = { ...level.goal };
+  walls = level.walls.map(w => ({ ...w }));
+  enemies = level.enemies.map(e => ({ ...e }));
+  coins = level.coins.map(c => ({ ...c }));
+
+  for (const k in keys) keys[k] = false;
+  joystickVector.x = 0; joystickVector.y = 0; joystickActive = false;
+
+  resetTimer();
+  updateTopUI();
+}
+
 function movePlayerWithCollision(vx, vy) {
   if (vx !== 0) {
     player.x += vx;
-    for (const w of walls) {
-      if (rectIntersect(player, w)) player.x = (vx > 0) ? (w.x - player.w) : (w.x + w.w);
-    }
+    for (const w of walls) if (rectIntersect(player, w)) player.x = (vx > 0) ? (w.x - player.w) : (w.x + w.w);
   }
   if (vy !== 0) {
     player.y += vy;
-    for (const w of walls) {
-      if (rectIntersect(player, w)) player.y = (vy > 0) ? (w.y - player.h) : (w.y + w.h);
-    }
+    for (const w of walls) if (rectIntersect(player, w)) player.y = (vy > 0) ? (w.y - player.h) : (w.y + w.h);
   }
   player.x = Math.max(0, Math.min(DESIGN_WIDTH - player.w, player.x));
   player.y = Math.max(0, Math.min(DESIGN_HEIGHT - player.h, player.y));
 }
 
+async function onLevelCleared() {
+  const levelNum = currentLevelIndex + 1;
+  const tMs = Math.max(0, Math.round(elapsedMs));
+
+  cleared.add(currentLevelIndex);
+  unlockedUpTo = Math.max(unlockedUpTo, Math.min(TOTAL_LEVELS - 1, currentLevelIndex + 1));
+  saveLocalProgress();
+
+  try {
+    if (userId) {
+      await updateUserMaxLevel(unlockedUpTo + 1);
+      await upsertBestTime(levelNum, tMs);
+      await logRun(levelNum, tMs);
+    }
+  } catch (e) {
+    console.warn("Firestore save failed:", e);
+  }
+
+  const next = currentLevelIndex + 1;
+  if (next >= TOTAL_LEVELS) {
+    openMessage("축하합니다! 마지막 레벨 클리어!\n탭/스페이스로 메뉴로", () => openMainMenu());
+  } else {
+    openMessage(`레벨 ${levelNum} 클리어! (${(tMs/1000).toFixed(3)}s)\n탭/스페이스로 다음 레벨`, () => loadLevel(next));
+  }
+}
+
+function resetTimer() { levelStartMs = performance.now(); elapsedMs = 0; }
+function updateTimer() {
+  if (mode === "playing") elapsedMs = performance.now() - levelStartMs;
+  timeDisplay.textContent = (elapsedMs / 1000).toFixed(3);
+}
+
 function update() {
+  updateTimer();
   if (mode !== "playing") return;
 
   let vx = 0, vy = 0;
@@ -798,9 +936,9 @@ function update() {
   for (const e of enemies) {
     if (circleRectCollide(e, player)) {
       deaths++;
-      deathDisplay.textContent = String(deaths);
       player.x = player.startX;
       player.y = player.startY;
+      updateTopUI();
       break;
     }
   }
@@ -814,24 +952,7 @@ function update() {
   }
 
   const allCoinsTaken = coins.every(c => c.taken);
-  if (rectIntersect(player, goal) && allCoinsTaken) {
-    cleared.add(currentLevelIndex);
-    unlockedUpTo = Math.max(unlockedUpTo, Math.min(TOTAL_LEVELS - 1, currentLevelIndex + 1));
-    saveProgress();
-
-    const nextIndex = currentLevelIndex + 1;
-    if (nextIndex >= TOTAL_LEVELS) {
-      openMessage(
-        "축하합니다! 50레벨 모두 클리어!\nPC: Enter/Space 또는 클릭 · 모바일: 탭\n(메뉴로 이동합니다)",
-        () => openMainMenu()
-      );
-    } else {
-      openMessage(
-        "레벨 " + (currentLevelIndex + 1) + " 클리어!\nPC: Space/Enter 또는 클릭 · 모바일: 탭",
-        () => loadLevel(nextIndex)
-      );
-    }
-  }
+  if (rectIntersect(player, goal) && allCoinsTaken) onLevelCleared();
 }
 
 function draw() {
@@ -867,14 +988,12 @@ function draw() {
     ctx.fill();
   }
 
-  // 메시지(캔버스 오버레이)
   if (mode === "message") {
     ctx.fillStyle = "rgba(0,0,0,0.60)";
     ctx.fillRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
     ctx.fillStyle = "#ffffff";
     ctx.textAlign = "center";
     ctx.font = "24px Arial";
-
     const lines = String(messageText || "").split("\n");
     let baseY = DESIGN_HEIGHT / 2 - (lines.length - 1) * 18;
     lines.forEach((line, i) => ctx.fillText(line, DESIGN_WIDTH / 2, baseY + i * 30));
@@ -887,9 +1006,17 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-/* 시작: 메뉴부터 */
-updateTopUI();
-openMainMenu();
+/* ==========================
+   시작
+   ========================== */
+function openBoot() {
+  userId = sanitizeId(username);
+  updateTopUI();
+  if (!username) openUserSetup();
+  else openMainMenu();
+}
+
+openBoot();
 loop();
 </script>
 </body>
