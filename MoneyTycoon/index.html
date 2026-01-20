@@ -16,24 +16,22 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
-        /* 커스텀 스크롤바 */
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(30, 41, 59, 0.5); }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(71, 85, 105, 0.8); border-radius: 4px; }
         
-        /* 기본 설정 */
-        body { 
-            background-color: #0f172a; 
-            color: #f1f5f9; 
-            -webkit-tap-highlight-color: transparent; 
-            user-select: none; 
-            overflow: hidden; /* 전체 페이지 스크롤 방지 */
-            touch-action: manipulation;
-        }
+        body { background-color: #0f172a; color: #f1f5f9; -webkit-tap-highlight-color: transparent; user-select: none; overflow: hidden; }
         
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
 
-        /* 애니메이션 */
+        @keyframes ticker {
+            0% { transform: translateY(100%); opacity: 0; }
+            10% { transform: translateY(0); opacity: 1; }
+            90% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-100%); opacity: 0; }
+        }
+        .news-animate { animation: ticker 5s ease-in-out infinite; }
+        
         @keyframes ticker-slide {
             0% { transform: translateX(100%); }
             100% { transform: translateX(-100%); }
@@ -246,8 +244,6 @@
             const [achievements, setAchievements] = useState(getInitialAchievements);
             const [reputation, setReputation] = useState(0);
             const [marketStatus, setMarketStatus] = useState(MARKET_EVENTS[0]);
-            
-            // 뉴스 관련 State
             const [currentNews, setCurrentNews] = useState({ text: "오늘의 경제 뉴스를 기다리는 중...", type: 'neutral' });
             const [newsHistory, setNewsHistory] = useState([]); // 뉴스 히스토리 추가
 
@@ -657,9 +653,14 @@
 
             // --- Sub Components ---
             const HomeContent = () => (
-                <div className="flex flex-col gap-4 h-full pb-20">
+                <div className="flex flex-col gap-4 pb-24">
+                    <div className="bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-700 relative overflow-hidden flex flex-col justify-center min-h-[120px]">
+                        <div className="flex items-center gap-2 mb-3"><Icons.Newspaper size={20} className="text-blue-400" /><h2 className="text-lg font-bold text-white">실시간 속보</h2></div>
+                        <div className="bg-slate-700/50 p-3 rounded-lg border-l-4 border-blue-500"><p className="text-sm text-slate-200 font-medium animate-pulse">{currentNews.text}</p></div>
+                        {currentNews.type !== 'neutral' && <div className={`text-xs mt-2 font-bold ${currentNews.type === 'good' ? 'text-green-400' : 'text-red-400'}`}>{currentNews.type === 'good' ? '▲ 시장 호재 발생' : '▼ 시장 악재 발생'}</div>}
+                    </div>
                     <h3 className="text-lg font-bold text-slate-300 px-1 flex items-center gap-2">
-                        <Icons.Newspaper size={20}/> 뉴스 속보
+                        <Icons.Newspaper size={20}/> 뉴스 히스토리
                     </h3>
                     <div className="space-y-2">
                         {newsHistory.length === 0 ? (
@@ -685,7 +686,7 @@
             );
 
             const BusinessContent = () => (
-                <div className="space-y-3 pb-24 md:pb-0">
+                <div className="pb-24">
                     <div className="bg-slate-700/50 p-2 rounded-lg border border-slate-600 flex items-center justify-between gap-2 mb-3">
                         <span className="text-sm text-slate-300 font-bold px-2 flex items-center gap-2"><Icons.Calculator size={16} /> 수량</span>
                         <div className="flex gap-1 flex-1 justify-end">
@@ -693,100 +694,106 @@
                         </div>
                     </div>
                     <h3 className="text-lg font-bold text-slate-300 mb-4 px-1">자동 수익원 매입</h3>
-                    {businesses.map((biz) => {
-                        const isMax = tradeAmount === 'MAX';
-                        const currentCost = calculateBusinessCost(biz.baseCost, biz.count, isMax ? 1 : tradeAmount);
-                        const canAfford = money >= currentCost;
-                        const BusinessIcon = getIcon(biz.icon);
-                        return (
-                            <button key={biz.id} onClick={() => buyBusiness(biz.id)} disabled={!canAfford} className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${canAfford ? 'bg-slate-700 border-slate-600 hover:bg-slate-650' : 'bg-slate-800/50 border-slate-700 opacity-60 cursor-not-allowed'}`}>
-                                <div className="flex items-center gap-4 text-left">
-                                    <div className={`p-3 rounded-lg ${canAfford ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-600/20 text-slate-500'}`}><BusinessIcon size={24} /></div>
-                                    <div><h3 className="font-bold text-slate-200">{biz.name}</h3><div className="text-xs text-slate-400">보유: <span className="text-white">{biz.count}</span></div><div className="text-xs text-emerald-400">+{formatMoney(biz.baseIncome)}/초</div></div>
-                                </div>
-                                <div className="text-right">
-                                    <div className={`font-mono font-bold ${canAfford ? 'text-yellow-400' : 'text-slate-500'}`}>₩ {formatMoney(currentCost)}</div>
-                                    {isMax && <div className="text-[10px] text-indigo-400">최대 매수</div>}
-                                    {!isMax && tradeAmount > 1 && <div className="text-[10px] text-slate-400">x{tradeAmount}</div>}
-                                </div>
-                            </button>
-                        );
-                    })}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {businesses.map((biz) => {
+                            const isMax = tradeAmount === 'MAX';
+                            const currentCost = calculateBusinessCost(biz.baseCost, biz.count, isMax ? 1 : tradeAmount);
+                            const canAfford = money >= currentCost;
+                            const BusinessIcon = getIcon(biz.icon);
+                            return (
+                                <button key={biz.id} onClick={() => buyBusiness(biz.id)} disabled={!canAfford} className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${canAfford ? 'bg-slate-700 border-slate-600 hover:bg-slate-650' : 'bg-slate-800/50 border-slate-700 opacity-60 cursor-not-allowed'}`}>
+                                    <div className="flex items-center gap-4 text-left">
+                                        <div className={`p-3 rounded-lg ${canAfford ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-600/20 text-slate-500'}`}><BusinessIcon size={24} /></div>
+                                        <div><h3 className="font-bold text-slate-200">{biz.name}</h3><div className="text-xs text-slate-400">보유: <span className="text-white">{biz.count}</span></div><div className="text-xs text-emerald-400">+{formatMoney(biz.baseIncome)}/초</div></div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className={`font-mono font-bold ${canAfford ? 'text-yellow-400' : 'text-slate-500'}`}>₩ {formatMoney(currentCost)}</div>
+                                        {isMax && <div className="text-[10px] text-indigo-400">최대 매수</div>}
+                                        {!isMax && tradeAmount > 1 && <div className="text-[10px] text-slate-400">x{tradeAmount}</div>}
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
             );
 
             const InvestmentContent = () => (
-                <div className="space-y-4 pb-24 md:pb-0">
-                    <div className="bg-slate-700/50 p-2 rounded-lg border border-slate-600 flex items-center justify-between gap-2">
+                <div className="pb-24">
+                    <div className="bg-slate-700/50 p-2 rounded-lg border border-slate-600 flex items-center justify-between gap-2 mb-4">
                         <span className="text-sm text-slate-300 font-bold px-2 flex items-center gap-2"><Icons.Calculator size={16} /> 수량</span>
                         <div className="flex gap-1 flex-1 justify-end">
                             {[1, 10, 100, 'MAX'].map((amt) => (<button key={amt} onClick={() => setTradeAmount(amt)} className={`px-2 py-1.5 rounded-md text-xs font-bold transition-all ${tradeAmount === amt ? 'bg-indigo-500 text-white shadow-lg' : 'bg-slate-600 text-slate-400'}`}>{amt === 'MAX' ? 'MAX' : `x${amt}`}</button>))}
                         </div>
                     </div>
-                    {investments.map((item) => {
-                        let profitRate = 0; let profitColor = 'text-slate-400';
-                        if (item.owned > 0) { profitRate = ((item.price - item.avgPrice) / item.avgPrice) * 100; if (profitRate > 0) profitColor = 'text-red-400'; else if (profitRate < 0) profitColor = 'text-blue-400'; }
-                        const isPriceUp = item.history[item.history.length - 1] > item.history[item.history.length - 2];
-                        const chartColor = isPriceUp ? '#f87171' : '#60a5fa';
-                        let buyCostDisplay = 0, sellCountDisplay = 0, canBuy = false, canSell = false;
-                        if (tradeAmount === 'MAX') { const maxCanBuy = Math.floor(money / item.price); buyCostDisplay = maxCanBuy * item.price; canBuy = maxCanBuy > 0; sellCountDisplay = item.owned; canSell = item.owned > 0; }
-                        else { buyCostDisplay = item.price * tradeAmount; canBuy = money >= buyCostDisplay; sellCountDisplay = Math.min(item.owned, tradeAmount); canSell = sellCountDisplay > 0; }
-                        
-                        let InvIcon = Icons.TrendingUp;
-                        if (item.id === 'coin') InvIcon = Icons.Coins;
-                        else if (item.id === 'nft') InvIcon = Icons.Gem;
-                        else if (item.id === 'bio_stock') InvIcon = Icons.Activity;
-                        else if (item.id === 'gold') InvIcon = Icons.Wallet;
-                        else if (item.id === 'real_estate') InvIcon = Icons.Building2;
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {investments.map((item) => {
+                            let profitRate = 0; let profitColor = 'text-slate-400';
+                            if (item.owned > 0) { profitRate = ((item.price - item.avgPrice) / item.avgPrice) * 100; if (profitRate > 0) profitColor = 'text-red-400'; else if (profitRate < 0) profitColor = 'text-blue-400'; }
+                            const isPriceUp = item.history[item.history.length - 1] > item.history[item.history.length - 2];
+                            const chartColor = isPriceUp ? '#f87171' : '#60a5fa';
+                            let buyCostDisplay = 0, sellCountDisplay = 0, canBuy = false, canSell = false;
+                            if (tradeAmount === 'MAX') { const maxCanBuy = Math.floor(money / item.price); buyCostDisplay = maxCanBuy * item.price; canBuy = maxCanBuy > 0; sellCountDisplay = item.owned; canSell = item.owned > 0; }
+                            else { buyCostDisplay = item.price * tradeAmount; canBuy = money >= buyCostDisplay; sellCountDisplay = Math.min(item.owned, tradeAmount); canSell = sellCountDisplay > 0; }
+                            
+                            let InvIcon = Icons.TrendingUp;
+                            if (item.id === 'coin') InvIcon = Icons.Coins;
+                            else if (item.id === 'nft') InvIcon = Icons.Gem;
+                            else if (item.id === 'bio_stock') InvIcon = Icons.Activity;
+                            else if (item.id === 'gold') InvIcon = Icons.Wallet;
+                            else if (item.id === 'real_estate') InvIcon = Icons.Building2;
 
-                        return (
-                            <div key={item.id} className="bg-slate-700 rounded-xl p-5 border border-slate-600 shadow-md">
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`p-2 rounded-lg ${item.type === 'high_risk' ? 'bg-orange-500/20 text-orange-400' : item.type === 'low_risk' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}><InvIcon size={24} /></div>
-                                        <div><h3 className="font-bold text-lg text-slate-100">{item.name}</h3><p className="text-xs text-slate-400">{item.desc}</p></div>
+                            return (
+                                <div key={item.id} className="bg-slate-700 rounded-xl p-5 border border-slate-600 shadow-md">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-2 rounded-lg ${item.type === 'high_risk' ? 'bg-orange-500/20 text-orange-400' : item.type === 'low_risk' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}><InvIcon size={24} /></div>
+                                            <div><h3 className="font-bold text-lg text-slate-100">{item.name}</h3><p className="text-xs text-slate-400">{item.desc}</p></div>
+                                        </div>
+                                        <div className="text-right"><div className={`text-2xl font-mono font-bold flex items-center justify-end gap-2 ${isPriceUp ? 'text-red-400' : 'text-blue-400'}`}>{isPriceUp ? <Icons.TrendingUp size={20} /> : <Icons.TrendingDown size={20} />} ₩ {formatMoney(item.price)}</div><div className="text-xs text-slate-400 mt-1">현재가 (실시간)</div></div>
                                     </div>
-                                    <div className="text-right"><div className={`text-2xl font-mono font-bold flex items-center justify-end gap-2 ${isPriceUp ? 'text-red-400' : 'text-blue-400'}`}>{isPriceUp ? <Icons.TrendingUp size={20} /> : <Icons.TrendingDown size={20} />} ₩ {formatMoney(item.price)}</div><div className="text-xs text-slate-400 mt-1">현재가 (실시간)</div></div>
+                                    <div className="h-10 mb-4 bg-slate-800/50 rounded overflow-hidden"><InvestmentChart history={item.history} color={chartColor} /></div>
+                                    <div className="bg-slate-800/80 rounded-lg p-3 mb-4 flex justify-between items-center text-sm"><div><span className="text-slate-400">보유: </span><span className="text-white font-bold ml-1">{formatMoney(item.owned)}</span></div><div><span className="text-slate-400">평단: </span><span className="text-slate-200 ml-1">₩ {formatMoney(item.avgPrice)}</span></div><div><span className="text-slate-400">수익: </span><span className={`font-bold ml-1 ${profitColor}`}>{profitRate.toFixed(2)}%</span></div></div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => buyInvestment(item.id)} className={`flex-1 py-3 rounded-lg font-bold text-sm transition-colors flex flex-col items-center justify-center gap-0.5 ${canBuy ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50' : 'bg-slate-600 text-slate-400 cursor-not-allowed'}`} disabled={!canBuy}><span>{tradeAmount === 'MAX' ? '최대 매수' : `매수 (${tradeAmount}개)`}</span><span className="text-xs font-mono opacity-80">-{formatMoney(buyCostDisplay)}</span></button>
+                                        <button onClick={() => sellInvestment(item.id)} className={`flex-1 py-3 rounded-lg font-bold text-sm transition-colors flex flex-col items-center justify-center gap-0.5 ${canSell ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/50' : 'bg-slate-600 text-slate-400 cursor-not-allowed'}`} disabled={!canSell}><span>{tradeAmount === 'MAX' ? '전량 매도' : `매도 (${tradeAmount}개)`}</span><span className="text-xs font-mono opacity-80">+{formatMoney(item.price * sellCountDisplay)}</span></button>
+                                    </div>
                                 </div>
-                                <div className="h-10 mb-4 bg-slate-800/50 rounded overflow-hidden"><InvestmentChart history={item.history} color={chartColor} /></div>
-                                <div className="bg-slate-800/80 rounded-lg p-3 mb-4 flex justify-between items-center text-sm"><div><span className="text-slate-400">보유: </span><span className="text-white font-bold ml-1">{formatMoney(item.owned)}</span></div><div><span className="text-slate-400">평단: </span><span className="text-slate-200 ml-1">₩ {formatMoney(item.avgPrice)}</span></div><div><span className="text-slate-400">수익: </span><span className={`font-bold ml-1 ${profitColor}`}>{profitRate.toFixed(2)}%</span></div></div>
-                                <div className="flex gap-2">
-                                    <button onClick={() => buyInvestment(item.id)} className={`flex-1 py-3 rounded-lg font-bold text-sm transition-colors flex flex-col items-center justify-center gap-0.5 ${canBuy ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50' : 'bg-slate-600 text-slate-400 cursor-not-allowed'}`} disabled={!canBuy}><span>{tradeAmount === 'MAX' ? '최대 매수' : `매수 (${tradeAmount}개)`}</span><span className="text-xs font-mono opacity-80">-{formatMoney(buyCostDisplay)}</span></button>
-                                    <button onClick={() => sellInvestment(item.id)} className={`flex-1 py-3 rounded-lg font-bold text-sm transition-colors flex flex-col items-center justify-center gap-0.5 ${canSell ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/50' : 'bg-slate-600 text-slate-400 cursor-not-allowed'}`} disabled={!canSell}><span>{tradeAmount === 'MAX' ? '전량 매도' : `매도 (${tradeAmount}개)`}</span><span className="text-xs font-mono opacity-80">+{formatMoney(item.price * sellCountDisplay)}</span></button>
-                                </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        })}
+                    </div>
                 </div>
             );
 
             const UpgradeContent = () => (
-                <div className="space-y-3 pb-24 md:pb-0">
+                <div className="pb-24">
                     <h3 className="text-lg font-bold text-slate-300 mb-4 px-1">경제학 연구소</h3>
-                    {upgrades.map((upgrade) => {
-                        const currentCost = getUpgradeCost(upgrade);
-                        const isMaxed = upgrade.level >= upgrade.maxLevel;
-                        const canBuy = !isMaxed && money >= currentCost;
-                        const UpgIcon = isMaxed ? Icons.Trophy : Icons.Microscope;
-                        const isClick = upgrade.type.includes('click');
-                        return (
-                            <button key={upgrade.id} onClick={() => buyUpgrade(upgrade.id)} disabled={!canBuy} className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${isMaxed ? 'bg-green-900/10 border-green-800 opacity-80' : canBuy ? (isClick ? 'bg-indigo-900/20 border-indigo-700 hover:bg-indigo-900/40' : 'bg-slate-700 border-slate-600 hover:bg-slate-650') : 'bg-slate-800/50 border-slate-700 opacity-60'}`}>
-                                <div className="flex items-center gap-3 text-left">
-                                    <div className={`p-2 rounded-lg ${isMaxed ? 'bg-green-500/20 text-green-400' : 'bg-purple-500/20 text-purple-400'}`}><UpgIcon size={20} /></div>
-                                    <div><div className="flex items-center gap-2"><h3 className={`font-bold text-sm ${isMaxed ? 'text-green-400' : 'text-slate-200'}`}>{upgrade.name}</h3><span className="text-xs px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">Lv.{upgrade.level} / {upgrade.maxLevel}</span></div><p className="text-xs text-slate-400 mt-1">{getUpgradeDesc(upgrade)}</p></div>
-                                </div>
-                                <div className="text-right min-w-[80px]">{isMaxed ? (<span className="text-xs font-bold text-green-500">연구 완료</span>) : (<span className={`text-sm font-mono font-bold ${canBuy ? 'text-yellow-400' : 'text-slate-500'}`}>₩ {formatMoney(currentCost)}</span>)}</div>
-                            </button>
-                        );
-                    })}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {upgrades.map((upgrade) => {
+                            const currentCost = getUpgradeCost(upgrade);
+                            const isMaxed = upgrade.level >= upgrade.maxLevel;
+                            const canBuy = !isMaxed && money >= currentCost;
+                            const UpgIcon = isMaxed ? Icons.Trophy : Icons.Microscope;
+                            const isClick = upgrade.type.includes('click');
+                            return (
+                                <button key={upgrade.id} onClick={() => buyUpgrade(upgrade.id)} disabled={!canBuy} className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${isMaxed ? 'bg-green-900/10 border-green-800 opacity-80' : canBuy ? (isClick ? 'bg-indigo-900/20 border-indigo-700 hover:bg-indigo-900/40' : 'bg-slate-700 border-slate-600 hover:bg-slate-650') : 'bg-slate-800/50 border-slate-700 opacity-60'}`}>
+                                    <div className="flex items-center gap-3 text-left">
+                                        <div className={`p-2 rounded-lg ${isMaxed ? 'bg-green-500/20 text-green-400' : 'bg-purple-500/20 text-purple-400'}`}><UpgIcon size={20} /></div>
+                                        <div><div className="flex items-center gap-2"><h3 className={`font-bold text-sm ${isMaxed ? 'text-green-400' : 'text-slate-200'}`}>{upgrade.name}</h3><span className="text-xs px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">Lv.{upgrade.level} / {upgrade.maxLevel}</span></div><p className="text-xs text-slate-400 mt-1">{getUpgradeDesc(upgrade)}</p></div>
+                                    </div>
+                                    <div className="text-right min-w-[80px]">{isMaxed ? (<span className="text-xs font-bold text-green-500">연구 완료</span>) : (<span className={`text-sm font-mono font-bold ${canBuy ? 'text-yellow-400' : 'text-slate-500'}`}>₩ {formatMoney(currentCost)}</span>)}</div>
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
             );
 
             const AchievementContent = () => (
-                <div className="space-y-3 pb-24 md:pb-0">
+                <div className="pb-24">
                     <h3 className="text-lg font-bold text-slate-300 mb-4 px-1">나의 업적</h3>
                     <div className="bg-slate-700/50 p-4 rounded-lg border border-slate-600 text-sm text-slate-300 mb-4"><p>🏆 업적을 달성할 때마다 전체 수익(클릭, 사업, 투자)이 <strong>1%씩 증가</strong>합니다.</p></div>
-                    <div className="grid grid-cols-1 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {achievements.map((ach) => (
                             <div key={ach.id} className={`p-4 rounded-xl border flex items-center gap-4 ${ach.unlocked ? 'bg-indigo-900/30 border-indigo-500/50' : 'bg-slate-800 border-slate-700 opacity-60'}`}>
                                 <div className={`p-3 rounded-full ${ach.unlocked ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/50' : 'bg-slate-700 text-slate-500'}`}><Icons.Medal size={24} /></div>
@@ -949,7 +956,7 @@
                         <button onClick={() => setActiveTab('business')} className={`flex flex-col items-center justify-center p-3 w-full transition-colors ${activeTab === 'business' ? 'text-indigo-400' : 'text-slate-500'}`}><Icons.Briefcase size={20} /><span className="text-[10px] mt-1 font-bold">사업</span></button>
                         <button onClick={() => setActiveTab('investment')} className={`flex flex-col items-center justify-center p-3 w-full transition-colors ${activeTab === 'investment' ? 'text-indigo-400' : 'text-slate-500'}`}><Icons.LineChart size={20} /><span className="text-[10px] mt-1 font-bold">투자</span></button>
                         <button onClick={() => setActiveTab('upgrade')} className={`flex flex-col items-center justify-center p-3 w-full transition-colors ${activeTab === 'upgrade' ? 'text-indigo-400' : 'text-slate-500'}`}><Icons.Microscope size={20} /><span className="text-[10px] mt-1 font-bold">연구</span></button>
-                        <button onClick={() => setActiveTab('achievement')} className={`flex-1 flex flex-col items-center justify-center p-3 w-full transition-colors ${activeTab === 'achievement' ? 'text-indigo-400' : 'text-slate-500'}`}><Icons.Medal size={20} /><span className="text-[10px] mt-1 font-bold">업적</span></button>
+                        <button onClick={() => setActiveTab('achievement')} className={`flex flex-col items-center justify-center p-3 w-full transition-colors ${activeTab === 'achievement' ? 'text-indigo-400' : 'text-slate-500'}`}><Icons.Medal size={20} /><span className="text-[10px] mt-1 font-bold">업적</span></button>
                     </div>
 
                     {/* Mobile Top Header (Fixed) */}
