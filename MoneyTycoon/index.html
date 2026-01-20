@@ -24,9 +24,17 @@
         
         /* 모바일 하단바 안전 영역 (iPhone 등) */
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
-        
-        /* 노동 버튼 눌림 효과 */
-        .active-press:active { transform: scale(0.98); }
+
+        /* 뉴스 티커 애니메이션 */
+        @keyframes ticker {
+            0% { transform: translateY(100%); opacity: 0; }
+            10% { transform: translateY(0); opacity: 1; }
+            90% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-100%); opacity: 0; }
+        }
+        .news-animate {
+            animation: ticker 5s ease-in-out infinite;
+        }
     </style>
 </head>
 <body>
@@ -68,9 +76,7 @@
             AlertTriangle: (props) => <Icon {...props} path={<><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></>} />,
             Info: (props) => <Icon {...props} path={<><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></>} />,
             Home: (props) => <Icon {...props} path={<><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>} />,
-            Maximize: (props) => <Icon {...props} path={<><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></>} />,
-            Minimize: (props) => <Icon {...props} path={<><path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="M14 10l7-7"/><path d="M3 21l7-7"/></>} />,
-            CheckCircle: (props) => <Icon {...props} path={<><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></>} />
+            Newspaper: (props) => <Icon {...props} path={<><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></>} />
         };
 
         // --- 게임 데이터 ---
@@ -119,9 +125,25 @@
         const getInitialAchievements = () => ACHIEVEMENT_DEFINITIONS.map(a => ({ ...a, unlocked: false }));
 
         const MARKET_EVENTS = [
-            { id: 'normal', name: '평온한 시장', multiplier: 1.0, priceBias: 0, color: 'text-gray-400', desc: '경제가 안정적입니다.' },
-            { id: 'bull', name: '경제 호황', multiplier: 2.0, priceBias: 0.03, color: 'text-green-400', desc: '수익 폭발 & 주가 상승장!' },
-            { id: 'bear', name: '경제 불황', multiplier: 0.5, priceBias: -0.03, color: 'text-red-400', desc: '수익 반토막 & 주가 하락장...' },
+            { id: 'normal', name: '평온한 시장', multiplier: 1.0, priceBias: 0, color: 'text-gray-400', icon: '☁️' },
+            { id: 'bull', name: '경제 호황', multiplier: 2.0, priceBias: 0.03, color: 'text-green-400', icon: '☀️' },
+            { id: 'bear', name: '경제 불황', multiplier: 0.5, priceBias: -0.03, color: 'text-red-400', icon: '🌧️' },
+        ];
+
+        // --- 뉴스 데이터 ---
+        const NEWS_ITEMS = [
+            { text: "정부, 가상화폐 규제 완화 시사...", target: 'coin', effect: 1.3, type: 'good' },
+            { text: "유명 인플루언서, '도지왕 코인' 전량 매도 인증", target: 'coin', effect: 0.7, type: 'bad' },
+            { text: "반도체 수급난 해소, 전자 관련주 급등 예상", target: 'stock', effect: 1.15, type: 'good' },
+            { text: "글로벌 경기 침체 우려, 증시 얼어붙나", target: 'stock', effect: 0.85, type: 'bad' },
+            { text: "강남 부동산 불패 신화, 아파트값 또 최고가 갱신", target: 'real_estate', effect: 1.1, type: 'good' },
+            { text: "정부, 고강도 부동산 대출 규제 발표", target: 'real_estate', effect: 0.9, type: 'bad' },
+            { text: "안전자산 선호 심리 확산, 금값 상승세", target: 'gold', effect: 1.05, type: 'good' },
+            { text: "신약 임상 3상 성공 루머 확산!", target: 'bio_stock', effect: 1.5, type: 'good' },
+            { text: "바이오 기업 회계 부정 의혹 제기...", target: 'bio_stock', effect: 0.5, type: 'bad' },
+            { text: "디지털 아트 NFT, 경매서 100억 낙찰", target: 'nft', effect: 1.4, type: 'good' },
+            { text: "NFT 시장 거품 붕괴? 거래량 급감", target: 'nft', effect: 0.6, type: 'bad' },
+            { text: "전 세계적인 전염병 우려 완화, 경제 활동 재개", target: 'all', effect: 1.0, type: 'good' }, // 시장 전체 분위기용
         ];
 
         function App() {
@@ -134,12 +156,10 @@
             const [achievements, setAchievements] = useState(getInitialAchievements);
             const [reputation, setReputation] = useState(0);
             const [marketStatus, setMarketStatus] = useState(MARKET_EVENTS[0]);
-            const [timeLeftForEvent, setTimeLeftForEvent] = useState(30);
+            const [currentNews, setCurrentNews] = useState({ text: "오늘의 경제 뉴스를 기다리는 중...", type: 'neutral' });
             
             const [activeTab, setActiveTab] = useState('home'); 
             const [tradeAmount, setTradeAmount] = useState(1);
-            const [isFullScreen, setIsFullScreen] = useState(false);
-            const [isAutoSaving, setIsAutoSaving] = useState(false);
             
             // 모달 상태
             const [offlineEarnings, setOfflineEarnings] = useState(0);
@@ -155,17 +175,6 @@
                 setTimeout(() => setToastMessage(null), 3000);
             };
 
-            // 전체 화면 토글
-            const toggleFullScreen = () => {
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().then(() => setIsFullScreen(true)).catch(err => console.log(err));
-                } else {
-                    if (document.exitFullscreen) {
-                        document.exitFullscreen().then(() => setIsFullScreen(false));
-                    }
-                }
-            };
-
             const getNetWorth = useCallback(() => {
                 const assetsValue = investments.reduce((acc, inv) => acc + (inv.price * inv.owned), 0);
                 return money + assetsValue;
@@ -175,20 +184,16 @@
                 const gameState = {
                     money, totalEarned, businesses, investments, upgrades, achievements, reputation, lastSaveTime: Date.now()
                 };
-                localStorage.setItem('moneyTycoonSaveV4', JSON.stringify(gameState));
-                
-                // 저장 표시 깜빡임
-                setIsAutoSaving(true);
-                setTimeout(() => setIsAutoSaving(false), 1000);
+                localStorage.setItem('moneyTycoonSaveV5', JSON.stringify(gameState)); // 버전 업
             }, [money, totalEarned, businesses, investments, upgrades, achievements, reputation]);
 
             useEffect(() => {
-                const saveTimer = setInterval(saveData, 5000); // 5초마다 자동 저장
+                const saveTimer = setInterval(saveData, 5000);
                 return () => clearInterval(saveTimer);
             }, [saveData]);
 
             useEffect(() => {
-                const savedData = localStorage.getItem('moneyTycoonSaveV4');
+                const savedData = localStorage.getItem('moneyTycoonSaveV5');
                 if (savedData) {
                     try {
                         const parsed = JSON.parse(savedData);
@@ -229,7 +234,7 @@
 
                                 const unlockedCount = (parsed.achievements || []).filter(a => a.unlocked).length;
                                 const achievementMultiplier = 1 + (unlockedCount * 0.01);
-                                const prestigeMultiplier = 1 + (currentReputation * 0.02); 
+                                const prestigeMultiplier = 1 + (currentReputation * 0.002);
 
                                 const earnings = Math.floor(businessIncome * achievementMultiplier * prestigeMultiplier * timeDiffSeconds);
                                 
@@ -248,7 +253,7 @@
             }, []);
 
             const handleResetConfirm = () => {
-                localStorage.removeItem('moneyTycoonSaveV4');
+                localStorage.removeItem('moneyTycoonSaveV5');
                 setMoney(0);
                 setTotalEarned(0);
                 setBusinesses(getInitialBusinesses());
@@ -313,7 +318,8 @@
 
                 const unlockedAchievements = achievements.filter(a => a.unlocked).length;
                 const achievementMultiplier = 1 + (unlockedAchievements * 0.01);
-                const prestigeMultiplier = 1 + (reputation * 0.02);
+                // 명성 보너스: 1점당 0.2%로 하향
+                const prestigeMultiplier = 1 + (reputation * 0.002);
 
                 return (businessIncome + dividendIncome) * currentMarketMult * achievementMultiplier * prestigeMultiplier;
             }, [businesses, upgrades, marketStatus, investments, achievements, reputation]);
@@ -347,8 +353,40 @@
                 return () => clearInterval(timer);
             }, [calculateIncomePerSecond]);
 
+            // 자산 가격 변동 및 뉴스 시스템 통합
             useEffect(() => {
-                const priceTimer = setInterval(() => {
+                const eventLoop = setInterval(() => {
+                    // 1. 랜덤 뉴스 발생 확률 (10초마다 30% 확률로 뉴스 발생)
+                    if (Math.random() < 0.3) {
+                        const randomNews = NEWS_ITEMS[Math.floor(Math.random() * NEWS_ITEMS.length)];
+                        setCurrentNews(randomNews);
+                        showToast("속보: " + randomNews.text); // 토스트 알림 추가
+
+                        // 뉴스 효과 적용 (가격 급등락)
+                        if (randomNews.target !== 'all') {
+                            setInvestments(prev => prev.map(inv => {
+                                if (inv.id === randomNews.target) {
+                                    let newPrice = Math.round(inv.price * randomNews.effect);
+                                    if (newPrice < 1) newPrice = 1;
+                                    const newHistory = [...inv.history.slice(1), newPrice];
+                                    return { ...inv, price: newPrice, history: newHistory };
+                                }
+                                return inv;
+                            }));
+                        }
+                    }
+
+                    // 2. 일반 시장 상황 변경 (기존 로직)
+                    if (Math.random() < 0.2) { // 20% 확률로 시장 상황 변경
+                         const random = Math.random();
+                         let newEvent;
+                         if (random < 0.6) newEvent = MARKET_EVENTS[0];
+                         else if (random < 0.85) newEvent = MARKET_EVENTS[1];
+                         else newEvent = MARKET_EVENTS[2];
+                         setMarketStatus(newEvent);
+                    }
+
+                    // 3. 일반적인 가격 변동 (랜덤 워크)
                     setInvestments(prevInvestments => {
                         return prevInvestments.map(item => {
                             const randomFactor = (Math.random() - 0.5) * 2; 
@@ -360,40 +398,22 @@
                             return { ...item, price: newPrice, history: newHistory };
                         });
                     });
-                }, 1500);
-                return () => clearInterval(priceTimer);
-            }, [marketStatus]);
 
-            useEffect(() => {
-                const eventTimer = setInterval(() => {
-                    setTimeLeftForEvent(prev => {
-                        if (prev <= 1) {
-                            const random = Math.random();
-                            let newEvent;
-                            if (random < 0.6) newEvent = MARKET_EVENTS[0];
-                            else if (random < 0.85) newEvent = MARKET_EVENTS[1];
-                            else newEvent = MARKET_EVENTS[2];
-                            setMarketStatus(newEvent);
-                            return 30;
-                        }
-                        return prev - 1;
-                    });
-                }, 1000);
-                return () => clearInterval(eventTimer);
-            }, []);
+                }, 2000); // 2초마다 갱신
+
+                return () => clearInterval(eventLoop);
+            }, [marketStatus]);
 
             const handleManualClick = () => {
                 const baseClick = 1;
-                
                 const powerUpgrade = upgrades.find(u => u.type === 'click_base');
                 const addedPower = powerUpgrade ? powerUpgrade.getEffect(powerUpgrade.level) : 0;
-
                 const boostUpgrade = upgrades.find(u => u.type === 'click_mult');
                 const boostMult = boostUpgrade ? boostUpgrade.getEffect(boostUpgrade.level) : 1;
                 
                 const unlockedAchievements = achievements.filter(a => a.unlocked).length;
                 const achievementMultiplier = 1 + (unlockedAchievements * 0.01);
-                const prestigeMultiplier = 1 + (reputation * 0.02);
+                const prestigeMultiplier = 1 + (reputation * 0.002);
 
                 const clickValue = (baseClick + addedPower) * boostMult * achievementMultiplier * prestigeMultiplier;
                 setMoney(prev => prev + clickValue);
@@ -525,30 +545,42 @@
                 return icons[iconName] || Icons.Briefcase;
             };
 
-            // --- 컴포넌트 분리 (렌더링 로직) ---
+            // --- 컴포넌트 분리 ---
             
-            // 1. Home Tab Content (모바일 홈 / 데스크탑 왼쪽 패널)
             const HomeContent = () => (
                 <div className="flex flex-col gap-6 h-full">
-                    <div className="bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-700 relative overflow-hidden">
-                        <div className="flex justify-between items-center mb-2 relative z-10">
-                            <h2 className="text-lg font-semibold flex items-center gap-2"><Icons.Activity size={20} /> 시장 경제 뉴스</h2>
-                            <span className="text-xs text-slate-400">{timeLeftForEvent}초 후 변동</span>
+                    {/* 실시간 뉴스 티커 */}
+                    <div className="bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-700 relative overflow-hidden flex flex-col justify-center min-h-[120px]">
+                        <div className="flex items-center gap-2 mb-3">
+                            <Icons.Newspaper size={20} className="text-blue-400" />
+                            <h2 className="text-lg font-bold text-white">실시간 속보</h2>
                         </div>
-                        <div className="relative z-10">
-                            <p className={`text-xl font-bold ${marketStatus.color}`}>{marketStatus.name}</p>
-                            <div className="flex items-center gap-2 text-sm text-slate-400 mt-1"><span>{marketStatus.desc}</span>{marketStatus.id === 'bull' && (<span className="text-green-400 font-bold bg-green-400/10 px-2 rounded">x{upgrades.find(u => u.type === 'market').getEffect(upgrades.find(u => u.type === 'market').level).toFixed(1)} 효과</span>)}</div>
+                        <div className="bg-slate-700/50 p-3 rounded-lg border-l-4 border-blue-500">
+                            <p className="text-sm text-slate-200 font-medium animate-pulse">
+                                {currentNews.text}
+                            </p>
                         </div>
-                        <div className="absolute bottom-0 left-0 h-1 w-full bg-slate-700">
-                            <div className={`h-full transition-all duration-1000 ease-linear ${getProgressColor()}`} style={{ width: `${(timeLeftForEvent / 30) * 100}%` }} />
-                        </div>
+                        {currentNews.type !== 'neutral' && (
+                            <div className={`text-xs mt-2 font-bold ${currentNews.type === 'good' ? 'text-green-400' : 'text-red-400'}`}>
+                                {currentNews.type === 'good' ? '▲ 시장 호재 발생' : '▼ 시장 악재 발생'}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Work Button */}
+                    <div className="flex-1 bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-700 flex flex-col items-center justify-center min-h-[240px] relative overflow-hidden group">
+                        <button onClick={handleManualClick} className="relative z-10 bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition-all w-48 h-48 rounded-full shadow-[0_0_40px_rgba(79,70,229,0.3)] flex flex-col items-center justify-center gap-2 group-hover:shadow-[0_0_60px_rgba(79,70,229,0.5)] border-4 border-indigo-400/30">
+                            <Icons.MousePointer2 size={48} className="text-white mb-2" />
+                            <span className="font-bold text-lg">노동하기</span>
+                        </button>
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 to-transparent pointer-events-none"></div>
+                        <p className="mt-6 text-slate-400 text-sm text-center">클릭하여 시드머니를 모으세요.<br/>(업적 & 명성 보너스 적용 중)</p>
                     </div>
                 </div>
             );
 
-            // 2. Business Tab Content
             const BusinessContent = () => (
-                <div className="space-y-3 pb-32 md:pb-0">
+                <div className="space-y-3 pb-24 md:pb-0">
                     <h3 className="text-lg font-bold text-slate-300 mb-4 px-1">자동 수익원 매입</h3>
                     {businesses.map((biz) => {
                         const currentCost = calculateCost(biz.baseCost, biz.count);
@@ -567,16 +599,14 @@
                 </div>
             );
 
-            // 3. Investment Content
             const InvestmentContent = () => (
-                <div className="space-y-4 pb-32 md:pb-0">
+                <div className="space-y-4 pb-24 md:pb-0">
                     <div className="bg-slate-700/50 p-2 rounded-lg border border-slate-600 flex items-center justify-between gap-2">
                         <span className="text-sm text-slate-300 font-bold px-2 flex items-center gap-2"><Icons.Calculator size={16} /> 수량</span>
                         <div className="flex gap-1 flex-1 justify-end">
                             {[1, 10, 100, 'MAX'].map((amt) => (<button key={amt} onClick={() => setTradeAmount(amt)} className={`px-2 py-1.5 rounded-md text-xs font-bold transition-all ${tradeAmount === amt ? 'bg-indigo-500 text-white shadow-lg' : 'bg-slate-600 text-slate-400'}`}>{amt === 'MAX' ? 'MAX' : `x${amt}`}</button>))}
                         </div>
                     </div>
-                    <div className="bg-slate-700/50 p-4 rounded-lg border border-slate-600 text-sm text-slate-300"><p>💡 <strong>투자 팁:</strong> 배달앱, 에너지 등 새로운 사업으로 돈을 벌고 <strong>NFT, 바이오 주식</strong> 등 다양한 자산에 투자해보세요.</p></div>
                     {investments.map((item) => {
                         let profitRate = 0; let profitColor = 'text-slate-400';
                         if (item.owned > 0) { profitRate = ((item.price - item.avgPrice) / item.avgPrice) * 100; if (profitRate > 0) profitColor = 'text-red-400'; else if (profitRate < 0) profitColor = 'text-blue-400'; }
@@ -614,9 +644,8 @@
                 </div>
             );
 
-            // 4. Upgrade Content
             const UpgradeContent = () => (
-                <div className="space-y-3 pb-32 md:pb-0">
+                <div className="space-y-3 pb-24 md:pb-0">
                     <h3 className="text-lg font-bold text-slate-300 mb-4 px-1">경제학 연구소</h3>
                     {upgrades.map((upgrade) => {
                         const currentCost = getUpgradeCost(upgrade);
@@ -637,9 +666,8 @@
                 </div>
             );
 
-            // 5. Achievement Content
             const AchievementContent = () => (
-                <div className="space-y-3 pb-32 md:pb-0">
+                <div className="space-y-3 pb-24 md:pb-0">
                     <h3 className="text-lg font-bold text-slate-300 mb-4 px-1">나의 업적</h3>
                     <div className="bg-slate-700/50 p-4 rounded-lg border border-slate-600 text-sm text-slate-300 mb-4"><p>🏆 업적을 달성할 때마다 전체 수익(클릭, 사업, 투자)이 <strong>1%씩 증가</strong>합니다.</p></div>
                     <div className="grid grid-cols-1 gap-3">
@@ -659,30 +687,26 @@
                 <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white flex flex-col relative pb-safe">
                     
                     {/* [Mobile Only] Fixed Top Header */}
-                    <div className="md:hidden fixed top-0 left-0 w-full bg-slate-900/90 backdrop-blur-md border-b border-slate-700 z-40 px-4 py-3 shadow-lg">
-                        <div className="flex justify-between items-start mb-2">
+                    <div className="md:hidden fixed top-0 left-0 w-full bg-slate-900/95 backdrop-blur-md border-b border-slate-700 z-40 px-4 py-3 shadow-lg">
+                        <div className="flex justify-between items-center mb-2">
                             <div>
-                                <div className="text-xs text-slate-400 mb-0.5 flex items-center gap-1">
-                                    보유 자산
-                                    {isAutoSaving && <Icons.Save size={12} className="text-green-400 animate-pulse" />}
-                                </div>
+                                <div className="text-xs text-slate-400 mb-0.5">보유 자산</div>
                                 <div className="text-xl font-bold font-mono text-white">₩ {formatMoney(money)}</div>
                             </div>
-                            <div className="flex gap-2">
-                                <button onClick={toggleFullScreen} className="p-2 bg-slate-800 rounded-lg text-slate-400 border border-slate-700"><Icons.Maximize size={18}/></button>
-                                <button onClick={() => setShowIPOModal(true)} className={`p-2 border rounded-lg transition-colors ${getNetWorth() >= 1000000000 ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50 animate-pulse' : 'bg-slate-800 text-slate-500 border-slate-700'}`}><Icons.Crown size={18}/></button>
-                                <button onClick={() => setShowResetModal(true)} className="p-2 bg-slate-800 rounded-lg text-slate-400 border border-slate-700"><Icons.RotateCcw size={18}/></button>
+                            <div className="text-right">
+                                <div className={`flex items-center justify-end gap-1 text-sm font-bold ${marketStatus.color}`}>
+                                    <span className="text-lg">{marketStatus.icon}</span> {marketStatus.name}
+                                </div>
+                                <div className="text-xs text-emerald-400 mt-1 flex items-center justify-end gap-1">
+                                    <Icons.TrendingUp size={12} /> +{formatMoney(calculateIncomePerSecond())}/s
+                                </div>
                             </div>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-1 text-emerald-400 text-sm font-bold bg-emerald-400/10 px-2 py-1 rounded-full"><Icons.TrendingUp size={14} /> +{formatMoney(calculateIncomePerSecond())}/s</div>
-                            {reputation > 0 && <div className="text-[10px] text-yellow-500 font-bold bg-yellow-900/30 px-2 py-1 rounded-full border border-yellow-700/50">👑 명성 +{Math.round(reputation * 2)}%</div>}
                         </div>
                     </div>
 
                     {/* Toast Notification */}
                     {toastMessage && (
-                        <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl border border-slate-600 z-50 animate-bounce flex items-center gap-2 whitespace-nowrap">
+                        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-slate-800/90 backdrop-blur text-white px-6 py-3 rounded-full shadow-2xl border border-slate-600 z-50 animate-bounce flex items-center gap-2 whitespace-nowrap">
                             <Icons.Info size={18} className="text-blue-400"/>
                             {toastMessage}
                         </div>
@@ -702,7 +726,7 @@
                                 <div className="text-left text-xs text-slate-400 mb-6 bg-slate-900/50 p-3 rounded-lg">
                                     <p>⚠️ <strong>초기화:</strong> 현금, 사업체, 투자 자산, 연구 레벨</p>
                                     <p>✅ <strong>유지:</strong> 업적, 기업 명성</p>
-                                    <p className="text-yellow-400 mt-2">🔥 명성 1점당 수익 +2% 영구 증가 (10억당 1점)</p>
+                                    <p className="text-yellow-400 mt-2">🔥 명성 1점당 수익 +0.2% 영구 증가 (10억당 1점)</p>
                                 </div>
                                 <div className="flex gap-3">
                                     <button onClick={() => setShowIPOModal(false)} className="flex-1 bg-slate-600 hover:bg-slate-500 text-white font-bold py-3 rounded-xl">취소</button>
@@ -743,26 +767,26 @@
 
                     {/* [Desktop Layout] Two Column */}
                     <div className="hidden md:flex p-8 gap-6 h-screen overflow-hidden">
-                        {/* Left Panel (Desktop) */}
+                        {/* Left Panel (Always Visible on Desktop) */}
                         <div className="w-[400px] flex flex-col gap-6 shrink-0 h-full overflow-y-auto custom-scrollbar">
                             <div className="bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-700 relative">
                                 <div className="absolute top-4 right-4 flex gap-2">
-                                    <button onClick={toggleFullScreen} className="p-2 bg-slate-700 rounded-lg hover:bg-slate-600 text-slate-400 hover:text-white transition-colors" title="전체 화면">{isFullScreen ? <Icons.Minimize size={18}/> : <Icons.Maximize size={18}/>}</button>
                                     <button onClick={() => setShowIPOModal(true)} className={`p-2 border rounded-lg transition-colors ${getNetWorth() >= 1000000000 ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50 hover:bg-yellow-500/40 animate-pulse' : 'bg-slate-700 text-slate-500 border-slate-600 hover:bg-slate-600'}`} title="IPO 진행"><Icons.Crown size={18} /></button>
-                                    <button onClick={saveData} className="p-2 bg-slate-700 rounded-lg hover:bg-slate-600 text-slate-400 hover:text-white transition-colors relative" title="저장"><Icons.Save size={18} />{isAutoSaving && <span className="absolute top-0 right-0 w-2 h-2 bg-green-500 rounded-full animate-ping"></span>}</button>
+                                    <button onClick={saveData} className="p-2 bg-slate-700 rounded-lg hover:bg-slate-600 text-slate-400 hover:text-white transition-colors" title="저장"><Icons.Save size={18} /></button>
                                     <button onClick={() => setShowResetModal(true)} className="p-2 bg-slate-700 rounded-lg hover:bg-red-900/50 text-slate-400 hover:text-red-400 transition-colors" title="초기화"><Icons.RotateCcw size={18} /></button>
                                 </div>
                                 <div className="flex items-center gap-3 mb-2"><Icons.Coins className="text-yellow-400 w-8 h-8" /><h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-200">머니 타이쿤</h1></div>
                                 <div className="mt-4"><p className="text-slate-400 text-sm flex justify-between"><span>보유 현금</span><span className="text-xs text-slate-500">순자산: ₩ {formatMoney(getNetWorth())}</span></p><p className="text-4xl font-mono font-bold text-white mt-1 break-all">₩ {formatMoney(money)}</p></div>
                                 <div className="mt-4 flex flex-wrap items-center gap-2">
                                     <div className="flex items-center gap-2 text-emerald-400 bg-emerald-400/10 w-fit px-3 py-1 rounded-full"><Icons.TrendingUp size={18} /><span className="font-bold">+{formatMoney(calculateIncomePerSecond())} / 초</span></div>
-                                    {reputation > 0 && (<div className="flex items-center gap-2 text-yellow-400 bg-yellow-400/10 w-fit px-3 py-1 rounded-full text-xs border border-yellow-500/30"><Icons.Crown size={14} /><span className="font-bold">명성 효과: +{reputation * 2}%</span></div>)}
+                                    <div className={`flex items-center gap-2 ${marketStatus.color} bg-slate-700/50 w-fit px-3 py-1 rounded-full`}><span className="text-lg">{marketStatus.icon}</span><span className="font-bold">{marketStatus.name}</span></div>
+                                    {reputation > 0 && (<div className="flex items-center gap-2 text-yellow-400 bg-yellow-400/10 w-fit px-3 py-1 rounded-full text-xs border border-yellow-500/30"><Icons.Crown size={14} /><span className="font-bold">명성 효과: +{(reputation * 0.2).toFixed(1)}%</span></div>)}
                                 </div>
                             </div>
                             <HomeContent />
                         </div>
 
-                        {/* Right Panel (Desktop) */}
+                        {/* Right Panel (Desktop Tabs) */}
                         <div className="flex-1 bg-slate-800 rounded-2xl shadow-lg border border-slate-700 flex flex-col overflow-hidden h-full">
                             <div className="flex border-b border-slate-700 overflow-x-auto shrink-0">
                                 <button onClick={() => setActiveTab('business')} className={`flex-1 py-4 px-2 font-bold flex items-center justify-center gap-2 transition-colors min-w-[100px] ${activeTab === 'business' || activeTab === 'home' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-750'}`}><Icons.Briefcase size={18} /> 사업</button>
@@ -779,51 +803,46 @@
                         </div>
                     </div>
 
-                    {/* [Mobile Layout] Content Area */}
-                    <div className="md:hidden flex-1 overflow-y-auto pt-[130px] px-4 pb-20 custom-scrollbar">
-                        {activeTab === 'home' && <HomeContent />}
+                    {/* [Mobile Layout] Content Area (Scrollable) */}
+                    <div className="md:hidden flex-1 overflow-y-auto pt-[90px] px-4 pb-20 custom-scrollbar">
+                        {activeTab === 'home' && (
+                            <div className="space-y-6">
+                                <div className="flex gap-2 justify-end mb-2">
+                                    <button onClick={() => setShowIPOModal(true)} className={`p-2 border rounded-lg transition-colors ${getNetWorth() >= 1000000000 ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50 animate-pulse' : 'bg-slate-800 text-slate-500 border-slate-700'}`}><Icons.Crown size={18}/></button>
+                                    <button onClick={saveData} className="p-2 bg-slate-800 rounded-lg text-slate-400 border border-slate-700"><Icons.Save size={18}/></button>
+                                    <button onClick={() => setShowResetModal(true)} className="p-2 bg-slate-800 rounded-lg text-slate-400 border border-slate-700"><Icons.RotateCcw size={18}/></button>
+                                </div>
+                                <HomeContent />
+                            </div>
+                        )}
                         {activeTab === 'business' && <BusinessContent />}
                         {activeTab === 'investment' && <InvestmentContent />}
                         {activeTab === 'upgrade' && <UpgradeContent />}
                         {activeTab === 'achievement' && <AchievementContent />}
                     </div>
 
-                    {/* [Mobile Only] Fixed Labor Bar & Nav */}
-                    <div className="md:hidden fixed bottom-0 left-0 w-full z-50">
-                        {/* 1. Labor Button Bar (Always visible above nav) */}
-                        <div className="px-4 pb-2 bg-gradient-to-t from-slate-900 to-transparent">
-                            <button 
-                                onClick={handleManualClick} 
-                                className="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-95 active:bg-indigo-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2 transition-all border border-indigo-400/30 active-press"
-                            >
-                                <Icons.MousePointer2 size={24} className="animate-pulse" />
-                                <span className="text-lg">노동하기 (+₩{formatMoney(1 + (upgrades.find(u => u.type === 'click_base')?.getEffect(upgrades.find(u => u.type === 'click_base').level) || 0))})</span>
-                            </button>
-                        </div>
-
-                        {/* 2. Bottom Navigation */}
-                        <div className="bg-slate-800 border-t border-slate-700 flex justify-around items-center pb-safe shadow-2xl">
-                            <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center justify-center p-3 w-full transition-colors ${activeTab === 'home' ? 'text-indigo-400' : 'text-slate-500'}`}>
-                                <Icons.Home size={20} />
-                                <span className="text-[10px] mt-1 font-bold">홈</span>
-                            </button>
-                            <button onClick={() => setActiveTab('business')} className={`flex flex-col items-center justify-center p-3 w-full transition-colors ${activeTab === 'business' ? 'text-indigo-400' : 'text-slate-500'}`}>
-                                <Icons.Briefcase size={20} />
-                                <span className="text-[10px] mt-1 font-bold">사업</span>
-                            </button>
-                            <button onClick={() => setActiveTab('investment')} className={`flex flex-col items-center justify-center p-3 w-full transition-colors ${activeTab === 'investment' ? 'text-indigo-400' : 'text-slate-500'}`}>
-                                <Icons.LineChart size={20} />
-                                <span className="text-[10px] mt-1 font-bold">투자</span>
-                            </button>
-                            <button onClick={() => setActiveTab('upgrade')} className={`flex flex-col items-center justify-center p-3 w-full transition-colors ${activeTab === 'upgrade' ? 'text-indigo-400' : 'text-slate-500'}`}>
-                                <Icons.Microscope size={20} />
-                                <span className="text-[10px] mt-1 font-bold">연구</span>
-                            </button>
-                            <button onClick={() => setActiveTab('achievement')} className={`flex-1 flex flex-col items-center justify-center p-3 w-full transition-colors ${activeTab === 'achievement' ? 'text-indigo-400' : 'text-slate-500'}`}>
-                                <Icons.Medal size={20} />
-                                <span className="text-[10px] mt-1 font-bold">업적</span>
-                            </button>
-                        </div>
+                    {/* [Mobile Only] Bottom Navigation */}
+                    <div className="md:hidden fixed bottom-0 left-0 w-full bg-slate-800 border-t border-slate-700 flex justify-around items-center pb-safe z-40 shadow-2xl">
+                        <button onClick={() => setActiveTab('home')} className={`flex flex-col items-center justify-center p-3 w-full transition-colors ${activeTab === 'home' ? 'text-indigo-400' : 'text-slate-500'}`}>
+                            <Icons.Home size={20} />
+                            <span className="text-[10px] mt-1 font-bold">홈</span>
+                        </button>
+                        <button onClick={() => setActiveTab('business')} className={`flex flex-col items-center justify-center p-3 w-full transition-colors ${activeTab === 'business' ? 'text-indigo-400' : 'text-slate-500'}`}>
+                            <Icons.Briefcase size={20} />
+                            <span className="text-[10px] mt-1 font-bold">사업</span>
+                        </button>
+                        <button onClick={() => setActiveTab('investment')} className={`flex flex-col items-center justify-center p-3 w-full transition-colors ${activeTab === 'investment' ? 'text-indigo-400' : 'text-slate-500'}`}>
+                            <Icons.LineChart size={20} />
+                            <span className="text-[10px] mt-1 font-bold">투자</span>
+                        </button>
+                        <button onClick={() => setActiveTab('upgrade')} className={`flex flex-col items-center justify-center p-3 w-full transition-colors ${activeTab === 'upgrade' ? 'text-indigo-400' : 'text-slate-500'}`}>
+                            <Icons.Microscope size={20} />
+                            <span className="text-[10px] mt-1 font-bold">연구</span>
+                        </button>
+                        <button onClick={() => setActiveTab('achievement')} className={`flex-1 flex flex-col items-center justify-center p-3 w-full transition-colors ${activeTab === 'achievement' ? 'text-indigo-400' : 'text-slate-500'}`}>
+                            <Icons.Medal size={20} />
+                            <span className="text-[10px] mt-1 font-bold">업적</span>
+                        </button>
                     </div>
 
                 </div>
