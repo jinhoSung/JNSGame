@@ -16,15 +16,24 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
+        /* 커스텀 스크롤바 */
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(30, 41, 59, 0.5); }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(71, 85, 105, 0.8); border-radius: 4px; }
         
-        body { background-color: #0f172a; color: #f1f5f9; -webkit-tap-highlight-color: transparent; user-select: none; overflow: hidden; }
+        /* 기본 설정 */
+        body { 
+            background-color: #0f172a; 
+            color: #f1f5f9; 
+            -webkit-tap-highlight-color: transparent; 
+            user-select: none; 
+            overflow: hidden; /* 전체 페이지 스크롤 방지 */
+            touch-action: manipulation;
+        }
         
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
 
-        /* 뉴스 티커 애니메이션 (좌우 스크롤) */
+        /* 애니메이션 */
         @keyframes ticker-slide {
             0% { transform: translateX(100%); }
             100% { transform: translateX(-100%); }
@@ -528,18 +537,11 @@
                 return () => clearInterval(timer);
             }, [calculateIncomePerSecond]);
 
-            // 뉴스 발생 로직 개선
             useEffect(() => {
                 const eventLoop = setInterval(() => {
                     if (Math.random() < 0.3) {
                         const randomNews = NEWS_ITEMS[Math.floor(Math.random() * NEWS_ITEMS.length)];
-                        // 최신 뉴스로 업데이트
                         setCurrentNews(randomNews);
-                        
-                        // 뉴스 히스토리에 추가 (중복 방지 없이 다 추가, 최대 20개)
-                        const newsItemWithTime = { ...randomNews, id: Date.now(), time: new Date().toLocaleTimeString() };
-                        setNewsHistory(prev => [newsItemWithTime, ...prev].slice(0, 20));
-
                         showToast("속보: " + randomNews.text);
                         if (randomNews.target !== 'all') {
                             setInvestments(prev => prev.map(inv => {
@@ -654,8 +656,6 @@
             };
 
             // --- Sub Components ---
-            
-            // Home Content: 뉴스 리스트 보여주기
             const HomeContent = () => (
                 <div className="flex flex-col gap-4 h-full pb-20">
                     <h3 className="text-lg font-bold text-slate-300 px-1 flex items-center gap-2">
@@ -800,7 +800,7 @@
 
             // --- Render ---
             return (
-                <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white flex flex-col relative pb-safe">
+                <div className="h-screen bg-slate-900 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white flex flex-col relative pb-safe overflow-hidden">
                     {/* Click Effects */}
                     {clickEffects.map(effect => (
                         <div key={effect.id} className="float-text text-emerald-400 text-xl pointer-events-none" style={{ left: effect.x, top: effect.y }}>
@@ -838,7 +838,6 @@
                         </div>
                     )}
 
-                    {/* ... (IPO, Reset, Offline Modals same as before) ... */}
                     {showIPOModal && (
                         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
                             <div className="bg-slate-800 border-2 border-yellow-500 rounded-2xl p-6 max-w-md w-full text-center shadow-[0_0_50px_rgba(234,179,8,0.3)]">
@@ -939,9 +938,9 @@
                         {activeTab === 'achievement' && <AchievementContent />}
                     </div>
 
-                    {/* Mobile Floating Work Button */}
-                    <button onClick={handleManualClick} className="md:hidden fixed bottom-24 right-4 z-50 bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-full shadow-[0_0_20px_rgba(79,70,229,0.5)] border-4 border-indigo-400/30 active:scale-95 transition-all flex items-center justify-center" aria-label="노동하기">
-                        <Icons.MousePointer2 size={28} />
+                    {/* Mobile Floating Work Button - Always Visible */}
+                    <button onClick={handleManualClick} className="md:hidden fixed bottom-24 right-4 z-50 bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-3 rounded-full shadow-[0_4px_14px_0_rgba(79,70,229,0.5)] border-2 border-indigo-400/30 active:scale-95 transition-all flex items-center justify-center gap-2 font-bold" aria-label="노동하기">
+                        <Icons.Hammer size={24} /> <span className="text-sm">노동하기</span>
                     </button>
 
                     {/* Mobile Bottom Nav */}
