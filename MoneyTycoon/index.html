@@ -265,6 +265,17 @@
             // 사운드 상태 및 ref
             const [soundEnabled, setSoundEnabled] = useState(true);
             const audioCtx = useRef(null);
+            
+            // Ref for state inside interval
+            const gameStateRef = useRef({});
+
+            // Update ref
+            useEffect(() => {
+                gameStateRef.current = {
+                    money, totalEarned, businesses, investments, upgrades, achievements, reputation, marketStatus, currentNews, newsHistory, soundEnabled
+                };
+            }, [money, totalEarned, businesses, investments, upgrades, achievements, reputation, marketStatus, currentNews, newsHistory, soundEnabled]);
+
 
             // --- Utils & Hooks ---
             const playSound = useCallback((type) => {
@@ -333,20 +344,44 @@
                 return money + assetsValue;
             }, [money, investments]);
 
+            // Save Data Function using Ref
             const saveData = useCallback(() => {
-                const gameState = {
-                    money, totalEarned, businesses, investments, upgrades, achievements, reputation, lastSaveTime: Date.now(), soundEnabled, newsHistory 
-                };
-                localStorage.setItem('moneyTycoonSaveV6', JSON.stringify(gameState)); 
-            }, [money, totalEarned, businesses, investments, upgrades, achievements, reputation, soundEnabled, newsHistory]);
+                const state = gameStateRef.current;
+                if(!state.money && state.money !== 0) return; // Not initialized yet
 
+                const gameState = {
+                    money: state.money,
+                    totalEarned: state.totalEarned,
+                    businesses: state.businesses,
+                    investments: state.investments,
+                    upgrades: state.upgrades,
+                    achievements: state.achievements,
+                    reputation: state.reputation,
+                    soundEnabled: state.soundEnabled,
+                    newsHistory: state.newsHistory,
+                    lastSaveTime: Date.now()
+                };
+                localStorage.setItem('moneyTycoonSaveV7', JSON.stringify(gameState)); // V7
+            }, []);
+
+            // Auto-save Interval (Runs once)
             useEffect(() => {
-                const saveTimer = setInterval(saveData, 5000);
-                return () => clearInterval(saveTimer);
+                const interval = setInterval(() => {
+                    saveData();
+                }, 5000);
+
+                const handleUnload = () => saveData();
+                window.addEventListener('beforeunload', handleUnload);
+
+                return () => {
+                    clearInterval(interval);
+                    window.removeEventListener('beforeunload', handleUnload);
+                };
             }, [saveData]);
 
+            // Load Data
             useEffect(() => {
-                const savedData = localStorage.getItem('moneyTycoonSaveV6');
+                const savedData = localStorage.getItem('moneyTycoonSaveV7');
                 if (savedData) {
                     try {
                         const parsed = JSON.parse(savedData);
@@ -401,7 +436,7 @@
             }, []);
 
             const handleResetConfirm = () => {
-                localStorage.removeItem('moneyTycoonSaveV6');
+                localStorage.removeItem('moneyTycoonSaveV7');
                 setMoney(0);
                 setTotalEarned(0);
                 setBusinesses(getInitialBusinesses());
@@ -461,7 +496,7 @@
             };
 
             const handleExportSave = () => {
-                const saveData = localStorage.getItem('moneyTycoonSaveV6');
+                const saveData = localStorage.getItem('moneyTycoonSaveV7');
                 if (saveData) { setSaveString(btoa(unescape(encodeURIComponent(saveData)))); } else { setSaveString("저장된 데이터가 없습니다."); }
             };
 
@@ -469,7 +504,7 @@
                 try {
                     const decoded = decodeURIComponent(escape(atob(saveString)));
                     JSON.parse(decoded);
-                    localStorage.setItem('moneyTycoonSaveV6', decoded);
+                    localStorage.setItem('moneyTycoonSaveV7', decoded);
                     window.location.reload();
                 } catch (e) { showToast("잘못된 세이브 데이터입니다."); playSound('error'); }
             };
@@ -572,7 +607,7 @@
                             return { ...item, price: newPrice, history: newHistory };
                         });
                     });
-                }, 2000);
+                }, 4000);
                 return () => clearInterval(eventLoop);
             }, [marketStatus]);
 
@@ -655,9 +690,8 @@
             };
 
             // --- Sub Components ---
-            
             const HomeContent = () => (
-                <div className="flex flex-col gap-4 pb-24">
+                <div className="flex flex-col gap-4">
                     <div className="bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-700 relative overflow-hidden flex flex-col justify-center min-h-[120px]">
                         <div className="flex items-center gap-2 mb-3"><Icons.Newspaper size={20} className="text-blue-400" /><h2 className="text-lg font-bold text-white">실시간 속보</h2></div>
                         <div className="bg-slate-700/50 p-3 rounded-lg border-l-4 border-blue-500"><p className="text-sm text-slate-200 font-medium animate-pulse">{currentNews.text}</p></div>
@@ -690,7 +724,7 @@
             );
 
             const BusinessContent = () => (
-                <div className="space-y-3 pb-24">
+                <div className="space-y-3 pb-4">
                     <div className="bg-slate-700/50 p-2 rounded-lg border border-slate-600 flex items-center justify-between gap-2 mb-3">
                         <span className="text-sm text-slate-300 font-bold px-2 flex items-center gap-2"><Icons.Calculator size={16} /> 수량</span>
                         <div className="flex gap-1 flex-1 justify-end">
@@ -721,8 +755,7 @@
             );
 
             const InvestmentContent = () => (
-                <div className="space-y-4 pb-24">
-                    {/* 수량 조절 버튼 */}
+                <div className="space-y-4 pb-4">
                     <div className="bg-slate-700/50 p-2 rounded-lg border border-slate-600 flex items-center justify-between gap-2">
                         <span className="text-sm text-slate-300 font-bold px-2 flex items-center gap-2"><Icons.Calculator size={16} /> 수량</span>
                         <div className="flex gap-1 flex-1 justify-end">
@@ -730,7 +763,6 @@
                         </div>
                     </div>
                     
-                    {/* 2열 그리드 레이아웃 적용 */}
                     <div className="grid grid-cols-2 md:grid-cols-1 lg:grid-cols-2 gap-2"> 
                         {investments.map((item) => {
                             let profitRate = 0; let profitColor = 'text-slate-400';
@@ -776,7 +808,7 @@
             );
 
             const UpgradeContent = () => (
-                <div className="space-y-3 pb-24">
+                <div className="space-y-3 pb-4">
                     <h3 className="text-lg font-bold text-slate-300 mb-4 px-1">경제학 연구소</h3>
                     {upgrades.map((upgrade) => {
                         const currentCost = getUpgradeCost(upgrade);
@@ -798,7 +830,7 @@
             );
 
             const AchievementContent = () => (
-                <div className="space-y-3 pb-24">
+                <div className="space-y-3 pb-4">
                     <h3 className="text-lg font-bold text-slate-300 mb-4 px-1">나의 업적</h3>
                     <div className="bg-slate-700/50 p-4 rounded-lg border border-slate-600 text-sm text-slate-300 mb-4"><p>🏆 업적을 달성할 때마다 전체 수익(클릭, 사업, 투자)이 <strong>1%씩 증가</strong>합니다.</p></div>
                     <div className="grid grid-cols-1 gap-3">
