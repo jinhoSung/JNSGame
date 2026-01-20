@@ -2,7 +2,8 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>세상에서 가장 어려운 게임 - 50레벨</title>
+  <title>세상에서 가장 어려운 게임 - 50레벨 (모바일 조이스틱)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <style>
     body {
       margin: 0;
@@ -14,10 +15,15 @@
       font-family: Arial, sans-serif;
       color: #fff;
       user-select: none;
+      overflow: hidden;
+    }
+    #gameWrapper {
+      position: relative;
     }
     #gameCanvas {
       background: #eee;
       border: 4px solid #000;
+      touch-action: none;
     }
     #ui {
       position: fixed;
@@ -25,8 +31,39 @@
       left: 50%;
       transform: translateX(-50%);
       color: #fff;
-      font-size: 16px;
+      font-size: 14px;
       text-align: center;
+      z-index: 10;
+    }
+    #joystickArea {
+      position: absolute;
+      left: 10px;
+      bottom: 10px;
+      width: 160px;
+      height: 160px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      display: none; /* 모바일에서만 보이게 */
+      touch-action: none;
+    }
+    #joystickBase, #joystickStick {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    #joystickBase {
+      width: 120px;
+      height: 120px;
+      left: 20px;
+      top: 20px;
+      background: rgba(0, 0, 0, 0.3);
+    }
+    #joystickStick {
+      width: 60px;
+      height: 60px;
+      left: 50px;
+      top: 50px;
+      background: rgba(255, 255, 255, 0.8);
     }
   </style>
 </head>
@@ -34,33 +71,72 @@
 <div id="ui">
   <div>레벨: <span id="levelDisplay">1</span> / 50</div>
   <div>죽은 횟수: <span id="deathDisplay">0</span></div>
-  <div>← ↑ ↓ → 방향키 / 클리어 후 스페이스·엔터</div>
+  <div>PC: 방향키 / 모바일: 조이스틱</div>
 </div>
-<canvas id="gameCanvas" width="640" height="480"></canvas>
+
+<div id="gameWrapper">
+  <canvas id="gameCanvas" width="640" height="480"></canvas>
+  <div id="joystickArea">
+    <div id="joystickBase"></div>
+    <div id="joystickStick"></div>
+  </div>
+</div>
 
 <script>
-/* ===== 기본 설정 ===== */
+/* ===== 기본 설정 + 디바이스 감지 ===== */
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const keys = {};
 let currentLevelIndex = 0;
 let deaths = 0;
 let gameWon = false;
-
-// 모달(게임 내부 창)
 let showLevelMessage = false;
 let levelMessageText = "";
 
 const levelDisplay = document.getElementById("levelDisplay");
 const deathDisplay = document.getElementById("deathDisplay");
 
+const joystickArea = document.getElementById("joystickArea");
+const joystickBase = document.getElementById("joystickBase");
+const joystickStick = document.getElementById("joystickStick");
+
+// 간단한 모바일 감지[web:94]
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobi/i.test(
+  navigator.userAgent
+);
+
+/* ===== 반응형 캔버스 ===== */
+const DESIGN_WIDTH = 640;
+const DESIGN_HEIGHT = 480;
+
+function resizeCanvas() {
+  const wrapper = document.getElementById("gameWrapper");
+  const maxWidth = window.innerWidth;
+  const maxHeight = window.innerHeight;
+
+  const scaleX = maxWidth / DESIGN_WIDTH;
+  const scaleY = maxHeight / DESIGN_HEIGHT;
+  const scale = Math.min(scaleX, scaleY);
+
+  const displayWidth = DESIGN_WIDTH * scale;
+  const displayHeight = DESIGN_HEIGHT * scale;
+
+  canvas.style.width = displayWidth + "px";
+  canvas.style.height = displayHeight + "px";
+
+  wrapper.style.width = displayWidth + "px";
+  wrapper.style.height = displayHeight + "px";
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+/* ===== 입력 처리 (키보드 + 조이스틱) ===== */
 window.addEventListener("keydown", e => {
-  // 모달이 떠 있을 때: 특정 키만 처리
   if (showLevelMessage) {
-    if (!gameWon && e.key === " ") {      // 스페이스: 다음 레벨
+    if (!gameWon && e.key === " ") {
       showLevelMessage = false;
       loadLevel(currentLevelIndex);
-    } else if (gameWon && e.key === "Enter") { // 엔터: 전체 재시작
+    } else if (gameWon && e.key === "Enter") {
       currentLevelIndex = 0;
       deaths = 0;
       gameWon = false;
@@ -71,7 +147,6 @@ window.addEventListener("keydown", e => {
   }
   keys[e.key] = true;
 });
-
 window.addEventListener("keyup", e => {
   keys[e.key] = false;
 });
@@ -83,7 +158,7 @@ let walls = [];
 let enemies = [];
 let coins = [];
 
-/* ===== 수동 레벨 1~10 ===== */
+/* ===== 레벨 데이터 1~10 (직접 디자인) ===== */
 const baseLevels = [
   // 1
   {
@@ -301,17 +376,15 @@ const baseLevels = [
 ];
 
 /* ===== 자동 생성 레벨 11~50 ===== */
-/* 난이도는 레벨 번호에 따라 속도/적 개수/코인 개수가 조금씩 증가하도록 패턴으로 생성 */
 const levels = [...baseLevels];
 
 function generateAutoLevels() {
   for (let lvl = 11; lvl <= 50; lvl++) {
-    const progress = (lvl - 11) / 39; // 0 ~ 1
-    const enemyCount = 4 + Math.floor(progress * 6); // 4~10
-    const coinCount  = Math.floor(progress * 4);     // 0~4
-    const speedBase  = 2 + progress * 3;             // 2~5
+    const progress = (lvl - 11) / 39;
+    const enemyCount = 4 + Math.floor(progress * 6);
+    const coinCount  = Math.floor(progress * 4);
+    const speedBase  = 2 + progress * 3;
 
-    // 짧은 코스 / 긴 코스를 번갈아 가며
     const isHorizontalCourse = lvl % 2 === 1;
 
     const start = isHorizontalCourse
@@ -323,13 +396,10 @@ function generateAutoLevels() {
       : { x: 320, y: 40,  w: 50, h: 50 };
 
     const walls = [];
-    // 상하 여백
     walls.push({ x: 0, y: 0,   w: 640, h: 40 + 20 * (lvl % 3) });
     walls.push({ x: 0, y: 440 - 20 * (lvl % 3), w: 640, h: 40 + 20 * (lvl % 3) });
 
-    // 중앙 장애물 패턴
     if (isHorizontalCourse) {
-      // 세로 기둥 여러 개
       for (let i = 0; i < 3; i++) {
         walls.push({
           x: 200 + i * 80,
@@ -339,7 +409,6 @@ function generateAutoLevels() {
         });
       }
     } else {
-      // 가로 발판 여러 개
       for (let i = 0; i < 3; i++) {
         walls.push({
           x: 80 + (i % 2) * 240,
@@ -354,7 +423,6 @@ function generateAutoLevels() {
     for (let i = 0; i < enemyCount; i++) {
       const speed = speedBase + (i % 3) * 0.5;
       if (i % 2 === 0) {
-        // 상하 움직이는 적
         const yMin = 80 + 20 * (i % 3);
         const yMax = 400 - 20 * (i % 3);
         enemies.push({
@@ -367,7 +435,6 @@ function generateAutoLevels() {
           maxY: yMax
         });
       } else {
-        // 좌우 움직이는 적
         const xMin = 80 + 20 * (i % 3);
         const xMax = 560 - 20 * (i % 3);
         enemies.push({
@@ -395,7 +462,6 @@ function generateAutoLevels() {
     levels.push({ start, goal, walls, enemies, coins });
   }
 }
-
 generateAutoLevels();
 
 /* ===== 레벨 로드 ===== */
@@ -405,24 +471,21 @@ function loadLevel(index) {
   player.y = level.start.y;
   player.startX = level.start.x;
   player.startY = level.start.y;
-
   goal = { ...level.goal };
   walls = level.walls.map(w => ({ ...w }));
   enemies = level.enemies.map(e => ({ ...e }));
   coins = level.coins.map(c => ({ ...c }));
-
   levelDisplay.textContent = (index + 1).toString();
   deathDisplay.textContent = deaths.toString();
 }
 
-/* ===== 유틸 ===== */
+/* ===== 충돌 유틸 ===== */
 function rectIntersect(a, b) {
   return a.x < b.x + b.w &&
          a.x + a.w > b.x &&
          a.y < b.y + b.h &&
          a.y + a.h > b.y;
 }
-
 function circleRectCollide(circle, rect) {
   const closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.w));
   const closestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.h));
@@ -431,15 +494,78 @@ function circleRectCollide(circle, rect) {
   return (dx * dx + dy * dy) < (circle.r * circle.r);
 }
 
-/* ===== 게임 루프 ===== */
+/* ===== 모바일 조이스틱 ===== */
+let joystickActive = false;
+let joystickCenter = { x: 80, y: 80 };
+let joystickVector = { x: 0, y: 0 };
+
+if (isMobile) {
+  joystickArea.style.display = "block";
+  const maxDistance = 40; // 스틱 최대 이동[web:82]
+
+  function updateStickPosition(clientX, clientY) {
+    const rect = joystickArea.getBoundingClientRect();
+    const localX = clientX - rect.left;
+    const localY = clientY - rect.top;
+
+    const dx = localX - joystickCenter.x;
+    const dy = localY - joystickCenter.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const clampedDist = Math.min(dist, maxDistance);
+    const angle = Math.atan2(dy, dx);
+
+    const stickX = joystickCenter.x + Math.cos(angle) * clampedDist;
+    const stickY = joystickCenter.y + Math.sin(angle) * clampedDist;
+
+    joystickStick.style.left = (stickX - joystickStick.offsetWidth / 2) + "px";
+    joystickStick.style.top  = (stickY - joystickStick.offsetHeight / 2) + "px";
+
+    if (dist > 5) {
+      joystickVector.x = Math.cos(angle);
+      joystickVector.y = Math.sin(angle);
+    } else {
+      joystickVector.x = 0;
+      joystickVector.y = 0;
+    }
+  }
+
+  joystickArea.addEventListener("touchstart", e => {
+    e.preventDefault();
+    joystickActive = true;
+    const t = e.touches[0];
+    updateStickPosition(t.clientX, t.clientY);
+  });
+  joystickArea.addEventListener("touchmove", e => {
+    e.preventDefault();
+    if (!joystickActive) return;
+    const t = e.touches[0];
+    updateStickPosition(t.clientX, t.clientY);
+  });
+  joystickArea.addEventListener("touchend", e => {
+    e.preventDefault();
+    joystickActive = false;
+    joystickVector.x = 0;
+    joystickVector.y = 0;
+    joystickStick.style.left = (joystickCenter.x - joystickStick.offsetWidth / 2) + "px";
+    joystickStick.style.top  = (joystickCenter.y - joystickStick.offsetHeight / 2) + "px";
+  });
+}
+
+/* ===== 게임 로직 ===== */
 function update() {
   if (gameWon || showLevelMessage) return;
 
   let vx = 0, vy = 0;
-  if (keys["ArrowUp"])    vy -= player.speed;
-  if (keys["ArrowDown"])  vy += player.speed;
-  if (keys["ArrowLeft"])  vx -= player.speed;
-  if (keys["ArrowRight"]) vx += player.speed;
+
+  if (isMobile && joystickActive) {
+    vx = joystickVector.x * player.speed;
+    vy = joystickVector.y * player.speed;
+  } else {
+    if (keys["ArrowUp"])    vy -= player.speed;
+    if (keys["ArrowDown"])  vy += player.speed;
+    if (keys["ArrowLeft"])  vx -= player.speed;
+    if (keys["ArrowRight"]) vx += player.speed;
+  }
 
   movePlayerWithCollision(vx, vy);
 
@@ -508,16 +634,16 @@ function movePlayerWithCollision(vx, vy) {
     }
   }
 
-  player.x = Math.max(0, Math.min(canvas.width  - player.w, player.x));
-  player.y = Math.max(0, Math.min(canvas.height - player.h, player.y));
+  player.x = Math.max(0, Math.min(DESIGN_WIDTH  - player.w, player.x));
+  player.y = Math.max(0, Math.min(DESIGN_HEIGHT - player.h, player.y));
 }
 
 /* ===== 렌더링 ===== */
 function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
 
   ctx.fillStyle = "#88dd88";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
 
   ctx.fillStyle = "#888888";
   walls.forEach(w => ctx.fillRect(w.x, w.y, w.w, w.h));
@@ -549,16 +675,16 @@ function draw() {
 
   if (showLevelMessage) {
     ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
 
     ctx.fillStyle = "#ffffff";
     ctx.textAlign = "center";
     ctx.font = "24px Arial";
 
     const lines = levelMessageText.split("\n");
-    let baseY = canvas.height / 2 - (lines.length - 1) * 20;
+    let baseY = DESIGN_HEIGHT / 2 - (lines.length - 1) * 20;
     lines.forEach((line, i) => {
-      ctx.fillText(line, canvas.width / 2, baseY + i * 30);
+      ctx.fillText(line, DESIGN_WIDTH / 2, baseY + i * 30);
     });
   }
 }
