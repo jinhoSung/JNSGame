@@ -34,7 +34,7 @@
 <div id="ui">
   <div>레벨: <span id="levelDisplay">1</span> / 10</div>
   <div>죽은 횟수: <span id="deathDisplay">0</span></div>
-  <div>← ↑ ↓ → 방향키로 이동</div>
+  <div>← ↑ ↓ → 방향키로 이동 / 클리어 후 스페이스 또는 엔터</div>
 </div>
 <canvas id="gameCanvas" width="640" height="480"></canvas>
 
@@ -47,20 +47,35 @@ let currentLevelIndex = 0;
 let deaths = 0;
 let gameWon = false;
 
+// 모달(게임 내부 창) 상태
+let showLevelMessage = false;   // 레벨/클리어 메시지 표시 여부
+let levelMessageText = "";      // 메시지 내용
+
 const levelDisplay = document.getElementById("levelDisplay");
 const deathDisplay = document.getElementById("deathDisplay");
 
 window.addEventListener("keydown", e => {
-  keys[e.key] = true;
-  // 레벨 클리어 후 엔터로 다시 시작
-  if (gameWon && e.key === "Enter") {
-    currentLevelIndex = 0;
-    deaths = 0;
-    gameWon = false;
-    loadLevel(currentLevelIndex);
+  // 모달이 떠 있을 때는 특정 키만 처리하고 나머지는 무시
+  if (showLevelMessage) {
+    if (!gameWon && e.key === " ") {  // 스페이스로 다음 레벨
+      showLevelMessage = false;
+      loadLevel(currentLevelIndex);
+    } else if (gameWon && e.key === "Enter") { // 엔터로 전체 재시작
+      currentLevelIndex = 0;
+      deaths = 0;
+      gameWon = false;
+      showLevelMessage = false;
+      loadLevel(currentLevelIndex);
+    }
+    return;
   }
+
+  keys[e.key] = true;
 });
-window.addEventListener("keyup", e => keys[e.key] = false);
+
+window.addEventListener("keyup", e => {
+  keys[e.key] = false;
+});
 
 /* ===== 플레이어 / 구조체 ===== */
 const player = { x: 0, y: 0, w: 18, h: 18, speed: 3, startX: 0, startY: 0 };
@@ -70,9 +85,8 @@ let enemies = [];    // {x,y,r,dx,dy,minX,maxX,minY,maxY}
 let coins = [];      // {x,y,r,taken}
 
 /* ===== 레벨 데이터 (10개) ===== */
-/* 각 레벨: 시작/도착, 벽, 적, 코인만 다르게 배치 */
 const levels = [
-  // 레벨 1: 기본 상하 이동 적
+  // 레벨 1
   {
     start: { x: 50, y: 230 },
     goal:  { x: 550, y: 200, w: 60, h: 80 },
@@ -88,7 +102,7 @@ const levels = [
     ],
     coins: []
   },
-  // 레벨 2: 좁은 통로 + 상하 적
+  // 레벨 2
   {
     start: { x: 40, y: 230 },
     goal:  { x: 560, y: 210, w: 50, h: 60 },
@@ -109,7 +123,7 @@ const levels = [
       { x: 520, y: 240, r: 6, taken: false }
     ]
   },
-  // 레벨 3: 좌우 이동 적
+  // 레벨 3
   {
     start: { x: 50, y: 230 },
     goal:  { x: 550, y: 210, w: 60, h: 60 },
@@ -128,7 +142,7 @@ const levels = [
       { x: 320, y: 330, r: 6, taken: false }
     ]
   },
-  // 레벨 4: 십자형 패턴
+  // 레벨 4
   {
     start: { x: 300, y: 400 },
     goal:  { x: 300, y: 40, w: 40, h: 40 },
@@ -139,10 +153,8 @@ const levels = [
       { x: 600, y: 0, w: 40, h: 480 }
     ],
     enemies: [
-      // 상하
-      { x: 200, y: 80, r: 9, dx: 0, dy: 3, minY: 80, maxY: 400 },
+      { x: 200, y: 80,  r: 9, dx: 0, dy: 3, minY: 80, maxY: 400 },
       { x: 440, y: 400, r: 9, dx: 0, dy: -3, minY: 80, maxY: 400 },
-      // 좌우
       { x: 80,  y: 260, r: 9, dx: 3, dy: 0, minX: 80, maxX: 560 },
       { x: 560, y: 220, r: 9, dx: -3, dy: 0, minX: 80, maxX: 560 }
     ],
@@ -150,7 +162,7 @@ const levels = [
       { x: 320, y: 260, r: 6, taken: false }
     ]
   },
-  // 레벨 5: 좁은 미로 느낌
+  // 레벨 5
   {
     start: { x: 60, y: 400 },
     goal:  { x: 560, y: 60, w: 40, h: 40 },
@@ -174,7 +186,7 @@ const levels = [
       { x: 100, y: 420, r: 6, taken: false }
     ]
   },
-  // 레벨 6: 코인 전부 먹기
+  // 레벨 6
   {
     start: { x: 40, y: 220 },
     goal:  { x: 580, y: 220, w: 40, h: 40 },
@@ -196,7 +208,7 @@ const levels = [
       { x: 520, y: 360, r: 6, taken: false }
     ]
   },
-  // 레벨 7: 빠른 대각선 느낌 (상하+좌우 섞음)
+  // 레벨 7
   {
     start: { x: 40, y: 230 },
     goal:  { x: 560, y: 230, w: 60, h: 60 },
@@ -215,7 +227,7 @@ const levels = [
       { x: 320, y: 230, r: 6, taken: false }
     ]
   },
-  // 레벨 8: 중앙 십자 벽 + 회피
+  // 레벨 8
   {
     start: { x: 40, y: 230 },
     goal:  { x: 560, y: 230, w: 60, h: 60 },
@@ -238,7 +250,7 @@ const levels = [
       { x: 540, y: 240, r: 6, taken: false }
     ]
   },
-  // 레벨 9: 매우 빠른 적
+  // 레벨 9
   {
     start: { x: 60, y: 420 },
     goal:  { x: 560, y: 60, w: 40, h: 40 },
@@ -260,7 +272,7 @@ const levels = [
       { x: 520, y: 420, r: 6, taken: false }
     ]
   },
-  // 레벨 10: 마지막, 코인 전부 + 빠른 패턴
+  // 레벨 10
   {
     start: { x: 40, y: 230 },
     goal:  { x: 580, y: 40, w: 40, h: 40 },
@@ -289,7 +301,7 @@ const levels = [
   }
 ];
 
-/* ===== 레벨 로드 함수 ===== */
+/* ===== 레벨 로드 ===== */
 function loadLevel(index) {
   const level = levels[index];
   player.x = level.start.x;
@@ -306,7 +318,7 @@ function loadLevel(index) {
   deathDisplay.textContent = deaths.toString();
 }
 
-/* ===== 유틸 함수 ===== */
+/* ===== 유틸 ===== */
 function rectIntersect(a, b) {
   return a.x < b.x + b.w &&
          a.x + a.w > b.x &&
@@ -315,7 +327,6 @@ function rectIntersect(a, b) {
 }
 
 function circleRectCollide(circle, rect) {
-  // 원-사각형 충돌
   const closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.w));
   const closestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.h));
   const dx = circle.x - closestX;
@@ -325,19 +336,16 @@ function circleRectCollide(circle, rect) {
 
 /* ===== 게임 루프 ===== */
 function update() {
-  if (gameWon) return;
+  if (gameWon || showLevelMessage) return;
 
-  // 플레이어 이동
   let vx = 0, vy = 0;
   if (keys["ArrowUp"])    vy -= player.speed;
   if (keys["ArrowDown"])  vy += player.speed;
   if (keys["ArrowLeft"])  vx -= player.speed;
   if (keys["ArrowRight"]) vx += player.speed;
 
-  // 벽 충돌을 고려한 이동
   movePlayerWithCollision(vx, vy);
 
-  // 적 이동
   enemies.forEach(e => {
     e.x += e.dx || 0;
     e.y += e.dy || 0;
@@ -345,7 +353,6 @@ function update() {
     if (e.minY !== undefined && (e.y < e.minY || e.y > e.maxY)) e.dy *= -1;
   });
 
-  // 적에 닿으면 사망
   for (const e of enemies) {
     if (circleRectCollide(e, player)) {
       deaths++;
@@ -356,7 +363,6 @@ function update() {
     }
   }
 
-  // 코인 먹기
   coins.forEach(c => {
     if (!c.taken) {
       const dx = (player.x + player.w / 2) - c.x;
@@ -368,25 +374,26 @@ function update() {
     }
   });
 
-  // 모든 코인 먹었는지
   const allCoinsTaken = coins.every(c => c.taken);
 
-  // 도착 지점 도달 + 코인 조건
+  // 도착 + 코인 조건
   if (rectIntersect(player, goal) && allCoinsTaken) {
     currentLevelIndex++;
+    // 키 상태 초기화 (붙은 키 입력 제거)
+    for (const k in keys) keys[k] = false;
+
     if (currentLevelIndex >= levels.length) {
-      // 모든 레벨 클리어
       gameWon = true;
-      alert("축하합니다! 10레벨 모두 클리어!\n엔터 키를 눌러 다시 시작할 수 있습니다.");
+      showLevelMessage = true;
+      levelMessageText = "축하합니다! 10레벨 모두 클리어!\n엔터 키를 눌러 다시 시작할 수 있습니다.";
     } else {
-      alert("레벨 " + currentLevelIndex + " 클리어! 다음 레벨로 갑니다.");
-      loadLevel(currentLevelIndex);
+      showLevelMessage = true;
+      levelMessageText = "레벨 " + currentLevelIndex + " 클리어!\n스페이스 키를 눌러 다음 레벨로 진행하세요.";
     }
   }
 }
 
 function movePlayerWithCollision(vx, vy) {
-  // X축 이동
   if (vx !== 0) {
     player.x += vx;
     for (const w of walls) {
@@ -396,7 +403,6 @@ function movePlayerWithCollision(vx, vy) {
       }
     }
   }
-  // Y축 이동
   if (vy !== 0) {
     player.y += vy;
     for (const w of walls) {
@@ -407,7 +413,6 @@ function movePlayerWithCollision(vx, vy) {
     }
   }
 
-  // 화면 밖 방지
   player.x = Math.max(0, Math.min(canvas.width  - player.w, player.x));
   player.y = Math.max(0, Math.min(canvas.height - player.h, player.y));
 }
@@ -416,25 +421,18 @@ function movePlayerWithCollision(vx, vy) {
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // 배경
   ctx.fillStyle = "#88dd88";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // 벽
   ctx.fillStyle = "#888888";
-  walls.forEach(w => {
-    ctx.fillRect(w.x, w.y, w.w, w.h);
-  });
+  walls.forEach(w => ctx.fillRect(w.x, w.y, w.w, w.h));
 
-  // 시작 영역
   ctx.fillStyle = "#cccc00";
   ctx.fillRect(player.startX - 20, player.startY - 20, 40, 40);
 
-  // 도착 지점
   ctx.fillStyle = "#00aa00";
   ctx.fillRect(goal.x, goal.y, goal.w, goal.h);
 
-  // 코인
   coins.forEach(c => {
     if (!c.taken) {
       ctx.beginPath();
@@ -444,11 +442,9 @@ function draw() {
     }
   });
 
-  // 플레이어
   ctx.fillStyle = "#ff0000";
   ctx.fillRect(player.x, player.y, player.w, player.h);
 
-  // 적
   enemies.forEach(e => {
     ctx.beginPath();
     ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
@@ -456,16 +452,20 @@ function draw() {
     ctx.fill();
   });
 
-  // 게임 클리어 메시지
-  if (gameWon) {
+  // 모달 메시지
+  if (showLevelMessage) {
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
     ctx.fillStyle = "#ffffff";
     ctx.textAlign = "center";
-    ctx.font = "28px Arial";
-    ctx.fillText("모든 레벨 클리어!", canvas.width / 2, canvas.height / 2 - 10);
-    ctx.font = "20px Arial";
-    ctx.fillText("엔터 키를 눌러 다시 시작", canvas.width / 2, canvas.height / 2 + 30);
+    ctx.font = "24px Arial";
+
+    const lines = levelMessageText.split("\n");
+    let baseY = canvas.height / 2 - (lines.length - 1) * 20;
+    lines.forEach((line, i) => {
+      ctx.fillText(line, canvas.width / 2, baseY + i * 30);
+    });
   }
 }
 
