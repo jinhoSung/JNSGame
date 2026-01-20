@@ -2,16 +2,16 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>세상에서 가장 어려운 게임 - Firebase 기록</title>
+  <title>distancegame - Firebase 기록</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <style>
     :root { --panel: rgba(0,0,0,0.72); --panel2: rgba(0,0,0,0.86); }
+    html, body { height: 100%; }
     body {
       margin: 0;
       display: flex;
       justify-content: center;
       align-items: center;
-      height: 100vh;
       background: #222;
       font-family: Arial, sans-serif;
       color: #fff;
@@ -48,7 +48,7 @@
       width: 160px;
       height: 160px;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.10);
       display: none;
       touch-action: none;
       z-index: 5;
@@ -63,7 +63,7 @@
       height: 120px;
       left: 20px;
       top: 20px;
-      background: rgba(0, 0, 0, 0.3);
+      background: rgba(0, 0, 0, 0.30);
     }
     #joystickStick {
       width: 60px;
@@ -86,8 +86,8 @@
     #overlay.show { display: flex; }
 
     #panel {
-      width: min(640px, 94%);
-      max-height: min(520px, 90%);
+      width: min(680px, 94%);
+      max-height: min(560px, 92%);
       background: var(--panel2);
       border: 2px solid rgba(255,255,255,0.15);
       border-radius: 10px;
@@ -116,33 +116,23 @@
       grid-template-columns: 1fr 1fr;
       gap: 10px;
     }
-    @media (max-width: 560px) {
-      .grid { grid-template-columns: 1fr; }
-    }
+    @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
-    th, td {
-      border-bottom: 1px solid rgba(255,255,255,0.12);
-      padding: 8px 6px;
-      text-align: left;
-    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border-bottom: 1px solid rgba(255,255,255,0.12); padding: 8px 6px; text-align: left; }
     th { opacity: 0.9; }
     .muted { opacity: 0.75; font-size: 12px; }
     .ok { color: #8fff8f; }
     .warn { color: #ffd26a; }
     .err { color: #ff8f8f; }
 
-    #levelGrid {
+    .lvlGrid {
       display: grid;
       grid-template-columns: repeat(10, 1fr);
       gap: 6px;
       margin-top: 10px;
     }
-    @media (max-width: 520px) { #levelGrid { grid-template-columns: repeat(5, 1fr); } }
+    @media (max-width: 520px) { .lvlGrid { grid-template-columns: repeat(5, 1fr); } }
     .lvlBtn {
       padding: 10px 0;
       text-align: center;
@@ -154,6 +144,29 @@
     .lvlBtn.unlocked { background: rgba(0,140,255,0.24); }
     .lvlBtn.cleared  { background: rgba(0,200,0,0.35); }
     .lvlBtn.locked   { background: rgba(255,255,255,0.05); opacity: 0.55; }
+
+    /* 모바일 세로일 때 “가로로 돌리세요” 가이드 */
+    #rotateHint {
+      position: absolute;
+      inset: 0;
+      display: none;
+      z-index: 60;
+      background: rgba(0,0,0,0.78);
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+    }
+    #rotateHint.show { display: flex; }
+    #rotateHint .box {
+      width: min(520px, 92%);
+      background: rgba(0,0,0,0.55);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    #rotateHint h3 { margin: 6px 0 10px; font-size: 18px; }
+    #rotateHint p { margin: 6px 0; font-size: 13px; opacity: 0.92; line-height: 1.35; }
   </style>
 </head>
 <body>
@@ -175,6 +188,18 @@
     <div id="joystickStick"></div>
   </div>
 
+  <div id="rotateHint">
+    <div class="box">
+      <h3>가로 화면을 권장합니다</h3>
+      <p>화면이 더 넓은 방향(가로)으로 플레이하면 조작이 편합니다.</p>
+      <p class="muted">가능한 경우, “전체화면” 버튼을 누르면 가로 고정을 시도합니다.</p>
+      <div class="row" style="justify-content:center; margin-top: 12px;">
+        <button id="btnTryFullscreen" class="primary">전체화면 + 가로고정 시도</button>
+        <button id="btnCloseRotate">계속(세로)</button>
+      </div>
+    </div>
+  </div>
+
   <div id="overlay">
     <div id="panel">
       <h2 id="panelTitle">메뉴</h2>
@@ -188,7 +213,7 @@
 
 <script type="module">
 /* ==========================
-   Firebase 설정 (사용자 제공 값 적용)
+   Firebase 설정(사용자 제공)
    ========================== */
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyBUGN1Zlpk-Avfu-5s4G6qQrSfMaq_QXhw",
@@ -199,29 +224,25 @@ const FIREBASE_CONFIG = {
   appId: "1:180425278674:web:af07ce51992cb622fc990b"
 };
 
-// 게임 이름(컬렉션 중복 방지 규칙: 변수명 뒤에 _게임이름)
 const GAME_NAME = "distancegame";
-
-// 컬렉션/문서 경로 규칙(요청사항 반영)
 const COL_USERS = `users_${GAME_NAME}`;
 const COL_LEVEL_BEST = `levelBest_${GAME_NAME}`;
 const COL_LEVEL_RUNS = `levelRuns_${GAME_NAME}`;
 
-// Firebase v9+ Firestore 모듈 [web:153][web:159]
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import {
   getFirestore, doc, setDoc, getDoc, updateDoc, collection, query, where,
   getDocs, orderBy, limit, serverTimestamp
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"; // [web:153][web:159]
 
-/* Firebase 초기화 */
 const app = initializeApp(FIREBASE_CONFIG);
 const db = getFirestore(app);
 
 /* ==========================
-   공통 유틸
+   DOM/유틸
    ========================== */
 const $ = (id) => document.getElementById(id);
+const wrapper = $("gameWrapper");
 const canvas = $("gameCanvas");
 const ctx = canvas.getContext("2d");
 
@@ -231,6 +252,10 @@ const panelDesc = $("panelDesc");
 const panelButtons = $("panelButtons");
 const panelBody = $("panelBody");
 const panelHint = $("panelHint");
+
+const rotateHint = $("rotateHint");
+const btnTryFullscreen = $("btnTryFullscreen");
+const btnCloseRotate = $("btnCloseRotate");
 
 const userDisplay = $("userDisplay");
 const levelDisplay = $("levelDisplay");
@@ -248,13 +273,9 @@ totalDisplay.textContent = String(TOTAL_LEVELS);
 
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobi/i.test(navigator.userAgent);
 
-/* ==========================
-   사용자/저장(local)
-   ========================== */
-const LOCAL_USER_KEY = `username_${GAME_NAME}`;
-let username = localStorage.getItem(LOCAL_USER_KEY) || "";
-let userId = "";
-
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+}
 function sanitizeId(s) {
   return String(s || "")
     .trim()
@@ -265,19 +286,103 @@ function sanitizeId(s) {
 }
 
 /* ==========================
-   진행/기록(로컬)
+   전체화면/회전(가능한 경우 lock 시도)
+   ========================== */
+async function enterFullscreen() {
+  try {
+    if (wrapper.requestFullscreen) await wrapper.requestFullscreen();
+    else if (canvas.requestFullscreen) await canvas.requestFullscreen();
+  } catch (_) {}
+}
+
+async function tryLockLandscape() {
+  // Screen Orientation API: screen.orientation.lock('landscape')는 지원/권한 조건이 있어 실패할 수 있음[web:169][web:175]
+  try {
+    if (screen.orientation && screen.orientation.lock) {
+      await screen.orientation.lock("landscape"); // [web:169]
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+function isPortrait() {
+  return window.innerHeight > window.innerWidth;
+}
+
+function updateRotateHint() {
+  if (!isMobile) { rotateHint.classList.remove("show"); return; }
+  // 세로면 가이드 표시(강제 회전은 대부분 불가하므로 안내+락 시도)[web:169]
+  if (isPortrait()) rotateHint.classList.add("show");
+  else rotateHint.classList.remove("show");
+}
+
+btnTryFullscreen.addEventListener("click", async () => {
+  await enterFullscreen();
+  await tryLockLandscape();
+  // lock이 실패해도 사용자가 기기를 돌리면 숨겨짐
+  updateRotateHint();
+});
+
+btnCloseRotate.addEventListener("click", () => {
+  rotateHint.classList.remove("show");
+});
+
+// orientationchange 이벤트는 deprecated이므로 가능하면 screen.orientation change 사용 권장[web:179][web:172]
+if (screen.orientation && screen.orientation.addEventListener) {
+  screen.orientation.addEventListener("change", () => {
+    resizeCanvas();
+    updateRotateHint();
+  }); // [web:172]
+} else {
+  window.addEventListener("resize", () => {
+    resizeCanvas();
+    updateRotateHint();
+  });
+}
+
+/* ==========================
+   반응형 캔버스
+   ========================== */
+function resizeCanvas() {
+  const maxWidth = window.innerWidth;
+  const maxHeight = window.innerHeight;
+
+  const scaleX = maxWidth / DESIGN_WIDTH;
+  const scaleY = maxHeight / DESIGN_HEIGHT;
+  const scale = Math.min(scaleX, scaleY);
+
+  const displayWidth = DESIGN_WIDTH * scale;
+  const displayHeight = DESIGN_HEIGHT * scale;
+
+  canvas.style.width = displayWidth + "px";
+  canvas.style.height = displayHeight + "px";
+
+  wrapper.style.width = displayWidth + "px";
+  wrapper.style.height = displayHeight + "px";
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+updateRotateHint();
+
+/* ==========================
+   사용자(닉네임 방식 유지)
+   ========================== */
+const LOCAL_USER_KEY = `username_${GAME_NAME}`;
+let username = localStorage.getItem(LOCAL_USER_KEY) || "";
+let userId = sanitizeId(username);
+
+/* ==========================
+   로컬 진행 저장
    ========================== */
 const SAVE_KEY = `save_${GAME_NAME}`;
 let unlockedUpTo = 0;
 let cleared = new Set();
 let deaths = 0;
 
-let levelStartMs = 0;
-let elapsedMs = 0;
-
 function saveLocalProgress() {
   const data = { unlockedUpTo, cleared: Array.from(cleared), deaths };
-  localStorage.setItem(SAVE_KEY, JSON.stringify(data)); // [web:128]
+  localStorage.setItem(SAVE_KEY, JSON.stringify(data));
 }
 function loadLocalProgress() {
   try {
@@ -292,6 +397,94 @@ function loadLocalProgress() {
 loadLocalProgress();
 
 /* ==========================
+   타이머
+   ========================== */
+let levelStartMs = 0;
+let elapsedMs = 0;
+function resetTimer() { levelStartMs = performance.now(); elapsedMs = 0; }
+function updateTimer() {
+  if (mode === "playing") elapsedMs = performance.now() - levelStartMs;
+  timeDisplay.textContent = (elapsedMs / 1000).toFixed(3);
+}
+
+/* ==========================
+   Firestore 저장/조회
+   ========================== */
+async function ensureUserDoc() {
+  if (!userId) return;
+  const ref = doc(db, COL_USERS, userId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      userId, username,
+      createdAt: serverTimestamp(),
+      maxLevel: 1,
+      updatedAt: serverTimestamp()
+    }); // [web:153]
+  }
+}
+
+async function updateUserMaxLevel(levelNumber1Based) {
+  if (!userId) return;
+  const ref = doc(db, COL_USERS, userId);
+  await setDoc(ref, { userId, username, maxLevel: levelNumber1Based, updatedAt: serverTimestamp() }, { merge: true }); // [web:153]
+}
+
+function bestDocId(levelNumber1Based) { return `${userId}_${levelNumber1Based}`; }
+
+async function upsertBestTime(levelNumber1Based, timeMs) {
+  if (!userId) return false;
+  const ref = doc(db, COL_LEVEL_BEST, bestDocId(levelNumber1Based));
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, { userId, username, level: levelNumber1Based, bestTimeMs: timeMs, updatedAt: serverTimestamp(), createdAt: serverTimestamp() }); // [web:153]
+    return true;
+  } else {
+    const prev = snap.data()?.bestTimeMs;
+    if (typeof prev !== "number" || timeMs < prev) {
+      await updateDoc(ref, { bestTimeMs: timeMs, username, updatedAt: serverTimestamp() });
+      return true;
+    }
+  }
+  return false;
+}
+
+async function logRun(levelNumber1Based, timeMs) {
+  if (!userId) return;
+  const runId = `${userId}_${Date.now()}_${levelNumber1Based}`;
+  const ref = doc(db, COL_LEVEL_RUNS, runId);
+  await setDoc(ref, { userId, username, level: levelNumber1Based, timeMs, createdAt: serverTimestamp() }); // [web:153]
+}
+
+async function fetchMySummary() {
+  const userRef = doc(db, COL_USERS, userId);
+  const userSnap = await getDoc(userRef);
+
+  const qy = query(
+    collection(db, COL_LEVEL_BEST),
+    where("userId", "==", userId),
+    orderBy("level", "asc")
+  ); // [web:159]
+  const bestSnap = await getDocs(qy);
+  const bestRows = [];
+  bestSnap.forEach(d => bestRows.push(d.data()));
+  return { user: userSnap.exists() ? userSnap.data() : null, bestRows };
+}
+
+async function fetchTopForLevel(levelNumber1Based) {
+  const qy = query(
+    collection(db, COL_LEVEL_BEST),
+    where("level", "==", levelNumber1Based),
+    orderBy("bestTimeMs", "asc"),
+    limit(10)
+  ); // [web:159]
+  const snap = await getDocs(qy);
+  const rows = [];
+  snap.forEach(d => rows.push(d.data()));
+  return rows;
+}
+
+/* ==========================
    게임 상태/입력
    ========================== */
 const keys = {};
@@ -299,59 +492,50 @@ let mode = "boot"; // boot | menu | playing | paused | message | levelSelect | r
 let messageText = "";
 let messageNextAction = null;
 
-function updateTopUI() {
-  userDisplay.textContent = username ? username : "-";
-  levelDisplay.textContent = String(currentLevelIndex + 1);
-  deathDisplay.textContent = String(deaths);
-}
-function showOverlay(title, desc, buttons, bodyHtml = "", hint = "") {
-  panelTitle.textContent = title;
-  panelDesc.textContent = desc || "";
-  panelButtons.innerHTML = "";
-  panelBody.innerHTML = bodyHtml || "";
-  panelHint.textContent = hint || "";
-  buttons.forEach(b => {
-    const el = document.createElement("button");
-    el.textContent = b.text;
-    if (b.kind) el.classList.add(b.kind);
-    if (b.disabled) el.disabled = true;
-    el.addEventListener("click", b.onClick);
-    panelButtons.appendChild(el);
-  });
-  overlay.classList.add("show");
-}
-function hideOverlay() { overlay.classList.remove("show"); }
-
 window.addEventListener("keydown", (e) => {
   if (e.key === "m" || e.key === "M") { if (mode === "playing" || mode === "paused") openMainMenu(); return; }
   if (e.key === "p" || e.key === "P") { if (mode === "playing") openPauseMenu(); else if (mode === "paused") resumeFromPause(); return; }
-  if (mode === "message") {
-    if (e.key === " " || e.key === "Enter") closeMessageAndContinue();
-    return;
-  }
+  if (mode === "message") { if (e.key === " " || e.key === "Enter") closeMessageAndContinue(); return; }
   if (mode !== "playing") return;
   keys[e.key] = true;
 });
 window.addEventListener("keyup", (e) => { keys[e.key] = false; });
 
-// 메시지 화면: 탭/클릭으로 진행 [web:102]
+// 메시지 화면: 탭/클릭으로 진행
 canvas.addEventListener("click", () => { if (mode === "message") closeMessageAndContinue(); });
 canvas.addEventListener("touchstart", (e) => {
   if (mode === "message") { e.preventDefault(); closeMessageAndContinue(); }
 }, { passive: false });
 
+function updateTopUI() {
+  userDisplay.textContent = username ? username : "-";
+  levelDisplay.textContent = String(currentLevelIndex + 1);
+  deathDisplay.textContent = String(deaths);
+}
+
 /* ==========================
-   조이스틱(모바일)
+   조이스틱(민감도 완화)
    ========================== */
 let joystickActive = false;
 let joystickCenter = { x: 80, y: 80 };
-let joystickVector = { x: 0, y: 0 };
+let joystickVector = { x: 0, y: 0 };  // -1~1
+let joystickPower = 0;               // 0~1
+
+// 민감도 조절 파라미터
+const JOY_MAX_DISTANCE = 40;     // 스틱 이동 반경(px)
+const JOY_DEAD_ZONE = 10;        // 데드존(px)
+const JOY_SENSITIVITY = 0.55;    // 1보다 낮으면 덜 민감(=느리게)
+const JOY_EASING = 0.18;         // 값이 작을수록 반응이 더 “부드럽고 느림”
 
 if (isMobile) {
   joystickArea.style.display = "block";
-  const maxDistance = 40;
 
-  function updateStickPosition(clientX, clientY) {
+  function setStickVisual(stickX, stickY) {
+    joystickStick.style.left = (stickX - joystickStick.offsetWidth / 2) + "px";
+    joystickStick.style.top  = (stickY - joystickStick.offsetHeight / 2) + "px";
+  }
+
+  function updateStickFromTouch(clientX, clientY) {
     const rect = joystickArea.getBoundingClientRect();
     const localX = clientX - rect.left;
     const localY = clientY - rect.top;
@@ -359,51 +543,64 @@ if (isMobile) {
     const dx = localX - joystickCenter.x;
     const dy = localY - joystickCenter.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const clamped = Math.min(dist, maxDistance);
+
+    // 스틱 시각 이동은 반경 내로 고정
+    const clamped = Math.min(dist, JOY_MAX_DISTANCE);
     const angle = Math.atan2(dy, dx);
 
     const stickX = joystickCenter.x + Math.cos(angle) * clamped;
     const stickY = joystickCenter.y + Math.sin(angle) * clamped;
+    setStickVisual(stickX, stickY);
 
-    joystickStick.style.left = (stickX - joystickStick.offsetWidth / 2) + "px";
-    joystickStick.style.top  = (stickY - joystickStick.offsetHeight / 2) + "px";
-
-    if (dist > 5) { joystickVector.x = Math.cos(angle); joystickVector.y = Math.sin(angle); }
-    else { joystickVector.x = 0; joystickVector.y = 0; }
+    // 실제 입력은 데드존/감도 적용
+    const eff = Math.max(0, dist - JOY_DEAD_ZONE);
+    const norm = Math.min(1, eff / (JOY_MAX_DISTANCE - JOY_DEAD_ZONE));
+    joystickPower = Math.pow(norm, 1.2) * JOY_SENSITIVITY; // 천천히 올라가게
+    if (dist > JOY_DEAD_ZONE) {
+      joystickVector.x = Math.cos(angle);
+      joystickVector.y = Math.sin(angle);
+    } else {
+      joystickVector.x = 0;
+      joystickVector.y = 0;
+      joystickPower = 0;
+    }
   }
 
   joystickArea.addEventListener("touchstart", (e) => {
     e.preventDefault();
     joystickActive = true;
     const t = e.touches[0];
-    updateStickPosition(t.clientX, t.clientY);
+    updateStickFromTouch(t.clientX, t.clientY);
   }, { passive: false });
 
   joystickArea.addEventListener("touchmove", (e) => {
     e.preventDefault();
     if (!joystickActive) return;
     const t = e.touches[0];
-    updateStickPosition(t.clientX, t.clientY);
+    updateStickFromTouch(t.clientX, t.clientY);
   }, { passive: false });
 
   joystickArea.addEventListener("touchend", (e) => {
     e.preventDefault();
     joystickActive = false;
-    joystickVector.x = 0;
-    joystickVector.y = 0;
-    joystickStick.style.left = (joystickCenter.x - joystickStick.offsetWidth / 2) + "px";
-    joystickStick.style.top  = (joystickCenter.y - joystickStick.offsetHeight / 2) + "px";
+    joystickVector.x = 0; joystickVector.y = 0;
+    joystickPower = 0;
+    setStickVisual(joystickCenter.x, joystickCenter.y);
   }, { passive: false });
+
+  // 초기 위치
+  setStickVisual(joystickCenter.x, joystickCenter.y);
 }
 
 /* ==========================
-   게임 로직(레벨 자동 생성 포함)
+   레벨/오브젝트
    ========================== */
 const player = { x: 0, y: 0, w: 18, h: 18, speed: 3, startX: 0, startY: 0 };
 let goal = { x: 0, y: 0, w: 40, h: 80 };
 let walls = [];
 let enemies = [];
 let coins = [];
+let currentLevelIndex = 0;
 
 function rectIntersect(a, b) {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -524,122 +721,31 @@ function generateAutoLevels() {
 generateAutoLevels();
 
 /* ==========================
-   타이머 / 반응형
+   메뉴 UI
    ========================== */
-function resetTimer() { levelStartMs = performance.now(); elapsedMs = 0; }
-function updateTimer() {
-  if (mode === "playing") elapsedMs = performance.now() - levelStartMs;
-  timeDisplay.textContent = (elapsedMs / 1000).toFixed(3);
+function showOverlay(title, desc, buttons, bodyHtml = "", hint = "") {
+  panelTitle.textContent = title;
+  panelDesc.textContent = desc || "";
+  panelButtons.innerHTML = "";
+  panelBody.innerHTML = bodyHtml || "";
+  panelHint.textContent = hint || "";
+  buttons.forEach(b => {
+    const el = document.createElement("button");
+    el.textContent = b.text;
+    if (b.kind) el.classList.add(b.kind);
+    if (b.disabled) el.disabled = true;
+    el.addEventListener("click", b.onClick);
+    panelButtons.appendChild(el);
+  });
+  overlay.classList.add("show");
 }
-
-function resizeCanvas() {
-  const wrapper = document.getElementById("gameWrapper");
-  const maxWidth = window.innerWidth;
-  const maxHeight = window.innerHeight;
-  const scaleX = maxWidth / DESIGN_WIDTH;
-  const scaleY = maxHeight / DESIGN_HEIGHT;
-  const scale = Math.min(scaleX, scaleY);
-  const displayWidth = DESIGN_WIDTH * scale;
-  const displayHeight = DESIGN_HEIGHT * scale;
-  canvas.style.width = displayWidth + "px";
-  canvas.style.height = displayHeight + "px";
-  wrapper.style.width = displayWidth + "px";
-  wrapper.style.height = displayHeight + "px";
-}
-window.addEventListener("resize", resizeCanvas);
-resizeCanvas();
-
-/* ==========================
-   Firestore 저장/조회
-   ========================== */
-async function ensureUserDoc() {
-  const ref = doc(db, COL_USERS, userId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    await setDoc(ref, {
-      userId,
-      username,
-      createdAt: serverTimestamp(),
-      maxLevel: 1,
-      updatedAt: serverTimestamp()
-    }); // [web:153]
-  }
-}
-
-async function updateUserMaxLevel(levelNumber1Based) {
-  const ref = doc(db, COL_USERS, userId);
-  await setDoc(ref, { userId, username, maxLevel: levelNumber1Based, updatedAt: serverTimestamp() }, { merge: true }); // [web:153]
-}
-
-function bestDocId(levelNumber1Based) { return `${userId}_${levelNumber1Based}`; }
-
-async function upsertBestTime(levelNumber1Based, timeMs) {
-  const ref = doc(db, COL_LEVEL_BEST, bestDocId(levelNumber1Based));
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    await setDoc(ref, {
-      userId, username, level: levelNumber1Based,
-      bestTimeMs: timeMs,
-      updatedAt: serverTimestamp(),
-      createdAt: serverTimestamp()
-    }); // [web:153]
-    return true;
-  } else {
-    const prev = snap.data()?.bestTimeMs;
-    if (typeof prev !== "number" || timeMs < prev) {
-      await updateDoc(ref, { bestTimeMs: timeMs, username, updatedAt: serverTimestamp() }); // [web:154]
-      return true;
-    }
-  }
-  return false;
-}
-
-async function logRun(levelNumber1Based, timeMs) {
-  const runId = `${userId}_${Date.now()}_${levelNumber1Based}`;
-  const ref = doc(db, COL_LEVEL_RUNS, runId);
-  await setDoc(ref, { userId, username, level: levelNumber1Based, timeMs, createdAt: serverTimestamp() }); // [web:153]
-}
-
-async function fetchMySummary() {
-  const userRef = doc(db, COL_USERS, userId);
-  const userSnap = await getDoc(userRef);
-
-  const qy = query(
-    collection(db, COL_LEVEL_BEST),
-    where("userId", "==", userId),
-    orderBy("level", "asc")
-  ); // [web:159]
-  const bestSnap = await getDocs(qy);
-  const bestRows = [];
-  bestSnap.forEach(d => bestRows.push(d.data()));
-  return { user: userSnap.exists() ? userSnap.data() : null, bestRows };
-}
-
-async function fetchTopForLevel(levelNumber1Based) {
-  const qy = query(
-    collection(db, COL_LEVEL_BEST),
-    where("level", "==", levelNumber1Based),
-    orderBy("bestTimeMs", "asc"),
-    limit(10)
-  ); // [web:159]
-  const snap = await getDocs(qy);
-  const rows = [];
-  snap.forEach(d => rows.push(d.data()));
-  return rows;
-}
-
-/* ==========================
-   UI(메뉴/기록)
-   ========================== */
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-}
+function hideOverlay() { overlay.classList.remove("show"); }
 
 function openUserSetup() {
   mode = "menu";
   showOverlay(
     "사용자 정보 입력",
-    "닉네임을 입력하면 DB에 최고 스테이지/최고 기록을 저장하고 볼 수 있습니다.",
+    "닉네임만으로 기록을 저장/조회합니다.",
     [
       { text: "시작", kind: "primary", onClick: async () => {
         const input = document.getElementById("nameInput");
@@ -650,22 +756,17 @@ function openUserSetup() {
         userId = sanitizeId(username);
         if (!userId) { panelHint.textContent = "닉네임이 유효하지 않습니다."; return; }
 
-        try {
-          await ensureUserDoc();
-          panelHint.textContent = "DB 연결 성공.";
-        } catch (e) {
-          panelHint.textContent = "DB 오류(규칙/설정 확인): " + (e?.message || e);
-        }
+        try { await ensureUserDoc(); } catch (e) { panelHint.textContent = "DB 오류: " + (e?.message || e); }
         hideOverlay();
         openMainMenu();
       }},
-      { text: "오프라인", onClick: () => { hideOverlay(); openMainMenu(); } }
+      { text: "전체화면", onClick: async () => { await enterFullscreen(); await tryLockLandscape(); resizeCanvas(); updateRotateHint(); } }
     ],
     `
       <div class="grid">
         <div>
           <p class="muted">컬렉션: ${COL_USERS}, ${COL_LEVEL_BEST}, ${COL_LEVEL_RUNS}</p>
-          <p class="muted">보안 규칙이 잠겨있으면 읽기/쓰기가 실패할 수 있습니다.</p>
+          <p class="muted">모바일은 가로 화면 권장</p>
         </div>
         <div>
           <p>닉네임</p>
@@ -673,32 +774,38 @@ function openUserSetup() {
         </div>
       </div>
     `,
-    isMobile ? "모바일: 조이스틱 이동 · 메시지는 탭" : "PC: 방향키 이동 · P 일시정지 · M 메뉴"
+    isMobile ? "모바일: 조이스틱 감도 낮춤 적용됨" : "PC: 방향키 이동"
   );
 }
 
 function openMainMenu() {
   mode = "menu";
-  const canUseDb = !!userId;
-
   showOverlay(
     "메뉴",
     "레벨 선택, DB 기록 보기, 랭킹 조회 등을 할 수 있습니다.",
     [
       { text: "이어하기", kind: "primary", onClick: () => { hideOverlay(); startFromSavedOr1(); } },
       { text: "레벨 선택", onClick: () => openLevelSelect() },
-      { text: "내 기록(DB)", disabled: !canUseDb, onClick: () => openMyRecords() },
-      { text: "레벨 랭킹(Top10)", disabled: !canUseDb, onClick: () => openLevelRanking() },
+      { text: "내 기록(DB)", disabled: !userId, onClick: () => openMyRecords() },
+      { text: "레벨 랭킹(Top10)", disabled: !userId, onClick: () => openLevelRanking() },
+      { text: "전체화면", onClick: async () => { await enterFullscreen(); await tryLockLandscape(); resizeCanvas(); updateRotateHint(); } },
       { text: "닉네임 변경", onClick: () => openUserSetup() },
       { text: "로컬 리셋", kind: "danger", onClick: () => { resetLocal(); openMainMenu(); } }
     ],
-    `
-      <p class="muted">유저: <b>${escapeHtml(username || "-")}</b> · 해금: ${unlockedUpTo + 1}레벨까지</p>
-      <p class="muted">DB 컬렉션 접미사: _${GAME_NAME}</p>
-    `,
+    `<p class="muted">유저: <b>${escapeHtml(username || "-")}</b> · 해금: ${unlockedUpTo + 1}레벨까지</p>`,
     ""
   );
 }
+
+function openPauseMenu() {
+  if (mode !== "playing") return;
+  mode = "paused";
+  showOverlay("일시정지", "게임이 멈췄습니다.", [
+    { text: "계속하기", kind: "primary", onClick: () => resumeFromPause() },
+    { text: "메뉴", onClick: () => openMainMenu() }
+  ], `<p class="muted">현재 레벨: ${currentLevelIndex + 1}</p>`, "");
+}
+function resumeFromPause() { hideOverlay(); mode = "playing"; }
 
 function resetLocal() {
   unlockedUpTo = 0;
@@ -708,29 +815,14 @@ function resetLocal() {
   updateTopUI();
 }
 
-function openPauseMenu() {
-  if (mode !== "playing") return;
-  mode = "paused";
-  showOverlay("일시정지", "게임이 멈췄습니다.", [
-    { text: "계속하기", kind: "primary", onClick: () => resumeFromPause() },
-    { text: "메뉴", onClick: () => openMainMenu() }
-  ], `<p class="muted">현재 레벨: ${currentLevelIndex + 1}</p>`, isMobile ? "모바일: 버튼 탭" : "PC: P로도 재개");
-}
-function resumeFromPause() { hideOverlay(); mode = "playing"; }
-
 function openLevelSelect() {
   mode = "levelSelect";
   showOverlay("레벨 선택", "클리어=초록 · 해금=파랑 · 잠김=회색", [
     { text: "뒤로", onClick: () => openMainMenu() }
-  ], `<div id="levelGrid"></div>`, `해금: ${unlockedUpTo + 1}레벨까지`);
+  ], `<div id="lvlGrid" class="lvlGrid"></div>`, `해금: ${unlockedUpTo + 1}레벨까지`);
 
-  const grid = document.getElementById("levelGrid");
-  grid.style.display = "grid";
-  grid.style.gridTemplateColumns = window.innerWidth <= 520 ? "repeat(5, 1fr)" : "repeat(10, 1fr)";
-  grid.style.gap = "6px";
-  grid.style.marginTop = "10px";
+  const grid = document.getElementById("lvlGrid");
   grid.innerHTML = "";
-
   for (let i = 0; i < TOTAL_LEVELS; i++) {
     const btn = document.createElement("button");
     btn.className = "lvlBtn";
@@ -778,7 +870,6 @@ async function openMyRecords() {
 async function openLevelRanking() {
   mode = "records";
   const defaultLvl = Math.min(unlockedUpTo + 1, TOTAL_LEVELS);
-
   showOverlay(
     "레벨 랭킹(Top10)",
     "레벨을 선택하고 Top10을 조회합니다.",
@@ -801,7 +892,6 @@ async function openLevelRanking() {
     `,
     "Top10은 레벨별 최고기록(bestTimeMs) 기준입니다."
   );
-
   await renderRanking(defaultLvl);
 }
 
@@ -810,7 +900,9 @@ async function renderRanking(levelNum) {
   box.innerHTML = `<p class="muted">불러오는 중...</p>`;
   try {
     const rows = await fetchTopForLevel(levelNum);
-    let html = rows.map((r, idx) => `<tr><td>${idx+1}</td><td>${escapeHtml(r.username || r.userId)}</td><td>${(r.bestTimeMs/1000).toFixed(3)}s</td></tr>`).join("");
+    let html = rows.map((r, idx) =>
+      `<tr><td>${idx+1}</td><td>${escapeHtml(r.username || r.userId)}</td><td>${(r.bestTimeMs/1000).toFixed(3)}s</td></tr>`
+    ).join("");
     if (!html) html = `<tr><td colspan="3" class="muted">기록이 없습니다.</td></tr>`;
     box.innerHTML = `<table><thead><tr><th>#</th><th>유저</th><th>기록</th></tr></thead><tbody>${html}</tbody></table>`;
   } catch (e) {
@@ -819,13 +911,9 @@ async function renderRanking(levelNum) {
 }
 
 /* ==========================
-   메시지 / 진행
+   메시지/진행
    ========================== */
-function openMessage(text, nextAction) {
-  mode = "message";
-  messageText = text;
-  messageNextAction = nextAction || null;
-}
+function openMessage(text, nextAction) { mode = "message"; messageText = text; messageNextAction = nextAction || null; }
 function closeMessageAndContinue() {
   if (mode !== "message") return;
   const action = messageNextAction;
@@ -834,7 +922,6 @@ function closeMessageAndContinue() {
   mode = "playing";
   if (action) action();
 }
-
 function startFromSavedOr1() {
   const idx = Math.min(unlockedUpTo, TOTAL_LEVELS - 1);
   loadLevel(idx);
@@ -842,39 +929,24 @@ function startFromSavedOr1() {
 }
 
 /* ==========================
-   레벨 로드 / 업데이트 / 그리기
+   충돌/레벨 로드/클리어 저장
    ========================== */
-let currentLevelIndex = 0;
-
 function loadLevel(index) {
   const level = levels[index];
   currentLevelIndex = index;
 
   player.x = level.start.x; player.y = level.start.y;
   player.startX = level.start.x; player.startY = level.start.y;
+
   goal = { ...level.goal };
   walls = level.walls.map(w => ({ ...w }));
   enemies = level.enemies.map(e => ({ ...e }));
   coins = level.coins.map(c => ({ ...c }));
 
   for (const k in keys) keys[k] = false;
-  joystickVector.x = 0; joystickVector.y = 0; joystickActive = false;
-
+  joystickVector.x = 0; joystickVector.y = 0; joystickPower = 0; joystickActive = false;
   resetTimer();
   updateTopUI();
-}
-
-function movePlayerWithCollision(vx, vy) {
-  if (vx !== 0) {
-    player.x += vx;
-    for (const w of walls) if (rectIntersect(player, w)) player.x = (vx > 0) ? (w.x - player.w) : (w.x + w.w);
-  }
-  if (vy !== 0) {
-    player.y += vy;
-    for (const w of walls) if (rectIntersect(player, w)) player.y = (vy > 0) ? (w.y - player.h) : (w.y + w.h);
-  }
-  player.x = Math.max(0, Math.min(DESIGN_WIDTH - player.w, player.x));
-  player.y = Math.max(0, Math.min(DESIGN_HEIGHT - player.h, player.y));
 }
 
 async function onLevelCleared() {
@@ -897,35 +969,60 @@ async function onLevelCleared() {
 
   const next = currentLevelIndex + 1;
   if (next >= TOTAL_LEVELS) {
-    openMessage("축하합니다! 마지막 레벨 클리어!\n탭/스페이스로 메뉴로", () => openMainMenu());
+    openMessage("축하합니다! 마지막 레벨 클리어!\n탭/스페이스로 메뉴", () => openMainMenu());
   } else {
-    openMessage(`레벨 ${levelNum} 클리어! (${(tMs/1000).toFixed(3)}s)\n탭/스페이스로 다음 레벨`, () => loadLevel(next));
+    openMessage(`레벨 ${levelNum} 클리어! (${(tMs/1000).toFixed(3)}s)\n탭/스페이스로 다음`, () => loadLevel(next));
   }
 }
 
-function resetTimer() { levelStartMs = performance.now(); elapsedMs = 0; }
-function updateTimer() {
-  if (mode === "playing") elapsedMs = performance.now() - levelStartMs;
-  timeDisplay.textContent = (elapsedMs / 1000).toFixed(3);
+/* ==========================
+   이동/업데이트/렌더
+   ========================== */
+function movePlayerWithCollision(vx, vy) {
+  if (vx !== 0) {
+    player.x += vx;
+    for (const w of walls) if (rectIntersect(player, w)) player.x = (vx > 0) ? (w.x - player.w) : (w.x + w.w);
+  }
+  if (vy !== 0) {
+    player.y += vy;
+    for (const w of walls) if (rectIntersect(player, w)) player.y = (vy > 0) ? (w.y - player.h) : (w.y + w.h);
+  }
+  player.x = Math.max(0, Math.min(DESIGN_WIDTH - player.w, player.x));
+  player.y = Math.max(0, Math.min(DESIGN_HEIGHT - player.h, player.y));
 }
+
+let joyVx = 0, joyVy = 0;
 
 function update() {
   updateTimer();
   if (mode !== "playing") return;
 
-  let vx = 0, vy = 0;
-  if (isMobile && joystickActive) {
-    vx = joystickVector.x * player.speed;
-    vy = joystickVector.y * player.speed;
+  // 입력 벡터 계산(조이스틱은 감도/부드러움 적용)
+  let targetVx = 0, targetVy = 0;
+
+  if (isMobile) {
+    if (joystickActive) {
+      // power(0~1)가 작게 나오도록 만들어서 “너무 민감” 문제 완화
+      targetVx = joystickVector.x * player.speed * joystickPower;
+      targetVy = joystickVector.y * player.speed * joystickPower;
+    } else {
+      targetVx = 0; targetVy = 0;
+    }
+
+    // 저역통과(부드럽게): 현재값이 타겟으로 천천히 따라감
+    joyVx += (targetVx - joyVx) * JOY_EASING;
+    joyVy += (targetVy - joyVy) * JOY_EASING;
+    movePlayerWithCollision(joyVx, joyVy);
   } else {
+    let vx = 0, vy = 0;
     if (keys["ArrowUp"]) vy -= player.speed;
     if (keys["ArrowDown"]) vy += player.speed;
     if (keys["ArrowLeft"]) vx -= player.speed;
     if (keys["ArrowRight"]) vx += player.speed;
+    movePlayerWithCollision(vx, vy);
   }
 
-  movePlayerWithCollision(vx, vy);
-
+  // 적 이동
   for (const e of enemies) {
     e.x += e.dx || 0;
     e.y += e.dy || 0;
@@ -933,6 +1030,7 @@ function update() {
     if (e.minY !== undefined && (e.y < e.minY || e.y > e.maxY)) e.dy *= -1;
   }
 
+  // 충돌
   for (const e of enemies) {
     if (circleRectCollide(e, player)) {
       deaths++;
@@ -943,6 +1041,7 @@ function update() {
     }
   }
 
+  // 코인
   for (const c of coins) {
     if (c.taken) continue;
     const dx = (player.x + player.w / 2) - c.x;
@@ -951,15 +1050,12 @@ function update() {
     if (dist < c.r + Math.min(player.w, player.h) / 2) c.taken = true;
   }
 
-  const allCoinsTaken = coins.every(c => c.taken);
-  if (rectIntersect(player, goal) && allCoinsTaken) onLevelCleared();
+  if (rectIntersect(player, goal) && coins.every(c => c.taken)) onLevelCleared();
 }
 
 function draw() {
   ctx.clearRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
-
-  ctx.fillStyle = "#88dd88";
-  ctx.fillRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
+  ctx.fillStyle = "#88dd88"; ctx.fillRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
 
   ctx.fillStyle = "#888888";
   for (const w of walls) ctx.fillRect(w.x, w.y, w.w, w.h);
@@ -1000,22 +1096,21 @@ function draw() {
   }
 }
 
-function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
+function loop() { update(); draw(); requestAnimationFrame(loop); }
 
 /* ==========================
    시작
    ========================== */
 function openBoot() {
-  userId = sanitizeId(username);
   updateTopUI();
-  if (!username) openUserSetup();
-  else openMainMenu();
+  if (!username) {
+    openUserSetup();
+  } else {
+    // 기존 유저면 문서 보장(실패해도 게임은 가능)
+    ensureUserDoc().catch(()=>{});
+    openMainMenu();
+  }
 }
-
 openBoot();
 loop();
 </script>
