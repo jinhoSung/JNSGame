@@ -152,7 +152,16 @@
             margin: 0 auto;
             border-radius: 50%;
             filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5));
+            transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); /* 확대/축소 트랜지션 부드럽게 */
+            z-index: 40; /* 확대 시 위로 올라오게 */
         }
+        
+        /* 롤링 시 화면 중앙으로 확대되는 클래스 */
+        .glass-container.zoomed {
+            transform: scale(2.5) translateY(30px); /* 2.5배 확대 및 약간 아래로 이동 (화면 중앙 느낌) */
+            filter: drop-shadow(0 20px 30px rgba(0,0,0,0.8));
+        }
+
         .dice-board-base {
             position: absolute;
             bottom: 5px; left: 5px; right: 5px; top: 5px;
@@ -181,6 +190,8 @@
             transform: rotate(-15deg);
             filter: blur(4px);
         }
+        
+        /* 3D 주사위 스타일 */
         .dice-container {
             position: absolute;
             width: 100%; height: 100%;
@@ -188,16 +199,53 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
+            gap: 12px;
             z-index: 5;
+            perspective: 600px;
         }
-        .dice {
-            font-size: 2.8rem;
-            line-height: 1;
-            color: white;
-            text-shadow: 0 4px 8px rgba(0,0,0,0.8), 0 0 2px rgba(255,255,255,0.5);
+        .scene {
+            width: 36px;
+            height: 36px;
+            perspective: 400px;
             position: relative;
         }
+        .cube {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            transform-style: preserve-3d;
+            transform: translateZ(-18px) rotateX(0deg) rotateY(0deg);
+            transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        .cube__face {
+            position: absolute;
+            width: 36px;
+            height: 36px;
+            background-color: #fdfdfd;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-shadow: inset 0 0 6px rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.3);
+            background-size: 80%;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        
+        /* 주사위 각 면 설정 (1과 4는 빨간색 점 적용) */
+        .cube__face--1 { transform: rotateY(  0deg) translateZ(18px); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='20' fill='%23d32f2f'/%3E%3C/svg%3E"); }
+        .cube__face--2 { transform: rotateY( 90deg) translateZ(18px); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='30' cy='30' r='12' fill='%23222'/%3E%3Ccircle cx='70' cy='70' r='12' fill='%23222'/%3E%3C/svg%3E"); }
+        .cube__face--3 { transform: rotateX( 90deg) translateZ(18px); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='25' cy='25' r='12' fill='%23222'/%3E%3Ccircle cx='50' cy='50' r='12' fill='%23222'/%3E%3Ccircle cx='75' cy='75' r='12' fill='%23222'/%3E%3C/svg%3E"); }
+        .cube__face--4 { transform: rotateX(-90deg) translateZ(18px); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='30' cy='30' r='12' fill='%23d32f2f'/%3E%3Ccircle cx='70' cy='30' r='12' fill='%23d32f2f'/%3E%3Ccircle cx='30' cy='70' r='12' fill='%23d32f2f'/%3E%3Ccircle cx='70' cy='70' r='12' fill='%23d32f2f'/%3E%3C/svg%3E"); }
+        .cube__face--5 { transform: rotateY(-90deg) translateZ(18px); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='25' cy='25' r='12' fill='%23222'/%3E%3Ccircle cx='75' cy='25' r='12' fill='%23222'/%3E%3Ccircle cx='50' cy='50' r='12' fill='%23222'/%3E%3Ccircle cx='25' cy='75' r='12' fill='%23222'/%3E%3Ccircle cx='75' cy='75' r='12' fill='%23222'/%3E%3C/svg%3E"); }
+        .cube__face--6 { transform: rotateY(180deg) translateZ(18px); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='30' cy='20' r='12' fill='%23222'/%3E%3Ccircle cx='70' cy='20' r='12' fill='%23222'/%3E%3Ccircle cx='30' cy='50' r='12' fill='%23222'/%3E%3Ccircle cx='70' cy='50' r='12' fill='%23222'/%3E%3Ccircle cx='30' cy='80' r='12' fill='%23222'/%3E%3Ccircle cx='70' cy='80' r='12' fill='%23222'/%3E%3C/svg%3E"); }
+
+        /* 3D 회전 애니메이션 */
+        @keyframes tumble1 { 0% { transform: translateZ(-18px) rotateX(0deg) rotateY(0deg) rotateZ(0deg); } 100% { transform: translateZ(-18px) rotateX(720deg) rotateY(1080deg) rotateZ(360deg); } }
+        @keyframes tumble2 { 0% { transform: translateZ(-18px) rotateX(0deg) rotateY(0deg) rotateZ(0deg); } 100% { transform: translateZ(-18px) rotateX(1080deg) rotateY(720deg) rotateZ(180deg); } }
+        @keyframes tumble3 { 0% { transform: translateZ(-18px) rotateX(0deg) rotateY(0deg) rotateZ(0deg); } 100% { transform: translateZ(-18px) rotateX(720deg) rotateY(360deg) rotateZ(1080deg); } }
+        
+        .rolling-cube-1 { animation: tumble1 0.4s linear infinite; }
+        .rolling-cube-2 { animation: tumble2 0.35s linear infinite; }
+        .rolling-cube-3 { animation: tumble3 0.45s linear infinite; }
         
         @keyframes bounce1 {
             0% { transform: translate(0, 0) rotate(0deg); }
@@ -267,9 +315,24 @@
                 <div class="glass-highlight"></div>
             </div>
             <div class="dice-container">
-                <div id="dice1" class="dice">⚀</div>
-                <div id="dice2" class="dice">⚀</div>
-                <div id="dice3" class="dice">⚀</div>
+                <div class="scene" id="scene1">
+                    <div class="cube" id="cube1">
+                        <div class="cube__face cube__face--1"></div><div class="cube__face cube__face--2"></div><div class="cube__face cube__face--3"></div>
+                        <div class="cube__face cube__face--4"></div><div class="cube__face cube__face--5"></div><div class="cube__face cube__face--6"></div>
+                    </div>
+                </div>
+                <div class="scene" id="scene2">
+                    <div class="cube" id="cube2">
+                        <div class="cube__face cube__face--1"></div><div class="cube__face cube__face--2"></div><div class="cube__face cube__face--3"></div>
+                        <div class="cube__face cube__face--4"></div><div class="cube__face cube__face--5"></div><div class="cube__face cube__face--6"></div>
+                    </div>
+                </div>
+                <div class="scene" id="scene3">
+                    <div class="cube" id="cube3">
+                        <div class="cube__face cube__face--1"></div><div class="cube__face cube__face--2"></div><div class="cube__face cube__face--3"></div>
+                        <div class="cube__face cube__face--4"></div><div class="cube__face cube__face--5"></div><div class="cube__face cube__face--6"></div>
+                    </div>
+                </div>
             </div>
         </div>
         <div class="flex gap-4 w-full max-w-md px-4">
@@ -664,34 +727,65 @@
             document.getElementById('rollBtn').disabled = true;
             document.getElementById('rollBtn').classList.add('opacity-50');
 
-            const dElements = [document.getElementById('dice1'), document.getElementById('dice2'), document.getElementById('dice3')];
+            // HTML 컨테이너와 3D 큐브 요소 가져오기
+            const glassContainer = document.querySelector('.glass-container');
+            const scenes = [document.getElementById('scene1'), document.getElementById('scene2'), document.getElementById('scene3')];
+            const cubes = [document.getElementById('cube1'), document.getElementById('cube2'), document.getElementById('cube3')];
             
-            dElements[0].className = 'dice bouncing-1';
-            dElements[1].className = 'dice bouncing-2';
-            dElements[2].className = 'dice bouncing-3';
+            // 유리관 화면 중앙 확대
+            glassContainer.classList.add('zoomed');
+
+            // 바운스 효과 적용 (컨테이너 흔들림)
+            scenes[0].className = 'scene bouncing-1';
+            scenes[1].className = 'scene bouncing-2';
+            scenes[2].className = 'scene bouncing-3';
+
+            // 3D 회전 효과 적용
+            cubes[0].className = 'cube rolling-cube-1';
+            cubes[1].className = 'cube rolling-cube-2';
+            cubes[2].className = 'cube rolling-cube-3';
+            
+            // 자연스러운 멈춤을 위해 기존 트랜지션 해제
+            cubes.forEach(c => c.style.transition = 'none');
 
             showMessage("주사위를 굴립니다...");
 
-            let rollInterval = setInterval(() => {
-                dElements.forEach(el => {
-                    const r = Math.floor(Math.random() * 6);
-                    el.innerText = diceFaces[r];
-                });
-            }, 80);
-
             setTimeout(() => {
-                clearInterval(rollInterval);
-                dElements.forEach(el => el.className = 'dice');
+                // 바운스 및 롤링 애니메이션 종료
+                scenes.forEach(el => el.className = 'scene');
+                cubes.forEach(el => {
+                    el.className = 'cube';
+                    el.style.transition = 'transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1)';
+                });
                 
+                // 유리관 원래 크기/위치로 축소
+                glassContainer.classList.remove('zoomed');
+                
+                // 실제 랜덤 결과 생성
                 const results = [
                     Math.floor(Math.random() * 6) + 1,
                     Math.floor(Math.random() * 6) + 1,
                     Math.floor(Math.random() * 6) + 1
                 ];
 
-                dElements[0].innerText = diceFaces[results[0]-1];
-                dElements[1].innerText = diceFaces[results[1]-1];
-                dElements[2].innerText = diceFaces[results[2]-1];
+                // 결과에 맞춰 3D 큐브 회전면 고정 로직
+                const getTransform = (num) => {
+                    // 완전히 정면이 아닌 약간 비스듬하게 보여 현실감 부여 (-15도 ~ 15도 Z축 회전)
+                    const randZ = Math.floor(Math.random() * 30) - 15;
+                    switch(num) {
+                        case 1: return `translateZ(-18px) rotateX(0deg) rotateY(0deg) rotateZ(${randZ}deg)`;
+                        case 2: return `translateZ(-18px) rotateX(0deg) rotateY(-90deg) rotateZ(${randZ}deg)`;
+                        case 3: return `translateZ(-18px) rotateX(-90deg) rotateY(0deg) rotateZ(${randZ}deg)`;
+                        case 4: return `translateZ(-18px) rotateX(90deg) rotateY(0deg) rotateZ(${randZ}deg)`;
+                        case 5: return `translateZ(-18px) rotateX(0deg) rotateY(90deg) rotateZ(${randZ}deg)`;
+                        case 6: return `translateZ(-18px) rotateX(0deg) rotateY(180deg) rotateZ(${randZ}deg)`;
+                    }
+                };
+
+                // 최종면 보이도록 트랜지션 적용
+                cubes[0].style.transform = getTransform(results[0]);
+                cubes[1].style.transform = getTransform(results[1]);
+                cubes[2].style.transform = getTransform(results[2]);
 
                 calculateResult(results);
 
