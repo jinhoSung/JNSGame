@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>웹 다이사이 (Tai Sai)</title>
+    <title>Jinos TaiSai</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* 카지노 테이블 느낌의 배경과 애니메이션 */
@@ -36,34 +36,114 @@
             color: #d4af37;
             text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
         }
-        .chip-display {
+        
+        /* 사실적인 칩 디자인 */
+        .chip {
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.8);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.6), inset 0 2px 5px rgba(255,255,255,0.4), inset 0 -2px 5px rgba(0,0,0,0.4);
+            position: relative;
+            box-sizing: border-box;
+        }
+        
+        /* 칩 테두리 장식 (점선 패턴) */
+        .chip::before {
+            content: '';
+            position: absolute;
+            top: 2px; left: 2px; right: 2px; bottom: 2px;
+            border-radius: 50%;
+            border: 3px dashed rgba(255,255,255,0.7);
+            pointer-events: none;
+        }
+
+        /* 중앙 흰색/밝은 원 */
+        .chip::after {
+            content: '';
+            position: absolute;
+            width: 60%; height: 60%;
+            background-color: rgba(255,255,255,0.9);
+            border-radius: 50%;
+            z-index: -1;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        /* 칩 색상 정의 */
+        .chip-1 { background-color: #ffffff; color: #333; text-shadow: none; }
+        .chip-1::before { border-color: #333; }
+        .chip-1::after { background-color: #f0f0f0; }
+        
+        .chip-5 { background-color: #e53e3e; } /* Red */
+        .chip-25 { background-color: #38a169; } /* Green */
+        .chip-100 { background-color: #1a202c; } /* Black */
+        .chip-500 { background-color: #805ad5; } /* Purple */
+        .chip-1k { background-color: #d69e2e; } /* Gold/Yellow */
+
+        /* 하단 선택 버튼용 칩 크기 */
+        .chip-btn-wrap {
+            transition: transform 0.1s;
+            cursor: pointer;
+        }
+        .chip-btn-wrap.selected {
+            transform: translateY(-10px) scale(1.15);
+        }
+        .chip-btn {
+            width: 48px;
+            height: 48px;
+            font-size: 0.85rem;
+            margin: 0 auto;
+        }
+
+        /* 보드에 쌓이는 칩 컨테이너 */
+        .chip-stack {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: radial-gradient(circle, #ffea00 0%, #ff8c00 100%);
-            color: black;
-            font-weight: bold;
-            border-radius: 50%;
-            width: 32px;
-            height: 32px;
+            pointer-events: none;
+            z-index: 10;
             display: flex;
+            flex-direction: row; /* 옆으로 쌓이게 변경 */
             align-items: center;
             justify-content: center;
-            font-size: 0.75rem;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.5), inset 0 0 3px rgba(255,255,255,0.8);
-            border: 2px dashed #000;
-            pointer-events: none; /* 클릭 방해 금지 */
-            z-index: 10;
         }
-        .chip-btn {
-            transition: transform 0.1s;
+
+        /* 보드 위 개별 칩 크기 및 쌓임 효과 */
+        .board-chip {
+            width: 28px;
+            height: 28px;
+            font-size: 0.6rem;
+            margin-left: -14px; /* 옆으로 겹치게 */
+            position: relative;
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.6), inset 0 2px 5px rgba(255,255,255,0.4), inset 0 -2px 5px rgba(0,0,0,0.4);
         }
-        .chip-btn.selected {
-            transform: translateY(-8px) scale(1.1);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        .board-chip:first-child {
+            margin-left: 0;
         }
         
+        /* 칩 총액 표시 라벨 */
+        .stack-total {
+            position: absolute;
+            bottom: 100%; /* 칩들 바로 위에 위치 */
+            margin-bottom: 4px;
+            left: 50%;
+            transform: translateX(-50%); /* 가로 중앙 정렬 */
+            background-color: rgba(0,0,0,0.85);
+            color: #d4af37;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            white-space: nowrap;
+            border: 1px solid #d4af37;
+            z-index: 30; /* 칩에 가려지지 않게 z-index 높임 */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
         /* 유리관(Glass Dome) 및 주사위 애니메이션 */
         .glass-container {
             position: relative;
@@ -154,17 +234,17 @@
     <header class="bg-gray-900 border-b border-gray-700 p-3 flex justify-between items-center z-20 shadow-md">
         <div class="flex items-center gap-2">
             <span class="text-2xl">🎲</span>
-            <h1 class="text-lg md:text-xl font-bold gold-text">웹 다이사이</h1>
+            <h1 class="text-lg md:text-xl font-bold gold-text">Jinos TaiSai</h1>
         </div>
         <div class="flex items-center gap-3 md:gap-4">
             <div class="flex flex-col text-right">
                 <div class="flex justify-end items-baseline gap-1 md:gap-2 mb-0.5">
                     <span class="text-[10px] md:text-xs text-gray-400">최고 자산</span>
-                    <span class="text-xs md:text-sm font-bold text-yellow-500">₩ <span id="maxBalanceDisplay">10,000</span></span>
+                    <span class="text-xs md:text-sm font-bold text-yellow-500">$ <span id="maxBalanceDisplay">1,000</span></span>
                 </div>
                 <div class="flex justify-end items-baseline gap-1 md:gap-2">
                     <span class="text-[10px] md:text-xs text-gray-400">현재 자산</span>
-                    <span class="text-base md:text-lg font-bold text-green-400">₩ <span id="balanceDisplay">10,000</span></span>
+                    <span class="text-base md:text-lg font-bold text-green-400">$ <span id="balanceDisplay">1,000</span></span>
                 </div>
             </div>
             <button onclick="resetMoney()" class="bg-red-900 hover:bg-red-700 text-white text-xs py-2 px-2 md:px-3 rounded border border-red-500 transition h-full">
@@ -200,7 +280,7 @@
                 주사위 굴리기 (ROLL)
             </button>
         </div>
-        <div class="text-xs text-gray-400 mt-2">현재 총 베팅액: ₩ <span id="totalBetDisplay">0</span></div>
+        <div class="text-xs text-gray-400 mt-2">현재 총 베팅액: $ <span id="totalBetDisplay">0</span></div>
     </div>
 
     <!-- 베팅 보드 (스크롤 가능 영역) -->
@@ -283,18 +363,37 @@
     <!-- 칩 선택 (하단 고정) -->
     <div class="bg-gray-900 border-t border-gray-700 p-3 pb-safe">
         <div class="max-w-md mx-auto flex justify-between items-end h-16 px-2">
-            <button class="chip-btn selected w-12 h-12 rounded-full font-bold text-black border-4 border-white shadow-lg flex items-center justify-center text-xs" style="background: linear-gradient(135deg, #e2e8f0, #cbd5e1)" onclick="selectChip(10, this)">10</button>
-            <button class="chip-btn w-12 h-12 rounded-full font-bold text-black border-4 border-white shadow-lg flex items-center justify-center text-xs" style="background: linear-gradient(135deg, #ef4444, #b91c1c)" onclick="selectChip(50, this)">50</button>
-            <button class="chip-btn w-12 h-12 rounded-full font-bold text-black border-4 border-white shadow-lg flex items-center justify-center text-xs" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8)" onclick="selectChip(100, this)">100</button>
-            <button class="chip-btn w-12 h-12 rounded-full font-bold text-black border-4 border-white shadow-lg flex items-center justify-center text-xs" style="background: linear-gradient(135deg, #10b981, #047857)" onclick="selectChip(500, this)">500</button>
-            <button class="chip-btn w-12 h-12 rounded-full font-bold text-black border-4 border-white shadow-lg flex items-center justify-center text-xs" style="background: linear-gradient(135deg, #a855f7, #7e22ce)" onclick="selectChip(1000, this)">1K</button>
+            <!-- 1$ (White) -->
+            <div class="chip-btn-wrap" onclick="selectChip(1, this)">
+                <div class="chip chip-btn chip-1">1</div>
+            </div>
+            <!-- 5$ (Red) -->
+            <div class="chip-btn-wrap" onclick="selectChip(5, this)">
+                <div class="chip chip-btn chip-5">5</div>
+            </div>
+            <!-- 25$ (Green) -->
+            <div class="chip-btn-wrap" onclick="selectChip(25, this)">
+                <div class="chip chip-btn chip-25">25</div>
+            </div>
+            <!-- 100$ (Black) -->
+            <div class="chip-btn-wrap" onclick="selectChip(100, this)">
+                <div class="chip chip-btn chip-100">100</div>
+            </div>
+            <!-- 500$ (Purple) -->
+            <div class="chip-btn-wrap" onclick="selectChip(500, this)">
+                <div class="chip chip-btn chip-500">500</div>
+            </div>
+            <!-- 1k$ (Gold) -->
+            <div class="chip-btn-wrap selected" onclick="selectChip(1000, this)">
+                <div class="chip chip-btn chip-1k">1K</div>
+            </div>
         </div>
     </div>
 
     <!-- 초기화 확인 모달 -->
     <div id="confirmModal" class="hidden fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center">
         <div class="bg-gray-800 p-6 rounded-lg border border-gray-600 text-center max-w-sm w-full mx-4 shadow-2xl">
-            <h2 class="text-lg md:text-xl text-white mb-6 font-bold">자산을 ₩10,000으로<br>초기화 하시겠습니까?</h2>
+            <h2 class="text-lg md:text-xl text-white mb-6 font-bold">자산을 $1,000으로<br>초기화 하시겠습니까?</h2>
             <div class="flex justify-center gap-4">
                 <button onclick="executeReset()" class="flex-1 bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded font-bold transition">예, 초기화합니다</button>
                 <button onclick="closeModal()" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded font-bold transition">취소</button>
@@ -303,20 +402,31 @@
     </div>
 
     <script>
-        // 게임 상태 관리
-        let balance = 10000;
-        let maxBalance = 10000;
-        let selectedChipAmount = 10;
+        // 게임 상태 관리 (초기 자산 $1000)
+        let balance = 1000;
+        let maxBalance = 1000;
+        let selectedChipAmount = 1000;
         let currentBets = {}; // { zone_id: amount }
+        let currentBetChips = {}; // { zone_id: [chipValue, chipValue, ...] } 쌓인 칩 순서 기록
         let isRolling = false;
 
         const diceFaces = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+        
+        // 칩 종류와 CSS 클래스 매핑
+        const chipClasses = {
+            1: 'chip-1',
+            5: 'chip-5',
+            25: 'chip-25',
+            100: 'chip-100',
+            500: 'chip-500',
+            1000: 'chip-1k'
+        };
 
         // === 사운드 효과 (Web Audio API) ===
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         
         function playTone(freq, type, duration, vol=0.1) {
-            if(audioCtx.state === 'suspended') audioCtx.resume(); // 브라우저 정책 우회 (클릭 시 재생 허용)
+            if(audioCtx.state === 'suspended') audioCtx.resume(); // 브라우저 정책 우회
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             osc.type = type;
@@ -333,24 +443,20 @@
             if(audioCtx.state === 'suspended') audioCtx.resume();
             
             if (type === 'bet') {
-                // 칩 내려놓는 소리
                 playTone(800, 'sine', 0.1, 0.2);
                 setTimeout(() => playTone(1200, 'sine', 0.1, 0.1), 50);
             } else if (type === 'roll') {
-                // 주사위가 이리저리 부딪히는 소리
                 let rollCount = 0;
                 let rollInterval = setInterval(() => {
                     playTone(150 + Math.random()*200, 'triangle', 0.08, 0.3);
                     rollCount++;
-                    if(rollCount > 12) clearInterval(rollInterval); // 약 1초 동안 재생
+                    if(rollCount > 12) clearInterval(rollInterval);
                 }, 80);
             } else if (type === 'win') {
-                // 승리 (돈 벌었을 때) - 경쾌한 아르페지오
                 playTone(523.25, 'sine', 0.15, 0.3); // C5
                 setTimeout(() => playTone(659.25, 'sine', 0.15, 0.3), 150); // E5
                 setTimeout(() => playTone(783.99, 'sine', 0.4, 0.3), 300); // G5
             } else if (type === 'lose') {
-                // 패배 (돈 잃었을 때) - 하강하는 낮은 음
                 playTone(300, 'sawtooth', 0.3, 0.2);
                 setTimeout(() => playTone(250, 'sawtooth', 0.4, 0.2), 300);
             }
@@ -365,11 +471,11 @@
 
         function loadBalance() {
             try {
-                const saved = localStorage.getItem('sicbo_balance');
+                const saved = localStorage.getItem('sicbo_usd_balance');
                 if (saved !== null && !isNaN(saved)) {
                     balance = parseInt(saved);
                 }
-                const savedMax = localStorage.getItem('sicbo_max_balance');
+                const savedMax = localStorage.getItem('sicbo_usd_max_balance');
                 if (savedMax !== null && !isNaN(savedMax)) {
                     maxBalance = parseInt(savedMax);
                 } else {
@@ -383,8 +489,8 @@
                 if (balance > maxBalance) {
                     maxBalance = balance;
                 }
-                localStorage.setItem('sicbo_balance', balance.toString());
-                localStorage.setItem('sicbo_max_balance', maxBalance.toString());
+                localStorage.setItem('sicbo_usd_balance', balance.toString());
+                localStorage.setItem('sicbo_usd_max_balance', maxBalance.toString());
             } catch(e) { console.warn("localStorage 저장 불가"); }
         }
 
@@ -410,7 +516,6 @@
                 showMessage("주사위가 굴러가는 중에는 초기화할 수 없습니다.", true);
                 return;
             }
-            // 브라우저 confirm 대신 커스텀 모달 띄우기
             document.getElementById('confirmModal').classList.remove('hidden');
         }
 
@@ -420,17 +525,16 @@
 
         function executeReset() {
             closeModal();
-            // 기존 베팅 내역 먼저 완전히 삭제 (환불 없음)
             currentBets = {};
+            currentBetChips = {};
             updateTotalBetDisplay();
             renderChipsOnBoard();
             
-            // 자산 10,000으로 고정 및 저장
-            balance = 10000;
+            balance = 1000; // 초기 자산 $1000
             saveBalance();
             updateBalanceDisplay();
             
-            showMessage("자산이 ₩10,000으로 초기화되었습니다.");
+            showMessage("자산이 $1,000으로 초기화되었습니다.");
         }
 
         // 칩 선택
@@ -438,8 +542,7 @@
             if (isRolling) return;
             selectedChipAmount = amount;
             
-            // UI 업데이트
-            document.querySelectorAll('.chip-btn').forEach(btn => btn.classList.remove('selected'));
+            document.querySelectorAll('.chip-btn-wrap').forEach(wrap => wrap.classList.remove('selected'));
             element.classList.add('selected');
         }
 
@@ -452,20 +555,24 @@
                 return;
             }
 
-            playSound('bet'); // 베팅 사운드 재생
+            playSound('bet');
 
-            // 상태 업데이트
+            // 자산 차감 및 누적 금액 계산
             balance -= selectedChipAmount;
             if (!currentBets[zone]) {
                 currentBets[zone] = 0;
+                currentBetChips[zone] = [];
             }
             currentBets[zone] += selectedChipAmount;
+            
+            // 시각적 칩 쌓기 배열에 추가
+            currentBetChips[zone].push(selectedChipAmount);
 
             saveBalance();
             updateBalanceDisplay();
             updateTotalBetDisplay();
             renderChipsOnBoard();
-            showMessage(`해당 영역에 ${selectedChipAmount}을(를) 베팅했습니다.`);
+            showMessage(`해당 영역에 $${selectedChipAmount}을(를) 베팅했습니다.`);
         }
 
         function clearBets() {
@@ -477,9 +584,10 @@
             }
             
             if (totalRefund > 0) {
-                playSound('bet'); // 베팅 취소 사운드 재생
+                playSound('bet');
                 balance += totalRefund;
                 currentBets = {};
+                currentBetChips = {};
                 saveBalance();
                 updateBalanceDisplay();
                 updateTotalBetDisplay();
@@ -494,31 +602,50 @@
             document.getElementById('totalBetDisplay').innerText = total.toLocaleString();
         }
 
-        // 보드 위에 칩 UI 그리기
+        // 보드 위에 칩 UI 그리기 (쌓임 효과 포함)
         function renderChipsOnBoard() {
-            // 기존 칩 제거
-            document.querySelectorAll('.chip-display').forEach(el => el.remove());
+            // 기존 칩 요소 및 클래스 초기화
+            document.querySelectorAll('.chip-stack').forEach(el => el.remove());
             document.querySelectorAll('.bet-zone').forEach(el => el.classList.remove('has-bet'));
 
-            // 새 칩 추가
-            for (let zone in currentBets) {
-                const amount = currentBets[zone];
-                const zoneElements = document.querySelectorAll('.bet-zone');
+            // 새 칩 쌓기
+            for (let zone in currentBetChips) {
+                const chipsArr = currentBetChips[zone];
+                const totalAmount = currentBets[zone];
                 
-                // 이벤트 핸들러 onclick 문자열을 이용해 요소 찾기 (간단한 방법)
+                if (chipsArr.length === 0) continue;
+
+                const zoneElements = document.querySelectorAll('.bet-zone');
                 let targetElement = Array.from(zoneElements).find(el => el.getAttribute('onclick').includes(`'${zone}'`));
                 
                 if (targetElement) {
                     targetElement.classList.add('has-bet');
-                    const chipEl = document.createElement('div');
-                    chipEl.className = 'chip-display';
                     
-                    // 단위 표시 축약 (ex: 1000 -> 1K)
-                    let displayAmt = amount;
-                    if(amount >= 1000) displayAmt = (amount/1000) + 'K';
-                    
-                    chipEl.innerText = displayAmt;
-                    targetElement.appendChild(chipEl);
+                    // 칩을 담을 컨테이너 생성
+                    const stackContainer = document.createElement('div');
+                    stackContainer.className = 'chip-stack';
+
+                    // 총액 라벨 추가
+                    const label = document.createElement('div');
+                    label.className = 'stack-total';
+                    let displayAmt = totalAmount;
+                    if(totalAmount >= 1000) displayAmt = (totalAmount/1000) + 'K';
+                    label.innerText = '$' + displayAmt;
+                    stackContainer.appendChild(label);
+
+                    // 옆으로 쌓일 때 구역을 벗어나지 않도록 화면에 표시되는 칩 개수를 최대 5개로 제한
+                    const displayChips = chipsArr.slice(-5);
+
+                    // 칩 요소들을 컨테이너에 추가하여 옆으로 겹쳐서 쌓이는 느낌 구현
+                    displayChips.forEach((chipVal) => {
+                        const chipEl = document.createElement('div');
+                        let innerText = chipVal >= 1000 ? (chipVal/1000)+'K' : chipVal;
+                        chipEl.className = `chip board-chip ${chipClasses[chipVal]}`;
+                        chipEl.innerText = innerText;
+                        stackContainer.appendChild(chipEl);
+                    });
+
+                    targetElement.appendChild(stackContainer);
                 }
             }
         }
@@ -532,21 +659,19 @@
             }
 
             isRolling = true;
-            playSound('roll'); // 주사위 굴리는 소리 재생
+            playSound('roll');
 
             document.getElementById('rollBtn').disabled = true;
             document.getElementById('rollBtn').classList.add('opacity-50');
 
             const dElements = [document.getElementById('dice1'), document.getElementById('dice2'), document.getElementById('dice3')];
             
-            // 유리관 바운스 애니메이션 시작
             dElements[0].className = 'dice bouncing-1';
             dElements[1].className = 'dice bouncing-2';
             dElements[2].className = 'dice bouncing-3';
 
             showMessage("주사위를 굴립니다...");
 
-            // 무작위로 주사위 숫자 변경 효과
             let rollInterval = setInterval(() => {
                 dElements.forEach(el => {
                     const r = Math.floor(Math.random() * 6);
@@ -554,14 +679,10 @@
                 });
             }, 80);
 
-            // 1.2초 후 결과 도출
             setTimeout(() => {
                 clearInterval(rollInterval);
-                
-                // 애니메이션 클래스 초기화
                 dElements.forEach(el => el.className = 'dice');
                 
-                // 실제 결과
                 const results = [
                     Math.floor(Math.random() * 6) + 1,
                     Math.floor(Math.random() * 6) + 1,
@@ -602,7 +723,7 @@
                     if (isTriple && dice[0] === num) wonAmount = betAmount + (betAmount * 150);
                 }
 
-                // 특정 더블 (해당 숫자가 2개 이상 나와야 함)
+                // 특정 더블
                 if (zone.startsWith('double_')) {
                     const num = parseInt(zone.split('_')[1]);
                     if (counts[num] >= 2) wonAmount = betAmount + (betAmount * 8);
@@ -630,23 +751,23 @@
                 totalWinnings += wonAmount;
             }
 
-            // 결과 처리
             if (totalWinnings > 0) {
-                playSound('win'); // 승리 사운드
+                playSound('win');
                 balance += totalWinnings;
-                showMessage(`결과: [${dice.join(',')}] 합계 ${sum}. 축하합니다! ₩${totalWinnings.toLocaleString()} 당첨!`, false, true);
+                showMessage(`결과: [${dice.join(',')}] 합계 ${sum}. 축하합니다! $${totalWinnings.toLocaleString()} 당첨!`, false, true);
             } else {
-                playSound('lose'); // 패배 사운드
+                playSound('lose');
                 showMessage(`결과: [${dice.join(',')}] 합계 ${sum}. 아쉽지만 당첨된 곳이 없습니다.`, true);
             }
 
-            // 게임 리셋 준비
             saveBalance();
             updateBalanceDisplay();
+            
+            // 결과 확인 후 초기화를 위해 베팅 내역 리셋 (UI는 2.5초 유지)
             currentBets = {};
+            currentBetChips = {};
             updateTotalBetDisplay();
             
-            // 칩은 잠시 보여줬다가 2초 뒤 제거
             setTimeout(() => {
                 renderChipsOnBoard();
                 isRolling = false;
