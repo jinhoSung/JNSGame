@@ -84,83 +84,108 @@
             z-index: 30; box-shadow: 0 2px 4px rgba(0,0,0,0.5);
         }
 
-        /* 주사위 굴림 상단 컨테이너 크기 확장 */
+        /* -------------------------------------------------------------
+           [수정됨] 주사위 굴림 영역 및 완벽한 3D 동기화
+        ------------------------------------------------------------- */
+        
         #rollAreaContainer {
-            min-height: 200px; /* 주사위가 튀어오를 충분한 공간 확보 */
+            min-height: 190px; 
+            overflow: visible; 
+            position: relative;
         }
 
-        /* 유리관(Glass Dome) 영역: 크기 확장 및 하단 마진 증가 */
+        /* 메인 컨테이너 */
         .glass-container {
             position: relative;
-            width: 160px;
-            height: 160px;
-            margin: 0 auto 10px auto; /* 하단 여백 추가 */
-            border-radius: 50%;
-            filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5));
+            width: 180px; 
+            height: 180px; /* 정방형 공간으로 재설정 */
+            margin: 0 auto 10px auto; 
             transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); 
             z-index: 40;
             perspective: 800px;
         }
         
-        /* 줌 효과 시 Y축으로 많이 내려 화면 정중앙 아래쪽으로 오게 설정 */
+        /* 줌인 시 Y축을 부드럽게 조정 (버튼을 안 가리는 선에서 최대 확대) */
         .glass-container.zoomed {
-            transform: scale(2.2) translateY(50px); /* scale 조금 줄이고 많이 내림 */
-            filter: drop-shadow(0 20px 40px rgba(0,0,0,0.9));
+            transform: scale(2.6) translateY(60px); 
+            filter: drop-shadow(0 40px 60px rgba(0,0,0,0.9));
         }
 
-        /* 바닥판 대각선 뷰 적용 */
+        /* [수정됨] 바닥판: 중앙에 완벽히 정렬된 3D 원 */
         .dice-board-base {
             position: absolute;
-            bottom: 20px; left: 10px; right: 10px; top: 20px;
+            top: 50%; 
+            left: 50%; 
+            width: 150px; 
+            height: 150px; /* 완전한 원형 */
+            margin-top: -75px; 
+            margin-left: -75px; 
             background-color: #0b5e28;
             background-image: radial-gradient(circle at center, #0e7a34 0%, #042910 100%);
             border-radius: 50%;
-            transform: rotateX(60deg) translateZ(-10px);
-            box-shadow: inset 0 0 15px rgba(0,0,0,0.9), 0 20px 20px rgba(0,0,0,0.5);
+            /* 원을 60도 눕히면 시각적으로 높이가 절반(75px)인 타원이 됨 */
+            transform: rotateX(60deg);
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.9), 0 10px 15px rgba(0,0,0,0.6);
             border: 4px solid #5a3a11;
+            z-index: 1;
         }
         
-        /* 바닥판 쳐주는 애니메이션 (Plate Kick) */
+        /* 바닥판 타격 애니메이션 */
         @keyframes plateHit3D {
-            0%   { transform: rotateX(60deg) translateZ(-10px); }
-            4%   { transform: rotateX(60deg) translateZ(10px) scale(1.02); box-shadow: inset 0 0 30px rgba(0,0,0,0.9), 0 40px 30px rgba(0,0,0,0.3); }
-            15%  { transform: rotateX(60deg) translateZ(-10px); box-shadow: inset 0 0 15px rgba(0,0,0,0.9), 0 20px 20px rgba(0,0,0,0.5); }
-            100% { transform: rotateX(60deg) translateZ(-10px); }
+            0%   { transform: rotateX(60deg); }
+            4%   { transform: rotateX(60deg) translateZ(8px) scale(1.02); box-shadow: inset 0 0 30px rgba(0,0,0,0.9), 0 30px 20px rgba(0,0,0,0.4); }
+            15%  { transform: rotateX(60deg); box-shadow: inset 0 0 20px rgba(0,0,0,0.9), 0 10px 15px rgba(0,0,0,0.6); }
+            100% { transform: rotateX(60deg); }
         }
         .plate-hitting { animation: plateHit3D 0.6s ease-out; }
 
+        /* [수정됨] 반구형 돔: 수학적으로 바닥의 곡선과 일치하도록 재설계 */
         .glass-dome {
             position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.1) 20%, rgba(0,0,0,0.2) 80%, rgba(0,0,0,0.6) 100%);
-            border-radius: 50%;
-            border: 1px solid rgba(255, 255, 255, 0.4);
-            box-shadow: inset -10px -10px 20px rgba(0,0,0,0.5), inset 10px 10px 20px rgba(255,255,255,0.3);
+            /* 바닥판(시각적 높이 75px)의 상단 끝점에 돔 하단 곡선이 맞물리도록 위치 설정 */
+            top: 7px; 
+            left: 50%; 
+            width: 156px; /* 바닥판(150)보다 외곽을 감싸기 위해 살짝 큼 */
+            margin-left: -78px; 
+            height: 120px; 
+            
+            /* 핵심 1: 상단은 완벽한 둥근 돔, 하단은 60도 기울어진 바닥판의 앞면 곡률(약 37.5px)과 완벽하게 일치시킴! */
+            border-radius: 50% / 82px 82px 38px 38px;
+            
+            background: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.05) 40%, rgba(0,0,0,0.2) 80%, rgba(255,255,255,0.2) 100%);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            /* 핵심 2: 하단 곡선에만 두꺼운 금색 테두리를 주어 진짜 뚜껑을 덮은 듯한 볼륨감 생성 */
+            border-bottom: 4px solid rgba(212, 175, 55, 0.85); 
+            box-shadow: inset -10px 10px 20px rgba(0,0,0,0.4), inset 10px -10px 20px rgba(255,255,255,0.3);
             z-index: 10;
             pointer-events: none;
         }
 
         .glass-highlight {
             position: absolute;
-            top: 10%; left: 20%;
-            width: 60%; height: 30%;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 50%;
-            transform: rotate(-15deg);
-            filter: blur(4px);
+            top: 5%; left: 15%;
+            width: 70%; height: 50%;
+            background: radial-gradient(ellipse at top, rgba(255, 255, 255, 0.5) 0%, transparent 60%);
+            border-radius: 50% / 40px 40px 10px 10px;
+            filter: blur(3px);
+            transform: rotate(-8deg);
         }
         
-        /* 3D 대각선 뷰 래퍼 설정 */
+        /* [수정됨] 3D 래퍼: 바닥판과 정확히 100% 동일한 공간, 동일한 회전각 공유 */
         .dice-container {
             position: absolute;
-            width: 100%; height: 100%;
-            top: 0; left: 0;
+            top: 50%; 
+            left: 50%; 
+            width: 150px; 
+            height: 150px;
+            margin-top: -75px; 
+            margin-left: -75px; 
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 15px; 
+            gap: 12px; 
             z-index: 5;
-            transform: rotateX(60deg);
+            transform: rotateX(60deg); /* 바닥판과 일치 */
             transform-style: preserve-3d;
         }
         
@@ -169,29 +194,21 @@
             height: 30px;
             position: relative;
             transform-style: preserve-3d;
+            /* 주사위 절반 높이만큼 위로 띄워 바닥에 안착시킴 */
             transform: translate3d(0, 0, 15px); 
         }
         
         .cube {
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            transform-style: preserve-3d;
-            transform: rotateX(0deg) rotateY(0deg); 
+            width: 100%; height: 100%; position: absolute;
+            transform-style: preserve-3d; transform: rotateX(0deg) rotateY(0deg); 
             transition: transform 2.5s cubic-bezier(0.1, 0.85, 0.2, 1); 
         }
         
         .cube__face {
-            position: absolute;
-            width: 30px;
-            height: 30px;
-            background-color: #fdfdfd;
-            border: 1px solid #ddd;
-            border-radius: 5px;
+            position: absolute; width: 30px; height: 30px;
+            background-color: #fdfdfd; border: 1px solid #ddd; border-radius: 5px;
             box-shadow: inset 0 0 6px rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.3);
-            background-size: 80%;
-            background-position: center;
-            background-repeat: no-repeat;
+            background-size: 80%; background-position: center; background-repeat: no-repeat;
             backface-visibility: hidden; 
         }
         
@@ -207,13 +224,13 @@
              border-radius: 5px; backface-visibility: visible; z-index: -1;
         }
 
-        /* 튕기는 높이 조절: 위쪽이 잘리지 않도록 160px -> 110px, 170px -> 120px 등으로 낮춤 */
+        /* 돔을 뚫고 나가지 않도록 Z축 바운스 높이를 안정적으로 제한 (최대 70px) */
         @keyframes pop1 {
             0%   { transform: translate3d(0, 0, 15px); }
             4%   { transform: translate3d(0, 0, 5px); animation-timing-function: ease-out; } 
-            15%  { transform: translate3d(-15px, -15px, 110px); animation-timing-function: ease-in; } 
+            15%  { transform: translate3d(-15px, -15px, 70px); animation-timing-function: ease-in; } 
             28%  { transform: translate3d(-25px, -25px, 15px); animation-timing-function: ease-out; } 
-            45%  { transform: translate3d(-12px, -12px, 60px); animation-timing-function: ease-in; }  
+            45%  { transform: translate3d(-12px, -12px, 40px); animation-timing-function: ease-in; }  
             62%  { transform: translate3d(-5px, -5px, 15px); animation-timing-function: ease-out; }   
             75%  { transform: translate3d(-2px, -2px, 25px); animation-timing-function: ease-in; }    
             88%  { transform: translate3d(0, 0, 15px); } 
@@ -222,9 +239,9 @@
         @keyframes pop2 {
             0%   { transform: translate3d(0, 0, 15px); }
             4%   { transform: translate3d(0, 0, 5px); animation-timing-function: ease-out; }
-            16%  { transform: translate3d(20px, -10px, 120px); animation-timing-function: ease-in; }
+            16%  { transform: translate3d(20px, -10px, 75px); animation-timing-function: ease-in; }
             31%  { transform: translate3d(30px, -15px, 15px); animation-timing-function: ease-out; }
-            48%  { transform: translate3d(15px, -5px, 65px); animation-timing-function: ease-in; }
+            48%  { transform: translate3d(15px, -5px, 45px); animation-timing-function: ease-in; }
             64%  { transform: translate3d(5px, -2px, 15px); animation-timing-function: ease-out; }
             77%  { transform: translate3d(2px, -1px, 20px); animation-timing-function: ease-in; }
             90%  { transform: translate3d(0, 0, 15px); }
@@ -233,9 +250,9 @@
         @keyframes pop3 {
             0%   { transform: translate3d(0, 0, 15px); }
             4%   { transform: translate3d(0, 0, 5px); animation-timing-function: ease-out; }
-            17%  { transform: translate3d(-10px, 20px, 100px); animation-timing-function: ease-in; }
+            17%  { transform: translate3d(-10px, 20px, 65px); animation-timing-function: ease-in; }
             34%  { transform: translate3d(-15px, 30px, 15px); animation-timing-function: ease-out; }
-            51%  { transform: translate3d(-5px, 15px, 55px); animation-timing-function: ease-in; }
+            51%  { transform: translate3d(-5px, 15px, 35px); animation-timing-function: ease-in; }
             66%  { transform: translate3d(-2px, 5px, 15px); animation-timing-function: ease-out; }
             79%  { transform: translate3d(0px, 2px, 20px); animation-timing-function: ease-in; }
             92%  { transform: translate3d(0, 0, 15px); }
@@ -282,15 +299,15 @@
     <!-- 주사위 굴림 영역 -->
     <div id="rollAreaContainer" class="bg-gray-800 py-3 flex flex-col items-center justify-center border-b border-gray-700 relative z-30">
         <!-- 유리관 주사위 컨테이너 -->
-        <div class="glass-container mb-3">
+        <div class="glass-container mb-2">
             <div class="dice-board-base"></div>
+            <!-- 동기화된 돔 -->
             <div class="glass-dome">
                 <div class="glass-highlight"></div>
             </div>
             <div class="dice-container">
                 <div class="scene" id="scene1">
                     <div class="cube" id="cube1">
-                        <!-- 뒷면 렌더링 방지용 백페이스 추가 -->
                         <div class="cube__face-back" style="transform: rotateY(0deg) translateZ(14.5px);"></div>
                         <div class="cube__face-back" style="transform: rotateY(90deg) translateZ(14.5px);"></div>
                         <div class="cube__face-back" style="transform: rotateX(90deg) translateZ(14.5px);"></div>
@@ -449,7 +466,6 @@
         let currentBetChips = {};
         let isRolling = false;
         
-        // 회전 누적 값 관리
         let diceRotations = [ {x:0, y:0}, {x:0, y:0}, {x:0, y:0} ];
 
         const chipClasses = {
@@ -639,7 +655,7 @@
             const scenes = [document.getElementById('scene1'), document.getElementById('scene2'), document.getElementById('scene3')];
             const cubes = [document.getElementById('cube1'), document.getElementById('cube2'), document.getElementById('cube3')];
             
-            // 줌 인 시 Y축으로 많이 내려오도록 CSS(.zoomed) 수정 적용됨
+            // 줌 인 실행
             glassContainer.classList.add('zoomed');
             showMessage("주사위를 굴립니다...");
 
@@ -756,4 +772,4 @@
         }
     </script>
 </body>
-                                                                                </html>
+</html>
