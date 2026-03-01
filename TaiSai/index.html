@@ -6,11 +6,14 @@
     <title>Jinos TaiSai</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* 모바일 브라우저 주소창 높이를 제외한 동적 뷰포트(dvh) 설정 */
-        body {
+        /* 모바일 브라우저 주소창 짤림 완벽 방지 */
+        html, body {
             height: 100dvh; 
+            margin: 0;
+            padding: 0;
             background-color: #1a1a1a;
-            overscroll-behavior-y: contain; /* 모바일 새로고침 방지 */
+            overflow: hidden; /* 브라우저 전체 스크롤 방지 */
+            overscroll-behavior-y: none;
         }
         
         /* 아이폰 홈 바 침범 방지용 여백 설정 */
@@ -121,9 +124,7 @@
             position: relative;
             box-shadow: 2px 2px 4px rgba(0,0,0,0.6), inset 0 2px 5px rgba(255,255,255,0.4), inset 0 -2px 5px rgba(0,0,0,0.4);
         }
-        .board-chip:first-child {
-            margin-left: 0;
-        }
+        .board-chip:first-child { margin-left: 0; }
         
         .stack-total {
             position: absolute;
@@ -143,7 +144,7 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.5);
         }
 
-        /* 유리관(Glass Dome) */
+        /* 유리관(Glass Dome) 영역 */
         .glass-container {
             position: relative;
             width: 140px;
@@ -156,9 +157,18 @@
         }
         
         .glass-container.zoomed {
-            transform: scale(2.5) translateY(30px);
-            filter: drop-shadow(0 20px 30px rgba(0,0,0,0.8));
+            transform: scale(2.5) translateY(25px);
+            filter: drop-shadow(0 20px 40px rgba(0,0,0,0.9));
         }
+
+        /* 바닥판 쳐주는 애니메이션 (Plate Kick) */
+        @keyframes plateHit {
+            0%   { transform: scale(1) translateY(0); }
+            4%   { transform: scale(1.05) translateY(-5px); box-shadow: inset 0 0 30px rgba(0,0,0,0.9); }
+            15%  { transform: scale(1) translateY(0); box-shadow: inset 0 0 15px rgba(0,0,0,0.9); }
+            100% { transform: scale(1) translateY(0); }
+        }
+        .plate-hitting { animation: plateHit 0.6s ease-out; }
 
         .dice-board-base {
             position: absolute;
@@ -169,6 +179,7 @@
             box-shadow: inset 0 0 15px rgba(0,0,0,0.9);
             border: 3px solid #5a3a11;
         }
+        
         .glass-dome {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -179,6 +190,7 @@
             z-index: 10;
             pointer-events: none;
         }
+
         .glass-highlight {
             position: absolute;
             top: 10%; left: 20%;
@@ -189,7 +201,7 @@
             filter: blur(4px);
         }
         
-        /* 3D 주사위 스타일 */
+        /* 3D 대각선 뷰 및 주사위 래퍼 설정 */
         .dice-container {
             position: absolute;
             width: 100%; height: 100%;
@@ -199,13 +211,19 @@
             justify-content: center;
             gap: 12px;
             z-index: 5;
-            perspective: 600px;
+            perspective: 800px;
+            /* 대각선으로 비스듬히 내려다보는 뷰 (Isometric View) */
+            transform: rotateX(60deg);
+            transform-style: preserve-3d;
         }
+        
         .scene {
             width: 36px;
             height: 36px;
-            perspective: 400px;
             position: relative;
+            transform-style: preserve-3d;
+            /* 바닥에 안착하기 위해 주사위 절반 높이(18px)만큼 위로 이동 */
+            transform: translate3d(0, 0, 18px); 
         }
         
         .cube {
@@ -213,9 +231,8 @@
             height: 100%;
             position: absolute;
             transform-style: preserve-3d;
-            transform: translateZ(-18px) rotateX(0deg) rotateY(0deg);
-            /* 핵심: 점점 느려지면서 멈추는 물리 엔진 효과 적용 */
-            transition: transform 2.5s cubic-bezier(0.1, 0.85, 0.2, 1);
+            transform: rotateX(0deg) rotateY(0deg); /* 큐브 중심에서 제자리 회전 */
+            transition: transform 2.5s cubic-bezier(0.1, 0.85, 0.2, 1); /* 마찰력 감속 */
         }
         
         .cube__face {
@@ -231,6 +248,7 @@
             background-repeat: no-repeat;
         }
         
+        /* 큐브의 6면 배치 (중심에서 18px씩 밀어냄) */
         .cube__face--1 { transform: rotateY(  0deg) translateZ(18px); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='20' fill='%23d32f2f'/%3E%3C/svg%3E"); }
         .cube__face--2 { transform: rotateY( 90deg) translateZ(18px); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='30' cy='30' r='12' fill='%23222'/%3E%3Ccircle cx='70' cy='70' r='12' fill='%23222'/%3E%3C/svg%3E"); }
         .cube__face--3 { transform: rotateX( 90deg) translateZ(18px); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='25' cy='25' r='12' fill='%23222'/%3E%3Ccircle cx='50' cy='50' r='12' fill='%23222'/%3E%3Ccircle cx='75' cy='75' r='12' fill='%23222'/%3E%3C/svg%3E"); }
@@ -238,39 +256,49 @@
         .cube__face--5 { transform: rotateY(-90deg) translateZ(18px); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='25' cy='25' r='12' fill='%23222'/%3E%3Ccircle cx='75' cy='25' r='12' fill='%23222'/%3E%3Ccircle cx='50' cy='50' r='12' fill='%23222'/%3E%3Ccircle cx='25' cy='75' r='12' fill='%23222'/%3E%3Ccircle cx='75' cy='75' r='12' fill='%23222'/%3E%3C/svg%3E"); }
         .cube__face--6 { transform: rotateY(180deg) translateZ(18px); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='30' cy='20' r='12' fill='%23222'/%3E%3Ccircle cx='70' cy='20' r='12' fill='%23222'/%3E%3Ccircle cx='30' cy='50' r='12' fill='%23222'/%3E%3Ccircle cx='70' cy='50' r='12' fill='%23222'/%3E%3Ccircle cx='30' cy='80' r='12' fill='%23222'/%3E%3Ccircle cx='70' cy='80' r='12' fill='%23222'/%3E%3C/svg%3E"); }
 
-        /* 바닥에 통통 튀는 효과 */
-        @keyframes bounce1 {
-            0% { transform: translate(0, 0); }
-            20% { transform: translate(-15px, -15px); }
-            40% { transform: translate(15px, -10px); }
-            60% { transform: translate(-5px, 10px); }
-            80% { transform: translate(5px, 5px); }
-            100% { transform: translate(0, 0); }
+        /* 바닥에 쳐맞고 튕기는 물리 엔진 시뮬레이션 (Parabolic Bounces) */
+        @keyframes pop1 {
+            0%   { transform: translate3d(0, 0, 18px); }
+            4%   { transform: translate3d(0, 0, 8px); animation-timing-function: ease-out; } /* 바닥 눌림 */
+            15%  { transform: translate3d(-15px, -15px, 140px); animation-timing-function: ease-in; } /* 위로 치솟음 (Z축) */
+            28%  { transform: translate3d(-25px, -25px, 18px); animation-timing-function: ease-out; } /* 바닥 타격 1 */
+            45%  { transform: translate3d(-12px, -12px, 70px); animation-timing-function: ease-in; }  /* 바운스 1 */
+            62%  { transform: translate3d(-5px, -5px, 18px); animation-timing-function: ease-out; }   /* 바닥 타격 2 */
+            75%  { transform: translate3d(-2px, -2px, 35px); animation-timing-function: ease-in; }    /* 바운스 2 */
+            88%  { transform: translate3d(0, 0, 18px); } /* 최종 안착 */
+            100% { transform: translate3d(0, 0, 18px); }
         }
-        @keyframes bounce2 {
-            0% { transform: translate(0, 0); }
-            20% { transform: translate(15px, -10px); }
-            40% { transform: translate(-10px, 15px); }
-            60% { transform: translate(10px, -5px); }
-            80% { transform: translate(-5px, 0); }
-            100% { transform: translate(0, 0); }
+        @keyframes pop2 {
+            0%   { transform: translate3d(0, 0, 18px); }
+            4%   { transform: translate3d(0, 0, 8px); animation-timing-function: ease-out; }
+            16%  { transform: translate3d(20px, -10px, 150px); animation-timing-function: ease-in; }
+            31%  { transform: translate3d(30px, -15px, 18px); animation-timing-function: ease-out; }
+            48%  { transform: translate3d(15px, -5px, 75px); animation-timing-function: ease-in; }
+            64%  { transform: translate3d(5px, -2px, 18px); animation-timing-function: ease-out; }
+            77%  { transform: translate3d(2px, -1px, 30px); animation-timing-function: ease-in; }
+            90%  { transform: translate3d(0, 0, 18px); }
+            100% { transform: translate3d(0, 0, 18px); }
         }
-        @keyframes bounce3 {
-            0% { transform: translate(0, 0); }
-            20% { transform: translate(-10px, 15px); }
-            40% { transform: translate(10px, -15px); }
-            60% { transform: translate(-5px, -5px); }
-            80% { transform: translate(5px, 10px); }
-            100% { transform: translate(0, 0); }
+        @keyframes pop3 {
+            0%   { transform: translate3d(0, 0, 18px); }
+            4%   { transform: translate3d(0, 0, 8px); animation-timing-function: ease-out; }
+            17%  { transform: translate3d(-10px, 20px, 130px); animation-timing-function: ease-in; }
+            34%  { transform: translate3d(-15px, 30px, 18px); animation-timing-function: ease-out; }
+            51%  { transform: translate3d(-5px, 15px, 65px); animation-timing-function: ease-in; }
+            66%  { transform: translate3d(-2px, 5px, 18px); animation-timing-function: ease-out; }
+            79%  { transform: translate3d(0px, 2px, 30px); animation-timing-function: ease-in; }
+            92%  { transform: translate3d(0, 0, 18px); }
+            100% { transform: translate3d(0, 0, 18px); }
         }
-        .bouncing-1 { animation: bounce1 1.2s cubic-bezier(0.2, 0.8, 0.2, 1); }
-        .bouncing-2 { animation: bounce2 1.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
-        .bouncing-3 { animation: bounce3 1.1s cubic-bezier(0.2, 0.8, 0.2, 1); }
+        
+        .popping-1 { animation: pop1 1.9s linear forwards; }
+        .popping-2 { animation: pop2 2.0s linear forwards; }
+        .popping-3 { animation: pop3 2.1s linear forwards; }
 
         ::-webkit-scrollbar { width: 0px; background: transparent; }
     </style>
 </head>
-<body class="text-white flex flex-col font-sans"> <!-- h-screen 제거, CSS body 설정으로 대체 -->
+<body class="text-white flex flex-col font-sans">
 
     <!-- 헤더 -->
     <header class="bg-gray-900 border-b border-gray-700 p-3 flex justify-between items-center z-20 shadow-md">
@@ -448,7 +476,7 @@
         let currentBetChips = {};
         let isRolling = false;
         
-        // 주사위 현재 회전 누적 값 (뒤로 돌아가는 현상 방지)
+        // 회전 누적 값 관리
         let diceRotations = [ {x:0, y:0}, {x:0, y:0}, {x:0, y:0} ];
 
         const chipClasses = {
@@ -479,13 +507,16 @@
                 playTone(800, 'sine', 0.1, 0.2);
                 setTimeout(() => playTone(1200, 'sine', 0.1, 0.1), 50);
             } else if (type === 'roll') {
-                let rollCount = 0;
-                let rollInterval = setInterval(() => {
-                    playTone(150 + Math.random()*200, 'triangle', 0.08, 0.3);
-                    rollCount++;
-                    // 통통 튀는 시간에 맞춰 약 1.6초간 재생
-                    if(rollCount > 20) clearInterval(rollInterval);
-                }, 80);
+                // 바닥판 타격 소리 (큰 울림)
+                playTone(100, 'square', 0.15, 0.4);
+                // 바운스 1
+                setTimeout(() => playTone(250 + Math.random()*100, 'triangle', 0.1, 0.3), 500);
+                setTimeout(() => playTone(250 + Math.random()*100, 'triangle', 0.1, 0.3), 550);
+                // 바운스 2
+                setTimeout(() => playTone(300 + Math.random()*100, 'triangle', 0.08, 0.2), 1100);
+                setTimeout(() => playTone(300 + Math.random()*100, 'triangle', 0.08, 0.2), 1150);
+                // 바운스 3 (안착)
+                setTimeout(() => playTone(350 + Math.random()*100, 'triangle', 0.05, 0.1), 1600);
             } else if (type === 'win') {
                 playTone(523.25, 'sine', 0.15, 0.3);
                 setTimeout(() => playTone(659.25, 'sine', 0.15, 0.3), 150);
@@ -545,7 +576,7 @@
             updateTotalBetDisplay(); renderChipsOnBoard();
             balance = 1000;
             saveBalance(); updateBalanceDisplay();
-            showMessage("자산이 $1,000으로 초기화되었습니다.");
+            showMessage("자산을 $1,000으로 리셋했습니다.");
         }
 
         function selectChip(amount, element) {
@@ -635,26 +666,29 @@
             document.getElementById('rollBtn').classList.add('opacity-50');
 
             const glassContainer = document.querySelector('.glass-container');
+            const basePlate = document.querySelector('.dice-board-base');
             const scenes = [document.getElementById('scene1'), document.getElementById('scene2'), document.getElementById('scene3')];
             const cubes = [document.getElementById('cube1'), document.getElementById('cube2'), document.getElementById('cube3')];
             
-            // 화면 중앙으로 부드럽게 확대
+            // 1. 화면 중앙 줌인
             glassContainer.classList.add('zoomed');
             showMessage("주사위를 굴립니다...");
 
-            // 이번 턴의 결과값을 굴리기 시작할 때 미리 결정
+            // 2. 바닥판 쳐올리는 연출
+            basePlate.classList.add('plate-hitting');
+
             const results = [
                 Math.floor(Math.random() * 6) + 1,
                 Math.floor(Math.random() * 6) + 1,
                 Math.floor(Math.random() * 6) + 1
             ];
 
-            // 1. 컨테이너 튕기기 (유리벽에 부딪히는 효과)
-            scenes[0].className = 'scene bouncing-1';
-            scenes[1].className = 'scene bouncing-2';
-            scenes[2].className = 'scene bouncing-3';
+            // 3. 팝콘처럼 튕겨오르는 3D 포물선 애니메이션 (가속도 적용)
+            scenes[0].className = 'scene popping-1';
+            scenes[1].className = 'scene popping-2';
+            scenes[2].className = 'scene popping-3';
 
-            // 2. 물리 기반 회전: 목표면을 설정하고 엄청나게 많이 돌도록 각도를 누적하여 부여함
+            // 4. 주사위 마찰력 감속 회전 적용
             const getTargetRotation = (result, dieIndex) => {
                 let targetX = 0, targetY = 0;
                 switch(result) {
@@ -666,43 +700,37 @@
                     case 6: targetX = 0; targetY = 180; break;
                 }
 
-                // 4~7바퀴 (360도 * 4~7) 무작위 추가 회전
+                // 엄청나게 빠른 속도로 4~7바퀴 돌게 누적 부여
                 let extraX = (Math.floor(Math.random() * 4) + 4) * 360;
                 let extraY = (Math.floor(Math.random() * 4) + 4) * 360;
-                
-                // 회전 방향 무작위 (양수/음수)
                 if (Math.random() > 0.5) extraX *= -1;
                 if (Math.random() > 0.5) extraY *= -1;
 
                 let prevX = diceRotations[dieIndex].x;
                 let prevY = diceRotations[dieIndex].y;
 
-                // 기존 각도에서 목표 각도까지 부드럽게 연결되도록 수식 적용
                 let newX = prevX + extraX + (targetX - (prevX % 360));
                 let newY = prevY + extraY + (targetY - (prevY % 360));
                 
-                // 정면이 살짝 비스듬하게 보이는 리얼함 추가 (-15도 ~ 15도)
                 let randZ = Math.floor(Math.random() * 30) - 15;
 
                 diceRotations[dieIndex] = {x: newX, y: newY, z: randZ};
-                return `translateZ(-18px) rotateX(${newX}deg) rotateY(${newY}deg) rotateZ(${randZ}deg)`;
+                return `rotateX(${newX}deg) rotateY(${newY}deg) rotateZ(${randZ}deg)`; // translateZ는 scene에서 관리
             };
 
-            // CSS 트랜지션을 이용해 서서히 멈추는 애니메이션 시작
             cubes[0].style.transform = getTargetRotation(results[0], 0);
             cubes[1].style.transform = getTargetRotation(results[1], 1);
             cubes[2].style.transform = getTargetRotation(results[2], 2);
 
-            // 약 1.3초 후 튕기는 효과를 없애 주사위가 바닥에 안착해서 서서히 구르는 연출
-            setTimeout(() => {
-                scenes.forEach(el => el.className = 'scene');
-            }, 1300);
+            // 애니메이션 초기화를 위한 타이머 설정
+            setTimeout(() => { basePlate.classList.remove('plate-hitting'); }, 600);
+            setTimeout(() => { scenes.forEach(el => el.className = 'scene'); }, 2200);
 
-            // 총 3초 후(완전히 멈췄을 때) 화면을 축소하고 결과 계산
+            // 모든 애니메이션이 종료된 3.5초 뒤 결과 도출 및 줌 아웃
             setTimeout(() => {
                 glassContainer.classList.remove('zoomed');
                 calculateResult(results);
-            }, 3000);
+            }, 3500);
         }
 
         function calculateResult(dice) {
@@ -754,7 +782,6 @@
             }
 
             saveBalance(); updateBalanceDisplay();
-            
             currentBets = {}; currentBetChips = {}; updateTotalBetDisplay();
             
             setTimeout(() => {
