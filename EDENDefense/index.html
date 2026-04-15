@@ -1,1 +1,694 @@
-d
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>에덴 영농조합 : 자본주의 디펜스</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body { margin: 0; overflow: hidden; background-color: #0a0a0a; color: #f5f5f5; }
+    .cursor-crosshair { cursor: crosshair; }
+    .hexagon-bg {
+      background-image: url("data:image/svg+xml,%3Csvg width='40' height='69.2820323027551' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M40 17.3205081L20 5.7735027 0 17.3205081V40.4145188L20 51.9615242 40 40.4145188V17.3205081z' stroke='%233b82f6' stroke-width='1' stroke-opacity='0.2' fill='none'/%3E%3C/svg%3E");
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #171717; }
+    ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+    
+    .buff-active {
+      box-shadow: inset 0 0 30px rgba(234, 179, 8, 0.3);
+      border: 2px solid rgba(234, 179, 8, 0.5);
+    }
+    .bullet { transition: left 0.1s linear, top 0.1s linear; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    const INITIAL_POINTS = 1500;
+
+    const LAND_CONFIG = [
+      { level: 0, size: 30, maxHp: 1000, plots: 4, nextCost: 10000, nextName: "100평 영토 확장" },
+      { level: 1, size: 100, maxHp: 5000, plots: 8, nextCost: 300000, nextName: "400평 요새화 플렉스" },
+      { level: 2, size: 400, maxHp: 30000, plots: 12, nextCost: null, nextName: "최대 확장 도달" }
+    ];
+
+    const CROP_TYPES = {
+      lettuce: { id: 'lettuce', name: '마력 상추', emoji: '🥬', cost: 10, sell: 50, growSpeed: 1.5 },
+      potato: { id: 'potato', name: '황금 감자', emoji: '🥔', cost: 30, sell: 150, growSpeed: 0.8 },
+      tomato: { id: 'tomato', name: '방울토마토', emoji: '🍅', cost: 100, sell: 600, growSpeed: 0.2 },
+      apple: { id: 'apple', name: '사과나무', emoji: '🍎', cost: 500, sell: 4000, growSpeed: 0.05 }
+    };
+
+    function EdenFarmingGame() {
+      const [points, setPoints] = useState(INITIAL_POINTS);
+      const [landLevel, setLandLevel] = useState(0); 
+      const [barrierHp, setBarrierHp] = useState(LAND_CONFIG[0].maxHp);
+      const [day, setDay] = useState(1);
+      const [gameOver, setGameOver] = useState(false);
+      const [gameWon, setGameWon] = useState(false); 
+      const [logs, setLogs] = useState(["[시스템] 2D 전술 뷰 모드가 활성화되었습니다."]);
+
+      const [inventory, setInventory] = useState({ lettuce: 0, potato: 0, tomato: 0, apple: 0 });
+      const [selectedSeed, setSelectedSeed] = useState('potato');
+      const selectedSeedRef = useRef(selectedSeed);
+
+      const [upgrades, setUpgrades] = useState({ 
+        nariCrayon: false, kang: false, seo: false, yeji: false, slime: false, autoPlanter: false 
+      });
+
+      const [plots, setPlots] = useState(Array(LAND_CONFIG[0].plots).fill({ state: 'empty', progress: 0, type: null }));
+      const [nariBuffActive, setNariBuffActive] = useState(false);
+      const [kFoodBuffActive, setKFoodBuffActive] = useState(false);
+      
+      const [turrets, setTurrets] = useState([]);
+      const [enemies, setEnemies] = useState([]);
+      const [bullets, setBullets] = useState([]); // 투사체 상태 추가
+      
+      const stateRef = useRef({ points, barrierHp, enemies, turrets, bullets, plots, nariBuffActive, kFoodBuffActive, upgrades, landLevel });
+
+      useEffect(() => { selectedSeedRef.current = selectedSeed; }, [selectedSeed]);
+      useEffect(() => {
+        stateRef.current = { points, barrierHp, enemies, turrets, bullets, plots, nariBuffActive, kFoodBuffActive, upgrades, landLevel };
+      }, [points, barrierHp, enemies, turrets, bullets, plots, nariBuffActive, kFoodBuffActive, upgrades, landLevel]);
+
+      const addLog = (msg) => { setLogs(prev => [msg, ...prev].slice(0, 8)); };
+
+      // 핵심 게임 루프
+      useEffect(() => {
+        if (gameOver || gameWon) return;
+
+        const gameTick = setInterval(() => {
+          let current = stateRef.current;
+          let newEnemies = [...current.enemies];
+          let newTurrets = [...current.turrets];
+          let newBullets = [...current.bullets];
+          let newPoints = current.points;
+          let newBarrierHp = current.barrierHp;
+          let newPlots = [...current.plots];
+
+          // 1. 적 이동 및 결계 타격
+          newEnemies = newEnemies.map(enemy => ({ ...enemy, x: enemy.x - enemy.speed }));
+          const hittingEnemies = newEnemies.filter(e => e.x <= 5); // x:5% 위치가 결계
+          
+          if (hittingEnemies.length > 0) {
+            hittingEnemies.forEach(e => newBarrierHp -= e.damage);
+            newEnemies = newEnemies.filter(e => e.x > 5);
+          }
+
+          // 2. 포탑 쿨타임 및 투사체(총알) 생성
+          newTurrets = newTurrets.map(turret => {
+            let t = { ...turret };
+            if (t.cooldown > 0) {
+              t.cooldown--;
+            } else if (newEnemies.length > 0) {
+              if (newPoints >= t.ammoCost) {
+                newPoints -= t.ammoCost;
+                t.cooldown = t.fireRate;
+                
+                // 타겟 설정 (가장 가까운 적)
+                const target = newEnemies.reduce((prev, curr) => (prev.x < curr.x) ? prev : curr, newEnemies[0]);
+                
+                newBullets.push({
+                  id: Date.now() + Math.random(),
+                  x: 5, // 포탑 X 위치 (결계면)
+                  y: t.y, // 포탑 Y 위치
+                  targetId: target.id,
+                  damage: t.damage * (current.upgrades.yeji ? 2 : 1) * (current.kFoodBuffActive ? 2 : 1),
+                  speed: t.name === 'MK-2' ? 12 : 20, // 총알 비행 속도
+                  color: t.name === 'MK-2' ? 'bg-yellow-400 shadow-[0_0_8px_#facc15]' : 'bg-cyan-400 shadow-[0_0_12px_#22d3ee] w-6',
+                });
+              } else {
+                if (Math.random() < 0.02) addLog(`[경고] 잔고 부족! ${t.name} 탄약 장전 실패!`);
+              }
+            }
+            return t;
+          });
+
+          // 3. 투사체(총알) 비행 및 적중 판정
+          let nextBullets = [];
+          newBullets.forEach(bullet => {
+            let b = { ...bullet };
+            let target = newEnemies.find(e => e.id === b.targetId);
+
+            // 타겟이 죽었으면 그냥 직진
+            if (!target) {
+              b.x += b.speed;
+              if (b.x < 100) nextBullets.push(b);
+              return;
+            }
+
+            // 거리 및 각도 계산
+            let dx = target.x - b.x;
+            let dy = target.y - b.y;
+            let dist = Math.sqrt(dx * dx + dy * dy);
+
+            // 적중!
+            if (dist <= b.speed) {
+              target.hp -= b.damage;
+              if (target.hp <= 0 && !target.dead) {
+                 target.dead = true;
+                 newPoints += target.reward;
+              }
+            } else {
+              // 이동
+              b.x += (dx / dist) * b.speed;
+              b.y += (dy / dist) * b.speed;
+              nextBullets.push(b);
+            }
+          });
+          newBullets = nextBullets;
+          newEnemies = newEnemies.filter(e => !e.dead); // 죽은 적 제거
+
+          // 4. 적 스폰 (Y축 랜덤 위치 추가)
+          const spawnRate = Math.min(0.3, 0.05 + (day * 0.01));
+          if (Math.random() < spawnRate) {
+            const isRunner = Math.random() < 0.2;
+            const hpScale = isRunner ? 40 + (day * 8) : 60 + (day * 25);
+            const rewardScale = isRunner ? 30 + Math.floor(day * 1.5) : 15 + Math.floor(day);
+            
+            newEnemies.push({
+              id: Date.now() + Math.random(),
+              type: isRunner ? '러너' : '좀비',
+              hp: hpScale,
+              maxHp: hpScale,
+              speed: isRunner ? 3.5 : 1.5,
+              damage: isRunner ? 30 + day : 15 + day,
+              reward: rewardScale,
+              x: 100,
+              y: 10 + Math.random() * 80 // 10% ~ 90% Y축 생성 (위아래 분산)
+            });
+          }
+
+          // 5. 농작물 자동화
+          let harvested = { lettuce: 0, potato: 0, tomato: 0, apple: 0 };
+          newPlots = newPlots.map(plot => {
+            if (plot.state === 'growing') {
+              const cropConfig = CROP_TYPES[plot.type];
+              let baseGrow = cropConfig.growSpeed; 
+              if (current.upgrades.kang) baseGrow += 1; 
+              if (current.upgrades.nariCrayon) baseGrow += 0.5; 
+              let buffGrow = current.nariBuffActive ? 15 : 0;
+              if (current.kFoodBuffActive) buffGrow += 5; 
+
+              const newProgress = plot.progress + baseGrow + buffGrow;
+              if (newProgress >= 100) return { ...plot, state: 'ready', progress: 100 };
+              return { ...plot, progress: newProgress };
+              
+            } else if (plot.state === 'ready' && current.upgrades.slime) {
+              harvested[plot.type]++;
+              return { ...plot, state: 'empty', progress: 0, type: null };
+            } else if (plot.state === 'empty' && current.upgrades.autoPlanter) {
+              const targetSeed = selectedSeedRef.current;
+              const cost = CROP_TYPES[targetSeed].cost;
+              if (newPoints >= cost) {
+                newPoints -= cost;
+                return { ...plot, state: 'growing', progress: 0, type: targetSeed };
+              }
+            }
+            return plot;
+          });
+
+          if (harvested.lettuce > 0 || harvested.potato > 0 || harvested.tomato > 0 || harvested.apple > 0) {
+            setInventory(prev => ({
+              lettuce: prev.lettuce + harvested.lettuce, potato: prev.potato + harvested.potato,
+              tomato: prev.tomato + harvested.tomato, apple: prev.apple + harvested.apple
+            }));
+          }
+
+          setEnemies(newEnemies);
+          setTurrets(newTurrets);
+          setBullets(newBullets);
+          setPoints(newPoints);
+          setBarrierHp(newBarrierHp);
+          setPlots(newPlots);
+
+          if (newBarrierHp <= 0) {
+            setGameOver(true);
+            addLog("[경고] 결계 파괴! 에덴이 붕괴합니다!");
+          }
+
+        }, 100);
+
+        const dayTick = setInterval(() => {
+          setDay(d => d + 1);
+          setPoints(p => {
+            const currentSize = LAND_CONFIG[stateRef.current.landLevel].size;
+            const tax = 50 + (currentSize * 2);
+            addLog(`[정산] 유지비 ${tax}P 차감 (영토 ${currentSize}평)`);
+            const afterTax = p - tax;
+            if (afterTax < 0) {
+               setBarrierHp(hp => hp - 300);
+               addLog("[경고] 유지비 미납! 결계 손상 발생!");
+               return 0;
+            }
+            return afterTax;
+          });
+        }, 15000);
+
+        return () => { clearInterval(gameTick); clearInterval(dayTick); };
+      }, [gameOver, gameWon, day]);
+
+      // ---------------- UI 액션 ----------------
+      const handlePlotClick = (index) => {
+        const plot = plots[index];
+        if (plot.state === 'empty') {
+          const cropConfig = CROP_TYPES[selectedSeed];
+          if (points >= cropConfig.cost) {
+            setPoints(p => p - cropConfig.cost);
+            const newPlots = [...plots];
+            newPlots[index] = { state: 'growing', progress: 0, type: selectedSeed };
+            setPlots(newPlots);
+          } else {
+            addLog(`[알림] 씨앗 구매 비용이 부족합니다.`);
+          }
+        } else if (plot.state === 'ready') {
+          const type = plot.type;
+          setInventory(prev => ({ ...prev, [type]: prev[type] + 1 }));
+          const newPlots = [...plots];
+          newPlots[index] = { state: 'empty', progress: 0, type: null };
+          setPlots(newPlots);
+        }
+      };
+
+      const handleEnemyClick = (e, enemyId, isCrit = false) => {
+        e.stopPropagation();
+        let currentEnemies = [...stateRef.current.enemies];
+        const index = currentEnemies.findIndex(en => en.id === enemyId);
+        if (index !== -1) {
+          const baseDamage = upgrades.seo ? 60 : 30;
+          const damage = isCrit ? baseDamage * 3 : baseDamage; 
+          currentEnemies[index].hp -= damage; 
+          if (isCrit) addLog("[약점 포착] 크리티컬 히트!");
+
+          if (currentEnemies[index].hp <= 0) {
+            const earnedReward = currentEnemies[index].reward;
+            setPoints(p => p + earnedReward);
+            currentEnemies.splice(index, 1);
+          }
+          setEnemies(currentEnemies);
+        }
+      };
+
+      const sellCrops = () => {
+        let revenue = 0;
+        let newInv = { ...inventory };
+        Object.keys(CROP_TYPES).forEach(key => {
+          revenue += newInv[key] * CROP_TYPES[key].sell;
+          newInv[key] = 0;
+        });
+        
+        if (revenue > 0) {
+          setPoints(p => p + revenue);
+          setInventory(newInv);
+          addLog(`[정산] 작물 일괄 매각! +${revenue.toLocaleString()} P`);
+        }
+      };
+
+      const cookKFood = () => {
+        if (inventory.potato >= 3 && !kFoodBuffActive) {
+          setInventory(prev => ({ ...prev, potato: prev.potato - 3 }));
+          setKFoodBuffActive(true);
+          const currentLand = LAND_CONFIG[landLevel];
+          setBarrierHp(prev => Math.min(prev + 1000, currentLand.maxHp)); 
+          addLog("[K-푸드] 스팸 볶음밥 완성! 전투/생산 버프 발동!");
+          setTimeout(() => setKFoodBuffActive(false), 10000);
+        }
+      };
+
+      const activateNariBuff = () => {
+        if (points >= 200 && !nariBuffActive) {
+          setPoints(p => p - 200);
+          setNariBuffActive(true);
+          addLog("[특성] 나리의 '자연의 친구' 발동! 폭풍 성장!");
+          setTimeout(() => setNariBuffActive(false), 5000);
+        }
+      };
+
+      // 포탑 위치를 겹치지 않게 분산 배치
+      const buyTurret = (type) => {
+        const cost = type === 'MK-2' ? 1000 : 4000;
+        const dmg = type === 'MK-2' ? 100 : 150;
+        const ammo = type === 'MK-2' ? 10 : 25; 
+        const fRate = type === 'MK-2' ? 5 : 3; // 사격 쿨타임 (틱)
+        
+        if (points >= cost) {
+          setPoints(p => p - cost);
+          const targetY = 10 + (turrets.length * 15) % 80; // 10% ~ 90% 사이에 골고루 배치
+          
+          setTurrets([...turrets, { 
+            id: Date.now(), name: type, damage: dmg, ammoCost: ammo, 
+            fireRate: fRate, cooldown: 0, y: targetY 
+          }]);
+          addLog(`[건설] ${type} 포탑 배치 완료. (발당 ${ammo}P 소모)`);
+        }
+      };
+
+      const upgradeLand = () => {
+        const currentConfig = LAND_CONFIG[landLevel];
+        if (currentConfig.nextCost && points >= currentConfig.nextCost) {
+          setPoints(p => p - currentConfig.nextCost);
+          const nextLevel = landLevel + 1;
+          const nextConfig = LAND_CONFIG[nextLevel];
+          setLandLevel(nextLevel);
+          setBarrierHp(nextConfig.maxHp); 
+          const newPlotsNeeded = nextConfig.plots - currentConfig.plots;
+          setPlots(prev => [...prev, ...Array(newPlotsNeeded).fill({ state: 'empty', progress: 0, type: null })]);
+          addLog(`[확장] ${nextConfig.size}평으로 영토를 확장했습니다!`);
+        }
+      };
+
+      const buyUpgrade = (key, cost, name) => {
+        if (points >= cost && !upgrades[key]) {
+          setPoints(p => p - cost);
+          setUpgrades(prev => ({ ...prev, [key]: true }));
+          addLog(`[영입/육성] ${name} 완료!`);
+        }
+      };
+
+      const buyHostileTakeover = () => {
+        if (points >= 1000000) {
+          setPoints(p => p - 1000000);
+          setGameWon(true);
+        }
+      };
+
+      if (gameWon) {
+        return (
+          <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center text-yellow-400 font-bold p-8 text-center">
+            <div className="text-6xl mb-6 animate-bounce">🏢</div>
+            <h1 className="text-5xl mb-4 text-yellow-500">적대적 인수합병 성공!</h1>
+            <p className="text-white text-xl mb-2">아포칼립스의 거대 방주 '센트럴 벙커'를 자본의 힘으로 집어삼켰습니다.</p>
+            <p className="text-gray-400 mt-4 max-w-2xl leading-relaxed">
+              [ 업적 달성 : 아포칼립스의 밀리어네어 ]<br/>
+              이제 에덴 영농조합은 멸망한 세상의 유일한 성역이자 지배자가 되었습니다.<br/>
+              나리와 동료들은 완벽하고 영원한 흑자 라이프를 누릴 것입니다.
+            </p>
+            <p className="text-neutral-500 mt-8">소요 일수: {day}일</p>
+            <button onClick={() => window.location.reload()} className="mt-8 px-8 py-3 bg-yellow-600 text-black rounded font-black hover:bg-yellow-500">처음부터 다시 하기</button>
+          </div>
+        );
+      }
+
+      if (gameOver) {
+        return (
+          <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center text-red-500 font-bold p-8 text-center">
+            <div className="text-6xl mb-4 animate-bounce">💀</div>
+            <h1 className="text-5xl mb-2 text-red-600">GAME OVER</h1>
+            <p className="text-white text-lg">결계가 뚫려 에덴이 무너졌습니다...</p>
+            <p className="text-gray-400 mt-2">생존 일수: {day}일 | 빚진 누진세로 파산</p>
+            <button onClick={() => window.location.reload()} className="mt-6 px-6 py-3 bg-red-600 text-white rounded hover:bg-red-700">다시 전생하기</button>
+          </div>
+        );
+      }
+
+      const currentLand = LAND_CONFIG[landLevel];
+      const barrierStyle = landLevel === 2 
+        ? "border-r-4 border-blue-400 shadow-[4px_0_30px_rgba(59,130,246,0.8)] hexagon-bg bg-blue-900/20" 
+        : "border-r-2 border-blue-400 shadow-[2px_0_15px_rgba(59,130,246,0.5)] bg-blue-500/10";
+      
+      const totalInventoryVal = Object.keys(CROP_TYPES).reduce((acc, key) => acc + (inventory[key] * CROP_TYPES[key].sell), 0);
+      const currentTax = 50 + (currentLand.size * 2);
+
+      return (
+        <div className={`h-screen bg-neutral-950 text-neutral-100 font-sans select-none flex flex-col overflow-hidden transition-all duration-300 ${kFoodBuffActive ? 'buff-active' : ''}`}>
+          <header className="h-16 bg-neutral-900 border-b border-neutral-800 flex justify-between items-center px-6 shadow-md z-20">
+            <div>
+              <h1 className="text-2xl font-black text-green-400 tracking-tight">EDEN <span className="text-lg text-neutral-400 font-normal">생존 {day}일차</span></h1>
+              <div className="text-xs text-neutral-400 mt-1 flex items-center space-x-4">
+                 <span className="flex items-center text-blue-400"><span className="mr-1">🛡️</span> 결계: {Math.floor(barrierHp)} / {currentLand.maxHp}</span>
+                 <span className="flex items-center text-green-300"><span className="mr-1">🌱</span> 영토: {currentLand.size}평</span>
+                 <span className="flex items-center text-red-400"><span className="mr-1">🔥</span> 누진세: 일일 {currentTax}P</span>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-3xl font-mono font-bold text-yellow-400 flex items-center justify-end">
+                 {Math.floor(points).toLocaleString()} <span className="text-xl ml-1 text-yellow-600">P</span>
+              </div>
+            </div>
+          </header>
+
+          <div className="flex-1 flex overflow-hidden">
+            
+            {/* 좌측: 텃밭 & 육성 */}
+            <div className="w-1/4 bg-green-950/20 flex flex-col border-r border-blue-500/30 p-3 overflow-y-auto">
+              <div className="flex justify-between items-end mb-2">
+                <h2 className="text-sm font-bold text-green-400 flex items-center">
+                  <span className="mr-1">🌱</span> 사유지 텃밭 ({plots.length}개)
+                </h2>
+                <div className="bg-neutral-800 px-2 py-1 rounded text-[10px] font-bold border border-neutral-700 flex gap-2">
+                  <span className={inventory.lettuce > 0 ? "text-white" : "text-neutral-600"}>🥬{inventory.lettuce}</span>
+                  <span className={inventory.potato > 0 ? "text-white" : "text-neutral-600"}>🥔{inventory.potato}</span>
+                  <span className={inventory.tomato > 0 ? "text-white" : "text-neutral-600"}>🍅{inventory.tomato}</span>
+                  <span className={inventory.apple > 0 ? "text-white" : "text-neutral-600"}>🍎{inventory.apple}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-1 mb-3">
+                {Object.entries(CROP_TYPES).map(([key, crop]) => (
+                  <button
+                    key={key}
+                    onClick={() => setSelectedSeed(key)}
+                    className={`flex-1 py-1 text-[10px] rounded border flex flex-col items-center justify-center transition-colors
+                      ${selectedSeed === key ? 'bg-green-800/80 border-green-400 text-green-100 shadow-[0_0_8px_rgba(74,222,128,0.4)]' : 'bg-neutral-900 border-neutral-700 text-neutral-500 hover:bg-neutral-800'}`}
+                  >
+                    <span className="text-sm mb-0.5">{crop.emoji}</span>
+                    <span className="font-bold">-{crop.cost}P</span>
+                  </button>
+                ))}
+              </div>
+              
+              {(upgrades.slime || upgrades.autoPlanter) && (
+                <div className="mb-2 text-[10px] font-bold text-yellow-400 flex justify-between px-1">
+                  <span>{upgrades.slime ? "🟢 수확: 슬라임 작동중" : "⚫ 수확: 수동"}</span>
+                  <span>{upgrades.autoPlanter ? `🟢 파종: 자동` : "⚫ 파종: 수동"}</span>
+                </div>
+              )}
+
+              <div className={`grid gap-2 mb-4 ${plots.length > 6 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                {plots.map((plot, i) => (
+                  <div 
+                    key={i} 
+                    onClick={() => handlePlotClick(i)}
+                    className={`h-20 rounded border flex flex-col items-center justify-center cursor-pointer transition-all relative overflow-hidden
+                      ${plot.state === 'empty' ? 'border-neutral-700 bg-neutral-900/50 hover:bg-neutral-800' : 
+                        plot.state === 'growing' ? 'border-amber-700/50 bg-amber-900/20' : 
+                        'border-green-400 bg-green-900/40 shadow-[0_0_15px_rgba(74,222,128,0.2)]'}`}
+                  >
+                    {plot.state === 'empty' && (
+                      <div className="flex flex-col items-center text-neutral-600 opacity-50 group-hover:opacity-100">
+                        <span className="text-xl mb-1">{CROP_TYPES[selectedSeed].emoji}</span>
+                        <span className="text-[9px] font-bold">심기</span>
+                      </div>
+                    )}
+                    {plot.state === 'growing' && (
+                      <>
+                        <span className="text-xl mb-1 animate-pulse">{CROP_TYPES[plot.type].emoji}</span>
+                        <div className="w-4/5 bg-neutral-800 rounded-full h-1.5">
+                          <div className="bg-green-500 h-1.5 rounded-full transition-all duration-100" style={{width: `${plot.progress}%`}}></div>
+                        </div>
+                      </>
+                    )}
+                    {plot.state === 'ready' && (
+                      <>
+                         <span className="text-2xl mb-1">{CROP_TYPES[plot.type].emoji}</span>
+                         <span className="text-[10px] font-black text-green-400 absolute bottom-1 bg-black/50 px-2 rounded-full">수확!</span>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex-1"></div>
+
+              <div className="space-y-2 mt-4">
+                <button onClick={activateNariBuff} disabled={nariBuffActive || points < 200}
+                  className={`w-full py-2.5 rounded text-sm font-bold flex justify-between px-3 items-center transition-colors border
+                    ${nariBuffActive ? 'bg-yellow-900/50 border-yellow-800 text-yellow-600' : 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300 hover:bg-yellow-500/30'}`}>
+                  <span>✨ 나리 마력 지원</span>
+                  <span>-200 P</span>
+                </button>
+                <button onClick={cookKFood} disabled={inventory.potato < 3 || kFoodBuffActive}
+                  className={`w-full py-2.5 rounded text-[11px] font-bold flex justify-between px-3 items-center transition-colors border
+                    ${kFoodBuffActive ? 'bg-orange-900/50 border-orange-800 text-orange-600' : inventory.potato < 3 ? 'bg-neutral-800 border-neutral-700 text-neutral-500' : 'bg-orange-600/20 border-orange-500/50 text-orange-300 hover:bg-orange-600/30'}`}>
+                  <span className="flex items-center"><span className="mr-1 text-sm">🍳</span> 스팸볶음밥(전원 버프)</span>
+                  <span>감자 3개</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 중앙: 2D 전투 구역 */}
+            <div className="w-1/2 bg-neutral-950 relative overflow-hidden cursor-crosshair">
+              
+              {/* 결계선 및 포탑 시각화 (Y축 반영) */}
+              <div className={`absolute inset-y-0 left-0 z-10 ${barrierStyle}`} style={{ width: '5%' }}></div>
+              
+              {turrets.map(t => (
+                <div key={t.id} 
+                     className={`absolute bg-neutral-900 border border-cyan-400 flex items-center justify-center z-20 
+                     ${landLevel === 2 ? 'w-8 h-8 rounded-lg' : 'w-6 h-6 rounded'}`}
+                     style={{ left: '1%', top: `${t.y}%`, transform: 'translateY(-50%)' }}>
+                  <span className={`text-cyan-300 ${t.name==='MK-3' ? 'animate-spin' : ''} ${landLevel===2 ? 'text-sm' : 'text-[10px]'}`}>🎯</span>
+                </div>
+              ))}
+
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_right,_var(--tw-gradient-stops))] from-neutral-900 via-neutral-950 to-neutral-950 pointer-events-none"></div>
+              
+              {/* 날아가는 투사체 렌더링 */}
+              {bullets.map(b => (
+                <div key={b.id} 
+                     className={`absolute h-1 rounded-full bullet ${b.color}`}
+                     style={{ left: `${b.x}%`, top: `${b.y}%`, width: '15px', transform: 'translateY(-50%)' }}>
+                </div>
+              ))}
+
+              {/* 적 렌더링 (Y축 분산 적용) */}
+              {enemies.map(enemy => (
+                <div key={enemy.id} 
+                     className="absolute group" 
+                     style={{ left: `${enemy.x}%`, top: `${enemy.y}%`, transform: 'translate(-50%, -50%)', transition: 'left 0.1s linear' }}>
+                  
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-3 h-3 bg-red-500 rounded-full animate-ping z-20 cursor-crosshair opacity-0 group-hover:opacity-100" 
+                       onClick={(e) => handleEnemyClick(e, enemy.id, true)}></div>
+
+                  <div onClick={(e) => handleEnemyClick(e, enemy.id, false)} className="relative flex flex-col items-center hover:scale-105 active:scale-95 transition-transform">
+                    <div className="w-8 h-1.5 bg-neutral-800 mb-1 rounded-full overflow-hidden border border-neutral-700">
+                      <div className="h-full bg-red-500" style={{ width: `${Math.max(0, (enemy.hp / enemy.maxHp) * 100)}%`}}></div>
+                    </div>
+                    <div className={`w-10 h-10 rounded-md bg-neutral-800 border-2 flex items-center justify-center text-xl shadow-lg
+                      ${enemy.type === '러너' ? 'border-orange-500' : 'border-red-800'}`}>
+                      {enemy.type === '러너' ? '🧟' : '💀'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              <div className="absolute top-4 right-6 text-neutral-800 font-black text-4xl pointer-events-none">WASTELAND</div>
+            </div>
+
+            {/* 우측: 상점 */}
+            <div className="w-1/4 bg-neutral-900 border-l border-neutral-800 flex flex-col">
+              <div className="p-3 border-b border-neutral-800 bg-neutral-950">
+                <h2 className="text-sm font-black text-neutral-400 flex items-center tracking-widest"><span className="mr-2">🛒</span> SYSTEM SHOP</h2>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-3 space-y-5">
+                
+                <section>
+                  <h3 className="text-xs font-bold text-neutral-500 mb-2 border-b border-neutral-800 pb-1">정산소 (Trading)</h3>
+                  <button onClick={sellCrops} disabled={totalInventoryVal === 0}
+                    className="w-full bg-green-900/30 hover:bg-green-800/40 text-green-300 border border-green-800/50 py-2 rounded flex justify-between items-center px-3 disabled:opacity-50">
+                    <span className="text-sm font-bold">창고 일괄 매각</span>
+                    <span className="text-xs font-mono">{totalInventoryVal.toLocaleString()} P</span>
+                  </button>
+                </section>
+
+                <section>
+                  <h3 className="text-xs font-bold text-neutral-500 mb-2 border-b border-neutral-800 pb-1">인프라 투자 (Defense)</h3>
+                  <div className="space-y-1.5">
+                    <button onClick={() => buyTurret('MK-2')} className="w-full bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 py-1.5 rounded flex justify-between items-center px-3">
+                      <span className="text-sm">🔫 MK-2 포탑 (-10P/발)</span><span className="text-[10px] text-yellow-500 font-mono">1,000 P</span>
+                    </button>
+                    <button onClick={() => buyTurret('MK-3')} className="w-full bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700 py-1.5 rounded flex justify-between items-center px-3">
+                      <span className="text-sm">🚀 MK-3 포탑 (-25P/발)</span><span className="text-[10px] text-yellow-500 font-mono">4,000 P</span>
+                    </button>
+                    
+                    <button onClick={upgradeLand} disabled={!currentLand.nextCost || points < currentLand.nextCost}
+                      className={`w-full py-1.5 rounded flex justify-between items-center px-3 text-sm font-bold border transition-colors
+                        ${currentLand.nextCost ? 'bg-purple-900/30 hover:bg-purple-800/50 text-purple-300 border-purple-800/50' : 'bg-neutral-900 text-neutral-600 border-neutral-800'}`}
+                    >
+                      <span>🛡️ {currentLand.nextName}</span>
+                      {currentLand.nextCost ? <span className="text-[10px] text-yellow-500 font-mono">{currentLand.nextCost.toLocaleString()} P</span> : <span className="text-[10px] text-neutral-600">Max</span>}
+                    </button>
+                  </div>
+                </section>
+
+                <section>
+                  <h3 className="text-xs font-bold text-neutral-500 mb-2 border-b border-neutral-800 pb-1">농업 자동화 (Auto-Farming)</h3>
+                  <div className="space-y-1.5">
+                    <button onClick={() => buyUpgrade('slime', 15000, '슬라임 메이드')} disabled={upgrades.slime}
+                      className={`w-full py-1.5 rounded flex justify-between items-center px-3 text-xs border
+                      ${upgrades.slime ? 'bg-neutral-900 border-neutral-800 text-neutral-600' : 'bg-blue-900/20 hover:bg-blue-900/40 border-blue-900/50 text-blue-300'}`}>
+                      <span>💧 슬라임 (자동 수확)</span>
+                      {upgrades.slime ? <span>배치됨</span> : <span className="text-[10px] text-yellow-500 font-mono">15,000 P</span>}
+                    </button>
+                    <button onClick={() => buyUpgrade('autoPlanter', 25000, '스마트 파종 드론')} disabled={upgrades.autoPlanter}
+                      className={`w-full py-1.5 rounded flex justify-between items-center px-3 text-xs border
+                      ${upgrades.autoPlanter ? 'bg-neutral-900 border-neutral-800 text-neutral-600' : 'bg-blue-900/20 hover:bg-blue-900/40 border-blue-900/50 text-blue-300'}`}>
+                      <span>🛸 파종 드론 (자동 심기)</span>
+                      {upgrades.autoPlanter ? <span>배치됨</span> : <span className="text-[10px] text-yellow-500 font-mono">25,000 P</span>}
+                    </button>
+                  </div>
+                </section>
+
+                <section>
+                  <h3 className="text-xs font-bold text-neutral-500 mb-2 border-b border-neutral-800 pb-1">동료 영입 (Companions)</h3>
+                  <div className="space-y-1.5">
+                    <button onClick={() => buyUpgrade('nariCrayon', 500, '나리 크레파스 선물')} disabled={upgrades.nariCrayon}
+                      className={`w-full py-1.5 rounded flex justify-between items-center px-3 text-xs border
+                      ${upgrades.nariCrayon ? 'bg-neutral-900 border-neutral-800 text-neutral-600' : 'bg-pink-900/20 hover:bg-pink-900/40 border-pink-900/50 text-pink-300'}`}>
+                      <span>🖍️ 나리 (기본 성장↑)</span>
+                      {upgrades.nariCrayon ? <span>보유함</span> : <span className="text-[10px] text-yellow-500 font-mono">500 P</span>}
+                    </button>
+                    <button onClick={() => buyUpgrade('kang', 2000, '강도준')} disabled={upgrades.kang}
+                      className={`w-full py-1.5 rounded flex justify-between items-center px-3 text-xs border
+                      ${upgrades.kang ? 'bg-neutral-900 border-neutral-800 text-neutral-600' : 'bg-cyan-900/20 hover:bg-cyan-900/40 border-cyan-900/50 text-cyan-300'}`}>
+                      <span>💪 강도준 (밭갈기↑)</span>
+                      {upgrades.kang ? <span>합류함</span> : <span className="text-[10px] text-yellow-500 font-mono">2,000 P</span>}
+                    </button>
+                    <button onClick={() => buyUpgrade('seo', 3000, '서이서')} disabled={upgrades.seo}
+                      className={`w-full py-1.5 rounded flex justify-between items-center px-3 text-xs border
+                      ${upgrades.seo ? 'bg-neutral-900 border-neutral-800 text-neutral-600' : 'bg-cyan-900/20 hover:bg-cyan-900/40 border-cyan-900/50 text-cyan-300'}`}>
+                      <span>🏹 서이서 (클릭 데미지↑)</span>
+                      {upgrades.seo ? <span>합류함</span> : <span className="text-[10px] text-yellow-500 font-mono">3,000 P</span>}
+                    </button>
+                    <button onClick={() => buyUpgrade('yeji', 4000, '도예지')} disabled={upgrades.yeji}
+                      className={`w-full py-1.5 rounded flex justify-between items-center px-3 text-xs border
+                      ${upgrades.yeji ? 'bg-neutral-900 border-neutral-800 text-neutral-600' : 'bg-cyan-900/20 hover:bg-cyan-900/40 border-cyan-900/50 text-cyan-300'}`}>
+                      <span>🔧 도예지 (포탑 데미지↑)</span>
+                      {upgrades.yeji ? <span>합류함</span> : <span className="text-[10px] text-yellow-500 font-mono">4,000 P</span>}
+                    </button>
+                  </div>
+                </section>
+                
+                <section className="mt-4 border-t border-neutral-800 pt-4 pb-4">
+                  <h3 className="text-[10px] font-bold text-yellow-500 mb-2 tracking-widest text-center">FINAL OBJECTIVE</h3>
+                  <button onClick={buyHostileTakeover} disabled={points < 1000000}
+                    className={`w-full py-2.5 rounded flex justify-between items-center px-3 text-sm font-black border transition-all duration-300
+                    ${points >= 1000000 ? 'bg-yellow-600 hover:bg-yellow-500 text-black border-yellow-400 animate-pulse shadow-[0_0_15px_rgba(202,138,4,0.6)]' : 'bg-neutral-900 text-neutral-600 border-neutral-800'}`}>
+                    <span>🏢 벙커 적대적 M&A</span>
+                    <span>1,000,000 P</span>
+                  </button>
+                </section>
+                
+              </div>
+
+              <div className="h-40 bg-black/80 border-t border-neutral-800 p-3 overflow-hidden flex flex-col">
+                <h3 className="text-[10px] font-black text-neutral-600 mb-1 tracking-wider">SYSTEM LOG</h3>
+                <div className="flex-1 flex flex-col justify-end space-y-1">
+                  {logs.slice().reverse().map((log, idx) => (
+                    <div key={idx} className={`text-[10px] font-mono leading-tight ${idx === logs.length - 1 ? 'text-neutral-300' : 'text-neutral-600'}`}>
+                      {log}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<EdenFarmingGame />);
+  </script>
+</body>
+</html>
