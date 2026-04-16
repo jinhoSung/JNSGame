@@ -165,7 +165,7 @@
       
       const [matchHp, setMatchHp] = useState({ player: 100, playerMax: 100, enemy: 100, enemyMax: 100 });
       const [matchState, setMatchState] = useState({ active: false, turn: 1, pScore: 0, oScore: 0 });
-      const [hitAnimTarget, setHitAnimTarget] = useState(null); // 'player' or 'enemy'
+      const [hitAnimTarget, setHitAnimTarget] = useState(null);
 
       const [modal, setModal] = useState({ isOpen: false, title: '', content: '', onClose: null });
 
@@ -174,7 +174,8 @@
 
       useEffect(() => {
         if (logsEndRef.current) {
-          logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+          // 화면 전체 스크롤을 방지하기 위해 block: 'nearest' 사용
+          logsEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
       }, [logs]);
 
@@ -279,7 +280,6 @@
           const act = ACTIVITIES[actKey];
           summaryLog += `${i + 1}주차: ${act.name}\n`;
           
-          // 명성 수치에 비례한 스폰서 알바 동적 수입 계산 (핵심 개선)
           let earnedGold = act.gold;
           if (actKey === 'alba_sponsor') {
               earnedGold = 12000 + (currRep * 50); 
@@ -339,7 +339,6 @@
         }
       };
 
-      // --- 인터랙티브 전투 시스템 (타격감/크리티컬 보완) ---
       const startMatch = () => {
         setView('match');
         setHitAnimTarget(null);
@@ -359,7 +358,7 @@
 
       const triggerHitAnimation = (target) => {
         setHitAnimTarget(target);
-        setTimeout(() => setHitAnimTarget(null), 400); // 0.4초 후 애니메이션 클래스 제거
+        setTimeout(() => setHitAnimTarget(null), 400); 
       };
 
       const handleMatchAction = (actionType) => {
@@ -416,7 +415,6 @@
             }
         }
 
-        // 크리티컬 히트 판정 (15% 확률)
         const isPlayerCrit = Math.random() < 0.15;
         const isEnemyCrit = Math.random() < 0.15;
 
@@ -629,7 +627,6 @@
 
                   <div className="space-y-2 flex-1 overflow-y-auto pr-2 custom-scrollbar">
                     {Object.values(ACTIVITIES).map(act => {
-                      // 명성에 비례한 동적 수입 표기
                       let displayGold = act.gold;
                       if (act.id === 'alba_sponsor') displayGold = 12000 + (reputation * 50);
 
@@ -699,9 +696,12 @@
                 </RetroFrame>
               )}
 
+              {/* 전투 화면: 고정 높이와 엄격한 영역 분할(45%, 35%, 20%)을 통한 스크롤 버그 해결 */}
               {view === 'match' && (
-                <RetroFrame title={matchState.active ? `BATTLE (현재 턴: ${matchState.turn} / 5)` : "BATTLE"} className="h-full bg-white p-0 min-h-[600px] flex flex-col">
-                  <div className="relative flex-[2] bg-blue-300 border-b-[4px] border-black overflow-hidden min-h-[200px]">
+                <RetroFrame title={matchState.active ? `BATTLE (현재 턴: ${matchState.turn} / 5)` : "BATTLE"} className="h-[650px] bg-white p-0 flex flex-col overflow-hidden">
+                  
+                  {/* 시각 요소 영역 (45% 고정) */}
+                  <div className="relative h-[45%] bg-blue-300 border-b-[4px] border-black overflow-hidden shrink-0">
                     <div className="absolute bottom-0 w-full h-1/2 bg-green-500 border-t-[4px] border-green-700"></div>
 
                     {/* 상대방 상태창 */}
@@ -719,17 +719,19 @@
                       <div className="text-right text-[10px] font-black text-gray-500">{matchHp.enemy} / {matchHp.enemyMax}</div>
                     </div>
 
+                    {/* 상대 아바타 */}
                     <div className={`absolute top-6 right-10 z-0 flex flex-col items-center transition-all duration-100 ${hitAnimTarget === 'enemy' ? 'anim-shake' : ''}`}>
                       <div className="w-20 h-6 bg-black/30 rounded-full absolute -bottom-2"></div>
                       <i className={`fas fa-shield-alt text-7xl drop-shadow-[0_4px_0_rgba(0,0,0,1)] ${matchHp.enemy === 0 ? 'text-gray-500 opacity-50' : 'text-red-600'}`}></i>
                     </div>
 
-                    {/* 플레이어 상태창 */}
+                    {/* 플레이어 아바타 */}
                     <div className={`absolute bottom-8 left-10 z-0 flex flex-col items-center transition-all duration-100 ${hitAnimTarget === 'player' ? 'anim-shake' : ''}`}>
                       <div className="w-24 h-8 bg-black/30 rounded-full absolute -bottom-3"></div>
                       <i className={`fas fa-user text-7xl drop-shadow-[0_4px_0_rgba(0,0,0,1)] ${matchHp.player === 0 ? 'text-gray-500 opacity-50' : 'text-blue-600'}`}></i>
                     </div>
 
+                    {/* 플레이어 상태창 */}
                     <div className={`absolute bottom-4 right-4 bg-white border-[4px] border-black p-3 w-56 shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] rounded-tl-2xl z-10 transition-all duration-100 ${hitAnimTarget === 'player' ? 'anim-shake' : ''}`}>
                       <div className="flex justify-between font-black text-black text-sm mb-2">
                         <span>마강철</span>
@@ -745,8 +747,8 @@
                     </div>
                   </div>
 
-                  {/* 중간 로그 영역 */}
-                  <div className="relative flex-[2] bg-white border-b-[8px] border-double border-black p-4 font-mono text-black text-base overflow-y-auto custom-scrollbar whitespace-pre-wrap leading-relaxed min-h-[150px]">
+                  {/* 로그 텍스트 영역 (35% 고정, 내부 스크롤) */}
+                  <div className="relative h-[35%] bg-white border-b-[6px] border-double border-black p-4 font-mono text-black text-base overflow-y-auto custom-scrollbar whitespace-pre-wrap leading-relaxed shrink-0">
                     {logs.map((log, idx) => (
                       <div key={idx} className={
                         log === "END" ? "hidden" : 
@@ -765,21 +767,21 @@
                     <div ref={logsEndRef} />
                   </div>
                   
-                  {/* 하단 턴제 커맨드 메뉴 */}
-                  <div className="flex-[1] bg-gray-200 p-4">
+                  {/* 커맨드/메뉴 버튼 영역 (20% 고정) */}
+                  <div className="h-[20%] bg-gray-200 p-3 shrink-0 flex flex-col justify-center relative">
                     {matchState.active ? (
-                        <div className="grid grid-cols-3 gap-3 h-full">
+                        <div className="grid grid-cols-3 gap-2 h-full">
                             <button onClick={() => handleMatchAction('attack')} className="bg-red-800 text-white font-black border-[4px] border-black shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] active:translate-y-1 hover:bg-red-700 p-2">
                                 <i className="fas fa-fist-raised text-2xl mb-1 block"></i>
-                                강행돌파<br/><span className="text-xs font-normal">(밀집수비 격파)</span>
+                                강행돌파<br/><span className="text-xs font-normal">(밀집수비)</span>
                             </button>
                             <button onClick={() => handleMatchAction('pass')} className="bg-blue-800 text-white font-black border-[4px] border-black shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] active:translate-y-1 hover:bg-blue-700 p-2">
                                 <i className="fas fa-shoe-prints text-2xl mb-1 block"></i>
-                                전술패스<br/><span className="text-xs font-normal">(거친태클 회피)</span>
+                                전술패스<br/><span className="text-xs font-normal">(거친태클)</span>
                             </button>
                             <button onClick={() => handleMatchAction('skill')} className="bg-purple-800 text-white font-black border-[4px] border-black shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] active:translate-y-1 hover:bg-purple-700 p-2 relative">
                                 <i className="fas fa-bolt text-2xl mb-1 block"></i>
-                                특성 해방<br/><span className="text-xs font-normal">(스트레스 15 소모)</span>
+                                특성 해방<br/><span className="text-xs font-normal">(스트레스 15)</span>
                             </button>
                         </div>
                     ) : logs.includes("END") ? (
