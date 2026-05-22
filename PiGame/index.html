@@ -18,6 +18,7 @@
             --primary-bg: #0f172a; /* Slate 900 */
             --card-bg-front: #1e293b; /* Slate 800 */
             --card-bg-back: #3b82f6; /* Blue 500 */
+            --card-bg-speed: #8b5cf6; /* Purple 500 for Speed Mode */
             --card-text-front: #94a3b8; /* Slate 400 */
             --card-text-back: #ffffff;
             --accent-color: #06b6d4; /* Cyan 500 */
@@ -28,7 +29,7 @@
             font-family: 'Roboto', sans-serif;
             background-color: var(--primary-bg);
             color: white;
-            overflow: hidden; /* 모바일에서 당겨서 새로고침 방지 */
+            overflow: hidden;
             touch-action: none;
         }
 
@@ -44,6 +45,7 @@
             margin: 0 clamp(3px, 1vw, 6px);
             flex-shrink: 0;
             transition: transform 0.3s ease, opacity 0.4s ease, filter 0.4s ease;
+            position: relative;
         }
 
         /* The Card */
@@ -53,7 +55,6 @@
             position: relative;
             transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
             transform-style: preserve-3d;
-            cursor: pointer;
         }
 
         /* Flipped state */
@@ -80,14 +81,16 @@
         .card-front {
             background: linear-gradient(145deg, var(--card-bg-front), #151e2b);
             color: var(--card-text-front);
-            /* ? 마크를 보여줄 때 사용 */
         }
 
         .card-back {
             background: linear-gradient(145deg, var(--card-bg-back), #2563eb);
             color: var(--card-text-back);
             transform: rotateY(180deg);
-            /* 실제 숫자를 보여줄 때 사용 */
+        }
+        
+        .mode-speed .card-back {
+            background: linear-gradient(145deg, var(--card-bg-speed), #6d28d9);
         }
 
         /* Error state for card */
@@ -95,7 +98,7 @@
             background: linear-gradient(145deg, var(--error-color), #b91c1c);
         }
 
-        /* The Conveyor Belt (Scrollable area) */
+        /* The Conveyor Belt */
         .belt-wrapper {
             width: 100%;
             overflow-x: hidden;
@@ -122,7 +125,7 @@
             transition: all 0.1s;
             user-select: none;
             backdrop-filter: blur(4px);
-            height: clamp(50px, 10vh, 85px); /* 반응형 높이 적용 */
+            height: clamp(50px, 10vh, 85px);
         }
 
         .keypad-btn:active, .keypad-btn.active-key {
@@ -130,6 +133,11 @@
             background: var(--card-bg-back);
             border-color: rgba(255, 255, 255, 0.5);
             box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+        }
+        
+        .mode-speed .keypad-btn:active, .mode-speed .keypad-btn.active-key {
+            background: var(--card-bg-speed);
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.5);
         }
 
         /* Modals */
@@ -144,35 +152,57 @@
             transition: transform 0.3s;
         }
         .heart.lost {
-            color: #475569; /* Slate 600 */
+            color: #475569;
             transform: scale(0.8);
         }
         
-        /* Custom Scrollbar for Ranking */
-        .ranking-scroll::-webkit-scrollbar {
-            width: 6px;
-        }
-        .ranking-scroll::-webkit-scrollbar-track {
-            background: rgba(0,0,0,0.1);
-        }
-        .ranking-scroll::-webkit-scrollbar-thumb {
-            background: rgba(255,255,255,0.2);
-            border-radius: 3px;
-        }
+        /* Custom Scrollbar */
+        .ranking-scroll::-webkit-scrollbar { width: 6px; }
+        .ranking-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        .ranking-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
 
         /* Glow Effects */
         .glow-text {
             text-shadow: 0 0 10px rgba(6, 182, 212, 0.8);
         }
+        .glow-text-purple {
+            text-shadow: 0 0 10px rgba(168, 85, 247, 0.8);
+        }
+
+        /* Floating Score Animation */
+        .floating-score {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #e879f9;
+            font-weight: 900;
+            font-size: 1.5rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+            z-index: 50;
+            animation: floatUp 0.8s ease-out forwards;
+        }
+
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -40px) scale(1.5); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(calc(var(--current-offset, 0px))) }
+            25% { transform: translateX(calc(var(--current-offset, 0px) - 5px)) }
+            50% { transform: translateX(calc(var(--current-offset, 0px) + 5px)) }
+            75% { transform: translateX(calc(var(--current-offset, 0px) - 5px)) }
+        }
     </style>
 </head>
-<body class="flex flex-col h-screen w-screen relative">
+<body id="gameBody" class="flex flex-col h-screen w-screen relative">
 
-    <!-- Header / Status Bar -->
     <header class="w-full flex justify-between items-center p-4 bg-slate-800/50 backdrop-blur border-b border-slate-700/50 z-10">
         <div class="flex items-center gap-2">
-            <i class="fa-solid fa-infinity text-cyan-400 text-xl"></i>
-            <h1 class="text-xl font-bold tracking-wider text-cyan-400">PI QUEST</h1>
+            <i class="fa-solid fa-infinity text-cyan-400 text-xl" id="logoIcon"></i>
+            <h1 class="text-xl font-bold tracking-wider text-cyan-400" id="logoText">PI QUEST</h1>
         </div>
         
         <div class="flex items-center gap-4">
@@ -191,13 +221,16 @@
         </div>
     </header>
 
-    <!-- Main Game Area -->
+    <!-- Timer Bar -->
+    <div class="w-full h-1 bg-slate-800 relative z-10">
+        <div id="timerBar" class="h-full w-full bg-cyan-400"></div>
+    </div>
+
     <main class="flex-1 flex flex-col items-center justify-center relative w-full max-w-lg mx-auto">
-        
-        <!-- Target Number Hint (Next Number to guess) -->
+        <!-- Target Number Hint -->
         <div id="targetHint" class="mb-8 text-center opacity-0 transition-opacity duration-300">
             <div class="text-sm text-slate-400 mb-1">Next Digit</div>
-            <div class="w-16 h-16 rounded-full border-2 border-dashed border-cyan-500/50 flex items-center justify-center text-3xl font-bold orbitron text-cyan-400 animate-pulse bg-cyan-900/20">
+            <div id="hintCircle" class="w-16 h-16 rounded-full border-2 border-dashed border-cyan-500/50 flex items-center justify-center text-3xl font-bold orbitron text-cyan-400 animate-pulse bg-cyan-900/20">
                 ?
             </div>
         </div>
@@ -208,10 +241,8 @@
                 <!-- Cards will be injected here by JS -->
             </div>
         </div>
-
     </main>
 
-    <!-- Keypad Area (Bottom) -->
     <footer class="w-full p-4 bg-slate-900/80 backdrop-blur border-t border-slate-800/50 pb-8 z-10">
         <div class="max-w-md mx-auto grid grid-cols-3 gap-3" id="keypad">
             <!-- Numbers 1-9 -->
@@ -240,7 +271,11 @@
 
     <!-- Start/Menu Modal -->
     <div id="menuModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center">
-        <div class="bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-2xl max-w-sm w-full mx-4 text-center transform transition-all duration-300 scale-100">
+        <div class="bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-2xl max-w-sm w-full mx-4 text-center transform transition-all duration-300 scale-100 relative">
+            <div id="authWarning" class="hidden absolute -top-12 left-0 w-full bg-red-500/20 text-red-300 text-xs py-2 rounded border border-red-500/50">
+                <i class="fa-solid fa-triangle-exclamation"></i> Firebase Auth Error: Ranking is disabled.<br>Enable "Anonymous Auth" in Firebase Console.
+            </div>
+
             <i class="fa-solid fa-infinity text-6xl text-cyan-500 mb-4 glow-text"></i>
             <h2 class="orbitron text-3xl font-bold mb-2">PI QUEST</h2>
             <p class="text-slate-400 text-sm mb-8">Memorize the digits of Pi.</p>
@@ -252,8 +287,8 @@
                 <button id="btnModeSuddenDeath" class="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold transition flex justify-center items-center gap-2">
                     <i class="fa-solid fa-skull"></i> Sudden Death (1 Life)
                 </button>
-                <button id="btnModePractice" class="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold transition flex justify-center items-center gap-2 border border-slate-600">
-                    <i class="fa-solid fa-book-open"></i> Practice Mode
+                <button id="btnModeSpeed" class="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold transition flex justify-center items-center gap-2 border border-purple-500">
+                    <i class="fa-solid fa-bolt"></i> Speed Mode (1 Life, Score based)
                 </button>
             </div>
             
@@ -273,12 +308,13 @@
     <!-- Game Over Modal -->
     <div id="gameOverModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center hidden">
         <div class="bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-2xl max-w-sm w-full mx-4 text-center">
-            <h2 class="orbitron text-3xl font-bold text-red-500 mb-2">GAME OVER</h2>
+            <h2 class="orbitron text-3xl font-bold text-red-500 mb-2" id="gameOverTitle">GAME OVER</h2>
             <p id="gameOverMsg" class="text-slate-400 mb-6">You missed the digit!</p>
             
-            <div class="bg-slate-900 rounded-lg p-4 mb-6">
+            <div class="bg-slate-900 rounded-lg p-4 mb-6 relative">
                 <div class="text-sm text-slate-400 uppercase tracking-wide mb-1">Final Score</div>
                 <div id="finalScore" class="orbitron text-5xl font-bold text-cyan-400 glow-text mb-2">0</div>
+                <div id="speedDigitCount" class="text-xs text-purple-300 hidden mb-2">(0 Digits)</div>
                 
                 <div id="newBestBadge" class="hidden inline-block bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 text-xs px-2 py-1 rounded-full font-bold uppercase tracking-wider mb-2 animate-bounce">
                     New Best!
@@ -303,14 +339,20 @@
 
     <!-- Leaderboard Modal -->
     <div id="leaderboardModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center hidden">
-        <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-2xl max-w-sm w-full mx-4 flex flex-col max-h-[80vh]">
+        <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-2xl max-w-sm w-full mx-4 flex flex-col max-h-[85vh]">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="orbitron text-xl font-bold flex items-center gap-2">
-                    <i class="fa-solid fa-trophy text-yellow-400"></i> Global Top 50
+                    <i class="fa-solid fa-trophy text-yellow-400"></i> Rankings
                 </h2>
                 <button id="btnCloseLeaderboard" class="text-slate-400 hover:text-white transition w-8 h-8 flex items-center justify-center rounded-full bg-slate-700/50">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex gap-2 mb-4">
+                <button id="tabClassic" class="flex-1 py-2 text-sm font-bold rounded-lg bg-cyan-600 text-white transition">Classic</button>
+                <button id="tabSpeed" class="flex-1 py-2 text-sm font-bold rounded-lg bg-slate-700 text-slate-400 transition hover:bg-slate-600">Speed</button>
             </div>
             
             <!-- Loading Indicator -->
@@ -319,7 +361,7 @@
             </div>
             
             <!-- List -->
-            <div id="rankingList" class="flex-1 overflow-y-auto ranking-scroll hidden pr-2 pb-2">
+            <div id="rankingList" class="flex-1 overflow-y-auto ranking-scroll hidden pr-2 pb-2 min-h-[200px]">
                 <!-- Items will be injected here -->
             </div>
             
@@ -328,7 +370,7 @@
                     <span class="text-slate-400">My Best Score:</span>
                     <span id="myBestScoreDisplay" class="orbitron font-bold text-cyan-400 text-lg">0</span>
                 </div>
-                <!-- 사용자 이름 설정 입력란 -->
+                <!-- User Name Input -->
                 <div class="mt-3 flex gap-2">
                     <input type="text" id="playerNameInput" placeholder="Enter Name (max 10 chars)" maxlength="10" class="flex-1 bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
                     <button id="btnSaveName" class="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded text-sm transition">Save</button>
@@ -339,48 +381,168 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Firebase Setup
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'pi-memory-quest';
-        let firebaseConfig = null;
+        // Firebase Configuration (User provided)
+        const firebaseConfig = {
+            apiKey: "AIzaSyAYSKqmUyDMy-7JojaiId4NZBwOQ-iOldI",
+            authDomain: "jnsgamerankscore.firebaseapp.com",
+            projectId: "jnsgamerankscore",
+            storageBucket: "jnsgamerankscore.firebasestorage.app",
+            messagingSenderId: "508728667972",
+            appId: "1:508728667972:web:27cc29bfd5ee36a6217111",
+            measurementId: "G-K68BKHZ3LT"
+        };
+
         let app, db, auth;
         let currentUser = null;
+        let isFirebaseAvailable = false;
         
         try {
-            if (typeof __firebase_config !== 'undefined') {
-                firebaseConfig = JSON.parse(__firebase_config);
-            } else {
-                console.warn("Using mock firebase config. DB will not work properly.");
-                firebaseConfig = { apiKey: "mock", projectId: "mock" };
-            }
-            
             app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
+            isFirebaseAvailable = true;
         } catch (e) {
             console.error("Firebase init error:", e);
         }
 
-        // --- CONSTANTS: The glorious Pi ---
+        // 1000 digits of Pi
         const PI_STRING = "3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679214808651328230664709384460955058223172535940812848111745028410270193852110555964462294895493038196428810975665933446128475648233786783165271201909145648566923460348610454326648213393607260249141273245870066063155881748815209209628292540917153643678925903600113305305488204665213841469519415116094305727036575959195309218611738193261179310511854807446237996274956735188575272489122793818301194912833673362440656643086021394946395224737190702179860943702770539217176293176752384674818467669405132005681271452635608277857713427577896091736371787214684409012249534301465495853710507922796892589235201995611212902196086403441815981362977477130996051870721134999999837297804995105973173281609631859024459455346908302642522308253344685035261931188171010003137838752886587533208381420617177669147303982534904287554687311595628638823537875937519577818577805321712268066130019278766111959092164201989809525720106548586327886593615338182796823030195203530185296899577362259941389124972177528347913151574857242454150695950829533116861727855889075098381754637464939319255060400927701671139009848824012583616035637076601047101819429555961989467678374494482553797747268471040475346462080466842590694912331367702898915210475216205696602405803815019351125338243003558764024749647326391419927260426992279782354781636009341721641219924586315030286182974555706749838505494588586926995690927210797509302955211653449872027559602364806654991198818347977535663698074265425278625518184175746728909777727938000164706001614524919217321721477235014144197356854816136115735255213347574184946843852332390739414333547762416862518983569485562099219222184272550254256887671790494601653466804988627232791786085784383279679766814541009538837863609506800642251252051173929848960841284886269456042419652850222106611863";
-        const PI_DIGITS = PI_STRING.replace('.', '').substring(1); // "14159..."
+        const PI_DIGITS = PI_STRING.replace('.', '').substring(1); 
 
-        // --- GAME STATE ---
+        // --- STREAMING_CHUNK: Game State ---
         let state = {
             isPlaying: false,
-            mode: 'classic', // classic, suddenDeath, practice
+            mode: 'classic', // classic, suddenDeath, speed
             score: 0,
             lives: 3,
             maxLives: 3,
-            currentIndex: 0, // Index in PI_DIGITS
-            cards: [], // Array of DOM elements
+            currentIndex: 0,
+            cards: [], 
             soundEnabled: true,
-            playerName: localStorage.getItem('piQuestPlayerName') || 'Anonymous'
+            playerName: localStorage.getItem('piQuestPlayerName') || 'Anonymous',
+            lastInputTime: 0,
+            leaderboardTab: 'classic', // 'classic' or 'speed'
+            timeoutTriggered: false
         };
 
-        // --- AUDIO ENGINE (Tone.js) ---
+        // --- STREAMING_CHUNK: Timer Logic ---
+        let inputTimeoutId = null;
+        let timerAnimFrame = null;
+        let timerStartTime = 0;
+        const TIME_LIMIT = 5000; // 5초
+
+        const els = {
+            gameBody: document.getElementById('gameBody'),
+            belt: document.getElementById('cardsBelt'),
+            score: document.getElementById('scoreDisplay'),
+            livesContainer: document.getElementById('livesContainer'),
+            targetHint: document.getElementById('targetHint'),
+            timerBar: document.getElementById('timerBar'),
+            logoIcon: document.getElementById('logoIcon'),
+            logoText: document.getElementById('logoText'),
+            hintCircle: document.getElementById('hintCircle'),
+            
+            menuModal: document.getElementById('menuModal'),
+            gameOverModal: document.getElementById('gameOverModal'),
+            leaderboardModal: document.getElementById('leaderboardModal'),
+            
+            finalScore: document.getElementById('finalScore'),
+            speedDigitCount: document.getElementById('speedDigitCount'),
+            newBestBadge: document.getElementById('newBestBadge'),
+            correctSequence: document.getElementById('correctSequence'),
+            gameOverMsg: document.getElementById('gameOverMsg'),
+            gameOverTitle: document.getElementById('gameOverTitle'),
+            authWarning: document.getElementById('authWarning'),
+            
+            rankingList: document.getElementById('rankingList'),
+            rankingLoading: document.getElementById('rankingLoading'),
+            myBestScoreDisplay: document.getElementById('myBestScoreDisplay'),
+            playerNameInput: document.getElementById('playerNameInput'),
+            tabClassic: document.getElementById('tabClassic'),
+            tabSpeed: document.getElementById('tabSpeed'),
+            
+            keypad: document.getElementById('keypad'),
+            soundIcon: document.getElementById('soundIcon')
+        };
+
+        function startTimer() {
+            stopTimer();
+            if (!state.isPlaying) return;
+
+            timerStartTime = Date.now();
+            els.timerBar.style.transition = 'none';
+            els.timerBar.style.width = '100%';
+            
+            // Force DOM reflow
+            void els.timerBar.offsetWidth;
+
+            els.timerBar.style.transition = `width ${TIME_LIMIT}ms linear`;
+            els.timerBar.style.width = '0%';
+            
+            // Color reset based on mode
+            els.timerBar.classList.remove('bg-red-500');
+            els.timerBar.classList.add(state.mode === 'speed' ? 'bg-purple-400' : 'bg-cyan-400');
+
+            inputTimeoutId = setTimeout(() => {
+                handleTimeout();
+            }, TIME_LIMIT);
+
+            const checkTime = () => {
+                if (!state.isPlaying) return;
+                const elapsed = Date.now() - timerStartTime;
+                if (elapsed > 3500) { // 1.5초 남았을때 빨간색 경고
+                    els.timerBar.classList.add('bg-red-500');
+                    els.timerBar.classList.remove('bg-cyan-400', 'bg-purple-400');
+                }
+                if (elapsed < TIME_LIMIT) {
+                    timerAnimFrame = requestAnimationFrame(checkTime);
+                }
+            };
+            timerAnimFrame = requestAnimationFrame(checkTime);
+        }
+
+        function stopTimer() {
+            clearTimeout(inputTimeoutId);
+            cancelAnimationFrame(timerAnimFrame);
+            els.timerBar.style.transition = 'none';
+            els.timerBar.style.width = '100%';
+        }
+
+        function handleTimeout() {
+            if (!state.isPlaying) return;
+            
+            playErrorSound();
+            
+            const targetCardContainer = state.cards[state.currentIndex + 1];
+            if (targetCardContainer) {
+                const cardInside = targetCardContainer.querySelector('.card');
+                cardInside.classList.add('error', 'flipped');
+                
+                setTimeout(() => {
+                    if(state.isPlaying) {
+                        cardInside.classList.remove('flipped', 'error');
+                    }
+                }, 1000);
+            }
+
+            state.lives--;
+            updateUI();
+
+            els.belt.classList.add('animate-[shake_0.5s_ease-in-out]');
+            setTimeout(() => els.belt.classList.remove('animate-[shake_0.5s_ease-in-out]'), 500);
+
+            if (state.lives <= 0) {
+                state.timeoutTriggered = true;
+                endGame();
+            } else {
+                startTimer(); // 시간 초과 후에도 안 죽었으면 타이머 재시작 (클래식 모드)
+            }
+        }
+
+        // --- STREAMING_CHUNK: Audio Engine Setup ---
         let synth, errorSynth;
         let audioInitialized = false;
 
@@ -388,7 +550,6 @@
             if (audioInitialized) return;
             try {
                 await Tone.start();
-                
                 synth = new Tone.PolySynth(Tone.FMSynth, {
                     harmonicity: 8,
                     modulationIndex: 2,
@@ -401,7 +562,6 @@
 
                 errorSynth = new Tone.MembraneSynth().toDestination();
                 errorSynth.volume.value = -5;
-                
                 audioInitialized = true;
             } catch (e) {
                 console.error("Audio init failed:", e);
@@ -420,36 +580,7 @@
             errorSynth.triggerAttackRelease("G2", "8n");
         }
 
-        // --- DOM ELEMENTS ---
-        const els = {
-            belt: document.getElementById('cardsBelt'),
-            score: document.getElementById('scoreDisplay'),
-            livesContainer: document.getElementById('livesContainer'),
-            targetHint: document.getElementById('targetHint'),
-            
-            // Modals
-            menuModal: document.getElementById('menuModal'),
-            gameOverModal: document.getElementById('gameOverModal'),
-            leaderboardModal: document.getElementById('leaderboardModal'),
-            
-            // Game Over Data
-            finalScore: document.getElementById('finalScore'),
-            newBestBadge: document.getElementById('newBestBadge'),
-            correctSequence: document.getElementById('correctSequence'),
-            gameOverMsg: document.getElementById('gameOverMsg'),
-            
-            // Leaderboard Data
-            rankingList: document.getElementById('rankingList'),
-            rankingLoading: document.getElementById('rankingLoading'),
-            myBestScoreDisplay: document.getElementById('myBestScoreDisplay'),
-            playerNameInput: document.getElementById('playerNameInput'),
-            
-            // Buttons
-            keypad: document.getElementById('keypad'),
-            soundIcon: document.getElementById('soundIcon')
-        };
-
-        // --- INITIALIZATION ---
+        // --- STREAMING_CHUNK: Initialization and Firebase Auth ---
         async function init() {
             setupKeypadListeners();
             setupMenuListeners();
@@ -466,42 +597,361 @@
             loadLocalBest();
         }
 
-        // --- FIREBASE LOGIC ---
         async function authenticateFirebase() {
-            if (!auth) return;
+            if (!auth || !isFirebaseAvailable) return;
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                await signInAnonymously(auth);
                 currentUser = auth.currentUser;
                 fetchMyBest();
+                els.authWarning.classList.add('hidden');
             } catch (error) {
                 console.error("Firebase Auth Error:", error);
+                if (error.code === 'auth/configuration-not-found' || error.code === 'auth/admin-restricted-operation') {
+                    els.authWarning.classList.remove('hidden');
+                }
             }
         }
 
+        // --- STREAMING_CHUNK: Game Logic ---
+        function startGame(mode) {
+            initAudio();
+            
+            state.mode = mode;
+            state.isPlaying = true;
+            state.score = 0;
+            state.currentIndex = 0;
+            state.lastInputTime = Date.now();
+            state.timeoutTriggered = false;
+            
+            if (mode === 'classic') {
+                state.maxLives = 3;
+                state.lives = 3;
+                els.gameBody.classList.remove('mode-speed');
+                els.logoIcon.className = "fa-solid fa-infinity text-cyan-400 text-xl";
+                els.logoText.className = "text-xl font-bold tracking-wider text-cyan-400";
+                els.score.className = "orbitron text-2xl font-bold text-white";
+                els.hintCircle.className = "w-16 h-16 rounded-full border-2 border-dashed border-cyan-500/50 flex items-center justify-center text-3xl font-bold orbitron text-cyan-400 animate-pulse bg-cyan-900/20";
+            } else if (mode === 'suddenDeath') {
+                state.maxLives = 1;
+                state.lives = 1;
+                els.gameBody.classList.remove('mode-speed');
+                els.logoIcon.className = "fa-solid fa-skull text-red-500 text-xl";
+                els.logoText.className = "text-xl font-bold tracking-wider text-red-500";
+                els.score.className = "orbitron text-2xl font-bold text-white";
+                els.hintCircle.className = "w-16 h-16 rounded-full border-2 border-dashed border-red-500/50 flex items-center justify-center text-3xl font-bold orbitron text-red-400 animate-pulse bg-red-900/20";
+            } else if (mode === 'speed') {
+                state.maxLives = 1;
+                state.lives = 1;
+                els.gameBody.classList.add('mode-speed');
+                els.logoIcon.className = "fa-solid fa-bolt text-purple-400 text-xl";
+                els.logoText.className = "text-xl font-bold tracking-wider text-purple-400";
+                els.score.className = "orbitron text-2xl font-bold text-purple-300";
+                els.hintCircle.className = "w-16 h-16 rounded-full border-2 border-dashed border-purple-500/50 flex items-center justify-center text-3xl font-bold orbitron text-purple-400 animate-pulse bg-purple-900/20";
+            }
+
+            els.menuModal.classList.add('hidden');
+            els.gameOverModal.classList.add('hidden');
+            
+            updateUI();
+            initCardsBelt();
+            
+            els.targetHint.classList.remove('opacity-0');
+            startTimer();
+        }
+
+        function initCardsBelt() {
+            els.belt.innerHTML = '';
+            state.cards = [];
+            els.belt.style.transform = `translateX(0px)`;
+            
+            const startCard = createCardElement("3.", "3.", true);
+            startCard.classList.add('flipped');
+            els.belt.appendChild(startCard);
+            state.cards.push(startCard);
+            
+            for(let i=0; i<6; i++) {
+                addCardToBelt(i);
+            }
+
+            setTimeout(updateBeltLayout, 50);
+        }
+
+        function createCardElement(frontText, backText, isStartNode = false) {
+            const container = document.createElement('div');
+            container.className = `card-container`;
+            
+            const card = document.createElement('div');
+            card.className = 'card';
+            
+            const front = document.createElement('div');
+            front.className = 'card-face card-front';
+            front.innerHTML = frontText;
+            
+            const back = document.createElement('div');
+            back.className = 'card-face card-back';
+            back.innerHTML = backText;
+            
+            if (!isStartNode) {
+                front.innerHTML = '?';
+            }
+            
+            card.appendChild(front);
+            card.appendChild(back);
+            container.appendChild(card);
+            
+            return container;
+        }
+
+        function addCardToBelt(indexOffset) {
+            if (state.currentIndex + indexOffset >= PI_DIGITS.length) return;
+            const digit = PI_DIGITS[state.currentIndex + indexOffset];
+            const cardEl = createCardElement('?', digit);
+            els.belt.appendChild(cardEl);
+            state.cards.push(cardEl);
+        }
+
+        // --- STREAMING_CHUNK: Input Handling ---
+        function handleInput(digitStr) {
+            if (!state.isPlaying) return;
+            
+            const correctDigit = PI_DIGITS[state.currentIndex];
+            
+            const btn = document.querySelector(`.keypad-btn[data-val="${digitStr}"]`);
+            if (btn) {
+                btn.classList.add('active-key');
+                setTimeout(() => btn.classList.remove('active-key'), 100);
+            }
+
+            if (digitStr === correctDigit) {
+                handleCorrectAnswer(digitStr);
+            } else {
+                handleWrongAnswer(correctDigit);
+            }
+        }
+
+        function handleKeyPress(e) {
+            if(document.activeElement.tagName === 'INPUT') return;
+            const key = e.key;
+            if (/^[0-9]$/.test(key)) {
+                handleInput(key);
+            }
+        }
+
+        function handleCorrectAnswer(digit) {
+            playCorrectSound(digit);
+            
+            const now = Date.now();
+            const reactionTime = now - state.lastInputTime;
+            state.lastInputTime = now;
+
+            const targetCardContainer = state.cards[state.currentIndex + 1];
+            if (targetCardContainer) {
+                const cardInside = targetCardContainer.querySelector('.card');
+                cardInside.classList.add('flipped');
+                
+                if (state.mode === 'speed') {
+                    // Speed score calculation
+                    let points = 100; // Base score
+                    if (reactionTime < 2000) {
+                        const bonus = Math.floor((2000 - reactionTime) / 2000 * 900);
+                        points += bonus;
+                    }
+                    state.score += points;
+                    showFloatingScore(targetCardContainer, points);
+                } else {
+                    state.score++; // Classic: 1 point per digit
+                }
+            }
+            
+            state.currentIndex++;
+            updateUI();
+            
+            moveBelt();
+            addCardToBelt(5); 
+            startTimer(); // 정답 시 5초 타이머 초기화
+        }
+
+        function showFloatingScore(container, points) {
+            const floatEl = document.createElement('div');
+            floatEl.className = 'floating-score';
+            floatEl.textContent = `+${points}`;
+            container.appendChild(floatEl);
+            setTimeout(() => {
+                if (container.contains(floatEl)) container.removeChild(floatEl);
+            }, 800);
+        }
+
+        function handleWrongAnswer(correctDigit) {
+            playErrorSound();
+            
+            const targetCardContainer = state.cards[state.currentIndex + 1];
+            if (!targetCardContainer) return;
+            
+            const cardInside = targetCardContainer.querySelector('.card');
+            state.lives--;
+            updateUI();
+            
+            cardInside.classList.add('error', 'flipped');
+            els.belt.classList.add('animate-[shake_0.5s_ease-in-out]');
+            setTimeout(() => els.belt.classList.remove('animate-[shake_0.5s_ease-in-out]'), 500);
+
+            if (state.lives <= 0) {
+                endGame();
+            } else {
+                setTimeout(() => {
+                    if(state.isPlaying) {
+                        cardInside.classList.remove('flipped', 'error');
+                    }
+                }, 1000);
+                startTimer(); // 오답 후 안 죽었으면 타이머 초기화
+            }
+        }
+
+        // --- STREAMING_CHUNK: Visuals & Belt ---
+        function moveBelt() {
+            if (state.cards.length === 0) return;
+            
+            const cardEl = state.cards[0];
+            const style = window.getComputedStyle(cardEl);
+            const cardWidthWithMargin = cardEl.offsetWidth + parseFloat(style.marginLeft) + parseFloat(style.marginRight);
+            
+            const offset = -(state.currentIndex * cardWidthWithMargin);
+            els.belt.style.transform = `translateX(${offset}px)`;
+            els.belt.style.setProperty('--current-offset', `${offset}px`);
+            
+            state.cards.forEach((card, idx) => {
+                if (idx <= state.currentIndex) {
+                    card.style.opacity = '0.35';
+                    card.style.filter = 'blur(0.5px) grayscale(30%)';
+                } else if (idx === state.currentIndex + 1) {
+                    card.style.opacity = '1';
+                    card.style.filter = 'none';
+                    card.style.transform = 'scale(1.05)';
+                } else {
+                    card.style.opacity = '0.70';
+                    card.style.filter = 'none';
+                    card.style.transform = 'scale(1)';
+                }
+            });
+        }
+
+        function updateBeltLayout() {
+            if (state.cards.length === 0) return;
+            const cardEl = state.cards[0];
+            const style = window.getComputedStyle(cardEl);
+            const cardWidth = cardEl.offsetWidth;
+            const marginLeft = parseFloat(style.marginLeft);
+            
+            const wrapperWidth = els.belt.parentElement.offsetWidth;
+            const paddingLeft = (wrapperWidth / 2) - (cardWidth / 2) - marginLeft;
+            els.belt.style.paddingLeft = `${Math.max(0, paddingLeft)}px`;
+            
+            moveBelt();
+        }
+
+        // --- STREAMING_CHUNK: End Game and DB Actions ---
+        async function endGame() {
+            state.isPlaying = false;
+            stopTimer();
+            els.targetHint.classList.add('opacity-0');
+            
+            const prefix = "3.";
+            const seqStr = PI_DIGITS.substring(0, state.currentIndex + 5); 
+            let coloredSeq = prefix;
+            
+            for(let i=0; i<seqStr.length; i++) {
+                if (i < state.currentIndex) {
+                    coloredSeq += `<span class="text-cyan-400">${seqStr[i]}</span>`;
+                } else if (i === state.currentIndex) {
+                    coloredSeq += `<span class="text-red-500 font-bold underline bg-red-900/30 px-1 rounded">${seqStr[i]}</span>`;
+                } else {
+                    coloredSeq += `<span class="text-slate-600">${seqStr[i]}</span>`;
+                }
+            }
+            if(seqStr.length < PI_DIGITS.length) coloredSeq += "...";
+            
+            els.correctSequence.innerHTML = coloredSeq;
+            els.finalScore.textContent = state.score;
+            els.finalScore.className = `orbitron text-5xl font-bold glow-text mb-2 ${state.mode === 'speed' ? 'text-purple-400 glow-text-purple' : 'text-cyan-400 glow-text'}`;
+            
+            if (state.timeoutTriggered) {
+                els.gameOverMsg.textContent = "Time's Up! You took more than 5 seconds.";
+                els.speedDigitCount.classList.add('hidden');
+            } else if (state.mode === 'speed') {
+                els.speedDigitCount.textContent = `(${state.currentIndex} Digits clear)`;
+                els.speedDigitCount.classList.remove('hidden');
+                els.gameOverMsg.textContent = "Speed link broken! No mistakes allowed.";
+            } else {
+                els.gameOverMsg.textContent = state.mode === 'suddenDeath' ? "One mistake is all it takes!" : "Out of lives!";
+                els.speedDigitCount.classList.add('hidden');
+            }
+            
+            const storageKey = state.mode === 'speed' ? 'piQuestBestSpeed' : 'piQuestBestClassic';
+            let localBest = parseInt(localStorage.getItem(storageKey) || '0');
+            let isNewBest = false;
+            
+            if (state.score > localBest) {
+                localStorage.setItem(storageKey, state.score);
+                isNewBest = true;
+            }
+            
+            const isCloudNewBest = await saveScoreToFirebase(state.score, state.mode);
+            
+            if (isNewBest || isCloudNewBest) {
+                els.newBestBadge.classList.remove('hidden');
+                els.myBestScoreDisplay.textContent = state.score;
+            } else {
+                els.newBestBadge.classList.add('hidden');
+            }
+
+            setTimeout(() => {
+                els.gameOverModal.classList.remove('hidden');
+            }, 800);
+        }
+
+        function updateUI() {
+            els.score.textContent = state.score;
+            let heartsHtml = '';
+            for (let i = 0; i < state.maxLives; i++) {
+                if (i < state.lives) {
+                    heartsHtml += '<i class="fa-solid fa-heart heart"></i>';
+                } else {
+                    heartsHtml += '<i class="fa-solid fa-heart heart lost"></i>';
+                }
+            }
+            els.livesContainer.innerHTML = heartsHtml;
+        }
+
+        // --- STREAMING_CHUNK: Firebase Database Operations ---
         async function fetchMyBest() {
             if (!currentUser || !db) return;
             try {
-                const userDocRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'stats', 'best');
+                const collectionName = state.leaderboardTab === 'speed' ? 'best_speed' : 'best';
+                const userDocRef = doc(db, 'users', currentUser.uid, 'stats', collectionName);
                 const docSnap = await getDoc(userDocRef);
+                
+                const storageKey = state.leaderboardTab === 'speed' ? 'piQuestBestSpeed' : 'piQuestBestClassic';
+                
                 if (docSnap.exists()) {
                     const best = docSnap.data().score || 0;
-                    localStorage.setItem('piQuestBest', best);
+                    localStorage.setItem(storageKey, best);
                     els.myBestScoreDisplay.textContent = best;
+                } else {
+                    els.myBestScoreDisplay.textContent = localStorage.getItem(storageKey) || '0';
                 }
             } catch (e) {
                 console.error("Error fetching best score", e);
             }
         }
 
-        async function saveScoreToFirebase(score) {
-            if (!currentUser || !db || state.mode === 'practice' || score === 0) return false;
+        async function saveScoreToFirebase(score, mode) {
+            if (!currentUser || !db || score === 0) return false;
+            
+            const docName = mode === 'speed' ? 'best_speed' : 'best';
+            const boardName = mode === 'speed' ? 'leaderboard_speed' : 'leaderboard_classic';
             
             try {
-                const userDocRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'stats', 'best');
+                const userDocRef = doc(db, 'users', currentUser.uid, 'stats', docName);
                 const docSnap = await getDoc(userDocRef);
                 let isNewBest = false;
                 
@@ -509,7 +959,7 @@
                     await setDoc(userDocRef, { score: score, date: Date.now() });
                     isNewBest = true;
                     
-                    const publicRef = doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', currentUser.uid);
+                    const publicRef = doc(db, 'leaderboards', boardName, 'players', currentUser.uid);
                     await setDoc(publicRef, {
                         uid: currentUser.uid,
                         name: state.playerName,
@@ -527,16 +977,23 @@
         let unsubLeaderboard = null;
         function openLeaderboard() {
             els.leaderboardModal.classList.remove('hidden');
+            loadLeaderboardData();
+        }
+
+        function loadLeaderboardData() {
             els.rankingLoading.classList.remove('hidden');
             els.rankingList.classList.add('hidden');
             els.rankingList.innerHTML = '';
             
+            fetchMyBest(); // Update current best in UI based on tab
+
             if (!db) {
-                els.rankingLoading.innerHTML = '<div class="text-red-400 text-sm">Offline Mode</div>';
+                els.rankingLoading.innerHTML = '<div class="text-red-400 text-sm">Database connection error.<br>Check Firebase settings.</div>';
                 return;
             }
 
-            const leaderboardCol = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+            const boardName = state.leaderboardTab === 'speed' ? 'leaderboard_speed' : 'leaderboard_classic';
+            const leaderboardCol = collection(db, 'leaderboards', boardName, 'players');
             
             if (unsubLeaderboard) unsubLeaderboard();
             
@@ -567,7 +1024,7 @@
                                 ${rankIcon}
                                 <div class="font-bold truncate w-24 ${isMe ? 'text-cyan-400' : 'text-white'}">${escapeHtml(data.name || 'Anonymous')}</div>
                             </div>
-                            <div class="orbitron font-bold text-lg text-cyan-300">${data.score}</div>
+                            <div class="orbitron font-bold text-lg ${state.leaderboardTab === 'speed' ? 'text-purple-300' : 'text-cyan-300'}">${data.score}</div>
                         `;
                         els.rankingList.appendChild(row);
                     });
@@ -578,7 +1035,7 @@
                 
             }, (error) => {
                 console.error("Leaderboard Error:", error);
-                els.rankingLoading.innerHTML = '<div class="text-red-400 text-sm">Failed to load rankings</div>';
+                els.rankingLoading.innerHTML = `<div class="text-red-400 text-sm text-center">Failed to load rankings.<br>Error: ${error.code}</div>`;
             });
         }
         
@@ -590,292 +1047,7 @@
             }
         }
 
-        // --- GAME LOGIC ---
-
-        function startGame(mode) {
-            initAudio();
-            
-            state.mode = mode;
-            state.isPlaying = true;
-            state.score = 0;
-            state.currentIndex = 0;
-            
-            if (mode === 'classic') {
-                state.maxLives = 3;
-                state.lives = 3;
-            } else if (mode === 'suddenDeath') {
-                state.maxLives = 1;
-                state.lives = 1;
-            } else {
-                state.maxLives = 3;
-                state.lives = 3;
-            }
-
-            els.menuModal.classList.add('hidden');
-            els.gameOverModal.classList.add('hidden');
-            
-            updateUI();
-            initCardsBelt();
-            
-            els.targetHint.classList.remove('opacity-0');
-        }
-
-        function initCardsBelt() {
-            els.belt.innerHTML = '';
-            state.cards = [];
-            els.belt.style.transform = `translateX(0px)`;
-            
-            // Add initial "3." card
-            const startCard = createCardElement("3.", "3.", true);
-            startCard.classList.add('flipped'); // Always visible
-            els.belt.appendChild(startCard);
-            state.cards.push(startCard);
-            
-            // Pre-fill next 5 hidden cards
-            for(let i=0; i<6; i++) {
-                addCardToBelt(i);
-            }
-
-            // 동적 크기 대기 및 정렬 계산 실행
-            setTimeout(updateBeltLayout, 50);
-        }
-
-        function createCardElement(frontText, backText, isStartNode = false) {
-            const container = document.createElement('div');
-            container.className = `card-container`;
-            
-            const card = document.createElement('div');
-            card.className = 'card';
-            
-            const front = document.createElement('div');
-            front.className = 'card-face card-front';
-            front.innerHTML = frontText;
-            
-            const back = document.createElement('div');
-            back.className = 'card-face card-back';
-            back.innerHTML = backText;
-            
-            if (state.mode === 'practice' && !isStartNode) {
-                front.innerHTML = `<span class="opacity-25 text-sm">${backText}</span>`;
-            } else if (!isStartNode) {
-                front.innerHTML = '?';
-            }
-            
-            card.appendChild(front);
-            card.appendChild(back);
-            container.appendChild(card);
-            
-            return container;
-        }
-
-        function addCardToBelt(indexOffset) {
-            if (state.currentIndex + indexOffset >= PI_DIGITS.length) return;
-            
-            const digit = PI_DIGITS[state.currentIndex + indexOffset];
-            const cardEl = createCardElement('?', digit);
-            els.belt.appendChild(cardEl);
-            state.cards.push(cardEl);
-        }
-
-        function handleInput(digitStr) {
-            if (!state.isPlaying) return;
-            
-            const correctDigit = PI_DIGITS[state.currentIndex];
-            
-            const btn = document.querySelector(`.keypad-btn[data-val="${digitStr}"]`);
-            if (btn) {
-                btn.classList.add('active-key');
-                setTimeout(() => btn.classList.remove('active-key'), 100);
-            }
-
-            if (digitStr === correctDigit) {
-                handleCorrectAnswer(digitStr);
-            } else {
-                handleWrongAnswer(correctDigit);
-            }
-        }
-
-        function handleKeyPress(e) {
-            if(document.activeElement.tagName === 'INPUT') return;
-            
-            const key = e.key;
-            if (/^[0-9]$/.test(key)) {
-                handleInput(key);
-            }
-        }
-
-        function handleCorrectAnswer(digit) {
-            playCorrectSound(digit);
-            
-            // Get current hidden card (offset by 1 because of "3." at index 0)
-            const targetCardContainer = state.cards[state.currentIndex + 1];
-            if (targetCardContainer) {
-                const cardInside = targetCardContainer.querySelector('.card');
-                cardInside.classList.add('flipped');
-            }
-            
-            state.score++;
-            state.currentIndex++;
-            updateUI();
-            
-            // Move belt
-            moveBelt();
-            
-            // Add next card on the horizon
-            addCardToBelt(5); 
-        }
-
-        function handleWrongAnswer(correctDigit) {
-            playErrorSound();
-            
-            const targetCardContainer = state.cards[state.currentIndex + 1];
-            if (!targetCardContainer) return;
-            
-            const cardInside = targetCardContainer.querySelector('.card');
-            
-            if (state.mode !== 'practice') {
-                state.lives--;
-                updateUI();
-                
-                cardInside.classList.add('error');
-                cardInside.classList.add('flipped');
-                
-                els.belt.classList.add('animate-[shake_0.5s_ease-in-out]');
-                setTimeout(() => els.belt.classList.remove('animate-[shake_0.5s_ease-in-out]'), 500);
-
-                if (state.lives <= 0) {
-                    endGame();
-                } else {
-                    setTimeout(() => {
-                        if(state.isPlaying) {
-                            cardInside.classList.remove('flipped');
-                            cardInside.classList.remove('error');
-                        }
-                    }, 1000);
-                }
-            } else {
-                cardInside.classList.add('error');
-                cardInside.classList.add('flipped');
-                setTimeout(() => {
-                    if(state.isPlaying) {
-                        cardInside.classList.remove('flipped');
-                        cardInside.classList.remove('error');
-                    }
-                }, 800);
-            }
-        }
-
-        function moveBelt() {
-            if (state.cards.length === 0) return;
-            
-            // 카드가 DOM에서 삭제되지 않으므로 state.cards[0]은 언제나 유효한 정적 기준점이 됩니다.
-            const cardEl = state.cards[0];
-            const style = window.getComputedStyle(cardEl);
-            const cardWidthWithMargin = cardEl.offsetWidth + parseFloat(style.marginLeft) + parseFloat(style.marginRight);
-            
-            const offset = -(state.currentIndex * cardWidthWithMargin);
-            els.belt.style.transform = `translateX(${offset}px)`;
-            els.belt.style.setProperty('--current-offset', `${offset}px`);
-            
-            // ✨ 프리미엄 포커싱 필터: 지나간 카드는 흐리게, 맞춰야 할 타깃 카드는 밝게 하이라이트
-            state.cards.forEach((card, idx) => {
-                if (idx <= state.currentIndex) {
-                    // 이미 성공한 카드 (투명하게 지나감)
-                    card.style.opacity = '0.35';
-                    card.style.filter = 'blur(0.5px) grayscale(30%)';
-                } else if (idx === state.currentIndex + 1) {
-                    // 현재 맞춰야 하는 핵심 카드
-                    card.style.opacity = '1';
-                    card.style.filter = 'none';
-                    card.style.transform = 'scale(1.05)';
-                } else {
-                    // 앞으로 다가올 대기 카드
-                    card.style.opacity = '0.70';
-                    card.style.filter = 'none';
-                    card.style.transform = 'scale(1)';
-                }
-            });
-        }
-
-        function updateBeltLayout() {
-            if (state.cards.length === 0) return;
-            const cardEl = state.cards[0];
-            const style = window.getComputedStyle(cardEl);
-            const cardWidth = cardEl.offsetWidth;
-            const marginLeft = parseFloat(style.marginLeft);
-            
-            // 첫 번째 카드("3.")가 정확히 뷰포트 정중앙에서 시작하도록 패딩 동적 정렬
-            const wrapperWidth = els.belt.parentElement.offsetWidth;
-            const paddingLeft = (wrapperWidth / 2) - (cardWidth / 2) - marginLeft;
-            els.belt.style.paddingLeft = `${Math.max(0, paddingLeft)}px`;
-            
-            moveBelt();
-        }
-
-        async function endGame() {
-            state.isPlaying = false;
-            els.targetHint.classList.add('opacity-0');
-            
-            const prefix = "3.";
-            const seqStr = PI_DIGITS.substring(0, state.currentIndex + 5); 
-            let coloredSeq = prefix;
-            
-            for(let i=0; i<seqStr.length; i++) {
-                if (i < state.currentIndex) {
-                    coloredSeq += `<span class="text-cyan-400">${seqStr[i]}</span>`;
-                } else if (i === state.currentIndex) {
-                    coloredSeq += `<span class="text-red-500 font-bold underline bg-red-900/30 px-1 rounded">${seqStr[i]}</span>`;
-                } else {
-                    coloredSeq += `<span class="text-slate-600">${seqStr[i]}</span>`;
-                }
-            }
-            if(seqStr.length < PI_DIGITS.length) coloredSeq += "...";
-            
-            els.correctSequence.innerHTML = coloredSeq;
-            els.finalScore.textContent = state.score;
-            els.gameOverMsg.textContent = state.mode === 'suddenDeath' ? "One mistake is all it takes!" : "Out of lives!";
-            
-            let localBest = parseInt(localStorage.getItem('piQuestBest') || '0');
-            let isNewBest = false;
-            
-            if (state.mode !== 'practice' && state.score > localBest) {
-                localStorage.setItem('piQuestBest', state.score);
-                isNewBest = true;
-            }
-            
-            const isCloudNewBest = await saveScoreToFirebase(state.score);
-            
-            if (isNewBest || isCloudNewBest) {
-                els.newBestBadge.classList.remove('hidden');
-                els.myBestScoreDisplay.textContent = state.score;
-            } else {
-                els.newBestBadge.classList.add('hidden');
-            }
-
-            setTimeout(() => {
-                els.gameOverModal.classList.remove('hidden');
-            }, 800);
-        }
-
-        function updateUI() {
-            els.score.textContent = state.score;
-            
-            if (state.mode === 'practice') {
-                els.livesContainer.innerHTML = '<i class="fa-solid fa-infinity text-slate-500"></i>';
-            } else {
-                let heartsHtml = '';
-                for (let i = 0; i < state.maxLives; i++) {
-                    if (i < state.lives) {
-                        heartsHtml += '<i class="fa-solid fa-heart heart"></i>';
-                    } else {
-                        heartsHtml += '<i class="fa-solid fa-heart heart lost"></i>';
-                    }
-                }
-                els.livesContainer.innerHTML = heartsHtml;
-            }
-        }
-
-        // --- UTILS & EVENT BINDINGS ---
+        // --- STREAMING_CHUNK: Setup Event Listeners ---
         function setupKeypadListeners() {
             document.querySelectorAll('.keypad-btn[data-val]').forEach(btn => {
                 btn.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput(btn.dataset.val); }, {passive: false});
@@ -886,7 +1058,7 @@
         function setupMenuListeners() {
             document.getElementById('btnModeClassic').addEventListener('click', () => startGame('classic'));
             document.getElementById('btnModeSuddenDeath').addEventListener('click', () => startGame('suddenDeath'));
-            document.getElementById('btnModePractice').addEventListener('click', () => startGame('practice'));
+            document.getElementById('btnModeSpeed').addEventListener('click', () => startGame('speed'));
             
             document.getElementById('btnToggleSound').addEventListener('click', () => {
                 state.soundEnabled = !state.soundEnabled;
@@ -903,9 +1075,24 @@
             document.getElementById('btnLeaderboard').addEventListener('click', openLeaderboard);
             document.getElementById('btnCloseLeaderboard').addEventListener('click', closeLeaderboard);
             
+            els.tabClassic.addEventListener('click', () => {
+                state.leaderboardTab = 'classic';
+                els.tabClassic.className = "flex-1 py-2 text-sm font-bold rounded-lg bg-cyan-600 text-white transition";
+                els.tabSpeed.className = "flex-1 py-2 text-sm font-bold rounded-lg bg-slate-700 text-slate-400 transition hover:bg-slate-600";
+                loadLeaderboardData();
+            });
+
+            els.tabSpeed.addEventListener('click', () => {
+                state.leaderboardTab = 'speed';
+                els.tabSpeed.className = "flex-1 py-2 text-sm font-bold rounded-lg bg-purple-600 text-white transition";
+                els.tabClassic.className = "flex-1 py-2 text-sm font-bold rounded-lg bg-slate-700 text-slate-400 transition hover:bg-slate-600";
+                loadLeaderboardData();
+            });
+            
             document.getElementById('btnOptions').addEventListener('click', () => {
                 if(state.isPlaying) {
                     state.isPlaying = false;
+                    stopTimer();
                 }
                 els.menuModal.classList.remove('hidden');
             });
@@ -918,7 +1105,8 @@
                     
                     if (currentUser && db && parseInt(els.myBestScoreDisplay.textContent) > 0) {
                         try {
-                            const publicRef = doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', currentUser.uid);
+                            const boardName = state.leaderboardTab === 'speed' ? 'leaderboard_speed' : 'leaderboard_classic';
+                            const publicRef = doc(db, 'leaderboards', boardName, 'players', currentUser.uid);
                             await setDoc(publicRef, { name: newName }, { merge: true });
                         } catch(e) { console.error(e); }
                     }
@@ -944,8 +1132,8 @@
         }
 
         function loadLocalBest() {
-            const best = localStorage.getItem('piQuestBest') || 0;
-            els.myBestScoreDisplay.textContent = best;
+            const key = state.leaderboardTab === 'speed' ? 'piQuestBestSpeed' : 'piQuestBestClassic';
+            els.myBestScoreDisplay.textContent = localStorage.getItem(key) || '0';
         }
 
         function escapeHtml(unsafe) {
@@ -956,17 +1144,6 @@
                  .replace(/"/g, "&quot;")
                  .replace(/'/g, "&#039;");
         }
-
-        const style = document.createElement('style');
-        style.innerHTML = `
-            @keyframes shake {
-                0%, 100% { transform: translateX(calc(var(--current-offset, 0px))) }
-                25% { transform: translateX(calc(var(--current-offset, 0px) - 5px)) }
-                50% { transform: translateX(calc(var(--current-offset, 0px) + 5px)) }
-                75% { transform: translateX(calc(var(--current-offset, 0px) - 5px)) }
-            }
-        `;
-        document.head.appendChild(style);
 
         window.addEventListener('DOMContentLoaded', init);
 
