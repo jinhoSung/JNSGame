@@ -43,7 +43,7 @@
             height: clamp(60px, 16vw, 95px);
             margin: 0 clamp(3px, 1vw, 6px);
             flex-shrink: 0;
-            transition: transform 0.3s ease;
+            transition: transform 0.3s ease, opacity 0.4s ease, filter 0.4s ease;
         }
 
         /* The Card */
@@ -101,15 +101,14 @@
             overflow-x: hidden;
             padding: 20px 0;
             position: relative;
-            mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
-            -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+            mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+            -webkit-mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
         }
 
         .belt {
             display: flex;
             align-items: center;
-            transition: transform 0.3s ease-out;
-            /* 초기 위치는 JS에서 화면 크기에 맞춰 동적으로 설정합니다 */
+            transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
         /* Keypad Styling */
@@ -123,7 +122,7 @@
             transition: all 0.1s;
             user-select: none;
             backdrop-filter: blur(4px);
-            height: clamp(50px, 10vh, 85px); /* 반응형 높이 적용 (aspect-square 대체) */
+            height: clamp(50px, 10vh, 85px); /* 반응형 높이 적용 */
         }
 
         .keypad-btn:active, .keypad-btn.active-key {
@@ -207,7 +206,6 @@
         <div class="belt-wrapper w-full">
             <div id="cardsBelt" class="belt">
                 <!-- Cards will be injected here by JS -->
-                <!-- The first card is typically "3." -->
             </div>
         </div>
 
@@ -354,7 +352,6 @@
             if (typeof __firebase_config !== 'undefined') {
                 firebaseConfig = JSON.parse(__firebase_config);
             } else {
-                // Mock config for local testing if env vars missing
                 console.warn("Using mock firebase config. DB will not work properly.");
                 firebaseConfig = { apiKey: "mock", projectId: "mock" };
             }
@@ -367,9 +364,7 @@
         }
 
         // --- CONSTANTS: The glorious Pi ---
-        // First 500 digits of Pi
         const PI_STRING = "3.14159265358979323846264338327950288419716939937510582097494459230781640628620899862803482534211706798214808651328230664709384460955058223172535940812848111745028410270193852110555964462294895493038196442881097566593344612847564823378678316527120190914564856692346034861045432664821339360726024914127372458700660631558817488152092096282925409171536436789259036001133053054882046652138414695194151160943305727036575959195309218611738193261179310511854807446237996274956735188575272489122793818301194912";
-        // We split it to start game logically. Digits to guess starts at index 2 (after '3.')
         const PI_DIGITS = PI_STRING.replace('.', '').substring(1); // "14159..."
 
         // --- GAME STATE ---
@@ -394,7 +389,6 @@
             try {
                 await Tone.start();
                 
-                // Pleasant marimba/xylophone sound for correct digits
                 synth = new Tone.PolySynth(Tone.FMSynth, {
                     harmonicity: 8,
                     modulationIndex: 2,
@@ -405,7 +399,6 @@
                 }).toDestination();
                 synth.volume.value = -12;
 
-                // Error sound (dissonant)
                 errorSynth = new Tone.MembraneSynth().toDestination();
                 errorSynth.volume.value = -5;
                 
@@ -415,14 +408,10 @@
             }
         }
 
-        function playCorrectSound(digit, combo) {
+        function playCorrectSound(digit) {
             if (!state.soundEnabled || !audioInitialized) return;
-            // Map digit 0-9 to a musical scale (C major pentatonic + extras)
-            // C4, D4, E4, G4, A4, C5, D5, E5, G5, A5
             const notes = ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5", "D5", "E5"];
-            const note = notes[parseInt(digit)];
-            
-            // Increase pitch/velocity slightly based on combo for excitement
+            const note = notes[parseInt(digit)] || "C4";
             synth.triggerAttackRelease(note, "8n");
         }
 
@@ -462,26 +451,18 @@
 
         // --- INITIALIZATION ---
         async function init() {
-            // Setup Listeners
             setupKeypadListeners();
             setupMenuListeners();
             
-            // Keyboard support
             window.addEventListener('keydown', handleKeyPress);
-
-            // Resize support for responsive belt layout
             window.addEventListener('resize', () => {
                 if (state.cards.length > 0) updateBeltLayout();
             });
             
-            // UI init
             els.playerNameInput.value = state.playerName;
             updateSoundIcon();
             
-            // Auth to Firebase
             await authenticateFirebase();
-            
-            // Load local best for display
             loadLocalBest();
         }
 
@@ -495,9 +476,6 @@
                     await signInAnonymously(auth);
                 }
                 currentUser = auth.currentUser;
-                console.log("Firebase Auth Success", currentUser.uid);
-                
-                // Fetch personal best from Firestore
                 fetchMyBest();
             } catch (error) {
                 console.error("Firebase Auth Error:", error);
@@ -523,7 +501,6 @@
             if (!currentUser || !db || state.mode === 'practice' || score === 0) return false;
             
             try {
-                // Save Private Best
                 const userDocRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'stats', 'best');
                 const docSnap = await getDoc(userDocRef);
                 let isNewBest = false;
@@ -532,8 +509,6 @@
                     await setDoc(userDocRef, { score: score, date: Date.now() });
                     isNewBest = true;
                     
-                    // Save to Public Leaderboard ONLY if it's a new personal best
-                    // To keep writes low, we just upsert the user's document in the public collection
                     const publicRef = doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', currentUser.uid);
                     await setDoc(publicRef, {
                         uid: currentUser.uid,
@@ -561,7 +536,6 @@
                 return;
             }
 
-            // CRITICAL RULE 1 & 2 Followed: Simple query, strict path
             const leaderboardCol = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
             
             if (unsubLeaderboard) unsubLeaderboard();
@@ -570,7 +544,6 @@
                 const docs = [];
                 snapshot.forEach(doc => docs.push(doc.data()));
                 
-                // Client-side sorting for Top 50
                 docs.sort((a, b) => b.score - a.score);
                 const topDocs = docs.slice(0, 50);
                 
@@ -620,7 +593,7 @@
         // --- GAME LOGIC ---
 
         function startGame(mode) {
-            initAudio(); // Initialize audio context on first user interaction
+            initAudio();
             
             state.mode = mode;
             state.isPlaying = true;
@@ -634,7 +607,7 @@
                 state.maxLives = 1;
                 state.lives = 1;
             } else {
-                state.maxLives = 3; // Visual only
+                state.maxLives = 3;
                 state.lives = 3;
             }
 
@@ -644,7 +617,6 @@
             updateUI();
             initCardsBelt();
             
-            // Show target hint briefly
             els.targetHint.classList.remove('opacity-0');
         }
 
@@ -660,12 +632,12 @@
             state.cards.push(startCard);
             
             // Pre-fill next 5 hidden cards
-            for(let i=0; i<5; i++) {
+            for(let i=0; i<6; i++) {
                 addCardToBelt(i);
             }
 
-            // 화면 크기에 맞게 패딩 및 위치 동적 초기화
-            setTimeout(updateBeltLayout, 0);
+            // 동적 크기 대기 및 정렬 계산 실행
+            setTimeout(updateBeltLayout, 50);
         }
 
         function createCardElement(frontText, backText, isStartNode = false) {
@@ -683,9 +655,8 @@
             back.className = 'card-face card-back';
             back.innerHTML = backText;
             
-            // Optional: If it's a practice mode, show hint on front
             if (state.mode === 'practice' && !isStartNode) {
-                front.innerHTML = `<span class="opacity-20 text-sm">${backText}</span>`;
+                front.innerHTML = `<span class="opacity-25 text-sm">${backText}</span>`;
             } else if (!isStartNode) {
                 front.innerHTML = '?';
             }
@@ -711,14 +682,12 @@
             
             const correctDigit = PI_DIGITS[state.currentIndex];
             
-            // Visual feedback on keypad
             const btn = document.querySelector(`.keypad-btn[data-val="${digitStr}"]`);
             if (btn) {
                 btn.classList.add('active-key');
                 setTimeout(() => btn.classList.remove('active-key'), 100);
             }
 
-            // check answer
             if (digitStr === correctDigit) {
                 handleCorrectAnswer(digitStr);
             } else {
@@ -727,27 +696,24 @@
         }
 
         function handleKeyPress(e) {
-            // Ignore if typing in input
             if(document.activeElement.tagName === 'INPUT') return;
             
             const key = e.key;
-            // Numpad or normal numbers
             if (/^[0-9]$/.test(key)) {
                 handleInput(key);
             }
         }
 
         function handleCorrectAnswer(digit) {
-            playCorrectSound(digit, state.score);
+            playCorrectSound(digit);
             
-            // Get current hidden card (offset by 1 because of "3.")
+            // Get current hidden card (offset by 1 because of "3." at index 0)
             const targetCardContainer = state.cards[state.currentIndex + 1];
-            const cardInside = targetCardContainer.querySelector('.card');
+            if (targetCardContainer) {
+                const cardInside = targetCardContainer.querySelector('.card');
+                cardInside.classList.add('flipped');
+            }
             
-            // Flip it
-            cardInside.classList.add('flipped');
-            
-            // Update state
             state.score++;
             state.currentIndex++;
             updateUI();
@@ -755,43 +721,31 @@
             // Move belt
             moveBelt();
             
-            // Add new card to end of belt to keep it populated
-            addCardToBelt(4); 
-            
-            // Remove old cards from DOM to prevent memory leaks if playing super long
-            if (state.currentIndex > 10) {
-                const oldCard = state.cards[state.currentIndex - 10];
-                if(oldCard && oldCard.parentNode) {
-                    // We don't remove from array to keep index sync simple, just hide/remove DOM
-                    oldCard.style.opacity = '0';
-                    setTimeout(() => { if(oldCard.parentNode) oldCard.parentNode.removeChild(oldCard); }, 300);
-                }
-            }
+            // Add next card on the horizon
+            addCardToBelt(5); 
         }
 
         function handleWrongAnswer(correctDigit) {
             playErrorSound();
             
-            // Find target card
             const targetCardContainer = state.cards[state.currentIndex + 1];
+            if (!targetCardContainer) return;
+            
             const cardInside = targetCardContainer.querySelector('.card');
             
             if (state.mode !== 'practice') {
                 state.lives--;
                 updateUI();
                 
-                // Visual Error on card
                 cardInside.classList.add('error');
                 cardInside.classList.add('flipped');
                 
-                // Shake the belt container
                 els.belt.classList.add('animate-[shake_0.5s_ease-in-out]');
                 setTimeout(() => els.belt.classList.remove('animate-[shake_0.5s_ease-in-out]'), 500);
 
                 if (state.lives <= 0) {
                     endGame();
                 } else {
-                    // Briefly show correct number then flip back
                     setTimeout(() => {
                         if(state.isPlaying) {
                             cardInside.classList.remove('flipped');
@@ -800,7 +754,6 @@
                     }, 1000);
                 }
             } else {
-                // Practice mode: just show error visually but don't deduct life
                 cardInside.classList.add('error');
                 cardInside.classList.add('flipped');
                 setTimeout(() => {
@@ -814,15 +767,34 @@
 
         function moveBelt() {
             if (state.cards.length === 0) return;
+            
+            // 카드가 DOM에서 삭제되지 않으므로 state.cards[0]은 언제나 유효한 정적 기준점이 됩니다.
             const cardEl = state.cards[0];
             const style = window.getComputedStyle(cardEl);
             const cardWidthWithMargin = cardEl.offsetWidth + parseFloat(style.marginLeft) + parseFloat(style.marginRight);
             
             const offset = -(state.currentIndex * cardWidthWithMargin);
             els.belt.style.transform = `translateX(${offset}px)`;
-            
-            // CSS 애니메이션(오답 쉐이크 효과)을 위한 커스텀 변수 업데이트
             els.belt.style.setProperty('--current-offset', `${offset}px`);
+            
+            // ✨ 프리미엄 포커싱 필터: 지나간 카드는 흐리게, 맞춰야 할 타깃 카드는 밝게 하이라이트
+            state.cards.forEach((card, idx) => {
+                if (idx <= state.currentIndex) {
+                    // 이미 성공한 카드 (투명하게 지나감)
+                    card.style.opacity = '0.35';
+                    card.style.filter = 'blur(0.5px) grayscale(30%)';
+                } else if (idx === state.currentIndex + 1) {
+                    // 현재 맞춰야 하는 핵심 카드
+                    card.style.opacity = '1';
+                    card.style.filter = 'none';
+                    card.style.transform = 'scale(1.05)';
+                } else {
+                    // 앞으로 다가올 대기 카드
+                    card.style.opacity = '0.70';
+                    card.style.filter = 'none';
+                    card.style.transform = 'scale(1)';
+                }
+            });
         }
 
         function updateBeltLayout() {
@@ -832,7 +804,7 @@
             const cardWidth = cardEl.offsetWidth;
             const marginLeft = parseFloat(style.marginLeft);
             
-            // 첫 번째 카드가 화면 중앙에 오도록 컨테이너의 패딩 동적 계산
+            // 첫 번째 카드("3.")가 정확히 뷰포트 정중앙에서 시작하도록 패딩 동적 정렬
             const wrapperWidth = els.belt.parentElement.offsetWidth;
             const paddingLeft = (wrapperWidth / 2) - (cardWidth / 2) - marginLeft;
             els.belt.style.paddingLeft = `${Math.max(0, paddingLeft)}px`;
@@ -844,16 +816,15 @@
             state.isPlaying = false;
             els.targetHint.classList.add('opacity-0');
             
-            // Build sequence string to show
             const prefix = "3.";
-            const seqStr = PI_DIGITS.substring(0, state.currentIndex + 5); // Show up to where they missed + a few more
+            const seqStr = PI_DIGITS.substring(0, state.currentIndex + 5); 
             let coloredSeq = prefix;
             
             for(let i=0; i<seqStr.length; i++) {
                 if (i < state.currentIndex) {
                     coloredSeq += `<span class="text-cyan-400">${seqStr[i]}</span>`;
                 } else if (i === state.currentIndex) {
-                    coloredSeq += `<span class="text-red-500 font-bold underline bg-red-900/30">${seqStr[i]}</span>`;
+                    coloredSeq += `<span class="text-red-500 font-bold underline bg-red-900/30 px-1 rounded">${seqStr[i]}</span>`;
                 } else {
                     coloredSeq += `<span class="text-slate-600">${seqStr[i]}</span>`;
                 }
@@ -864,7 +835,6 @@
             els.finalScore.textContent = state.score;
             els.gameOverMsg.textContent = state.mode === 'suddenDeath' ? "One mistake is all it takes!" : "Out of lives!";
             
-            // Save Score
             let localBest = parseInt(localStorage.getItem('piQuestBest') || '0');
             let isNewBest = false;
             
@@ -890,7 +860,6 @@
         function updateUI() {
             els.score.textContent = state.score;
             
-            // Update Lives
             if (state.mode === 'practice') {
                 els.livesContainer.innerHTML = '<i class="fa-solid fa-infinity text-slate-500"></i>';
             } else {
@@ -908,16 +877,13 @@
 
         // --- UTILS & EVENT BINDINGS ---
         function setupKeypadListeners() {
-            // Numpad buttons
             document.querySelectorAll('.keypad-btn[data-val]').forEach(btn => {
-                // Support both touch and click, prevent default to avoid double firing
                 btn.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput(btn.dataset.val); }, {passive: false});
                 btn.addEventListener('mousedown', (e) => { e.preventDefault(); handleInput(btn.dataset.val); });
             });
         }
 
         function setupMenuListeners() {
-            // Main Menu
             document.getElementById('btnModeClassic').addEventListener('click', () => startGame('classic'));
             document.getElementById('btnModeSuddenDeath').addEventListener('click', () => startGame('suddenDeath'));
             document.getElementById('btnModePractice').addEventListener('click', () => startGame('practice'));
@@ -927,34 +893,29 @@
                 updateSoundIcon();
             });
 
-            // Game Over Menu
             document.getElementById('btnRestart').addEventListener('click', () => startGame(state.mode));
             document.getElementById('btnGoMenu').addEventListener('click', () => {
                 els.gameOverModal.classList.add('hidden');
                 els.menuModal.classList.remove('hidden');
             });
 
-            // Leaderboard
             document.getElementById('btnMenuLeaderboard').addEventListener('click', openLeaderboard);
             document.getElementById('btnLeaderboard').addEventListener('click', openLeaderboard);
             document.getElementById('btnCloseLeaderboard').addEventListener('click', closeLeaderboard);
             
-            // Options (In-game menu button)
             document.getElementById('btnOptions').addEventListener('click', () => {
                 if(state.isPlaying) {
-                    state.isPlaying = false; // Pause input
+                    state.isPlaying = false;
                 }
                 els.menuModal.classList.remove('hidden');
             });
             
-            // Name Save
             document.getElementById('btnSaveName').addEventListener('click', async () => {
                 const newName = els.playerNameInput.value.trim().substring(0, 10);
                 if (newName) {
                     state.playerName = newName;
                     localStorage.setItem('piQuestPlayerName', newName);
                     
-                    // If user has a score, update the leaderboard doc directly to reflect new name
                     if (currentUser && db && parseInt(els.myBestScoreDisplay.textContent) > 0) {
                         try {
                             const publicRef = doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', currentUser.uid);
@@ -996,7 +957,6 @@
                  .replace(/'/g, "&#039;");
         }
 
-        // Add CSS keyframes for shaking
         const style = document.createElement('style');
         style.innerHTML = `
             @keyframes shake {
@@ -1008,7 +968,6 @@
         `;
         document.head.appendChild(style);
 
-        // Start
         window.addEventListener('DOMContentLoaded', init);
 
     </script>
