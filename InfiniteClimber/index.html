@@ -2,38 +2,58 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Infinite Climber : Ultimate Update</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
+        :root {
+            --outer-bg-top: #1a1a2e;
+            --outer-bg-bottom: #16213e;
+            --safe-top: 0px;
+            --safe-bottom: 0px;
+            --safe-left: 0px;
+            --safe-right: 0px;
+            --sat: env(safe-area-inset-top, 0px);
+            --sab: env(safe-area-inset-bottom, 0px);
+            --sal: env(safe-area-inset-left, 0px);
+            --sar: env(safe-area-inset-right, 0px);
+        }
+
         html, body {
-            width: 100%; height: 100%;
+            width: 100%;
+            height: 100%;
         }
 
         body {
-            margin: 0; padding: 0;
-            background-color: #0d0d18;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(to bottom, var(--outer-bg-top), var(--outer-bg-bottom));
             overflow: hidden;
             font-family: 'Black Han Sans', sans-serif;
-            touch-action: none; user-select: none;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
             -webkit-tap-highlight-color: transparent;
             overscroll-behavior: none;
         }
 
         #game-container {
             position: absolute;
-            left: 50%; top: 50%;
-            width: 390px; height: 844px;
+            left: 50%;
+            top: 50%;
+            width: 390px;
+            height: 844px;
             overflow: hidden;
             transform-origin: center center;
             background-color: #1a1a2e;
         }
 
-        canvas {
+        #gameCanvas {
             display: block;
-            width: 100%; height: 100%;
+            width: 100%;
+            height: 100%;
         }
 
         /* UI 레이어 */
@@ -46,9 +66,14 @@
 
         /* 상단 바 */
         .top-bar {
-            display: flex; justify-content: space-between; align-items: flex-start;
-            padding: 20px; pointer-events: auto;
-            z-index: 60; position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: calc(20px + var(--safe-top)) calc(20px + var(--safe-right)) 20px calc(20px + var(--safe-left));
+            pointer-events: auto;
+            z-index: 60;
+            position: relative;
+            box-sizing: border-box;
         }
 
         .gold-display {
@@ -90,7 +115,7 @@
 
         /* 체력 게이지 */
         .stamina-wrapper {
-            position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+            position: absolute; top: calc(100px + var(--safe-top)); left: 50%; transform: translateX(-50%);
             width: 60%; max-width: 300px; height: 20px;
             background: rgba(0, 0, 0, 0.5); border-radius: 12px; padding: 3px;
             backdrop-filter: blur(5px); transition: transform 0.2s;
@@ -104,7 +129,7 @@
 
         /* 컨트롤 */
         .controls { display: flex; width: 100%; height: 100%; position: absolute; top: 0; left: 0; pointer-events: auto; z-index: 5; }
-        .control-btn { flex: 1; display: flex; justify-content: center; align-items: flex-end; padding-bottom: 60px; font-size: 20px; color: rgba(255,255,255,0.4); transition: background 0.05s; cursor: pointer; }
+        .control-btn { flex: 1; display: flex; justify-content: center; align-items: flex-end; padding-bottom: calc(60px + var(--safe-bottom)); font-size: 20px; color: rgba(255,255,255,0.4); transition: background 0.05s; cursor: pointer; touch-action: none; }
         .btn-left { border-right: 1px solid rgba(255,255,255,0.05); }
         .control-btn:active { background: rgba(255,255,255,0.05); }
         .btn-icon { font-size: 40px; margin-bottom: 10px; display: block; opacity: 0.8; }
@@ -193,6 +218,30 @@
         }
         .fever-overlay.active { opacity: 1; animation: pulse 0.5s infinite; }
         @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+
+        #orientation-warning {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 14px;
+            padding: 30px;
+            box-sizing: border-box;
+            background: rgba(13, 13, 24, 0.97);
+            color: white;
+            text-align: center;
+            pointer-events: auto;
+        }
+        #orientation-warning .rotate-icon { font-size: 64px; }
+        #orientation-warning .rotate-title { font-size: 28px; }
+        #orientation-warning .rotate-desc { font-size: 16px; color: #bbb; }
+
+        @media (orientation: landscape) and (pointer: coarse) {
+            #orientation-warning { display: flex; }
+        }
 
     </style>
 </head>
@@ -304,6 +353,12 @@
     </div>
 </div>
 
+<div id="orientation-warning" aria-live="polite">
+    <div class="rotate-icon">📱↻</div>
+    <div class="rotate-title">세로 화면으로 돌려주세요</div>
+    <div class="rotate-desc">INFINITE CLIMBER는 세로 화면에 최적화되어 있습니다.</div>
+</div>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
@@ -318,7 +373,17 @@
     const VIEW_WIDTH = 390;
     const VIEW_HEIGHT = 844;
     const BASE_FPS = 60;
-    const MAX_DELTA_TIME = 0.05;
+
+    // 게임 규칙용 시간은 실제 경과시간을 그대로 사용한다.
+    // 애니메이션만 큰 프레임 점프를 제한해 순간이동/폭주를 막는다.
+    const MAX_ANIMATION_DELTA = 0.05;
+    const BASE_STAMINA_DRAIN_PER_SECOND = 30;
+    const STAMINA_DRAIN_SCORE_STEP_PER_SECOND = 0.12;
+
+    // 카메라 줌: 시작은 넓게, 실제 1000계단에서 기존 줌(1.0)에 도달 후 고정
+    const CAMERA_START_ZOOM = 0.5;
+    const CAMERA_FINAL_ZOOM = 1.0;
+    const CAMERA_FULL_ZOOM_STEPS = 1000;
 
     // --- 아이템 데이터 ---
     const CHARACTERS = {
@@ -355,6 +420,18 @@
         return BIOMES.CITY;
     }
 
+    function updateOuterBackground() {
+        const biome = getBiome(score);
+        document.documentElement.style.setProperty('--outer-bg-top', biome.bgTop);
+        document.documentElement.style.setProperty('--outer-bg-bottom', biome.bgBot);
+    }
+
+    function getCameraZoom() {
+        // 점수가 아니라 실제로 오른 계단 수를 기준으로 한다.
+        const progress = Math.min(Math.max(stepsClimbed / CAMERA_FULL_ZOOM_STEPS, 0), 1);
+        return CAMERA_START_ZOOM + (CAMERA_FINAL_ZOOM - CAMERA_START_ZOOM) * progress;
+    }
+
     // --- 변수 선언 ---
     let gameState = 'MENU';
     let isPaused = false;
@@ -366,15 +443,17 @@
     let currentBiome = 'CITY';
     let tutorialStep = 0;
     let lastInputTime = 0;
-    let lastTouchTime = 0;
     let isKeyDown = false;
     let lastFrameTime = 0;
+    let stepsClimbed = 0;
+    let autoPausedByVisibility = false;
+    let autoPausedByOrientation = false;
     window.isTypingName = false;
 
     // RPG & 피버 요소 변수
     let earnedGoldInGame = 0;
     let maxStamina = 100;
-    let staminaDrainRate = 0.5; 
+    let staminaDrainPerSecond = BASE_STAMINA_DRAIN_PER_SECOND; 
     let staminaRecov = 3; 
     let goldMult = 1;
     let bestScore = parseInt(localStorage.getItem('infiniteClimberGodBest')) || 0;
@@ -766,8 +845,12 @@
 
         stamina = maxStamina;
         score = 0; combo = 0; earnedGoldInGame = 0;
-        staminaDrainRate = 0.5;
+        stepsClimbed = 0;
+        staminaDrainPerSecond = BASE_STAMINA_DRAIN_PER_SECOND;
         isPaused = false;
+        autoPausedByVisibility = false;
+        autoPausedByOrientation = false;
+        lastFrameTime = performance.now();
         
         // 피버 초기화
         isFever = false; feverTimer = 0;
@@ -782,6 +865,10 @@
         stairs.push({ x: 0, y: 0, direction: 1, colorTop: '#fff', colorSide: '#ccc', hasCoin: false, coinRotate: 0 });
         for(let i=0; i<30; i++) createStair(stairs[stairs.length-1]);
         
+        currentBiome = getBiome(score).name;
+        document.getElementById('biome-name').innerText = currentBiome;
+        updateOuterBackground();
+
         gameState = 'PLAYING';
         document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
         updateTutorialUI();
@@ -807,8 +894,8 @@
     function handleInput(action) {
         if (gameState !== 'PLAYING' || isPaused) return;
         Sound.init();
-        const now = Date.now();
-        const delta = now - lastInputTime;
+        const now = performance.now();
+        const delta = lastInputTime > 0 ? now - lastInputTime : Infinity;
         lastInputTime = now;
 
         const curr = stairs[player.index];
@@ -840,6 +927,7 @@
 
             player.index++;
             player.x = next.x; player.y = next.y;
+            stepsClimbed++;
             
             // 코인 획득 (피버 시 2배)
             const multiplier = isFever ? goldMult * 2 : goldMult;
@@ -864,7 +952,7 @@
 
             // 체력 회복
             stamina = Math.min(maxStamina, stamina + staminaRecov + (combo > 10 ? 2 : 0));
-            staminaDrainRate = 0.5 + (score * 0.002);
+            staminaDrainPerSecond = BASE_STAMINA_DRAIN_PER_SECOND + (score * STAMINA_DRAIN_SCORE_STEP_PER_SECOND);
             
             if(!isPerfect) Sound.play('step');
             player.scaleY = 0.6; player.animY = -10;
@@ -874,6 +962,7 @@
             const newBiome = getBiome(score);
             if(newBiome.name !== currentBiome) {
                 currentBiome = newBiome.name;
+                updateOuterBackground();
                 document.getElementById('biome-name').innerText = newBiome.name;
                 showFloatingText(player.x, player.y - 150, newBiome.name + " ZONE!", "#fff");
             }
@@ -889,7 +978,7 @@
 
     function startFever() {
         isFever = true;
-        feverTimer = 5; // 실제 시간 기준 5초
+        feverTimer = 5; // 실제 경과시간 기준 5초
         Sound.play('fever');
         showFloatingText(player.x, player.y - 200, "FEVER MODE!", "#FF00FF");
         document.getElementById('stamina-wrapper').classList.add('fever');
@@ -935,18 +1024,22 @@
     }
 
     // --- 드로잉 & 업데이트 ---
-    function update(dt) {
+    function update(realDt, animationDt) {
         if(isPaused) return;
 
-        const frameScale = dt * BASE_FPS;
+        const frameScale = animationDt * BASE_FPS;
         const lerpFactor = (base) => 1 - Math.pow(1 - base, frameScale);
 
         if(gameState === 'PLAYING') {
+            // 게임 규칙은 실제 경과시간 기준: 저사양/고주사율 모두 동일하다.
             if (isFever) {
-                feverTimer -= dt;
-                if (feverTimer <= 0) endFever();
+                feverTimer -= realDt;
+                if (feverTimer <= 0) {
+                    feverTimer = 0;
+                    endFever();
+                }
             } else {
-                stamina -= staminaDrainRate * frameScale;
+                stamina -= staminaDrainPerSecond * realDt;
                 if(stamina <= 0) {
                     stamina = 0;
                     gameOver();
@@ -954,6 +1047,7 @@
                 }
             }
 
+            // 시각 애니메이션만 제한된 delta를 사용한다.
             player.scaleY += (1 - player.scaleY) * lerpFactor(0.2);
             player.animY *= Math.pow(0.8, frameScale);
 
@@ -964,8 +1058,8 @@
             pet.y += (tPetY - pet.y) * petLerp;
         }
 
-        const tY = player.y - canvas.height * 0.7;
-        const tX = player.x - canvas.width / 2;
+        const tY = player.y - VIEW_HEIGHT * 0.7;
+        const tX = player.x - VIEW_WIDTH / 2;
         const cameraLerp = lerpFactor(0.1);
         camera.y += (tY - camera.y) * cameraLerp;
         camera.x += (tX - camera.x) * cameraLerp;
@@ -990,7 +1084,6 @@
         }
 
         const biome = getBiome(score);
-
         bgParticles.forEach(p => {
             const speedMult = isFever ? 5 : 1;
 
@@ -1005,8 +1098,8 @@
                 p.y += p.speed * 0.5 * speedMult * frameScale;
             }
 
-            if(p.y > canvas.height) p.y = 0;
-            if(p.y < 0) p.y = canvas.height;
+            if(p.y > VIEW_HEIGHT) p.y = 0;
+            if(p.y < 0) p.y = VIEW_HEIGHT;
         });
 
         for(let i=trail.length-1; i>=0; i--) {
@@ -1021,13 +1114,12 @@
         document.getElementById('score').innerText = score;
 
         const bar = document.getElementById('stamina-bar');
-        bar.style.width = `${(stamina/maxStamina)*100}%`;
+        bar.style.width = `${Math.max(0, stamina / maxStamina) * 100}%`;
 
         if (isFever) {
             bar.style.background = `linear-gradient(90deg, #ff00ff, #00ffff)`;
         } else {
-            bar.style.background =
-                stamina < 30 ? '#ff4757' : 'linear-gradient(90deg, #00f260, #0575e6)';
+            bar.style.background = stamina < 30 ? '#ff4757' : 'linear-gradient(90deg, #00f260, #0575e6)';
         }
     }
 
@@ -1057,14 +1149,28 @@
         ctx.globalAlpha = 1;
 
         ctx.save();
-        let shakeX = (Math.random()-0.5)*camera.shake;
-        let shakeY = (Math.random()-0.5)*camera.shake;
-        ctx.translate(-camera.x + shakeX, -camera.y + shakeY);
 
-        // [수정됨] 계단 그리기 순서 반전 (뒤에서 앞으로)
+        const zoom = getCameraZoom();
+        const cameraAnchorX = VIEW_WIDTH / 2;
+        const cameraAnchorY = VIEW_HEIGHT * 0.7;
+
+        // 화면 흔들림은 줌 비율과 관계없이 같은 강도로 유지
+        const shakeX = (Math.random() - 0.5) * camera.shake;
+        const shakeY = (Math.random() - 0.5) * camera.shake;
+        ctx.translate(shakeX, shakeY);
+
+        // 플레이어의 기존 화면 위치를 기준으로 월드만 확대/축소
+        // 0계단: 0.5배 -> 더 넓은 시야
+        // 1000계단: 1.0배 -> 기존 시야
+        // 1000계단 이후: 1.0배로 고정
+        ctx.translate(cameraAnchorX, cameraAnchorY);
+        ctx.scale(zoom, zoom);
+        ctx.translate(-cameraAnchorX, -cameraAnchorY);
+        ctx.translate(-camera.x, -camera.y);
+
+        // 계단은 최대 약 80개만 유지하므로 줌아웃 영역까지 모두 렌더링
         for(let i = stairs.length - 1; i >= 0; i--) {
             const s = stairs[i];
-            if(s.y > camera.y + canvas.height + 100 || s.y < camera.y - 100) continue;
             
             ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(s.x, s.y+STAIR_DEPTH+10, STAIR_WIDTH/2, 10, 0, 0, Math.PI*2); ctx.fill();
             ctx.fillStyle = s.colorSide; ctx.fillRect(s.x-STAIR_WIDTH/2, s.y, STAIR_WIDTH, STAIR_HEIGHT+STAIR_DEPTH);
@@ -1190,21 +1296,19 @@
     function gameLoop(timestamp = performance.now()) {
         if (!lastFrameTime) lastFrameTime = timestamp;
 
-        const dt = Math.min(
-            Math.max((timestamp - lastFrameTime) / 1000, 0),
-            MAX_DELTA_TIME
-        );
+        const realDt = Math.max((timestamp - lastFrameTime) / 1000, 0);
+        const animationDt = Math.min(realDt, MAX_ANIMATION_DELTA);
         lastFrameTime = timestamp;
 
         if (gameState === 'PLAYING' || gameState === 'GAMEOVER') {
-            update(dt);
+            update(realDt, animationDt);
             draw();
         } else {
-            const frameScale = dt * BASE_FPS;
+            const frameScale = animationDt * BASE_FPS;
 
             bgParticles.forEach(p => {
                 p.y += p.speed * frameScale;
-                if (p.y > canvas.height) p.y = 0;
+                if (p.y > VIEW_HEIGHT) p.y = 0;
             });
 
             draw();
@@ -1231,22 +1335,35 @@
     // 이벤트 리스너
     document.getElementById('rank-name-input').addEventListener('focus', ()=>window.isTypingName=true);
     document.getElementById('rank-name-input').addEventListener('blur', ()=>window.isTypingName=false);
-    window.togglePause = (e) => { 
+    window.togglePause = (e) => {
         if(e) e.stopPropagation();
-        if(gameState==='PLAYING') { isPaused=!isPaused; document.getElementById('pause-screen').classList.toggle('active', isPaused); } 
+        if(gameState === 'PLAYING') {
+            isPaused = !isPaused;
+            autoPausedByVisibility = false;
+            autoPausedByOrientation = false;
+            lastFrameTime = performance.now();
+            document.getElementById('pause-screen').classList.toggle('active', isPaused);
+        }
     };
     window.toggleSound = (e) => { 
         if(e) e.stopPropagation();
         isSoundOn=!isSoundOn; document.getElementById('sound-btn').innerText=isSoundOn?"🔊":"🔇"; 
     };
     
-    // 버튼 등록
+    // 버튼 등록: touch/mouse 이중 처리 대신 Pointer Events 하나로 통합
     function regBtn(id, action) {
         const el = document.getElementById(id);
-        el.addEventListener('touchstart', (e)=>{ e.preventDefault(); e.stopPropagation(); lastTouchTime=Date.now(); handleInput(action); }, {passive:false});
-        el.addEventListener('mousedown', (e)=>{ e.preventDefault(); if(Date.now()-lastTouchTime<500)return; handleInput(action); });
+        el.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (el.setPointerCapture) {
+                try { el.setPointerCapture(e.pointerId); } catch (_) {}
+            }
+            handleInput(action);
+        }, { passive: false });
     }
-    regBtn('btn-turn', 'turn'); regBtn('btn-climb', 'climb');
+    regBtn('btn-turn', 'turn');
+    regBtn('btn-climb', 'climb');
     document.addEventListener('keydown', (e)=>{
         if(e.code==='Escape') window.togglePause();
         if(window.isTypingName) return;
@@ -1255,22 +1372,72 @@
         if(e.code==='ArrowLeft'||e.code==='KeyX') { isKeyDown=true; handleInput('turn'); }
     });
     document.addEventListener('keyup', ()=>isKeyDown=false);
+    document.getElementById('game-container').addEventListener('contextmenu', (e) => e.preventDefault());
 
-    window.onload = () => { resize(); if(!isGameLoopRunning) { isGameLoopRunning=true; gameLoop(); } };
+    // 앱 전환/화면 잠금 시 자동 일시정지. 복귀해도 자동 재개하지 않아 불공정한 시간 점프를 방지한다.
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            if (gameState === 'PLAYING' && !isPaused) {
+                isPaused = true;
+                autoPausedByVisibility = true;
+            }
+        } else {
+            lastFrameTime = performance.now();
+            if (autoPausedByVisibility && gameState === 'PLAYING') {
+                document.getElementById('pause-screen').classList.add('active');
+            }
+        }
+    });
+
+    window.onload = () => {
+        resize();
+        updateOuterBackground();
+        if(!isGameLoopRunning) {
+            isGameLoopRunning = true;
+            lastFrameTime = performance.now();
+            gameLoop();
+        }
+    };
     window.addEventListener('resize', resize);
+    window.visualViewport?.addEventListener('resize', resize);
 
     // --- 고정 논리 해상도 + 반응형 스케일링 ---
+    function readCssPixelVariable(name) {
+        const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        const value = parseFloat(raw);
+        return Number.isFinite(value) ? value : 0;
+    }
+
     function resize() {
+        const viewportWidth = window.visualViewport?.width || window.innerWidth;
+        const viewportHeight = window.visualViewport?.height || window.innerHeight;
+
+        // 게임 플레이 좌표/시야는 항상 390x844. 기기에서는 전체 배율만 바뀐다.
         const scale = Math.min(
-            window.innerWidth / VIEW_WIDTH,
-            window.innerHeight / VIEW_HEIGHT
+            viewportWidth / VIEW_WIDTH,
+            viewportHeight / VIEW_HEIGHT
         );
 
         const container = document.getElementById('game-container');
+        const viewportLeft = window.visualViewport?.offsetLeft || 0;
+        const viewportTop = window.visualViewport?.offsetTop || 0;
 
+        container.style.left = `${viewportLeft + viewportWidth / 2}px`;
+        container.style.top = `${viewportTop + viewportHeight / 2}px`;
         container.style.width = `${VIEW_WIDTH}px`;
         container.style.height = `${VIEW_HEIGHT}px`;
         container.style.transform = `translate(-50%, -50%) scale(${scale})`;
+
+        // 실제 기기의 safe-area(px)를 논리 좌표(px)로 환산한다.
+        const safeTop = readCssPixelVariable('--sat') / scale;
+        const safeBottom = readCssPixelVariable('--sab') / scale;
+        const safeLeft = readCssPixelVariable('--sal') / scale;
+        const safeRight = readCssPixelVariable('--sar') / scale;
+
+        container.style.setProperty('--safe-top', `${safeTop}px`);
+        container.style.setProperty('--safe-bottom', `${safeBottom}px`);
+        container.style.setProperty('--safe-left', `${safeLeft}px`);
+        container.style.setProperty('--safe-right', `${safeRight}px`);
 
         if (canvas.width !== VIEW_WIDTH || canvas.height !== VIEW_HEIGHT) {
             canvas.width = VIEW_WIDTH;
@@ -1280,6 +1447,18 @@
             initBackgroundParticles();
         }
 
+        // 가로모드 안내가 떠 있는 동안 게임 진행을 멈춘다.
+        const mobileLandscape = window.matchMedia('(orientation: landscape) and (pointer: coarse)').matches;
+        if (mobileLandscape && gameState === 'PLAYING' && !isPaused) {
+            isPaused = true;
+            autoPausedByOrientation = true;
+        } else if (!mobileLandscape && autoPausedByOrientation && gameState === 'PLAYING') {
+            autoPausedByOrientation = false;
+            lastFrameTime = performance.now();
+            document.getElementById('pause-screen').classList.add('active');
+        }
+
+        updateOuterBackground();
         if(gameState === 'MENU') draw();
     }
 
