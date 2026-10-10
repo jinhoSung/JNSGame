@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Infinite Climber 3D - Manual</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#66cbd2;font-family:Arial,"Noto Sans KR",sans-serif;touch-action:none;user-select:none}
+#game{position:fixed;inset:0}
+canvas{display:block;width:100%;height:100%}
+
+#hud{position:fixed;inset:0;z-index:5;pointer-events:none;color:#fff}
+#top{position:absolute;left:16px;right:16px;top:max(14px,env(safe-area-inset-top));display:flex;align-items:center;justify-content:space-between}
+.pill{height:50px;padding:0 16px;border-radius:25px;background:#1c2949;border:3px solid #ffd91c;display:flex;align-items:center;gap:8px;font-size:21px;font-weight:1000;box-shadow:0 5px 0 rgba(0,0,0,.2)}
+.coin{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#ffc928;color:#a96e00;border:2px solid #fff18d}
+.round{pointer-events:auto;width:48px;height:48px;border:2px solid rgba(255,255,255,.35);border-radius:50%;background:#273657;color:#fff;font-weight:1000;font-size:21px}
+
+#timerFrame{position:absolute;top:77px;left:50%;transform:translateX(-50%);width:min(68vw,430px);height:25px;background:rgba(22,31,54,.7);border:2px solid rgba(255,255,255,.18);border-radius:15px;padding:4px;box-shadow:0 4px 0 rgba(0,0,0,.15)}
+#timerBar{height:100%;width:100%;border-radius:10px;background:linear-gradient(90deg,#14e970,#2bd6d0,#3f84ff)}
+#zone{position:absolute;top:111px;left:50%;transform:translateX(-50%);font-size:14px;letter-spacing:3px;font-weight:1000;text-shadow:0 2px 5px rgba(0,0,0,.3)}
+
+#msg{position:absolute;top:30%;left:50%;transform:translate(-50%,-50%) scale(.9);opacity:0;font-size:clamp(28px,9vw,58px);font-weight:1000;font-style:italic;color:#53ecff;text-shadow:0 4px 0 rgba(0,76,115,.25),0 0 18px rgba(90,237,255,.55);transition:.09s}
+#msg.show{opacity:1;transform:translate(-50%,-62%) scale(1.06)}
+#combo{position:absolute;top:38%;left:50%;transform:translateX(-50%);font-weight:1000;font-size:22px;color:#fff087;text-shadow:0 2px 5px rgba(0,0,0,.4)}
+#steps{position:absolute;left:50%;bottom:103px;transform:translateX(-50%);font-size:clamp(48px,14vw,82px);font-weight:1000;line-height:1;text-shadow:0 7px 0 #48526e,0 10px 14px rgba(0,0,0,.25)}
+#stepsLabel{position:absolute;left:50%;bottom:80px;transform:translateX(-50%);font-size:12px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,.72)}
+
+#controls{position:fixed;z-index:15;left:20px;right:20px;bottom:max(16px,env(safe-area-inset-bottom));display:flex;justify-content:space-between;align-items:flex-end}
+.control{display:flex;flex-direction:column;align-items:center;gap:5px}
+.action{width:92px;height:72px;border:0;border-radius:14px;background:linear-gradient(145deg,#7082aa,#3d4c73);color:#eef4ff;font-size:36px;font-weight:1000;box-shadow:0 6px 0 #263451,inset 0 0 0 2px rgba(255,255,255,.08);-webkit-tap-highlight-color:transparent}
+.action:active{transform:translateY(4px);box-shadow:0 2px 0 #263451}
+.label{color:#fff;font-size:15px;font-weight:1000;text-shadow:0 2px 4px rgba(0,0,0,.4)}
+
+.overlay{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:20px;background:radial-gradient(circle at 50% 35%,rgba(80,218,228,.42),rgba(19,27,52,.94));color:white}
+#over{display:none}
+.card{width:min(90vw,430px);padding:28px 24px;border-radius:23px;text-align:center;background:rgba(25,35,64,.92);border:2px solid rgba(255,255,255,.15);box-shadow:0 24px 70px rgba(0,0,0,.38)}
+.logo{font-size:clamp(38px,11vw,58px);font-weight:1000;line-height:.86;text-shadow:0 5px 0 #263759,0 8px 18px rgba(0,0,0,.4)}
+.logo span{display:block;margin-top:9px;color:#ffe13e;text-shadow:0 5px 0 #9e7100}
+.card p{line-height:1.55;opacity:.9}
+.start{width:100%;height:58px;margin-top:12px;border:0;border-radius:13px;background:linear-gradient(#5ceaff,#1bb8df);color:#102844;font-size:21px;font-weight:1000;box-shadow:0 6px 0 #087f9e}
+.small{font-size:12px;opacity:.65}
+
+#danger{position:fixed;inset:0;z-index:8;pointer-events:none;transition:box-shadow .1s}
+#danger.flash{box-shadow:inset 0 0 80px 20px rgba(255,52,32,.46)}
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="hud">
+  <div id="top">
+    <div class="pill"><span class="coin">●</span><span id="coins">0</span></div>
+    <button id="soundBtn" class="round">🔊</button>
+  </div>
+  <div id="timerFrame"><div id="timerBar"></div></div>
+  <div id="zone">CITY SKY · PET x3</div>
+  <div id="msg">PERFECT!</div>
+  <div id="combo"></div>
+  <div id="steps">0</div>
+  <div id="stepsLabel">STEPS</div>
+</div>
+
+<div id="controls">
+  <div class="control">
+    <button id="turnBtn" class="action">↻</button>
+    <div class="label">방향 전환</div>
+  </div>
+  <div class="control">
+    <button id="climbBtn" class="action">↑</button>
+    <div class="label">올라가기</div>
+  </div>
+</div>
+
+<div id="danger"></div>
+
+<div id="start" class="overlay">
+  <div class="card">
+    <div class="logo">INFINITE<span>CLIMBER 3D</span></div>
+    <p><b>자동 이동 없음.</b><br>직선에서는 <b>올라가기</b>, 꺾이는 곳에서는 <b>방향 전환</b>을 누르면 그 입력으로 바로 한 칸 올라갑니다.</p>
+    <p>시간 게이지는 계속 줄어듭니다.<br>제한 시간 안에 최대한 많이 올라가세요.<br><b>입력은 한 번만 틀려도 즉시 게임오버!</b></p>
+    <p class="small">PC: X / ← = 방향 전환 · Z / Space / ↑ = 올라가기</p>
+    <button id="startBtn" class="start">START</button>
+  </div>
+</div>
+
+<div id="over" class="overlay">
+  <div class="card">
+    <div class="logo" style="font-size:44px">TIME<span>OVER</span></div>
+    <p id="result">STEPS 0</p>
+    <button id="retryBtn" class="start">RETRY</button>
+  </div>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.180.0/build/three.module.js"}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+const $=id=>document.getElementById(id);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x67cbd3);
+scene.fog=new THREE.Fog(0x67cbd3,22,68);
+
+const camera=new THREE.PerspectiveCamera(56,innerWidth/innerHeight,.1,150);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+$('game').appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xeaffff,0x315463,2.3));
+const sun=new THREE.DirectionalLight(0xffffff,2.2);
+sun.position.set(-12,24,14);sun.castShadow=true;
+sun.shadow.mapSize.set(1024,1024);
+scene.add(sun);
+
+const STEP=1.12, RISE=.30, TOTAL=360;
+const dirs=[
+  new THREE.Vector3(1,0,0),
+  new THREE.Vector3(0,0,-1),
+  new THREE.Vector3(-1,0,0),
+  new THREE.Vector3(0,0,1)
+];
+
+const matTop=new THREE.MeshStandardMaterial({color:0xc7f2e3,roughness:.76});
+const matSide=new THREE.MeshStandardMaterial({color:0x65baa0,roughness:.82});
+const matDark=new THREE.MeshStandardMaterial({color:0x438f7d,roughness:.88});
+const mats=[matSide,matDark,matTop,matDark,matSide,matDark];
+const stepGeo=new THREE.BoxGeometry(1.04,.54,1.04);
+
+const stairGroup=new THREE.Group();
+const objectGroup=new THREE.Group();
+scene.add(stairGroup,objectGroup);
+
+const points=[];
+const coinMeshes=new Map();
+
+function randLen(){return 4+Math.floor(Math.random()*5)}
+let x=-4.5,z=4.5,y=.55;
+let heading=0,segLen=randLen(),segStep=0;
+
+function chooseTurnSign(x,z,h){
+  const left=(h+3)%4,right=(h+1)%4;
+  if(Math.abs(x)>10||Math.abs(z)>10){
+    const center=new THREE.Vector3(-x,0,-z).normalize();
+    return dirs[left].dot(center)>dirs[right].dot(center)?-1:1;
+  }
+  return Math.random()<.5?-1:1;
+}
+
+for(let i=0;i<TOTAL;i++){
+  const isCorner=segStep===segLen-1;
+  const turnSign=isCorner?chooseTurnSign(x,z,heading):0;
+  const nextHeading=isCorner?(heading+(turnSign===1?1:3))%4:heading;
+  const hasCoin=i>3&&Math.random()<.22;
+
+  points.push({
+    pos:new THREE.Vector3(x,y,z),
+    heading,
+    dir:dirs[heading].clone(),
+    isCorner,
+    turnSign,
+    nextHeading,
+    hasCoin
+  });
+
+  const step=new THREE.Mesh(stepGeo,mats);
+  step.position.set(x,y-.19,z);
+  step.castShadow=true;
+  step.receiveShadow=true;
+  stairGroup.add(step);
+
+  if(hasCoin){
+    const c=new THREE.Mesh(
+      new THREE.CylinderGeometry(.22,.22,.08,18),
+      new THREE.MeshStandardMaterial({color:0xffcf1e,metalness:.35,roughness:.28})
+    );
+    c.rotation.z=Math.PI/2;
+    c.position.set(x,y+.70,z);
+    c.castShadow=true;
+    objectGroup.add(c);
+    coinMeshes.set(i,c);
+  }
+
+  if(isCorner){
+    heading=nextHeading;
+    segStep=0;
+    segLen=randLen();
+  }else{
+    segStep++;
+  }
+
+  const d=dirs[heading];
+  x+=d.x*STEP;
+  z+=d.z*STEP;
+  y+=RISE;
+}
+
+// 배경 구조물
+for(let i=0;i<14;i++){
+  const a=i/14*Math.PI*2,r=18+(i%4)*4,h=14+(i%5)*7;
+  const m=new THREE.Mesh(
+    new THREE.BoxGeometry(3.4,h,3.4),
+    new THREE.MeshStandardMaterial({color:i%2?0x315f6b:0x3d7380,roughness:.95,transparent:true,opacity:.25})
+  );
+  m.position.set(Math.cos(a)*r,h/2-3,Math.sin(a)*r);
+  scene.add(m);
+}
+
+// 플레이어
+const player=new THREE.Group();
+const green=new THREE.MeshStandardMaterial({color:0x27e477,roughness:.72});
+const pale=new THREE.MeshStandardMaterial({color:0xe7f0ec,roughness:.78});
+const black=new THREE.MeshStandardMaterial({color:0x111318,roughness:.82});
+
+const body=new THREE.Mesh(new THREE.BoxGeometry(.5,.64,.36),pale);body.position.y=.72;body.castShadow=true;player.add(body);
+const head=new THREE.Mesh(new THREE.BoxGeometry(.62,.57,.55),green);head.position.y=1.28;head.castShadow=true;player.add(head);
+const eyeGeo=new THREE.BoxGeometry(.10,.16,.04);
+const e1=new THREE.Mesh(eyeGeo,black),e2=e1.clone();
+e1.position.set(-.16,1.31,.295);e2.position.set(.16,1.31,.295);player.add(e1,e2);
+const leg1=new THREE.Mesh(new THREE.BoxGeometry(.18,.38,.2),pale),leg2=leg1.clone();
+leg1.position.set(-.14,.28,0);leg2.position.set(.14,.28,0);player.add(leg1,leg2);
+scene.add(player);
+
+// 펫 시스템: 최대 3마리 장착 가능
+const PET_MAX = 3;
+
+// 장착 펫 목록. 최대 3개까지 넣으면 된다.
+// type은 visual preset 이름이고, color는 원하는 색상으로 바꿀 수 있다.
+const equippedPets = [
+  { type:'slime', color:0xf2524b },
+  { type:'cat',   color:0xffc84a },
+  { type:'blob',  color:0x69d8ff }
+].slice(0, PET_MAX);
+
+function createPet(def, slot){
+  const g=new THREE.Group();
+  g.userData.slot=slot;
+  g.userData.hopPhase=slot*0.75;
+  g.userData.prevStep=0;
+  g.userData.targetStep=0;
+  g.userData.baseY=0;
+
+  const mat=new THREE.MeshStandardMaterial({
+    color:def.color,
+    roughness:.72
+  });
+
+  if(def.type==='cat'){
+    const body=new THREE.Mesh(new THREE.SphereGeometry(.25,10,8),mat);
+    body.scale.set(1.15,.78,1);
+    g.add(body);
+
+    const ear1=new THREE.Mesh(new THREE.ConeGeometry(.10,.19,4),mat);
+    const ear2=ear1.clone();
+    ear1.position.set(-.14,.20,0);
+    ear2.position.set(.14,.20,0);
+    ear1.rotation.z=.12;
+    ear2.rotation.z=-.12;
+    g.add(ear1,ear2);
+
+    const tail=new THREE.Mesh(
+      new THREE.CylinderGeometry(.035,.045,.34,7),
+      mat
+    );
+    tail.position.set(.28,.02,-.05);
+    tail.rotation.z=-1.0;
+    g.add(tail);
+  } else if(def.type==='blob'){
+    const body=new THREE.Mesh(new THREE.SphereGeometry(.27,10,8),mat);
+    body.scale.set(1.22,.68,1);
+    g.add(body);
+
+    const nub1=new THREE.Mesh(new THREE.SphereGeometry(.08,8,6),mat);
+    const nub2=nub1.clone();
+    nub1.position.set(-.17,.18,0);
+    nub2.position.set(.17,.18,0);
+    g.add(nub1,nub2);
+  } else {
+    const body=new THREE.Mesh(new THREE.SphereGeometry(.27,10,8),mat);
+    body.scale.set(1.25,.72,1);
+    g.add(body);
+
+    const ear1=new THREE.Mesh(new THREE.ConeGeometry(.11,.22,4),mat);
+    const ear2=ear1.clone();
+    ear1.position.set(-.16,.22,0);
+    ear2.position.set(.16,.22,0);
+    g.add(ear1,ear2);
+  }
+
+  // 눈
+  const eyeMat=new THREE.MeshStandardMaterial({color:0x101216,roughness:.8});
+  const eyeGeo=new THREE.SphereGeometry(.035,7,6);
+  const e1=new THREE.Mesh(eyeGeo,eyeMat);
+  const e2=e1.clone();
+  e1.position.set(-.08,.05,.23);
+  e2.position.set(.08,.05,.23);
+  g.add(e1,e2);
+
+  scene.add(g);
+  return g;
+}
+
+const pets=equippedPets.map((def,i)=>createPet(def,i));
+
+// 오디오
+let audioCtx=null,master=null,soundOn=true;
+function ensureAudio(){
+  if(!audioCtx){
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    master=audioCtx.createGain();master.gain.value=.38;master.connect(audioCtx.destination);
+  }
+  if(audioCtx.state==='suspended')audioCtx.resume();
+}
+function tone(f,d=.07,type='square',v=.08,slide=0){
+  if(!soundOn)return;
+  ensureAudio();
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type=type;o.frequency.setValueAtTime(f,audioCtx.currentTime);
+  if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(40,f+slide),audioCtx.currentTime+d);
+  g.gain.setValueAtTime(.0001,audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(v,audioCtx.currentTime+.005);
+  g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+d);
+  o.connect(g);g.connect(master);o.start();o.stop(audioCtx.currentTime+d+.02);
+}
+const sfx={
+  turn(){tone(430,.06,'square',.08,120)},
+  climb(){tone(180,.04,'square',.045,55)},
+  coin(){tone(900,.05,'square',.08,230);setTimeout(()=>tone(1220,.05,'square',.06,130),35)},
+  good(){tone(620,.06,'square',.09,230)},
+  wrong(){tone(210,.16,'sawtooth',.10,-110)},
+  over(){tone(240,.28,'sawtooth',.11,-170)}
+};
+
+// 게임 상태
+let started=false,gameOver=false;
+let currentIndex=0;
+let facingHeading=0;
+let coins=0,combo=0;
+let timeLeft=100,maxTime=100;
+let moving=false,moveT=0,moveFrom=null,moveTo=null;
+let last=performance.now();
+let msgTimer=0;
+let cameraLookTarget=new THREE.Vector3();
+let cameraReady=false;
+
+function face(h){
+  const d=dirs[h];
+  player.rotation.y=Math.atan2(d.x,d.z);
+}
+function showMsg(text,bad=false){
+  const m=$('msg');
+  m.textContent=text;
+  m.style.color=bad?'#ff776f':'#51eaff';
+  m.classList.add('show');
+  clearTimeout(msgTimer);
+  msgTimer=setTimeout(()=>m.classList.remove('show'),260);
+}
+function flash(){
+  $('danger').classList.add('flash');
+  setTimeout(()=>$('danger').classList.remove('flash'),120);
+}
+function expectedHeading(){
+  if(currentIndex>=points.length-1)return facingHeading;
+  const a=points[currentIndex].pos,b=points[currentIndex+1].pos;
+  const dx=b.x-a.x,dz=b.z-a.z;
+  if(Math.abs(dx)>Math.abs(dz))return dx>0?0:2;
+  return dz<0?1:3;
+}
+function altHeading(){
+  const expected=expectedHeading();
+  const cur=points[currentIndex];
+  if(cur && cur.isCorner){
+    return facingHeading===expected ? cur.heading : expected;
+  }
+  // 직선에서는 "틀린 방향"으로 잠깐 돌렸다가 다시 누르면 정상 방향 복귀
+  return facingHeading===expected ? (expected+1)%4 : expected;
+}
+function startStepMove(){
+  if(currentIndex>=points.length-1){
+    finish('정상에 도착했습니다!');
+    return;
+  }
+  moving=true;
+  moveT=0;
+  moveFrom=player.position.clone();
+  moveTo=points[currentIndex+1].pos.clone().add(new THREE.Vector3(0,.16,0));
+  sfx.climb();
+}
+
+function wrongInput(){
+  combo=0;
+  showMsg('MISS!',true);
+  sfx.wrong();
+  finish('방향을 한 번 잘못 선택했습니다.');
+}
+
+function doTurn(){
+  if(!started||gameOver||moving)return;
+
+  const expected=expectedHeading();
+
+  // 방향 전환이 필요한 지점에서만 성공.
+  // 성공하면 방향을 바꾸는 동시에 바로 한 칸 올라간다.
+  if(facingHeading===expected){
+    wrongInput();
+    return;
+  }
+
+  facingHeading=expected;
+  face(facingHeading);
+  sfx.turn();
+  startStepMove();
+}
+
+function doClimb(){
+  if(!started||gameOver||moving)return;
+
+  const expected=expectedHeading();
+
+  // 현재 방향 그대로 다음 계단이 이어질 때만 올라가기 성공.
+  if(facingHeading!==expected){
+    wrongInput();
+    return;
+  }
+
+  startStepMove();
+}
+function finish(reason='시간이 모두 소진되었습니다.'){
+  if(gameOver)return;
+  gameOver=true;
+  sfx.over();
+  $('result').innerHTML=`STEPS ${currentIndex} · COIN ${coins} · COMBO ${combo}<br><span style="font-size:14px;opacity:.78">${reason}</span>`;
+  setTimeout(()=>$('over').style.display='grid',350);
+}
+function reset(){
+  currentIndex=0;
+  facingHeading=points[0].heading;
+  coins=0;combo=0;timeLeft=maxTime;
+  moving=false;moveT=0;gameOver=false;
+  player.rotation.set(0,0,0);
+  const p=points[0].pos;
+  player.position.set(p.x,p.y+.16,p.z);
+  face(facingHeading);
+  pets.forEach((pet,slot)=>{
+    const d=dirs[facingHeading];
+    const sideVec=new THREE.Vector3(-d.z,0,d.x);
+    pet.position.copy(player.position)
+      .add(d.clone().multiplyScalar(-(.72+slot*.52)))
+      .add(sideVec.multiplyScalar((slot-((pets.length-1)/2))*.38));
+    pet.position.y+=.10;
+  });
+  cameraReady=false;
+  coinMeshes.forEach(m=>m.visible=true);
+  updateUI();
+}
+function startGame(){
+  ensureAudio();
+  reset();
+  started=true;
+  $('start').style.display='none';
+  $('over').style.display='none';
+  tone(420,.07,'square',.07,160);
+}
+function updateMove(dt){
+  if(!moving)return;
+  moveT+=dt*7.2;
+  const t=Math.min(1,moveT);
+  const e=t*t*(3-2*t);
+  player.position.lerpVectors(moveFrom,moveTo,e);
+  player.position.y+=Math.sin(t*Math.PI)*.12;
+
+  if(t>=1){
+    moving=false;
+    currentIndex++;
+    combo++;
+
+    const node=points[currentIndex];
+    if(node?.hasCoin){
+      const c=coinMeshes.get(currentIndex);
+      if(c&&c.visible){
+        c.visible=false;
+        coins++;
+        sfx.coin();
+      }
+    }
+
+    if(combo>0 && combo%10===0){
+      showMsg('PERFECT!');
+      sfx.good();
+    }
+  }
+}
+function updatePets(dt){
+  if(!pets.length)return;
+
+  const d=dirs[facingHeading];
+
+  pets.forEach((pet,slot)=>{
+    // 1번 펫이 가장 가깝고, 뒤쪽 펫일수록 조금 더 멀고 옆으로 벌어진다.
+    const backDist=.72 + slot*.52;
+    const sideOffset=(slot-((pets.length-1)/2))*.38;
+    const sideVec=new THREE.Vector3(-d.z,0,d.x);
+
+    const target=player.position.clone()
+      .add(d.clone().multiplyScalar(-backDist))
+      .add(sideVec.multiplyScalar(sideOffset));
+
+    // 계단 이동 중에는 실제로 콩콩 뛰는 포물선
+    let hop=0;
+    if(moving){
+      const t=Math.min(1,moveT);
+      hop=Math.sin(t*Math.PI) * (.28 + slot*.035);
+    }else{
+      // 가만히 있을 때도 아주 약하게 통통거림
+      hop=Math.max(0,Math.sin(performance.now()*.006 + pet.userData.hopPhase))*.035;
+    }
+
+    target.y += .10 + hop;
+
+    // 펫마다 약간 다른 추적 탄성
+    const follow=1-Math.pow(.000015 + slot*.00001,dt);
+    pet.position.lerp(target,follow);
+
+    // 착지 때 살짝 납작해졌다 복원되는 귀여운 느낌
+    const squash=moving ? Math.sin(Math.min(1,moveT)*Math.PI) : 0;
+    pet.scale.y=1 + squash*.08;
+    pet.scale.x=1 - squash*.04;
+    pet.scale.z=1 - squash*.04;
+
+    // 항상 플레이어 진행 방향을 바라봄
+    pet.rotation.y=Math.atan2(d.x,d.z);
+  });
+}
+function updateCamera(dt){
+  const p=player.position;
+  const d=dirs[facingHeading];
+  const side=new THREE.Vector3(-d.z,0,d.x);
+
+  const desired=p.clone()
+    .add(d.clone().multiplyScalar(-5.8))
+    .add(side.clone().multiplyScalar(4.9));
+  desired.y+=5.25;
+
+  const desiredLook=p.clone()
+    .add(d.clone().multiplyScalar(1.9))
+    .add(new THREE.Vector3(0,1.0,0));
+
+  if(!cameraReady){
+    camera.position.copy(desired);
+    cameraLookTarget.copy(desiredLook);
+    cameraReady=true;
+  }else{
+    // 이동 자체도 부드럽게, 코너에서 방향이 바뀌어도 시선이 갑자기 꺾이지 않도록 별도 보간
+    const posFollow=1-Math.pow(.0018,dt);
+    const lookFollow=1-Math.pow(.0045,dt);
+    camera.position.lerp(desired,posFollow);
+    cameraLookTarget.lerp(desiredLook,lookFollow);
+  }
+
+  camera.lookAt(cameraLookTarget);
+}
+function updateUI(){
+  $('coins').textContent=coins;
+  $('steps').textContent=currentIndex;
+  $('combo').textContent=combo>1?`COMBO x${combo}`:'';
+
+  const pct=Math.max(0,timeLeft/maxTime*100);
+  $('timerBar').style.width=pct+'%';
+  if(pct<25)$('timerBar').style.background='linear-gradient(90deg,#ff3c38,#ff7a22)';
+  else if(pct<55)$('timerBar').style.background='linear-gradient(90deg,#ffd338,#ff9a26)';
+  else $('timerBar').style.background='linear-gradient(90deg,#14e970,#2bd6d0,#3f84ff)';
+
+  const h=points[Math.min(currentIndex,points.length-1)].pos.y;
+  if(h<24){
+    $('zone').textContent=`CITY SKY · PET x${pets.length}`;
+    scene.background.setHex(0x67cbd3);scene.fog.color.setHex(0x67cbd3);
+  }else if(h<54){
+    $('zone').textContent=`TWILIGHT · PET x${pets.length}`;
+    scene.background.setHex(0x566fbd);scene.fog.color.setHex(0x566fbd);
+  }else{
+    $('zone').textContent=`STAR ZONE · PET x${pets.length}`;
+    scene.background.setHex(0x111b35);scene.fog.color.setHex(0x111b35);
+  }
+}
+function animateCoins(dt){
+  coinMeshes.forEach(m=>{if(m.visible)m.rotation.y+=dt*5.3});
+}
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt=Math.min((now-last)/1000,.033);
+  last=now;
+
+  if(started&&!gameOver){
+    timeLeft-=dt*4.3;
+    if(timeLeft<=0){
+      timeLeft=0;
+      finish();
+    }
+    updateMove(dt);
+    updatePets(dt);
+    updateCamera(dt);
+    updateUI();
+    animateCoins(dt);
+  }else if(!started){
+    const t=now*.00016;
+    camera.position.set(Math.cos(t)*14,8.5,Math.sin(t)*14);
+    camera.lookAt(0,5,0);
+    animateCoins(dt);
+  }else{
+    updateCamera(dt);
+    updateUI();
+  }
+
+  renderer.render(scene,camera);
+}
+requestAnimationFrame(loop);
+
+$('turnBtn').addEventListener('pointerdown',e=>{e.preventDefault();doTurn()});
+$('climbBtn').addEventListener('pointerdown',e=>{e.preventDefault();doClimb()});
+$('startBtn').addEventListener('click',startGame);
+$('retryBtn').addEventListener('click',startGame);
+$('soundBtn').addEventListener('click',()=>{
+  soundOn=!soundOn;
+  $('soundBtn').textContent=soundOn?'🔊':'🔇';
+  if(soundOn)ensureAudio();
+});
+
+addEventListener('keydown',e=>{
+  if(['KeyX','ArrowLeft','ArrowRight'].includes(e.code)){e.preventDefault();doTurn()}
+  if(['KeyZ','Space','ArrowUp'].includes(e.code)){e.preventDefault();doClimb()}
+});
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
