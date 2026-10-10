@@ -1,9 +1,21 @@
 <!DOCTYPE html>
+<!--
+  천국의 계단 러시 - 통합 HTML 기준본
+  기반: v29
+  포함 기능:
+  - Three.js 3D 계단/캐릭터/펫
+  - 랜덤 경로 / 입력 버퍼 / 추락 연출
+  - 캐릭터별 등반 사운드 / BGM / 사망 사운드
+  - 캐릭터·펫 상점 및 능력치
+  - 코인 저장(localStorage)
+  - Firebase TOP 50 온라인 랭킹
+  - 모바일 좌우 터치 조작
+-->
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Infinite Climber 3D - Manual</title>
+<title>천국의 계단 러시</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#66cbd2;font-family:Arial,"Noto Sans KR",sans-serif;touch-action:none;user-select:none}
@@ -1598,10 +1610,12 @@ function characterClimbSound(){
   // 빠른 연타에서도 소리가 뭉개지지 않도록 모든 상승음은 짧게 구성.
   // 약간의 피치 흔들림으로 반복감도 줄인다.
   const jitter=()=>1+(Math.random()-.5)*.035;
+  const CLIMB_VOL=1.55;
   const play=(freq,dur,type='square',vol=.075,slide=0,delay=0)=>{
     const f=freq*jitter();
-    if(delay>0)setTimeout(()=>tone(f,dur,type,vol,slide),delay);
-    else tone(f,dur,type,vol,slide);
+    const v=Math.min(.14,vol*CLIMB_VOL);
+    if(delay>0)setTimeout(()=>tone(f,dur,type,v,slide),delay);
+    else tone(f,dur,type,v,slide);
   };
 
   switch(style){
@@ -1766,7 +1780,7 @@ function characterClimbSound(){
 
 const sfx={
   turn(){
-    tone(390,.05,'square',.055,70);
+    tone(390,.05,'square',.070,70);
   },
   climb(){
     characterClimbSound();
@@ -1776,52 +1790,56 @@ const sfx={
     setTimeout(()=>tone(860,.055,'square',.065,180),38);
   },
   coin(){
-    tone(900,.05,'square',.08,230);
+    tone(900,.05,'square',.065,230);
     setTimeout(()=>tone(1220,.05,'square',.06,130),35);
   },
   good(){
     tone(620,.06,'square',.09,230);
   },
   wrong(){
-    tone(230,.08,'square',.07,-35);
+    tone(260,.05,'triangle',.022,-25);
   },
   fall(){
     if(!soundOn)return;
     ensureAudio();
 
-    // 길게 내려가는 레트로 아케이드풍 낙하음.
-    // 특정 게임의 원음을 복제하지 않고 새로 합성한 사운드.
+    // 부드러운 레트로 낙하음:
+    // 날카로운 square 계열 대신 sine + triangle 중심의
+    // '휘이이잉↘' 느낌으로 내려가다가 끝에 짧은 '퐁'.
     const now=audioCtx.currentTime;
 
-    const o1=audioCtx.createOscillator();
-    const o2=audioCtx.createOscillator();
-    const g=audioCtx.createGain();
+    const whistle=audioCtx.createOscillator();
+    const body=audioCtx.createOscillator();
+    const gain=audioCtx.createGain();
 
-    o1.type='square';
-    o2.type='triangle';
+    whistle.type='sine';
+    body.type='triangle';
 
-    o1.frequency.setValueAtTime(1180,now);
-    o1.frequency.exponentialRampToValueAtTime(115,now+1.05);
+    whistle.frequency.setValueAtTime(880,now);
+    whistle.frequency.exponentialRampToValueAtTime(150,now+1.00);
 
-    o2.frequency.setValueAtTime(760,now);
-    o2.frequency.exponentialRampToValueAtTime(82,now+1.15);
+    body.frequency.setValueAtTime(440,now);
+    body.frequency.exponentialRampToValueAtTime(90,now+1.04);
 
-    g.gain.setValueAtTime(.0001,now);
-    g.gain.exponentialRampToValueAtTime(.13,now+.025);
-    g.gain.setValueAtTime(.13,now+.72);
-    g.gain.exponentialRampToValueAtTime(.0001,now+1.18);
+    gain.gain.setValueAtTime(.0001,now);
+    gain.gain.exponentialRampToValueAtTime(.050,now+.035);
+    gain.gain.setValueAtTime(.045,now+.68);
+    gain.gain.exponentialRampToValueAtTime(.0001,now+1.08);
 
-    o1.connect(g);
-    o2.connect(g);
-    g.connect(master);
+    whistle.connect(gain);
+    body.connect(gain);
+    gain.connect(master);
 
-    o1.start(now);
-    o2.start(now);
-    o1.stop(now+1.2);
-    o2.stop(now+1.2);
+    whistle.start(now);
+    body.start(now);
+    whistle.stop(now+1.10);
+    body.stop(now+1.10);
+
+    // 바닥으로 사라지는 느낌의 짧고 둥근 마무리음
+    setTimeout(()=>tone(125,.12,'sine',.030,-45),930);
   },
   over(){
-    tone(175,.16,'sawtooth',.055,-60);
+    tone(145,.10,'sine',.015,-25);
   }
 };
 
@@ -1848,14 +1866,14 @@ function startBgm(){
     const m=melody[bgmStep % melody.length];
     const b=bass[Math.floor(bgmStep/2) % bass.length];
 
-    tone(m,.095,'triangle',.015,10);
+    tone(m,.095,'triangle',.026,10);
 
     if(bgmStep % 2===0){
-      tone(b,.13,'sine',.012,-8);
+      tone(b,.13,'sine',.020,-8);
     }
 
     if(bgmStep % 4===0){
-      tone(m/2,.055,'square',.007,15);
+      tone(m/2,.055,'square',.011,15);
     }
 
     bgmStep++;
