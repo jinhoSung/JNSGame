@@ -8,20 +8,33 @@
         @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
+        html, body {
+            width: 100%; height: 100%;
+        }
+
         body {
             margin: 0; padding: 0;
-            background-color: #1a1a2e;
+            background-color: #0d0d18;
             overflow: hidden;
             font-family: 'Black Han Sans', sans-serif;
             touch-action: none; user-select: none;
             -webkit-tap-highlight-color: transparent;
+            overscroll-behavior: none;
         }
 
         #game-container {
-            position: relative; width: 100vw; height: 100vh; overflow: hidden;
+            position: absolute;
+            left: 50%; top: 50%;
+            width: 390px; height: 844px;
+            overflow: hidden;
+            transform-origin: center center;
+            background-color: #1a1a2e;
         }
 
-        canvas { display: block; }
+        canvas {
+            display: block;
+            width: 100%; height: 100%;
+        }
 
         /* UI 레이어 */
         .ui-layer {
@@ -302,6 +315,11 @@
     const STAIR_DEPTH = 40;
     const PLAYER_SIZE = 60;
 
+    const VIEW_WIDTH = 390;
+    const VIEW_HEIGHT = 844;
+    const BASE_FPS = 60;
+    const MAX_DELTA_TIME = 0.05;
+
     // --- 아이템 데이터 ---
     const CHARACTERS = {
         'default': { name: '회사원', price: 0, stats: { maxStamina: 0, recovery: 0, goldMult: 0 }, desc: '평범하다.' },
@@ -350,6 +368,7 @@
     let lastInputTime = 0;
     let lastTouchTime = 0;
     let isKeyDown = false;
+    let lastFrameTime = 0;
     window.isTypingName = false;
 
     // RPG & 피버 요소 변수
@@ -870,14 +889,13 @@
 
     function startFever() {
         isFever = true;
-        feverTimer = 300; // 약 5초 (60fps 기준)
+        feverTimer = 5; // 실제 시간 기준 5초
         Sound.play('fever');
         showFloatingText(player.x, player.y - 200, "FEVER MODE!", "#FF00FF");
         document.getElementById('stamina-wrapper').classList.add('fever');
         document.getElementById('fever-overlay').classList.add('active');
         stamina = maxStamina; // 체력 회복
     }
-
     function endFever() {
         isFever = false;
         document.getElementById('stamina-wrapper').classList.remove('fever');
@@ -917,70 +935,103 @@
     }
 
     // --- 드로잉 & 업데이트 ---
-    function update() {
+    function update(dt) {
         if(isPaused) return;
 
+        const frameScale = dt * BASE_FPS;
+        const lerpFactor = (base) => 1 - Math.pow(1 - base, frameScale);
+
         if(gameState === 'PLAYING') {
-            // 피버 모드면 체력 안닳음 + 타이머 감소
             if (isFever) {
-                feverTimer--;
+                feverTimer -= dt;
                 if (feverTimer <= 0) endFever();
             } else {
-                stamina -= staminaDrainRate;
-                if(stamina <= 0) { 
-                    stamina = 0; 
-                    gameOver(); 
+                stamina -= staminaDrainRate * frameScale;
+                if(stamina <= 0) {
+                    stamina = 0;
+                    gameOver();
                     return;
                 }
             }
-            
-            player.scaleY += (1 - player.scaleY) * 0.2;
-            player.animY *= 0.8;
+
+            player.scaleY += (1 - player.scaleY) * lerpFactor(0.2);
+            player.animY *= Math.pow(0.8, frameScale);
+
             const tPetX = player.x + (player.direction === 1 ? -40 : 40);
             const tPetY = player.y - 20;
-            pet.x += (tPetX - pet.x) * 0.05; pet.y += (tPetY - pet.y) * 0.05;
+            const petLerp = lerpFactor(0.05);
+            pet.x += (tPetX - pet.x) * petLerp;
+            pet.y += (tPetY - pet.y) * petLerp;
         }
-        
+
         const tY = player.y - canvas.height * 0.7;
         const tX = player.x - canvas.width / 2;
-        camera.y += (tY - camera.y) * 0.1;
-        camera.x += (tX - camera.x) * 0.1;
-        
-        if(camera.shake > 0) { camera.shake *= 0.9; if(camera.shake < 0.5) camera.shake = 0; }
+        const cameraLerp = lerpFactor(0.1);
+        camera.y += (tY - camera.y) * cameraLerp;
+        camera.x += (tX - camera.x) * cameraLerp;
+
+        if(camera.shake > 0) {
+            camera.shake *= Math.pow(0.9, frameScale);
+            if(camera.shake < 0.5) camera.shake = 0;
+        }
 
         for(let i=particles.length-1; i>=0; i--) {
-            let p = particles[i];
-            if(p.isText) { p.y += p.vy; p.life -= 0.02; }
-            else { p.x += p.vx; p.y += p.vy; p.vy += 0.5; p.life -= 0.05; }
+            const p = particles[i];
+            if(p.isText) {
+                p.y += p.vy * frameScale;
+                p.life -= 0.02 * frameScale;
+            } else {
+                p.x += p.vx * frameScale;
+                p.y += p.vy * frameScale;
+                p.vy += 0.5 * frameScale;
+                p.life -= 0.05 * frameScale;
+            }
             if(p.life <= 0) particles.splice(i, 1);
         }
+
         const biome = getBiome(score);
+
         bgParticles.forEach(p => {
-            let speedMult = isFever ? 5 : 1; // 피버시 배경 빨라짐
-            if(biome.particle === 'SNOW') { p.y += p.speed * speedMult; p.x += Math.sin(p.y*0.01)*0.5; }
-            else if(biome.particle === 'EMBER') { p.y -= p.speed * speedMult; }
-            else if(biome.particle === 'HYPER') { p.y += p.speed * 5 * speedMult; }
-            else { p.y += p.speed * 0.5 * speedMult; }
-            if(p.y > canvas.height) p.y = 0; if(p.y < 0) p.y = canvas.height;
+            const speedMult = isFever ? 5 : 1;
+
+            if(biome.particle === 'SNOW') {
+                p.y += p.speed * speedMult * frameScale;
+                p.x += Math.sin(p.y * 0.01) * 0.5 * frameScale;
+            } else if(biome.particle === 'EMBER') {
+                p.y -= p.speed * speedMult * frameScale;
+            } else if(biome.particle === 'HYPER') {
+                p.y += p.speed * 5 * speedMult * frameScale;
+            } else {
+                p.y += p.speed * 0.5 * speedMult * frameScale;
+            }
+
+            if(p.y > canvas.height) p.y = 0;
+            if(p.y < 0) p.y = canvas.height;
         });
-        
-        for(let i=trail.length-1; i>=0; i--) { trail[i].alpha -= 0.05; if(trail[i].alpha <= 0) trail.splice(i,1); }
-        stairs.forEach(s => { if(s.hasCoin) s.coinRotate += 0.1; });
+
+        for(let i=trail.length-1; i>=0; i--) {
+            trail[i].alpha -= 0.05 * frameScale;
+            if(trail[i].alpha <= 0) trail.splice(i,1);
+        }
+
+        stairs.forEach(s => {
+            if(s.hasCoin) s.coinRotate += 0.1 * frameScale;
+        });
 
         document.getElementById('score').innerText = score;
+
         const bar = document.getElementById('stamina-bar');
         bar.style.width = `${(stamina/maxStamina)*100}%`;
-        
-        // 피버일 때 게이지바 색상 변경
+
         if (isFever) {
             bar.style.background = `linear-gradient(90deg, #ff00ff, #00ffff)`;
         } else {
-            bar.style.background = stamina < 30 ? '#ff4757' : 'linear-gradient(90deg, #00f260, #0575e6)';
+            bar.style.background =
+                stamina < 30 ? '#ff4757' : 'linear-gradient(90deg, #00f260, #0575e6)';
         }
     }
 
     function draw() {
-        if(canvas.width !== window.innerWidth) { canvas.width = window.innerWidth; canvas.height = window.innerHeight; initBackgroundParticles(); }
         const biome = getBiome(score);
         const grad = ctx.createLinearGradient(0,0,0,canvas.height);
         
@@ -1136,13 +1187,30 @@
         ctx.restore();
     }
 
-    function gameLoop() {
-        if (gameState === 'PLAYING' || gameState === 'GAMEOVER') { update(); draw(); requestAnimationFrame(gameLoop); }
-        else {
-            const biome = getBiome(score);
-            bgParticles.forEach(p => { p.y += p.speed; if (p.y > canvas.height) p.y = 0; });
-            draw(); requestAnimationFrame(gameLoop);
+    function gameLoop(timestamp = performance.now()) {
+        if (!lastFrameTime) lastFrameTime = timestamp;
+
+        const dt = Math.min(
+            Math.max((timestamp - lastFrameTime) / 1000, 0),
+            MAX_DELTA_TIME
+        );
+        lastFrameTime = timestamp;
+
+        if (gameState === 'PLAYING' || gameState === 'GAMEOVER') {
+            update(dt);
+            draw();
+        } else {
+            const frameScale = dt * BASE_FPS;
+
+            bgParticles.forEach(p => {
+                p.y += p.speed * frameScale;
+                if (p.y > canvas.height) p.y = 0;
+            });
+
+            draw();
         }
+
+        requestAnimationFrame(gameLoop);
     }
 
     // 헬퍼
@@ -1191,11 +1259,27 @@
     window.onload = () => { resize(); if(!isGameLoopRunning) { isGameLoopRunning=true; gameLoop(); } };
     window.addEventListener('resize', resize);
 
-    // --- resize 함수 추가 (ReferenceError 해결) ---
+    // --- 고정 논리 해상도 + 반응형 스케일링 ---
     function resize() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        initBackgroundParticles();
+        const scale = Math.min(
+            window.innerWidth / VIEW_WIDTH,
+            window.innerHeight / VIEW_HEIGHT
+        );
+
+        const container = document.getElementById('game-container');
+
+        container.style.width = `${VIEW_WIDTH}px`;
+        container.style.height = `${VIEW_HEIGHT}px`;
+        container.style.transform = `translate(-50%, -50%) scale(${scale})`;
+
+        if (canvas.width !== VIEW_WIDTH || canvas.height !== VIEW_HEIGHT) {
+            canvas.width = VIEW_WIDTH;
+            canvas.height = VIEW_HEIGHT;
+            initBackgroundParticles();
+        } else if (bgParticles.length === 0) {
+            initBackgroundParticles();
+        }
+
         if(gameState === 'MENU') draw();
     }
 
