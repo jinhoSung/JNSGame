@@ -450,8 +450,8 @@
     const MAX_ANIMATION_DELTA = 0.05;
     // 체력(시간) 감소 밸런스
     // 초반에는 여유 있게 시작하고, 실제로 오른 계단 수가 늘수록 완만하게 증가한다.
-    const BASE_STAMINA_DRAIN_PER_SECOND = 10;
-    const MAX_STAMINA_DRAIN_PER_SECOND = 28;
+    const BASE_STAMINA_DRAIN_PER_SECOND = 14;
+    const MAX_STAMINA_DRAIN_PER_SECOND = 48;
     const STAMINA_DRAIN_FULL_STEPS = 1000;
     const BASE_COIN_CHANCE = 0.15;
     const BASE_FEVER_SECONDS = 5;
@@ -793,10 +793,19 @@
     }
 
     function getCurrentStaminaDrainPerSecond() {
-        // 0계단 12/s -> 1000계단 30/s.
-        // 초반이 너무 빠르게 어려워지지 않도록 ease-in 곡선을 사용한다.
-        const progress = Math.min(Math.max(stepsClimbed / STAMINA_DRAIN_FULL_STEPS, 0), 1);
-        const eased = Math.pow(progress, 1.5);
+        // 시간 게이지 감소 속도는 20계단 단위로 한 단계씩 증가한다.
+        // 0~19, 20~39, 40~59 ... 식으로 같은 감소 속도를 유지하고,
+        // 20계단을 넘길 때마다 다음 단계의 감소 속도로 올라간다.
+        const drainStepSize = 20;
+        const steppedClimbed =
+            Math.floor(stepsClimbed / drainStepSize) * drainStepSize;
+
+        const progress = Math.min(
+            Math.max(steppedClimbed / STAMINA_DRAIN_FULL_STEPS, 0),
+            1
+        );
+
+        const eased = Math.pow(progress, 1.15);
         const rawDrain =
             BASE_STAMINA_DRAIN_PER_SECOND +
             (MAX_STAMINA_DRAIN_PER_SECOND - BASE_STAMINA_DRAIN_PER_SECOND) * eased;
