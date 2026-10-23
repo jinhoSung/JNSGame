@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b1830">
+<title>깨면 인정 | BEAT IT IF YOU CAN</title>
+<style>
+:root {color-scheme:dark; --ink:#f5fbff; --muted:#b0cce6;--glow:#83f6d2}
+* {box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+html,body {width:100%;height:100%;margin:0;background:#060b1a;overflow:hidden;touch-action:none;font-family:system-ui,-apple-system,'Noto Sans KR',sans-serif}
+#app {width:min(100vw,530px);height:100vh;height:100dvh;position:relative;overflow:hidden;margin:auto;background:#182943;touch-action:none}
+canvas {display:block;width:100%;height:100%;touch-action:none}
+#hud {position:absolute;top:0;left:0;right:0;padding:calc(10px + env(safe-area-inset-top)) 12px 0;pointer-events:none;display:grid;grid-template-columns:1fr auto;align-items:start;gap:8px}
+#hud .metrics{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;white-space:nowrap}
+.pill {border-radius:14px;border:1px solid #c4e7ff3b;background:#091c37b8;padding:7px 11px 6px;backdrop-filter:blur(8px);box-shadow:0 3px 14px #0002}
+.pill small{color:#a4bed9;font-size:9px;font-weight:850;letter-spacing:.11em;display:block}
+.pill b{font-size:17px;letter-spacing:-.035em;font-variant-numeric:tabular-nums}
+.pill b span{font-size:10px;color:#bbd8eb}
+#controls{display:flex;gap:6px;pointer-events:auto;flex-shrink:0}
+.icon{border:1px solid #a1d5f84b;color:#e5f6ff;background:#09223bc9;border-radius:12px;width:39px;height:38px;font-weight:900;font-size:18px;touch-action:manipulation;cursor:pointer}
+#mode{font-size:10px;line-height:1.2;width:49px}
+#lang{font-size:11px;width:38px;color:#b4ffe6}
+#stageInfo {pointer-events:none;position:absolute;top:calc(73px + env(safe-area-inset-top));left:12px;max-width:calc(100% - 148px);line-height:1.35;background:#091b30af;border:1px solid #ffffff22;color:#e4f6f9;border-radius:12px;padding:7px 11px;font-size:11px;font-weight:800;transition:opacity .3s}
+#aimDisplay{position:absolute;left:50%;bottom:calc(17px + env(safe-area-inset-bottom));transform:translateX(-50%);pointer-events:none;border:1px solid #e2fff83b;background:#0b2035c9;border-radius:18px;padding:9px 13px;min-width:225px;max-width:90vw;backdrop-filter:blur(9px);box-shadow:0 5px 20px #06102455}
+#aimLine{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;color:#e1f8f3;font-weight:800}
+#aimLine span+span{color:#7df3d4;white-space:nowrap}
+#aimTrack{height:4px;background:#45637d;border-radius:9px;margin-top:9px;position:relative}
+#aimTrack:after{position:absolute;content:'';left:50%;top:-4px;width:1px;height:12px;background:#ffffff70}
+#aimDot{position:absolute;top:50%;left:50%;height:12px;width:12px;background:#8df3d5;border:2px solid #fff;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 11px #9fffe099}
+#restPrompt{position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);display:none;align-items:center;flex-direction:column;gap:6px;pointer-events:none;white-space:nowrap;text-shadow:0 2px 12px #071122}
+#restPrompt b{font-size:22px;color:#fff3b9}#restPrompt span{font-size:12px;color:white;background:#08223dc2;border:1px solid #ffffff37;padding:8px 14px;border-radius:20px}
+#toast{position:absolute;top:27%;left:12px;transform:none;width:calc(100% - 154px);min-width:0;line-height:1.35;pointer-events:none;text-align:center;font-weight:900;font-size:17px;color:#fff3ba;text-shadow:0 2px 10px #0a2346;opacity:0;transition:opacity .22s}
+#preview{position:absolute;right:12px;top:calc(117px + env(safe-area-inset-top));width:112px;padding:9px 8px 8px;pointer-events:none;border:1px solid #c4e7ff35;background:#091c37a6;border-radius:15px;box-shadow:0 4px 16px #0014;backdrop-filter:blur(5px);z-index:2}
+#previewLabel{font-size:10px;font-weight:800;letter-spacing:.035em;color:#b5d9ec;text-align:center}
+#height{font-size:26px;line-height:1.2;font-weight:1000;color:#ffffff;display:block;text-align:center;font-variant-numeric:tabular-nums;margin:3px 0 7px}
+#height span{font-size:13px;color:#b7fce6}
+#miniMap{display:block;width:96px;height:220px;border-radius:9px;border:1px solid #91b4d438;background:#0b1c34}
+#previewStage{font-size:10px;color:#b4ffe1;text-align:center;margin-top:5px;font-weight:850}
+#overlay{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:20px;background:#061226d9;backdrop-filter:blur(7px)}
+#overlay.hidden{display:none}
+.dialog{width:min(100%,360px);background:linear-gradient(155deg,#263f63,#0c213b);border:1px solid #c6f1e85e;padding:24px;border-radius:24px;box-shadow:0 18px 70px #0008;text-align:center}
+.dialog .eyebrow{font-size:10px;font-weight:900;letter-spacing:.2em;color:#b4ffd8}.dialog h1{margin:7px 0 9px;color:#ffffff;font-size:27px}.dialog p{color:#c9dbee;font-size:13px;line-height:1.85;margin:10px 0 18px}.dialog p b{color:#a9ffe1}
+.dialog button{border:0;background:#a8ffdc;color:#17314d;font-weight:1000;width:100%;height:49px;border-radius:14px;font-size:16px;cursor:pointer}
+@media(max-height:650px){#preview{top:calc(100px + env(safe-area-inset-top))}#miniMap{height:155px}#height{font-size:23px}#stageInfo{top:calc(61px + env(safe-area-inset-top));font-size:10px}#aimDisplay{bottom:calc(7px + env(safe-area-inset-bottom));padding:6px 11px}}
+</style>
+</head>
+<body><main id="app"><canvas id="game" aria-label="깨면 인정. 화면 어디서든 좌우로 드래그하여 다음 점프 방향을 정하세요"></canvas>
+<div id="hud"><div class="metrics"><div class="pill"><small>STAGE</small><b id="stage">01 <span>/10</span></b></div><div class="pill"><small>BEST</small><b id="best">0 <span>m</span></b></div></div><div id="controls"><button class="icon" id="lang" aria-label="Change language">EN</button><button class="icon" id="mode" aria-label="미입력 시 점프 방향 방식 변경">이전<br>방향</button><button class="icon" id="pause" aria-label="일시정지">Ⅱ</button><button class="icon" id="restart" aria-label="처음부터">↻</button></div></div>
+<div id="preview"><div id="previewLabel">위쪽 미리보기</div><b id="height">0 <span>m</span></b><canvas id="miniMap" aria-label="발판과 현재 위치의 미리보기 지도"></canvas><div id="previewStage">STAGE 01 / 10</div></div>
+<div id="stageInfo">STAGE 1: 발판 경사 10° 이하 · 화면 어디서든 좌우 드래그</div>
+<div id="aimDisplay"><div id="aimLine"><span id="aimText">다음 점프 · 수직</span><span id="aimState">이전 방향 유지</span></div><div id="aimTrack"><div id="aimDot"></div></div></div>
+<div id="restPrompt"><b id="restTitle">태초마을</b><span>좌우로 밀어 방향 선택 · 화면 탭하여 점프</span></div>
+<div id="toast"></div>
+<div id="overlay"><div class="dialog"><div class="eyebrow" id="eyebrow">깨면 너 좀 쩌는 듯.</div><h1 id="dialogTitle">깨면 인정</h1><p id="dialogText">스카이콩콩으로 거대한 산을 올라가세요.<br><b>화면 어디서든 좌우로 드래그</b>해서 다음 점프 방향을 정합니다.<br>일반 발판에서는 <b>착지 즉시 자동 점프</b>!<br>미리 지정하지 않으면 이전 방향(또는 랜덤)으로 뛰어요.<br><b>뛰기 시작한 뒤에는 방향 수정 불가.</b><br>1스테이지의 발판 경사는 10° 이하로 완만해요.<br>황금색 쉼터에 착지하면 멈춰서 쉴 수 있어요.<br>바닥까지 추락하면 <b>태초마을에서 다시 시작</b>합니다.</p><button id="begin">게임 시작</button></div></div>
+</main>
+<script>
+(()=>{'use strict';
+const $=s=>document.querySelector(s), app=$('#app'),canvas=$('#game'),ctx=canvas.getContext('2d',{alpha:false}),mini=$('#miniMap'),mctx=mini.getContext('2d');
+const ui={stage:$('#stage'),height:$('#height'),best:$('#best'),lang:$('#lang'),eyebrow:$('#eyebrow'),previewLabel:$('#previewLabel'),previewStage:$('#previewStage'),mode:$('#mode'),pause:$('#pause'),restart:$('#restart'),stageInfo:$('#stageInfo'),aimText:$('#aimText'),aimState:$('#aimState'),aimDot:$('#aimDot'),restPrompt:$('#restPrompt'),restTitle:$('#restTitle'),toast:$('#toast'),overlay:$('#overlay'),begin:$('#begin'),dialogTitle:$('#dialogTitle'),dialogText:$('#dialogText')};
+const WORLD_W=6400,STAGES=10,STAGE_H=3900,BASE_Y=41400,GOAL_Y=BASE_Y-STAGES*STAGE_H,POGO_TIP=58;
+const G=1480,POWER=1360,STEP=1/120;
+// Stage 1 has a genuinely shallow terrain profile. Never exceed 10 degrees.
+const STAGE1_MAX_SLOPE_DEG=10,STAGE1_DESIGN_SLOPE_DEG=7.5;
+const WORDS={
+ ko:{title:'깨면 인정',tag:'깨면 너 좀 쩌는 듯.',preview:'위쪽 미리보기',start:'게임 시작',resume:'계속하기',restart:'다시 시작',paused:'일시정지',pausedBody:'진행 중인 스테이지와 높이를 유지합니다.',next:'다음 점프',vertical:'수직',left:'왼쪽',right:'오른쪽',selected:'방향 지정됨',previous:'이전 방향 유지',random:'미지정 시 랜덤',town:'태초마을',rest:'쉬어가는 쉼터',restTap:'좌우로 밀어 방향 선택 · 화면 탭하여 점프',restHit:'☕ 쉼터 도착! 화면을 탭하면 다시 점프',back:'태초마을로 추락! 다시 시작',out:'마을 외곽 이동! 중앙에서 다시 시작',restartToast:'태초마을에서 다시 시작!',previousNotify:'미입력 시 이전 점프 방향 유지',randomNotify:'미입력 시 랜덤 방향',boost:'낙하 반동',win:'🏁 깨면 인정!',winText:'10개 스테이지를 모두 올라왔어요. 너 좀 쩌는 듯!',stageWord:'스테이지',slope:'1스테이지 · 경사 10° 이하',intro:'스카이콩콩으로 10개 스테이지를 올라가세요.<br><b>화면 어디서든 좌우로 드래그</b>하면 다음 점프 방향이 정해집니다.<br><b>뛰기 시작하면 방향을 바꿀 수 없어요.</b><br>착지할 때 자동으로 튕기고, 금빛 쉼터에서는 멈출 수 있어요.<br>바닥까지 떨어지면 <b>태초마을로 돌아갑니다.</b><br>한번 깨보시든가!', modePrev:'이전<br>방향',modeRandom:'랜덤<br>방향',restLabel:'☕ 쉼터',summit:'🏁 정상',rankUp:['브론즈는 탈출한 듯?','이 정도는 튜토리얼이지','너희 동네 그마?','캐리 가능하겠는데?','승급전이라 손 떨리냐?','실버는 여기까지 올까?','다이아 찍을 각?','슬슬 랭크전 시작이다','챌린저도 여기선 긴장함','깨면 너 좀 쩌는 듯'],rankDown:['브실도 힘들 듯..','방금 그거 트롤링?','실버 강등각인데?','컨트롤 어디 두고 왔냐','GG 치기는 이르지?','그거 점프 맞냐?','팀원들이 울겠다','이번 판도 버스 타야겠네'],resetBanter:['브실도 힘들 듯..','태초마을 단골이네?','이번 판 GG?','재도전은 무료입니다']},
+ en:{title:'BEAT IT IF YOU CAN',tag:'Beat it and you\'re kinda cracked.',preview:'LOOK AHEAD',start:'PLAY',resume:'RESUME',restart:'TRY AGAIN',paused:'PAUSED',pausedBody:'Your current stage and height are preserved.',next:'NEXT JUMP',vertical:'UP',left:'LEFT',right:'RIGHT',selected:'LOCKED IN',previous:'REPEAT LAST',random:'RANDOM IF UNSET',town:'SPAWN TOWN',rest:'REST STOP',restTap:'Swipe to aim · Tap to jump',restHit:'☕ Rest stop! Tap to jump again',back:'Fell to the floor! Back to spawn.',out:'Out of bounds! Back to center.',restartToast:'Back to spawn!',previousNotify:'Unchanged aim: repeat last jump',randomNotify:'Unchanged aim: random jump',boost:'BOUNCE BOOST',win:'🏁 RESPECT. YOU BEAT IT!',winText:'You climbed all 10 stages. You\'re kinda cracked!',stageWord:'STAGE',slope:'STAGE 1 · SLOPE ≤10°',intro:'Bounce your way through 10 towering stages.<br><b>Swipe left or right anywhere</b> to set your next jump.<br><b>No steering after takeoff.</b><br>Regular landings bounce automatically. Golden rest stops let you pause.<br>Fall to the floor and it\'s <b>back to spawn town.</b><br>Think you can beat it?',modePrev:'LAST<br>DIR',modeRandom:'RANDOM',restLabel:'☕ REST',summit:'🏁 SUMMIT',rankUp:['Out of Bronze already?','This is still the tutorial.','Local Grandmaster, huh?','Think you can carry?','Promotion match nerves?','Think Silver makes it here?','Diamond push, maybe?','Ranked starts now.','Even Challenger sweats here.','Beat this and you\'re kinda cracked.'],rankDown:['Even Bronze/Silver looks tough...','Was that a throw?','Demotion to Silver incoming.','Did you lose your controls?','Too early to type GG?','Was that even a jump?','Your teammates would cry.','Getting boosted again?'],resetBanter:['Even Bronze/Silver looks tough...','Spawn town regular, huh?','GG already?','Retry is free, at least.']}
+};
+let lang='ko';try{lang=localStorage.getItem('beat-it-language')==='en'?'en':'ko'}catch(_){}const tr=(k)=>WORDS[lang][k];
+let W=400,H=800,DPR=1,scale=.72,viewW=540,viewH=1050,camX=0,camY=0,last=0,acc=0,elapsed=0,playing=false,done=false,nowStage=1,best=0;
+let seed=591084;function rnd(){seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;}function rr(a,b){return a+(b-a)*rnd()}function clamp(v,a,b){return Math.min(b,Math.max(a,v))}
+const platforms=[],lines=[],sparks=[],dust=[],clouds=[];
+function platform({x,y,width=380,type='normal',id=0,stage=0}){
+ let top=[];const parts=6;
+ const gentle=stage===1&&type==='normal';
+ const segmentWidth=width/parts;
+ // A 7.5-degree design limit allows a margin below the requested 10-degree maximum.
+ const maxGentleStep=Math.tan(STAGE1_DESIGN_SLOPE_DEG*Math.PI/180)*segmentWidth;
+ let prevShift=0;
+ for(let i=0;i<=parts;i++){
+  const u=i/parts;
+  let shift;
+  if(type==='rest'||type==='village'||type==='finish')shift=(i===0||i===parts?5:0);
+  else if(gentle){
+   // Bound EACH adjacent edge, not merely the platform's average incline.
+   // This keeps both collision normals and visible ramps under 10 degrees.
+   shift=i===0?0:clamp(prevShift+rr(-maxGentleStep,maxGentleStep),-13,13);
+  }else shift=(i===0||i===parts?rr(-10,12):rr(-37,37));
+  top.push({x:x-width/2+width*u,y:y+shift});
+  prevShift=shift;
+ }
+ const p={x,y,width,type,id,stage,top,minX:top[0].x,maxX:top[parts].x};platforms.push(p);
+ for(let j=0;j<parts;j++){
+  const a=top[j],b=top[j+1],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);
+  lines.push({ax:a.x,ay:a.y,bx:b.x,by:b.y,nx:dy/d,ny:-dx/d,p});
+ }return p;
+}
+// Double-width 6,400-unit world. Ten vertically linked stages with optional rest shelves.
+let spine=WORLD_W/2,side=1;const PRIMARY=[];
+const laneCenters=[420,1350,2310,3300,4250,5210,6070],lastLane=laneCenters.map(()=>-10);
+for(let i=1;i<=130;i++){
+ const currentStage=Math.min(10,Math.ceil(i/13));
+ const sweepTarget=WORLD_W*.5+WORLD_W*.34*Math.sin(i*.092)+WORLD_W*.06*Math.sin(i*.27);
+ spine=clamp(spine+clamp(sweepTarget-spine,-290,290)+rr(-65,65),630,WORLD_W-630);
+ const y=BASE_Y-i*300+rr(-18,18);
+ const isFinal=i===130;
+ let p=platform({x:spine,y,width:isFinal?570:rr(360,490),type:isFinal?'finish':'normal',id:i,stage:currentStage});PRIMARY.push(p);
+ // Optional side lanes: broad map coverage but occasional missing tiles are intentional.
+ // Never leave an entire tall band empty: each column has a tile at least every 2 tiers.
+ for(let k=0;k<laneCenters.length;k++){
+  if(rnd()<.38 && i-lastLane[k]<2)continue;
+  const lx=clamp(laneCenters[k]+rr(-145,145),210,WORLD_W-210);
+  if(Math.abs(lx-spine)<370)continue;
+  platform({x:lx,y:y+rr(-120,140),width:rr(285,400),type:'normal',id:1000+i*10+k,stage:currentStage});
+  lastLane[k]=i;
+ }
+ if(i%6===0){ // safe side shelf, never required to keep climbing
+  side=(rnd()<.5?-1:1);
+  let bx=clamp(spine+side*rr(520,760),380,WORLD_W-380);
+  platform({x:bx,y:y+rr(-55,75),width:rr(570,690),type:'rest',id:i,stage:currentStage});
+ }
+ if(i%3===1 && !isFinal){const dir=rnd()<.5?-1:1, bx=clamp(spine+dir*rr(540,850),235,WORLD_W-235);
+  platform({x:bx,y:y+rr(60,205),width:rr(260,360),type:'normal',id:200+i,stage:currentStage});}
+ if(i%5===0&&!isFinal){const dir=rnd()<.5?-1:1,bx=clamp(spine+dir*rr(800,1120),190,WORLD_W-190);
+  platform({x:bx,y:y+rr(-120,130),width:rr(250,320),type:'normal',id:400+i,stage:currentStage});}
+}
+// Village is the bottom floor: any landing after a fall resets to a randomized central spawn.
+const village=platform({x:WORLD_W/2,y:BASE_Y,width:WORLD_W+240,type:'village',id:-1});
+for(let i=0;i<130;i++)dust.push({x:rr(0,WORLD_W),y:rr(GOAL_Y-1300,BASE_Y),sz:rr(1,3),p:rr(0,7)});
+for(let i=0;i<90;i++)clouds.push({x:rr(-100,WORLD_W+100),y:rr(GOAL_Y-1400,BASE_Y),s:rr(.4,1.4),a:rr(.025,.15)});
+const player={x:WORLD_W/2,y:BASE_Y-POGO_TIP, vx:0,vy:0,grounded:true,ground:village,slope:{nx:0,ny:-1},fallPeak:BASE_Y,fallBoost:1,squash:0,flightDir:0};
+let aim=0,lastAim=0,hasPending=false,missingMode='previous',touch=null,notificationUntil=0,stageUntil=0,flash=0;
+let banter=null,lastBanterAt=-100,runPeakMeters=0,lastRiseTier=0,lastDropTier=0,resets=0;
+function banterShow(kind,index,force=false){
+ if(!force&&elapsed-lastBanterAt<3.4)return;
+ const list=WORDS[lang][kind];banter={text:list[((index%list.length)+list.length)%list.length],born:elapsed,duration:3.05};lastBanterAt=elapsed;
+}
+function drawBanter(){if(!banter)return;const age=elapsed-banter.born;if(age>=banter.duration){banter=null;return}
+ const fadeIn=clamp(age/.36,0,1),fadeOut=clamp((banter.duration-age)/.8,0,1),alpha=Math.min(fadeIn,fadeOut)*.57;
+ ctx.save();ctx.globalAlpha=alpha;ctx.textAlign='center';ctx.textBaseline='middle';
+ let fontSize=lang==='ko'?Math.min(30,W*.078):Math.min(26,W*.068);
+ ctx.font=`900 ${fontSize}px system-ui,-apple-system,sans-serif`;
+ const pieces=banter.text.split(' ');let textLine=banter.text;const availableW=Math.max(175,W-140),centerX=12+availableW/2;
+ if(ctx.measureText(textLine).width>availableW-10&&pieces.length>2){
+  const mid=Math.floor(pieces.length/2);let left=pieces.slice(0,mid).join(' '),right=pieces.slice(mid).join(' ');
+  ctx.shadowColor='#050f22';ctx.shadowBlur=15;ctx.fillStyle='#fbf6dc';ctx.fillText(left,centerX,H*.40-age*8,availableW-10);ctx.fillText(right,centerX,H*.40+fontSize+4-age*8,availableW-10);
+ }else{ctx.shadowColor='#050f22';ctx.shadowBlur=15;ctx.fillStyle='#fbf6dc';ctx.fillText(textLine,centerX,H*.41-age*8,availableW-10)}
+ ctx.restore();
+}
+
+try{best=+localStorage.getItem('pogo-ridge-best-v3')||0}catch(e){}ui.best.innerHTML=`${best} <span>m</span>`;
+const savedMode=()=>{try{localStorage.setItem('pogo-ridge-direction-mode',missingMode)}catch(e){}};
+try{if(localStorage.getItem('pogo-ridge-direction-mode')==='random')missingMode='random'}catch(e){}
+function syncMode(){ui.mode.innerHTML=missingMode==='previous'?tr('modePrev'):tr('modeRandom');ui.mode.setAttribute('aria-label',missingMode==='previous'?tr('previous'):tr('random'))}syncMode();
+function introLanguage(){ui.eyebrow.textContent=tr('tag');ui.dialogTitle.textContent=tr('title');ui.dialogText.innerHTML=tr('intro');ui.begin.textContent=tr('start')}
+function updateStageInfo(){ui.stageInfo.textContent=nowStage===1?tr('slope'):(lang==='ko'?`${nowStage}스테이지 · 조심해!`:`STAGE ${nowStage} · STAY SHARP`);}
+function syncLanguage(){document.documentElement.lang=lang;document.title=tr('title')+' | BEAT IT IF YOU CAN';ui.lang.textContent=lang==='ko'?'EN':'KR';ui.previewLabel.textContent=tr('preview');updateStageInfo();syncMode();updateAim();restDisplay();if(!playing&&!done)introLanguage();}
+
+function resize(){const r=app.getBoundingClientRect();W=r.width;H=r.height;DPR=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.floor(W*DPR);canvas.height=Math.floor(H*DPR);mini.width=Math.round(96*DPR);mini.height=Math.round((H<650?155:220)*DPR);scale=clamp(W/530,.62,.94);viewW=W/scale;viewH=H/scale;camX=clamp(player.x-viewW*.5,0,WORLD_W-viewW);camY=player.y-viewH*.58;}window.addEventListener('resize',resize,{passive:true});resize();
+let audio=null;function tone(freq=430,dur=.075,vol=.027){try{const A=window.AudioContext||window.webkitAudioContext;if(!A)return;audio??=new A();if(audio.state==='suspended')audio.resume();let o=audio.createOscillator(),v=audio.createGain();o.type='triangle';o.frequency.setValueAtTime(freq,audio.currentTime);o.frequency.exponentialRampToValueAtTime(Math.max(70,freq*.54),audio.currentTime+dur);v.gain.setValueAtTime(vol,audio.currentTime);v.gain.exponentialRampToValueAtTime(.0008,audio.currentTime+dur);o.connect(v);v.connect(audio.destination);o.start();o.stop(audio.currentTime+dur)}catch(e){}}
+function notify(t,d=2){ui.toast.textContent=t;notificationUntil=elapsed+d;ui.toast.style.opacity='1'}
+function updateAim(){const n=Math.round(aim*100),v=n===0?tr('vertical'):n<0?`${tr('left')} ${-n}%`:`${tr('right')} ${n}%`;
+ ui.aimText.textContent=`${tr('next')} · ${v}`;ui.aimState.textContent=hasPending?tr('selected'):missingMode==='previous'?tr('previous'):tr('random');ui.aimDot.style.left=(50+aim*50)+'%';}
+function chooseAim(){const next=hasPending?aim:(missingMode==='previous'?lastAim:rr(-.85,.85));hasPending=false;lastAim=next;aim=next;updateAim();return next;}
+function specks(x,y,c='#80ffdb',n=10){for(let i=0;i<n;i++){const a=rr(0,Math.PI*2),v=rr(40,280),life=rr(.25,.7);sparks.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,t:life,life,r:rr(2,6),c})}}
+function jump(){if(!playing||!player.grounded||done)return;doBounce(player.slope,1,true)}
+function doBounce(normal,boost=1,fromStill=false){
+ const d=chooseAim();
+ // Horizontal steering is only decided at takeoff; ground inclination adds physical deflection.
+ const lateral=clamp(d*.56+normal.nx*.82,-.69,.69);const speed=POWER*boost;
+ player.vx=speed*lateral;player.vy=-speed*Math.sqrt(1-lateral*lateral);
+ player.flightDir=d;player.grounded=false;player.ground=null;player.fallPeak=player.y;player.squash=.35;
+ specks(player.x,player.y+POGO_TIP,boost>1.12?'#ffd890':'#99ffe1',boost>1.12?18:10);
+ tone(boost>1.12?240:410+Math.abs(d)*130,.10,.033);ui.restPrompt.style.display='none';
+ if(boost>1.10)notify(`${tr('boost')} ×${boost.toFixed(2)}!`,1.2);
+}
+function inVillage(){return player.ground?.type==='village'}
+function restDisplay(){ui.restPrompt.style.display=player.grounded?'flex':'none';ui.restPrompt.querySelector('span').textContent=tr('restTap');if(player.grounded)ui.restTitle.textContent=inVillage()?tr('town'):tr('rest')}
+function landed(seg,x,y){
+ player.x=x;player.y=y-POGO_TIP-.4;player.vx=0;player.vy=0;player.slope={nx:seg.nx,ny:seg.ny};player.squash=.7;
+ const drop=Math.max(0,(y-POGO_TIP)-player.fallPeak);
+ const bonus=1+clamp((drop-480)/2300,0,.65);
+ specks(x,y,seg.p.type==='rest'?'#ffe08b':'#a4ffe1',12);
+ if(seg.p.type==='finish'){player.grounded=true;player.ground=seg.p;done=true;playing=false;banterShow('rankUp',9,true);showDialog(tr('win'),tr('winText'),tr('restart'));tone(740,.3,.045);restDisplay();return}
+ if(seg.p.type==='rest'){player.grounded=true;player.ground=seg.p;player.fallBoost=1;notify(tr('restHit'),2.4);tone(580,.22,.04);restDisplay();return;}
+ if(seg.p.type==='village'){
+   // Regardless of drop height, the floor is a fail condition, never a trampoline.
+   returnCenter(tr('back'));
+   return;
+  }
+ // Ordinary terrain never pauses: use selected swipe, or previous/random direction.
+ player.grounded=false;doBounce({nx:seg.nx,ny:seg.ny},bonus);
+}
+function returnCenter(reason=tr('back')){
+ const destination=WORLD_W/2+rr(-560,560);
+ player.x=destination;player.y=BASE_Y-POGO_TIP-1;player.vx=0;player.vy=0;
+ player.grounded=true;player.ground=village;player.slope={nx:0,ny:-1};
+ player.fallPeak=player.y;player.fallBoost=1;player.squash=0;player.flightDir=0;
+ hasPending=false;lastAim=0;aim=0;touch=null;updateAim();restDisplay();
+ nowStage=1;ui.stage.innerHTML='01 <span>/10</span>';ui.height.innerHTML='0 <span>m</span>';
+ camX=clamp(player.x-viewW/2,0,WORLD_W-viewW);camY=player.y-viewH*.58;
+ notify(reason,2);resets++;runPeakMeters=0;lastRiseTier=0;lastDropTier=0;banterShow('resetBanter',resets-1,true);tone(225,.17,.031);
+}
+function reset(){done=false;player.x=WORLD_W/2+rr(-260,260);player.y=BASE_Y-POGO_TIP;player.vx=0;player.vy=0;player.grounded=true;player.ground=village;player.slope={nx:0,ny:-1};player.fallPeak=player.y;player.squash=0;hasPending=false;aim=0;lastAim=0;elapsed=0;banter=null;lastBanterAt=-100;runPeakMeters=0;lastRiseTier=0;lastDropTier=0;nowStage=1;updateAim();restDisplay();camX=clamp(player.x-viewW/2,0,WORLD_W-viewW);camY=player.y-viewH*.58;ui.stage.innerHTML='01 <span>/10</span>';ui.height.innerHTML='0 <span>m</span>'}
+function showDialog(t,body,action){ui.dialogTitle.textContent=t;ui.dialogText.innerHTML=body;ui.begin.textContent=action;ui.overlay.classList.remove('hidden')}
+ui.lang.addEventListener('click',()=>{lang=lang==='ko'?'en':'ko';try{localStorage.setItem('beat-it-language',lang)}catch(e){}syncLanguage();banter=null;});
+ui.begin.addEventListener('click',()=>{if(done)reset();ui.overlay.classList.add('hidden');playing=true;last=performance.now();tone(680,.08);restDisplay()});
+ui.pause.addEventListener('click',()=>{if(playing){playing=false;showDialog(tr('paused'),tr('pausedBody'),tr('resume'))}});
+ui.restart.addEventListener('click',()=>{reset();playing=true;last=performance.now();ui.overlay.classList.add('hidden');notify(tr('restartToast'),1.5)});
+ui.mode.addEventListener('click',()=>{missingMode=missingMode==='previous'?'random':'previous';savedMode();syncMode();updateAim();notify(missingMode==='previous'?tr('previousNotify'):tr('randomNotify'),1.6)});
+// Drag from wherever the finger first touches. The absolute screen position never sets the direction.
+// The movement affects the NEXT launch only; a current trajectory remains untouched.
+canvas.addEventListener('pointerdown',e=>{
+ e.preventDefault();if(!playing)return;
+ touch={id:e.pointerId,startX:e.clientX,startY:e.clientY,aim0:hasPending?aim:lastAim,moved:false,horizontal:false,x:e.clientX,y:e.clientY};
+ try{canvas.setPointerCapture(e.pointerId)}catch(_){}
+},{passive:false});
+canvas.addEventListener('pointermove',e=>{
+ if(!touch||touch.id!==e.pointerId)return;e.preventDefault();
+ const dx=e.clientX-touch.startX,dy=e.clientY-touch.startY;touch.x=e.clientX;touch.y=e.clientY;
+ if(Math.abs(dx)>9||Math.abs(dy)>20)touch.moved=true;
+ if(Math.abs(dx)>8)touch.horizontal=true;
+ if(touch.horizontal){const u=clamp(touch.aim0+dx/Math.max(100,W*.30),-1,1);aim=Math.round(u*100)/100;hasPending=true;updateAim()}
+},{passive:false});
+function touchFinish(e,allowTap){if(!touch||touch.id!==e.pointerId)return;e.preventDefault();const wasTap=!touch.moved;touch=null;if(allowTap&&wasTap&&player.grounded)jump()}
+canvas.addEventListener('pointerup',e=>touchFinish(e,true),{passive:false});
+canvas.addEventListener('pointercancel',e=>touchFinish(e,false),{passive:false});
+window.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','Space','KeyA','KeyD'].includes(e.code))e.preventDefault();if(e.repeat)return;
+ if(e.code==='ArrowLeft'||e.code==='KeyA'){aim=clamp(aim-.2,-1,1);hasPending=true;updateAim()}
+ if(e.code==='ArrowRight'||e.code==='KeyD'){aim=clamp(aim+.2,-1,1);hasPending=true;updateAim()}
+ if(e.code==='Space'&&playing)jump();});
+function cross(x,y,X,Y){return x*Y-y*X}
+function physics(dt){if(!playing)return;elapsed+=dt;player.squash=Math.max(0,player.squash-dt*3);
+ if(!player.grounded){
+  const oldX=player.x,oldY=player.y+POGO_TIP;
+  player.vy+=G*dt;player.x+=player.vx*dt;player.y+=player.vy*dt;
+  player.fallPeak=Math.min(player.fallPeak,player.y);
+  if(player.x<58||player.x>WORLD_W-58){
+   if(player.y>BASE_Y-420){returnCenter(tr('out'));return}
+   player.x=clamp(player.x,58,WORLD_W-58);player.vx*=-.68;tone(155,.05,.011);
+  }
+  const rx=player.x-oldX,ry=player.y+POGO_TIP-oldY;
+  let hit=null,tmin=2;
+  for(const s of lines){
+   if(Math.max(s.ax,s.bx)<Math.min(oldX,player.x)-2||Math.min(s.ax,s.bx)>Math.max(oldX,player.x)+2)continue;
+   if(Math.max(s.ay,s.by)<Math.min(oldY,player.y+POGO_TIP)-3||Math.min(s.ay,s.by)>Math.max(oldY,player.y+POGO_TIP)+3)continue;
+   const sx=s.bx-s.ax,sy=s.by-s.ay,den=cross(rx,ry,sx,sy);
+   if(Math.abs(den)<1e-8)continue;
+   const cx=s.ax-oldX,cy=s.ay-oldY,t=cross(cx,cy,sx,sy)/den,u=cross(cx,cy,rx,ry)/den;
+   if(t>=-1e-5&&t<=1+1e-5&&u>=-1e-5&&u<=1+1e-5&&(player.vx*s.nx+player.vy*s.ny)<0&&t<tmin){hit=s;tmin=t}
+  }
+  if(hit)landed(hit,oldX+rx*tmin,oldY+ry*tmin);
+  if(player.y>BASE_Y+160){returnCenter(tr('back'));return}
+ }
+ const meters=Math.max(0,Math.floor((BASE_Y-player.y-POGO_TIP)/10)),s=clamp(Math.floor(meters/(STAGE_H/10))+1,1,10);
+ ui.height.innerHTML=`${meters} <span>m</span>`;
+ // A few gamer-rank taunts fade into the scenery at altitude and after major drops.
+ const riseTier=Math.floor(meters/85);
+ if(riseTier>lastRiseTier){lastRiseTier=riseTier;banterShow('rankUp',Math.min(9,Math.floor((riseTier-1)/4)));}
+ if(meters>runPeakMeters){runPeakMeters=meters;lastDropTier=0;}
+ const dropTier=Math.floor((runPeakMeters-meters)/110);
+ if(runPeakMeters>=90&&dropTier>lastDropTier){lastDropTier=dropTier;banterShow('rankDown',dropTier-1);}
+ if(meters>best){best=meters;ui.best.innerHTML=`${best} <span>m</span>`;if(meters%7===0){try{localStorage.setItem('pogo-ridge-best-v3',best)}catch(e){}}}
+ if(s!==nowStage){nowStage=s;ui.stage.innerHTML=`${String(s).padStart(2,'0')} <span>/10</span>`;updateStageInfo();notify(`${tr('stageWord')} ${String(s).padStart(2,'0')} / 10`,2.3)}
+ for(let i=sparks.length-1;i>=0;i--){let p=sparks[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=400*dt;p.t-=dt;if(p.t<=0)sparks.splice(i,1)}
+ const targetX=clamp(player.x-viewW*.5,0,WORLD_W-viewW),targetY=clamp(player.y-viewH*.55,GOAL_Y-1100,BASE_Y-viewH*.28);
+ const f=1-Math.exp(-5*dt);camX+=(targetX-camX)*f;camY+=(targetY-camY)*f;
+ ui.previewStage.textContent=`${tr('stageWord')} ${String(s).padStart(2,'0')} / 10`;
+ if(elapsed>notificationUntil)ui.toast.style.opacity='0';
+}
+const px=x=>(x-camX)*scale,py=y=>(y-camY)*scale;
+const zones=[['#162946','#284c71','#a3ffe1'],['#182a48','#25556c','#ffe6aa'],['#1a2447','#374e76','#abe6ff'],['#1e2a49','#475f7d','#f1d59c'],['#26314c','#576979','#a7f8ec'],['#262642','#574f72','#f3c6ff'],['#122943','#345b75','#a3f0fb'],['#152344','#3f536e','#ffddb7'],['#1b2d46','#465d74','#c7ffcb'],['#202949','#465877','#fff3a6']];
+function sky(){const palette=zones[clamp(nowStage-1,0,9)],gr=ctx.createLinearGradient(0,0,0,H);gr.addColorStop(0,palette[0]);gr.addColorStop(1,palette[1]);ctx.fillStyle=gr;ctx.fillRect(0,0,W,H);
+ for(let l=0;l<3;l++){ctx.beginPath();const y0=H*(.62+l*.095),offset=((camX*.08*(l+1))%150);
+ ctx.moveTo(-20,H);for(let i=-2;i<Math.ceil(W/130)+3;i++){const x=i*130-offset,y=y0+Math.sin(i*2.7+l)*26+Math.cos(i*.91+l*3)*27;ctx.lineTo(x,y)}ctx.lineTo(W+30,H);ctx.closePath();ctx.fillStyle=['#10274455','#0c27445e','#0a203c7a'][l];ctx.fill()}
+ for(const c of clouds){const y=(c.y-camY*.39)*scale,x=(c.x-camX*.3)*scale;if(y<-100||y>H+50||x<-160||x>W+160)continue;ctx.fillStyle=`rgba(211,237,255,${c.a})`;ctx.beginPath();ctx.ellipse(x,y,c.s*90,c.s*22,0,0,Math.PI*2);ctx.fill()}
+ for(const d of dust){const x=px(d.x+Math.sin(elapsed+d.p)*12),y=py(d.y);if(x<0||x>W||y<0||y>H)continue;ctx.globalAlpha=.17;ctx.fillStyle='#e8ffdf';ctx.beginPath();ctx.arc(x,y,d.sz*scale,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;
+}
+function drawLand(){for(const p of platforms){let y=py(p.y),x1=px(p.minX),x2=px(p.maxX);
+ if(y<-245||y>H+240||x2<-40||x1>W+40)continue;
+ const rests=p.type==='rest',town=p.type==='village',goal=p.type==='finish';
+ ctx.beginPath();ctx.moveTo(px(p.top[0].x),py(p.top[0].y));for(let i=1;i<p.top.length;i++)ctx.lineTo(px(p.top[i].x),py(p.top[i].y));
+ const b=p.y+(town?720:rests?95:130);ctx.lineTo(px(p.maxX-18),py(b));ctx.lineTo(px(p.minX+18),py(b));ctx.closePath();
+ let gr=ctx.createLinearGradient(0,y,0,py(b));gr.addColorStop(0,town?'#66735f':rests?'#8b724d':'#50677d');gr.addColorStop(.45,town?'#40544a':rests?'#584b43':'#35485f');gr.addColorStop(1,'#162b42');ctx.fillStyle=gr;ctx.fill();ctx.strokeStyle='#12253b';ctx.lineWidth=2;ctx.stroke();
+ ctx.beginPath();ctx.moveTo(px(p.top[0].x),py(p.top[0].y));for(let i=1;i<p.top.length;i++)ctx.lineTo(px(p.top[i].x),py(p.top[i].y));ctx.lineWidth=4*scale;ctx.lineJoin='round';ctx.lineCap='round';ctx.strokeStyle=rests?'#ffe29b':goal?'#ffffff':town?'#b4ebb1':'#98e6d0';ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=rests?10:3;ctx.stroke();ctx.shadowBlur=0;
+ if(rests){const center=px(p.x);ctx.fillStyle='#fce1a0';ctx.font=`900 ${13*scale}px system-ui`;ctx.textAlign='center';ctx.fillText(tr('restLabel'),center,y-27*scale);ctx.fillStyle='#ffe5ac';for(let q=-2;q<=2;q++){ctx.beginPath();ctx.arc(center+q*35*scale,y-12*scale,2.4*scale,0,7);ctx.fill()}}
+ if(goal){ctx.textAlign='center';ctx.font=`900 ${27*scale}px system-ui`;ctx.fillStyle='#fff1b9';ctx.fillText(tr('summit'),px(p.x),y-35*scale)}
+ if(town){ctx.textAlign='center';ctx.fillStyle='#ffeac1';ctx.font=`900 ${30*scale}px system-ui`;ctx.fillText(tr('town'),px(WORLD_W*.5),y-60*scale);
+  for(let i=0;i<5;i++){const cx=WORLD_W/2+(i-2)*240,cy=p.y-5;ctx.fillStyle=['#cf866b','#bd9c69','#89c1aa','#7ba3cf','#ac8ab6'][i];ctx.fillRect(px(cx-49),py(cy-62),98*scale,62*scale);ctx.beginPath();ctx.moveTo(px(cx-60),py(cy-60));ctx.lineTo(px(cx),py(cy-110));ctx.lineTo(px(cx+60),py(cy-60));ctx.closePath();ctx.fillStyle='#344f70';ctx.fill();ctx.fillStyle='#edf9be';ctx.fillRect(px(cx-9),py(cy-34),18*scale,20*scale)}
+ }
+ }}
+function drawPogo(){const x=px(player.x),y=py(player.y);if(x<-110||x>W+110||y<-160||y>H+140)return;
+ const lean=clamp(player.vx/2300,-.48,.48),compression=player.squash;
+ ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);ctx.rotate(lean);
+ // A visible pogo spring and spring-powered rider, not a pot and hammer.
+ ctx.lineCap='round';ctx.strokeStyle='#233751';ctx.lineWidth=11;ctx.beginPath();ctx.moveTo(0,-7);ctx.lineTo(0,51);ctx.stroke();ctx.strokeStyle='#d5f9ff';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(0,3);ctx.lineTo(0,47);ctx.stroke();
+ ctx.strokeStyle='#ffc570';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-7,9);for(let i=0;i<7;i++)ctx.lineTo(i%2?-10:10,11+i*(4-compression*.6));ctx.stroke();
+ ctx.fillStyle='#1c344c';ctx.beginPath();ctx.ellipse(0,57,18,7,0,0,7);ctx.fill();ctx.strokeStyle='#1e344b';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(-24,-5);ctx.lineTo(24,-5);ctx.stroke();ctx.strokeStyle='#ffc68a';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(-22,-5);ctx.lineTo(22,-5);ctx.stroke();
+ ctx.strokeStyle='#33496b';ctx.lineWidth=10;ctx.beginPath();ctx.moveTo(-10,-15);ctx.lineTo(-17,3);ctx.moveTo(10,-15);ctx.lineTo(17,3);ctx.stroke();
+ ctx.fillStyle='#f7b87c';ctx.beginPath();ctx.roundRect(-20,-53,40,37,9);ctx.fill();ctx.fillStyle='#e57c71';ctx.fillRect(-17,-26,34,8);
+ ctx.strokeStyle='#ffdbba';ctx.lineWidth=9;ctx.beginPath();ctx.moveTo(-16,-43);ctx.lineTo(-24,-5);ctx.moveTo(16,-43);ctx.lineTo(24,-5);ctx.stroke();
+ ctx.fillStyle='#ffddba';ctx.beginPath();ctx.arc(0,-68,20,0,7);ctx.fill();ctx.fillStyle='#294568';ctx.beginPath();ctx.arc(0,-73,20,Math.PI,Math.PI*2);ctx.fill();ctx.fillStyle='#87ffdf';ctx.beginPath();ctx.roundRect(-20,-81,41,10,4);ctx.fill();ctx.fillStyle='#273d53';ctx.fillRect(-10,-70,4,4);ctx.fillRect(7,-70,4,4);ctx.strokeStyle='#bd6559';ctx.lineWidth=2;ctx.beginPath();ctx.arc(1,-60,5,0,Math.PI);ctx.stroke();ctx.restore();
+ // Upcoming jump preview only. During flight it is NOT an in-air steering force.
+ let dir=hasPending?aim:(missingMode==='previous'?lastAim:0),nx=player.grounded?player.slope.nx:.0,vx=clamp(dir*.56+nx*.82,-.69,.69),vy=-Math.sqrt(1-vx*vx);
+ const ax=x,ay=y-96*scale,bx=ax+vx*106*scale,by=ay+vy*106*scale;
+ ctx.save();ctx.setLineDash([5,5]);ctx.strokeStyle=hasPending?'#fff0ad':'#a5ffe4';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=ctx.strokeStyle;ctx.beginPath();ctx.arc(bx,by,4,0,7);ctx.fill();ctx.restore();
+}
+function drawSparks(){for(const p of sparks){ctx.globalAlpha=clamp(p.t/p.life,0,1);ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(px(p.x),py(p.y),p.r*scale,0,7);ctx.fill()}ctx.globalAlpha=1}
+function drawMini(){
+ const cw=mini.width,ch=mini.height;if(!cw||!ch)return;
+ mctx.setTransform(DPR,0,0,DPR,0,0);const w=cw/DPR,h=ch/DPR;
+ mctx.clearRect(0,0,w,h);mctx.fillStyle='#0b1b31';mctx.fillRect(0,0,w,h);
+ const top=player.y-2450,bottom=player.y+850,fy=y=>((y-top)/(bottom-top))*h;
+ const fx=x=>5+(x/WORLD_W)*(w-10);
+ // subtle altitude bands every 500 world units
+ mctx.lineWidth=.7;mctx.strokeStyle='#7b9cbd27';for(let y=Math.ceil(top/500)*500;y<bottom;y+=500){const yy=fy(y);mctx.beginPath();mctx.moveTo(1,yy);mctx.lineTo(w-1,yy);mctx.stroke()}
+ for(const p of platforms){if(p.type==='village'||p.y<top-100||p.y>bottom+100)continue;
+  mctx.fillStyle=p.type==='rest'?'#ffe3a7':p.type==='finish'?'#fcfae5':'#80cbb9';
+  const x=fx(p.minX),x2=fx(p.maxX),y=fy(p.y);mctx.fillRect(x,y,Math.max(2,x2-x),p.type==='rest'?3.5:2);
+ }
+ const playerX=fx(player.x),playerY=fy(player.y);
+ mctx.beginPath();mctx.fillStyle='#fff1a8';mctx.arc(playerX,playerY,4.5,0,Math.PI*2);mctx.fill();mctx.lineWidth=1.3;mctx.strokeStyle='#263d55';mctx.stroke();
+ mctx.fillStyle='#a3c5db';mctx.font='bold 9px system-ui';mctx.textAlign='right';mctx.fillText('↑',w-5,12);
+}
+function drawTouch(){if(!touch||!touch.moved)return;
+ const r=Math.min(Math.abs(touch.x-touch.startX),Math.max(100,W*.30));const endX=touch.startX+Math.sign(touch.x-touch.startX)*r;
+ ctx.save();ctx.lineCap='round';ctx.lineWidth=4;ctx.strokeStyle='#9dffeacc';ctx.beginPath();ctx.moveTo(touch.startX,touch.startY);ctx.lineTo(endX,touch.startY);ctx.stroke();ctx.fillStyle='#c1ffee';ctx.beginPath();ctx.arc(touch.startX,touch.startY,4,0,7);ctx.arc(endX,touch.startY,7,0,7);ctx.fill();ctx.restore()}
+function draw(){ctx.setTransform(DPR,0,0,DPR,0,0);sky();drawLand();drawBanter();drawSparks();drawPogo();drawTouch();drawMini();}
+function loop(t){if(!last)last=t;const dt=Math.min((t-last)/1000,.05);last=t;
+ if(playing){acc+=dt;let count=0;while(acc>=STEP&&count<10){physics(STEP);acc-=STEP;count++}if(count===10)acc=0}
+ draw();requestAnimationFrame(loop)}
+syncLanguage();requestAnimationFrame(loop);
+})();
+</script>
+</body></html>
